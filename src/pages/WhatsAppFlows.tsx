@@ -86,6 +86,8 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
   const [selectedFlow, setSelectedFlow] = useState<Flow | null>(null);
   const [steps, setSteps] = useState<FlowStep[]>([]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditFlowDialog, setShowEditFlowDialog] = useState(false);
+  const [editingFlowData, setEditingFlowData] = useState<Flow | null>(null);
   const [newFlowName, setNewFlowName] = useState('');
   const [newFlowDescription, setNewFlowDescription] = useState('');
   const [newFlowTrigger, setNewFlowTrigger] = useState('keyword');
@@ -208,6 +210,37 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
 
     toast.success('Fluxo duplicado');
     loadFlows();
+  };
+
+  const openEditFlowDialog = (flow: Flow) => {
+    setEditingFlowData(flow);
+    setNewFlowName(flow.name);
+    setNewFlowDescription(flow.description || '');
+    setNewFlowTrigger(flow.trigger_type);
+    setNewFlowKeywords(flow.trigger_config?.keywords?.join(', ') || '');
+    setShowEditFlowDialog(true);
+  };
+
+  const handleUpdateFlow = async () => {
+    if (!editingFlowData || !newFlowName.trim()) return;
+    const triggerConfig: any = {};
+    if (newFlowTrigger === 'keyword') {
+      triggerConfig.keywords = newFlowKeywords.split(',').map(k => k.trim()).filter(Boolean);
+    }
+    const { error } = await supabase.from('whatsapp_flows').update({
+      name: newFlowName,
+      description: newFlowDescription || null,
+      trigger_type: newFlowTrigger,
+      trigger_config: triggerConfig,
+    }).eq('id', editingFlowData.id);
+    if (error) { toast.error('Erro ao atualizar fluxo'); return; }
+    toast.success('Fluxo atualizado!');
+    setShowEditFlowDialog(false);
+    setEditingFlowData(null);
+    loadFlows();
+    if (selectedFlow?.id === editingFlowData.id) {
+      setSelectedFlow({ ...editingFlowData, name: newFlowName, description: newFlowDescription || null, trigger_type: newFlowTrigger, trigger_config: triggerConfig });
+    }
   };
 
   const openStepDialog = (step?: FlowStep) => {
@@ -502,6 +535,14 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                     </div>
                     {/* Actions row */}
                     <div className="flex items-center gap-1 mt-2 pt-2 border-t border-border/20">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); openEditFlowDialog(flow); }}>
+                            <Edit className="h-3 w-3 text-muted-foreground" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Editar</TooltipContent>
+                      </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); handleDuplicateFlow(flow); }}>
@@ -998,6 +1039,57 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
             <DialogFooter className="pt-4 shrink-0">
               <Button variant="outline" onClick={() => setShowStepDialog(false)}>Cancelar</Button>
               <Button onClick={handleSaveStep} className="gap-2 shadow-sm"><Save className="h-4 w-4" /> Salvar Passo</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Flow Dialog */}
+        <Dialog open={showEditFlowDialog} onOpenChange={setShowEditFlowDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit className="h-5 w-5 text-primary" />
+                Editar Fluxo
+              </DialogTitle>
+              <DialogDescription>Altere as configurações do fluxo de automação</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>Nome do fluxo</Label>
+                <Input value={newFlowName} onChange={e => setNewFlowName(e.target.value)} placeholder="Ex: Boas-vindas, Menu Principal" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Descrição (opcional)</Label>
+                <Input value={newFlowDescription} onChange={e => setNewFlowDescription(e.target.value)} placeholder="Fluxo de atendimento inicial..." />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Gatilho</Label>
+                <Select value={newFlowTrigger} onValueChange={setNewFlowTrigger}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TRIGGER_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>
+                        <span>{t.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {TRIGGER_TYPES.find(t => t.value === newFlowTrigger)?.desc}
+                </p>
+              </div>
+              {newFlowTrigger === 'keyword' && (
+                <div className="space-y-1.5">
+                  <Label>Palavras-chave (separadas por vírgula)</Label>
+                  <Input value={newFlowKeywords} onChange={e => setNewFlowKeywords(e.target.value)} placeholder="relatório, cobrança, menu" />
+                </div>
+              )}
+            </div>
+            <DialogFooter className="pt-2">
+              <Button variant="outline" onClick={() => setShowEditFlowDialog(false)}>Cancelar</Button>
+              <Button onClick={handleUpdateFlow} className="gap-2" disabled={!newFlowName.trim()}>
+                <Save className="h-4 w-4" /> Salvar
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

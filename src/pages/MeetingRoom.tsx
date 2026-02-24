@@ -302,14 +302,14 @@ function VideoGrid() {
   
   const gridCount = gridTracks.length;
   const gridClass = enlargedTrack
-    ? "grid-cols-1 max-w-xl mx-auto"
+    ? "grid-cols-1 max-w-xs mx-auto"
     : gridCount <= 1
-      ? "grid-cols-1 max-w-3xl mx-auto"
+      ? "grid-cols-1 max-w-4xl mx-auto"
       : gridCount <= 2
-        ? "grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto"
+        ? "grid-cols-2 mx-auto"
         : gridCount <= 4
-          ? "grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto"
-          : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+          ? "grid-cols-2 mx-auto"
+          : "grid-cols-2 lg:grid-cols-3 mx-auto";
 
   const handlePip = async (trackRef: any) => {
     const videoEl = document.querySelector(`[data-participant-sid="${trackRef.participant.sid}"] video`) as HTMLVideoElement | null;
@@ -338,7 +338,7 @@ function VideoGrid() {
         key={sid + (trackRef.publication?.trackSid || "placeholder")}
         data-participant-sid={sid}
         className={`relative bg-muted/50 rounded-xl overflow-hidden flex items-center justify-center border border-border/30 group/tile ${
-          isEnlarged ? "aspect-video w-full" : "aspect-video"
+          isEnlarged ? "w-full h-full" : "w-full h-full"
         }`}
       >
         {hasTrack ? (
@@ -390,15 +390,15 @@ function VideoGrid() {
   };
 
   return (
-    <div className="flex-1 p-3 overflow-auto flex flex-col items-center justify-center gap-3">
+    <div className="flex-1 p-2 overflow-hidden flex flex-col">
       {/* Enlarged view */}
       {enlargedTrack && (
-        <div className="w-full max-w-4xl">
+        <div className="flex-1 min-h-0 mb-2">
           {renderTile(enlargedTrack, true)}
         </div>
       )}
-      {/* Grid */}
-      <div className={`grid ${gridClass} gap-3 w-full`}>
+      {/* Grid - fills remaining space */}
+      <div className={`grid ${gridClass} gap-2 flex-1 min-h-0 ${enlargedTrack ? 'max-h-[30%]' : 'h-full'}`}>
         {gridTracks.map((trackRef) => renderTile(trackRef))}
       </div>
     </div>
