@@ -344,7 +344,7 @@ function VideoGrid() {
         data-participant-sid={sid}
         className={`relative rounded-2xl overflow-hidden flex items-center justify-center group/tile transition-shadow duration-300 ${
           isEnlarged ? "w-full h-full" : "w-full aspect-video"
-        } ${hasTrack ? "bg-[#1a1a2e]" : "bg-gradient-to-br from-[#1a1a2e] to-[#16213e]"}`}
+        } ${hasTrack ? "bg-muted" : "bg-muted/50"}`}
         style={{ minHeight: isEnlarged ? undefined : '200px' }}
       >
         {hasTrack ? (
@@ -361,9 +361,9 @@ function VideoGrid() {
           </div>
         )}
         {/* Name badge - bottom left */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-3 pt-8">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-3 pt-8">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-white font-medium drop-shadow-md truncate">{name}</span>
+            <span className="text-sm text-foreground font-medium truncate">{name}</span>
           </div>
         </div>
         {/* Controls overlay - top right */}
@@ -372,7 +372,7 @@ function VideoGrid() {
             <TooltipTrigger asChild>
               <button
                 onClick={() => setEnlargedSid(isEnlarged ? null : sid)}
-                className="h-8 w-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                className="h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background transition-colors border border-border/30"
               >
                 {isEnlarged ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </button>
@@ -384,7 +384,7 @@ function VideoGrid() {
               <TooltipTrigger asChild>
                 <button
                   onClick={() => handlePip(trackRef)}
-                  className={`h-8 w-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors ${pipSid === sid ? 'ring-2 ring-primary' : ''}`}
+                  className={`h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background transition-colors border border-border/30 ${pipSid === sid ? 'ring-2 ring-primary' : ''}`}
                 >
                   <PictureInPicture2 className="h-4 w-4" />
                 </button>
@@ -398,7 +398,7 @@ function VideoGrid() {
   };
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col bg-[#0d1117] p-2 sm:p-4">
+    <div className="flex-1 overflow-hidden flex flex-col bg-muted/30 p-2 sm:p-4">
       {/* Invisible audio tracks */}
       {audioTracks.map((trackRef) => (
         trackRef.publication?.track ? (
@@ -425,14 +425,14 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center justify-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4 bg-[#0d1117] border-t border-white/10">
+      <div className="flex items-center justify-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4 bg-card border-t border-border/50">
         <div className="flex items-center gap-2 sm:gap-3">
           <Tooltip>
             <TooltipTrigger asChild>
               <TrackToggle
                 source={Track.Source.Microphone}
                 showIcon={true}
-                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 [&_svg]:!h-5 [&_svg]:!w-5 data-[lk-muted=true]:bg-destructive data-[lk-muted=true]:text-destructive-foreground data-[lk-muted=false]:bg-white/10 data-[lk-muted=false]:text-white data-[lk-muted=false]:hover:bg-white/20"
+                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 [&_svg]:!h-5 [&_svg]:!w-5 data-[lk-muted=true]:bg-destructive data-[lk-muted=true]:text-destructive-foreground data-[lk-muted=false]:bg-primary data-[lk-muted=false]:text-primary-foreground data-[lk-muted=false]:hover:bg-primary/90"
               />
             </TooltipTrigger>
             <TooltipContent side="top"><p>Microfone</p></TooltipContent>
@@ -443,7 +443,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
               <TrackToggle
                 source={Track.Source.Camera}
                 showIcon={true}
-                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 [&_svg]:!h-5 [&_svg]:!w-5 data-[lk-muted=true]:bg-destructive data-[lk-muted=true]:text-destructive-foreground data-[lk-muted=false]:bg-white/10 data-[lk-muted=false]:text-white data-[lk-muted=false]:hover:bg-white/20"
+                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 [&_svg]:!h-5 [&_svg]:!w-5 data-[lk-muted=true]:bg-destructive data-[lk-muted=true]:text-destructive-foreground data-[lk-muted=false]:bg-primary data-[lk-muted=false]:text-primary-foreground data-[lk-muted=false]:hover:bg-primary/90"
               />
             </TooltipTrigger>
             <TooltipContent side="top"><p>Câmera</p></TooltipContent>
@@ -454,7 +454,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
               <TrackToggle
                 source={Track.Source.ScreenShare}
                 showIcon={true}
-                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 [&_svg]:!h-5 [&_svg]:!w-5 data-[lk-muted=true]:bg-white/10 data-[lk-muted=true]:text-white data-[lk-muted=true]:hover:bg-white/20 data-[lk-muted=false]:bg-primary data-[lk-muted=false]:text-primary-foreground"
+                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 [&_svg]:!h-5 [&_svg]:!w-5 data-[lk-muted=true]:bg-muted data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:hover:bg-accent data-[lk-muted=false]:bg-primary data-[lk-muted=false]:text-primary-foreground"
               />
             </TooltipTrigger>
             <TooltipContent side="top"><p>Compartilhar Tela</p></TooltipContent>
@@ -467,7 +467,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
                 className={`h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 ${
                   chatOpen
                     ? "bg-primary text-primary-foreground"
-                    : "bg-white/10 text-white hover:bg-white/20"
+                    : "bg-muted text-muted-foreground hover:bg-accent"
                 }`}
               >
                 <MessageCircle className="h-5 w-5" />
@@ -477,15 +477,15 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
           </Tooltip>
         </div>
 
-        <div className="w-px h-8 bg-white/20 mx-1 sm:mx-2" />
+        <div className="w-px h-8 bg-border mx-1 sm:mx-2" />
 
         {confirmLeave ? (
           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-            <span className="text-xs sm:text-sm text-white/70">Tem certeza?</span>
+            <span className="text-xs sm:text-sm text-muted-foreground">Tem certeza?</span>
             <Button size="sm" variant="destructive" onClick={onLeave} className="rounded-full h-9 px-4 text-xs">
               Sim
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setConfirmLeave(false)} className="rounded-full h-9 px-4 text-xs border-white/20 text-white hover:bg-white/10">
+            <Button size="sm" variant="outline" onClick={() => setConfirmLeave(false)} className="rounded-full h-9 px-4 text-xs">
               Não
             </Button>
           </div>
