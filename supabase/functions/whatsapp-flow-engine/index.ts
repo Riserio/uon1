@@ -83,6 +83,21 @@ serve(async (req) => {
         });
       }
 
+      // Check for existing active state to prevent duplicates from concurrent triggers
+      const { data: existingState } = await supabase
+        .from('whatsapp_contact_flow_state')
+        .select('id')
+        .eq('contact_id', contactId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (existingState) {
+        console.log(`[flow-engine] Skipping auto-import: contact ${contactId} already has active state ${existingState.id}`);
+        return new Response(JSON.stringify({ ok: true, mode: 'auto_import', skipped: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Create flow state and execute
       const { data: newState } = await supabase
         .from('whatsapp_contact_flow_state')
@@ -286,6 +301,53 @@ async function processFlowStep(
     await triggerReportGeneration(supabase, reportType, selected.id, phone, contactId, token, phoneNumberId);
 
     // Clean up variables and advance
+    const cleanVars = { ...(state.variables || {}) };
+    delete cleanVars._pending_report_corretoras;
+    delete cleanVars._pending_report_type;
+    delete cleanVars._pending_report_step_next;
+    cleanVars.corretora_selecionada = selected.nome;
+
+    if (nextStepKey) {
+      const { data: nextStep } = await supabase
+        .from('whatsapp_flow_steps').select('*')
+        .eq('flow_id', flowId).eq('step_key', nextStepKey).single();
+      if (nextStep) {
+        await supabase.from('whatsapp_contact_flow_state')
+          .update({ current_step_key: nextStepKey, variables: cleanVars, last_interaction_at: new Date().toISOString() })
+          .eq('id', state.id);
+        await executeStep(supabase, nextStep, { ...state, variables: cleanVars, current_step_key: nextStepKey }, contactId, phone, token, phoneNumberId);
+      } else {
+        await completeFlow(supabase, state.id);
+      }
+    } else {
+      await completeFlow(supabase, state.id);
+    }
+    return;
+  }
+
+  // Also handle case where request_report step has pending corretora selection in variables
+  // (race condition: step_key wasn't updated to __select_corretora_report)
+  if (state.variables?._pending_report_corretoras) {
+    console.log(`[flow-engine] Detected pending corretora selection in variables, redirecting to selection handler`);
+    const corretoras = JSON.parse(state.variables._pending_report_corretoras);
+    const reportType = state.variables._pending_report_type || 'cobranca';
+    const nextStepKey = state.variables._pending_report_step_next || null;
+    const trimmed = messageBody.trim();
+    const optionIndex = parseInt(trimmed, 10) - 1;
+
+    if (isNaN(optionIndex) || optionIndex < 0 || optionIndex >= corretoras.length) {
+      let retryMsg = '❌ Opção inválida. Digite o número da associação:\n';
+      corretoras.forEach((c: any, i: number) => { retryMsg += `\n${i + 1}. ${c.nome}`; });
+      await sendWhatsAppMessage(supabase, contactId, phone, retryMsg, token, phoneNumberId);
+      return;
+    }
+
+    const selected = corretoras[optionIndex];
+    console.log(`[flow-engine] User selected corretora (fallback): ${selected.nome} (${selected.id})`);
+
+    await sendWhatsAppMessage(supabase, contactId, phone, `📊 Gerando relatório de *${selected.nome}*...`, token, phoneNumberId);
+    await triggerReportGeneration(supabase, reportType, selected.id, phone, contactId, token, phoneNumberId);
+
     const cleanVars = { ...(state.variables || {}) };
     delete cleanVars._pending_report_corretoras;
     delete cleanVars._pending_report_type;
