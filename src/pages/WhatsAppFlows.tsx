@@ -487,8 +487,8 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
               </CardTitle>
               <CardDescription>{flows.length} fluxo(s) configurado(s)</CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="max-h-[65vh]">
+             <CardContent className="p-0">
+              <ScrollArea className="max-h-[calc(100vh-220px)]">
                 {flows.length === 0 && (
                   <div className="p-8 text-center text-muted-foreground text-sm">
                     <Bot className="h-12 w-12 mx-auto mb-3 opacity-15" />
