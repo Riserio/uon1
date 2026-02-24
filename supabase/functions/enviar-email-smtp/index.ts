@@ -60,12 +60,17 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Create SMTP client with proper SSL/TLS configuration
-    const useSsl = smtpConfig.smtp_port === 465;
+    // Port 465 = implicit TLS (tls: true)
+    // Port 587 = STARTTLS (tls: false, denomailer auto-negotiates STARTTLS)
+    // Port 25 = no TLS
+    const useImplicitTls = smtpConfig.smtp_port === 465;
+    console.log(`SMTP config: host=${smtpConfig.smtp_host}, port=${smtpConfig.smtp_port}, tls=${useImplicitTls}`);
+    
     const client = new SMTPClient({
       connection: {
         hostname: smtpConfig.smtp_host,
         port: smtpConfig.smtp_port,
-        tls: useSsl ? true : true, // Always use secure connection
+        tls: useImplicitTls,
         auth: {
           username: smtpConfig.smtp_user,
           password: smtpConfig.smtp_password,
