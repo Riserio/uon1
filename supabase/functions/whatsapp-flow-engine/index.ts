@@ -100,14 +100,24 @@ serve(async (req) => {
   }
 });
 
+function normalizeText(text: string): string {
+  return text.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+    .trim();
+}
+
 function matchTrigger(flow: any, messageBody: string, isFirstMessage: boolean): boolean {
   const { trigger_type, trigger_config } = flow;
 
   switch (trigger_type) {
     case 'keyword': {
       const keywords: string[] = trigger_config?.keywords || [];
-      const lowerMsg = messageBody.toLowerCase();
-      return keywords.some((kw: string) => lowerMsg.includes(kw.toLowerCase()));
+      const normMsg = normalizeText(messageBody);
+      return keywords.some((kw: string) => {
+        const normKw = normalizeText(kw);
+        // Bidirectional: message contains keyword OR keyword contains message word
+        return normMsg.includes(normKw) || normKw.includes(normMsg);
+      });
     }
     case 'first_message':
       return isFirstMessage;
