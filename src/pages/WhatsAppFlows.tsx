@@ -627,7 +627,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                   </Button>
                 </div>
               ) : (
-                <ScrollArea className="max-h-[60vh]">
+                <div>
                   <div className="space-y-0 pr-2">
                     {steps.map((step, idx) => {
                       const info = getStepTypeInfo(step.type);
@@ -754,7 +754,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                       );
                     })}
                   </div>
-                </ScrollArea>
+                </div>
               )}
             </CardContent>
           </Card>
