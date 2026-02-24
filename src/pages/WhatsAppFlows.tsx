@@ -17,7 +17,7 @@ import {
 import {
   Bot, Plus, Trash2, Edit, ArrowRight, ArrowDown, MessageSquare, UserCheck, StopCircle,
   Zap, Variable, HelpCircle, Save, ListChecks, FileBarChart, ShieldX, GripVertical,
-  ChevronRight, Copy, Eye, Play, AlertCircle, CheckCircle2, Settings2
+  ChevronRight, Copy, Eye, Play, AlertCircle, CheckCircle2, Settings2, Clock
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -107,6 +107,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
   ]);
   const [stepReportType, setStepReportType] = useState('cobranca');
   const [stepDenyMessage, setStepDenyMessage] = useState('⚠️ Você não tem permissão para solicitar relatórios. Entre em contato com sua associação para liberação.');
+  const [stepScheduleTime, setStepScheduleTime] = useState('');
 
   useEffect(() => { loadFlows(); }, []);
 
@@ -255,6 +256,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
         : [{ label: '', next_step_key: '' }]);
       setStepReportType(step.config?.report_type || 'cobranca');
       setStepDenyMessage(step.config?.deny_message || '⚠️ Você não tem permissão para solicitar relatórios. Entre em contato com sua associação para liberação.');
+      setStepScheduleTime(step.config?.schedule_time || '');
     } else {
       setEditingStep(null);
       setStepType('send_text');
@@ -264,6 +266,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
       setStepOptions([{ label: '', next_step_key: '' }]);
       setStepReportType('cobranca');
       setStepDenyMessage('⚠️ Você não tem permissão para solicitar relatórios. Entre em contato com sua associação para liberação.');
+      setStepScheduleTime('');
     }
     setShowStepDialog(true);
   };
@@ -274,6 +277,9 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
 
     if (['send_text', 'ask_input', 'ask_options', 'end', 'transfer_human'].includes(stepType)) {
       config.message = stepMessage;
+    }
+    if (stepScheduleTime) {
+      config.schedule_time = stepScheduleTime;
     }
     if (['ask_input', 'set_variable'].includes(stepType)) {
       config.variable_name = stepVariableName;
@@ -688,7 +694,13 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                                       <Badge variant="outline" className="text-[10px] font-normal gap-1 border-amber-500/30 text-amber-600">
                                         <ShieldX className="h-3 w-3" /> Verifica autorização
                                       </Badge>
-                                    </div>
+                                  {step.config?.schedule_time && (
+                                    <Badge variant="outline" className="text-[10px] font-normal mt-2 gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      Agendado: {step.config.schedule_time}
+                                    </Badge>
+                                  )}
+                                </div>
                                   )}
                                   {/* Variable name badge */}
                                   {step.config?.variable_name && ['ask_input', 'ask_options', 'set_variable'].includes(step.type) && (
@@ -1013,6 +1025,26 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                   />
                   <p className="text-xs text-muted-foreground">
                     A resposta será salva em <code className="bg-muted px-1 rounded">{`{${stepVariableName || 'variavel'}}`}</code> para uso posterior.
+                  </p>
+                </div>
+              )}
+
+              {/* Schedule time */}
+              {['send_text', 'request_report'].includes(stepType) && (
+                <div className="space-y-1.5">
+                  <Label className="font-medium flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                    Horário programado (opcional)
+                  </Label>
+                  <Input
+                    type="time"
+                    value={stepScheduleTime}
+                    onChange={e => setStepScheduleTime(e.target.value)}
+                    className="w-40"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Se definido, a mensagem será enviada neste horário (dentro da janela de 24h do WhatsApp).
+                    Deixe vazio para enviar imediatamente.
                   </p>
                 </div>
               )}
