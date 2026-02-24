@@ -273,12 +273,23 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
 
 // ── Video Grid ──
 function VideoGrid() {
+  const participants = useParticipants();
   const tracks = useTracks([
     { source: Track.Source.Camera, withPlaceholder: true },
     { source: Track.Source.ScreenShare, withPlaceholder: false },
   ]);
 
-  const count = tracks.length;
+  // Deduplicate: show one tile per participant (camera), plus screen shares
+  const seen = new Set<string>();
+  const dedupedTracks = tracks.filter((trackRef) => {
+    if (trackRef.source === Track.Source.ScreenShare) return true;
+    const pid = trackRef.participant.sid;
+    if (seen.has(pid)) return false;
+    seen.add(pid);
+    return true;
+  });
+
+  const count = dedupedTracks.length;
   const gridClass = count <= 1
     ? "grid-cols-1 max-w-3xl mx-auto"
     : count <= 2
@@ -290,7 +301,7 @@ function VideoGrid() {
   return (
     <div className="flex-1 p-3 overflow-auto flex items-center">
       <div className={`grid ${gridClass} gap-3 w-full`}>
-        {tracks.map((trackRef) => {
+        {dedupedTracks.map((trackRef) => {
           const hasTrack = trackRef.publication && trackRef.publication.track;
           const trackRefAny = trackRef as any;
           return (
@@ -327,61 +338,62 @@ function VideoGrid() {
 function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
 
-  const toggleBtnBase = "h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-  const toggleActive = "bg-primary text-primary-foreground shadow-md hover:bg-primary/90";
-  const toggleInactive = "bg-card text-muted-foreground border border-border hover:bg-accent hover:text-accent-foreground";
+  // Pill-style buttons matching system design (reference: rounded pill with fill toggle)
+  const pillBase = "h-10 px-5 rounded-full flex items-center gap-2 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const pillActive = "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90";
+  const pillInactive = "bg-muted/50 text-muted-foreground hover:bg-accent hover:text-accent-foreground";
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center justify-center gap-3 px-6 py-3.5 border-t border-border/50 bg-card/90 backdrop-blur-md">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <TrackToggle
-              source={Track.Source.Microphone}
-              showIcon={true}
-              className={`${toggleBtnBase} ${toggleActive} data-[lk-muted=true]:bg-card data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
-            />
-          </TooltipTrigger>
-          <TooltipContent side="top"><p>Microfone</p></TooltipContent>
-        </Tooltip>
+      <div className="flex items-center justify-center gap-2 px-6 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md">
+        <div className="flex items-center bg-muted/30 rounded-full p-1 gap-0.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <TrackToggle
+                source={Track.Source.Microphone}
+                showIcon={true}
+                className={`${pillBase} ${pillActive} data-[lk-muted=true]:bg-muted/50 data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>Microfone</p></TooltipContent>
+          </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <TrackToggle
-              source={Track.Source.Camera}
-              showIcon={true}
-              className={`${toggleBtnBase} ${toggleActive} data-[lk-muted=true]:bg-card data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
-            />
-          </TooltipTrigger>
-          <TooltipContent side="top"><p>Câmera</p></TooltipContent>
-        </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <TrackToggle
+                source={Track.Source.Camera}
+                showIcon={true}
+                className={`${pillBase} ${pillActive} data-[lk-muted=true]:bg-muted/50 data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>Câmera</p></TooltipContent>
+          </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <TrackToggle
-              source={Track.Source.ScreenShare}
-              showIcon={true}
-              className={`${toggleBtnBase} ${toggleActive} data-[lk-muted=true]:bg-card data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
-            />
-          </TooltipTrigger>
-          <TooltipContent side="top"><p>Compartilhar tela</p></TooltipContent>
-        </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <TrackToggle
+                source={Track.Source.ScreenShare}
+                showIcon={true}
+                className={`${pillBase} ${pillActive} data-[lk-muted=true]:bg-muted/50 data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>Tela</p></TooltipContent>
+          </Tooltip>
 
-        <div className="w-px h-7 bg-border/50 mx-1" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onToggleChat}
+                className={`${pillBase} ${chatOpen ? pillActive : pillInactive}`}
+              >
+                <MessageCircle className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>Chat</p></TooltipContent>
+          </Tooltip>
+        </div>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={onToggleChat}
-              className={`${toggleBtnBase} ${chatOpen ? toggleActive : toggleInactive}`}
-            >
-              <MessageCircle className="h-4 w-4" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top"><p>Chat</p></TooltipContent>
-        </Tooltip>
-
-        <div className="w-px h-7 bg-border/50 mx-1" />
+        <div className="w-px h-7 bg-border/50 mx-2" />
 
         {confirmLeave ? (
           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
@@ -397,7 +409,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
           <Button
             variant="destructive"
             onClick={() => setConfirmLeave(true)}
-            className="rounded-full h-11 px-6 text-sm font-medium gap-2 shadow-md"
+            className="rounded-full h-10 px-5 text-sm font-medium gap-2"
           >
             <Phone className="h-4 w-4 rotate-[135deg]" />
             Finalizar

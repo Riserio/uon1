@@ -38,10 +38,8 @@ serve(async (req) => {
       .maybeSingle();
 
     if (activeState) {
-      // Continue existing flow
       await processFlowStep(supabase, activeState, message_body, contact_id, phone, metaToken!, metaPhoneNumberId!);
     } else {
-      // Try to match a new flow
       const { data: flows } = await supabase
         .from('whatsapp_flows')
         .select('*, whatsapp_flow_steps(*)')
@@ -55,7 +53,6 @@ serve(async (req) => {
         });
       }
 
-      // Check if this is the first message from this contact
       const { count: msgCount } = await supabase
         .from('whatsapp_messages')
         .select('id', { count: 'exact', head: true })
@@ -70,12 +67,10 @@ serve(async (req) => {
 
         console.log(`[flow-engine] Fluxo matched: ${flow.name}`);
 
-        // Get first step
         const steps = flow.whatsapp_flow_steps || [];
         const firstStep = steps.sort((a: any, b: any) => a.step_order - b.step_order)[0];
         if (!firstStep) continue;
 
-        // Create flow state
         const { data: newState } = await supabase
           .from('whatsapp_contact_flow_state')
           .insert({
@@ -90,7 +85,7 @@ serve(async (req) => {
         if (newState) {
           await executeStep(supabase, firstStep, newState, contact_id, phone, metaToken!, metaPhoneNumberId!);
         }
-        break; // Only match first flow
+        break;
       }
     }
 
@@ -129,7 +124,6 @@ async function processFlowStep(
 ) {
   const flowId = state.flow_id;
 
-  // Get current step
   const { data: currentStep } = await supabase
     .from('whatsapp_flow_steps')
     .select('*')
@@ -142,7 +136,7 @@ async function processFlowStep(
     return;
   }
 
-  // If current step is ask_input, save the response
+  // Handle ask_input: save response and advance
   if (currentStep.type === 'ask_input') {
     const varName = currentStep.config?.variable_name || 'response';
     const vars = { ...(state.variables || {}), [varName]: messageBody };
@@ -151,9 +145,86 @@ async function processFlowStep(
       .update({ variables: vars, last_interaction_at: new Date().toISOString() })
       .eq('id', state.id);
     state.variables = vars;
+
+    const nextStepKey = currentStep.next_step_key;
+    if (!nextStepKey) {
+      await completeFlow(supabase, state.id);
+      return;
+    }
+
+    const { data: nextStep } = await supabase
+      .from('whatsapp_flow_steps')
+      .select('*')
+      .eq('flow_id', flowId)
+      .eq('step_key', nextStepKey)
+      .single();
+
+    if (!nextStep) { await completeFlow(supabase, state.id); return; }
+
+    await supabase.from('whatsapp_contact_flow_state')
+      .update({ current_step_key: nextStepKey, last_interaction_at: new Date().toISOString() })
+      .eq('id', state.id);
+
+    await executeStep(supabase, nextStep, { ...state, current_step_key: nextStepKey }, contactId, phone, token, phoneNumberId);
+    return;
   }
 
-  // Advance to next step
+  // Handle ask_options: match user response number to option
+  if (currentStep.type === 'ask_options') {
+    const options = currentStep.config?.options || [];
+    const trimmed = messageBody.trim();
+    const optionIndex = parseInt(trimmed, 10) - 1;
+
+    const varName = currentStep.config?.variable_name || 'opcao_selecionada';
+    let selectedOption: any = null;
+
+    if (!isNaN(optionIndex) && optionIndex >= 0 && optionIndex < options.length) {
+      selectedOption = options[optionIndex];
+    } else {
+      // Try matching by label text
+      selectedOption = options.find((o: any) => o.label.toLowerCase() === trimmed.toLowerCase());
+    }
+
+    if (!selectedOption) {
+      // Invalid option - resend question
+      let retryMsg = '❌ Opção inválida. Por favor, digite o número da opção desejada:\n\n';
+      options.forEach((o: any, i: number) => { retryMsg += `${i + 1}. ${o.label}\n`; });
+      await sendWhatsAppMessage(supabase, contactId, phone, retryMsg, token, phoneNumberId);
+      return; // Stay on same step
+    }
+
+    // Save selected option
+    const vars = { ...(state.variables || {}), [varName]: selectedOption.label };
+    await supabase.from('whatsapp_contact_flow_state')
+      .update({ variables: vars, last_interaction_at: new Date().toISOString() })
+      .eq('id', state.id);
+    state.variables = vars;
+
+    // Navigate to option's next step
+    const nextStepKey = selectedOption.next_step_key;
+    if (!nextStepKey) {
+      await completeFlow(supabase, state.id);
+      return;
+    }
+
+    const { data: nextStep } = await supabase
+      .from('whatsapp_flow_steps')
+      .select('*')
+      .eq('flow_id', flowId)
+      .eq('step_key', nextStepKey)
+      .single();
+
+    if (!nextStep) { await completeFlow(supabase, state.id); return; }
+
+    await supabase.from('whatsapp_contact_flow_state')
+      .update({ current_step_key: nextStepKey, last_interaction_at: new Date().toISOString() })
+      .eq('id', state.id);
+
+    await executeStep(supabase, nextStep, { ...state, variables: vars, current_step_key: nextStepKey }, contactId, phone, token, phoneNumberId);
+    return;
+  }
+
+  // Default: advance to next step
   const nextStepKey = currentStep.next_step_key;
   if (!nextStepKey) {
     await completeFlow(supabase, state.id);
@@ -167,14 +238,9 @@ async function processFlowStep(
     .eq('step_key', nextStepKey)
     .single();
 
-  if (!nextStep) {
-    await completeFlow(supabase, state.id);
-    return;
-  }
+  if (!nextStep) { await completeFlow(supabase, state.id); return; }
 
-  // Update state
-  await supabase
-    .from('whatsapp_contact_flow_state')
+  await supabase.from('whatsapp_contact_flow_state')
     .update({ current_step_key: nextStepKey, last_interaction_at: new Date().toISOString() })
     .eq('id', state.id);
 
@@ -192,7 +258,6 @@ async function executeStep(
       const text = replaceVariables(step.config?.message || '', state.variables || {});
       await sendWhatsAppMessage(supabase, contactId, phone, text, token, phoneNumberId);
 
-      // Auto-advance if there's a next step and it's not ask_input
       if (step.next_step_key) {
         const { data: nextStep } = await supabase
           .from('whatsapp_flow_steps')
@@ -201,21 +266,26 @@ async function executeStep(
           .eq('step_key', step.next_step_key)
           .single();
 
-        if (nextStep && nextStep.type !== 'ask_input' && nextStep.type !== 'wait') {
-          await supabase
-            .from('whatsapp_contact_flow_state')
+        if (nextStep && !['ask_input', 'ask_options', 'wait'].includes(nextStep.type)) {
+          await supabase.from('whatsapp_contact_flow_state')
             .update({ current_step_key: step.next_step_key })
             .eq('id', state.id);
           await executeStep(supabase, nextStep, { ...state, current_step_key: step.next_step_key }, contactId, phone, token, phoneNumberId);
         } else if (nextStep) {
-          await supabase
-            .from('whatsapp_contact_flow_state')
+          await supabase.from('whatsapp_contact_flow_state')
             .update({ current_step_key: step.next_step_key })
             .eq('id', state.id);
-          // If next is ask_input, send the question
           if (nextStep.type === 'ask_input') {
             const question = replaceVariables(nextStep.config?.message || '', state.variables || {});
             await sendWhatsAppMessage(supabase, contactId, phone, question, token, phoneNumberId);
+          } else if (nextStep.type === 'ask_options') {
+            let optionsMsg = replaceVariables(nextStep.config?.message || '', state.variables || {});
+            const options = nextStep.config?.options || [];
+            if (options.length > 0) {
+              optionsMsg += '\n';
+              options.forEach((o: any, i: number) => { optionsMsg += `\n${i + 1}. ${o.label}`; });
+            }
+            await sendWhatsAppMessage(supabase, contactId, phone, optionsMsg, token, phoneNumberId);
           }
         }
       } else {
@@ -225,8 +295,150 @@ async function executeStep(
     }
 
     case 'ask_input': {
-      // The question is sent, now we wait for user response
-      // The message is sent from processFlowStep or the send_text auto-advance
+      // Question already sent by previous step's auto-advance or initial execution
+      const question = replaceVariables(step.config?.message || '', state.variables || {});
+      await sendWhatsAppMessage(supabase, contactId, phone, question, token, phoneNumberId);
+      break;
+    }
+
+    case 'ask_options': {
+      let optionsMsg = replaceVariables(step.config?.message || '', state.variables || {});
+      const options = step.config?.options || [];
+      if (options.length > 0) {
+        optionsMsg += '\n';
+        options.forEach((o: any, i: number) => { optionsMsg += `\n${i + 1}. ${o.label}`; });
+      }
+      await sendWhatsAppMessage(supabase, contactId, phone, optionsMsg, token, phoneNumberId);
+      // Wait for user response
+      break;
+    }
+
+    case 'request_report': {
+      // Check if phone is authorized (registered in whatsapp_config destination numbers)
+      const cleanPhone = phone.replace(/\D/g, '');
+      const phoneWithout55 = cleanPhone.startsWith('55') ? cleanPhone.substring(2) : cleanPhone;
+
+      const { data: configs } = await supabase
+        .from('whatsapp_config')
+        .select('telefone_whatsapp, corretora_id')
+        .eq('ativo', true);
+
+      let authorized = false;
+      let corretoraId: string | null = null;
+
+      if (configs) {
+        for (const cfg of configs) {
+          const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.replace(/\D/g, ''));
+          if (numbers.some((n: string) => n === phoneWithout55 || n === cleanPhone || `55${n}` === cleanPhone)) {
+            authorized = true;
+            corretoraId = cfg.corretora_id;
+            break;
+          }
+        }
+      }
+
+      if (!authorized) {
+        const denyMsg = replaceVariables(step.config?.deny_message || '⚠️ Você não tem permissão para solicitar relatórios. Entre em contato com sua associação para liberação.', state.variables || {});
+        await sendWhatsAppMessage(supabase, contactId, phone, denyMsg, token, phoneNumberId);
+        await completeFlow(supabase, state.id);
+        return;
+      }
+
+      // Send confirmation
+      const confirmMsg = replaceVariables(step.config?.message || '📊 Gerando relatório...', state.variables || {});
+      await sendWhatsAppMessage(supabase, contactId, phone, confirmMsg, token, phoneNumberId);
+
+      // Trigger report generation
+      const reportType = step.config?.report_type || 'cobranca';
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+        let fnName = '';
+        if (reportType === 'cobranca') fnName = 'gerar-resumo-cobranca';
+        else if (reportType === 'eventos') fnName = 'gerar-resumo-eventos';
+        else fnName = 'gerar-resumo-cobranca';
+
+        const reportResp = await fetch(`${supabaseUrl}/functions/v1/${fnName}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': anonKey,
+            'Authorization': `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({ corretora_id: corretoraId }),
+        });
+
+        if (!reportResp.ok) {
+          console.error('[flow-engine] Report generation failed');
+          await sendWhatsAppMessage(supabase, contactId, phone, '⚠️ Não foi possível gerar o relatório no momento. Tente novamente mais tarde.', token, phoneNumberId);
+        }
+      } catch (err) {
+        console.error('[flow-engine] Report error:', err);
+      }
+
+      if (step.next_step_key) {
+        const { data: nextStep } = await supabase
+          .from('whatsapp_flow_steps')
+          .select('*')
+          .eq('flow_id', state.flow_id)
+          .eq('step_key', step.next_step_key)
+          .single();
+        if (nextStep) {
+          await supabase.from('whatsapp_contact_flow_state')
+            .update({ current_step_key: step.next_step_key })
+            .eq('id', state.id);
+          await executeStep(supabase, nextStep, { ...state, current_step_key: step.next_step_key }, contactId, phone, token, phoneNumberId);
+        } else {
+          await completeFlow(supabase, state.id);
+        }
+      } else {
+        await completeFlow(supabase, state.id);
+      }
+      break;
+    }
+
+    case 'deny_unauthorized': {
+      const cleanPhone = phone.replace(/\D/g, '');
+      const phoneWithout55 = cleanPhone.startsWith('55') ? cleanPhone.substring(2) : cleanPhone;
+
+      const { data: configs } = await supabase
+        .from('whatsapp_config')
+        .select('telefone_whatsapp')
+        .eq('ativo', true);
+
+      let authorized = false;
+      if (configs) {
+        for (const cfg of configs) {
+          const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.replace(/\D/g, ''));
+          if (numbers.some((n: string) => n === phoneWithout55 || n === cleanPhone || `55${n}` === cleanPhone)) {
+            authorized = true;
+            break;
+          }
+        }
+      }
+
+      if (!authorized) {
+        const denyMsg = replaceVariables(step.config?.message || '⚠️ Você não tem permissão. Solicite acesso à sua associação.', state.variables || {});
+        await sendWhatsAppMessage(supabase, contactId, phone, denyMsg, token, phoneNumberId);
+      }
+
+      if (step.next_step_key) {
+        const { data: nextStep } = await supabase
+          .from('whatsapp_flow_steps')
+          .select('*')
+          .eq('flow_id', state.flow_id)
+          .eq('step_key', step.next_step_key)
+          .single();
+        if (nextStep) {
+          await supabase.from('whatsapp_contact_flow_state')
+            .update({ current_step_key: step.next_step_key })
+            .eq('id', state.id);
+          await executeStep(supabase, nextStep, { ...state, current_step_key: step.next_step_key }, contactId, phone, token, phoneNumberId);
+        }
+      } else {
+        await completeFlow(supabase, state.id);
+      }
       break;
     }
 
@@ -253,8 +465,7 @@ async function executeStep(
 
     case 'set_variable': {
       const vars = { ...(state.variables || {}), [step.config?.variable_name]: step.config?.value };
-      await supabase
-        .from('whatsapp_contact_flow_state')
+      await supabase.from('whatsapp_contact_flow_state')
         .update({ variables: vars })
         .eq('id', state.id);
 
@@ -267,8 +478,7 @@ async function executeStep(
           .single();
 
         if (nextStep) {
-          await supabase
-            .from('whatsapp_contact_flow_state')
+          await supabase.from('whatsapp_contact_flow_state')
             .update({ current_step_key: step.next_step_key })
             .eq('id', state.id);
           await executeStep(supabase, nextStep, { ...state, variables: vars, current_step_key: step.next_step_key }, contactId, phone, token, phoneNumberId);
@@ -320,7 +530,6 @@ async function sendWhatsAppMessage(
   const metaData = await metaResponse.json();
   const metaMessageId = metaData.messages?.[0]?.id || null;
 
-  // Save outgoing message
   await supabase
     .from('whatsapp_messages')
     .insert({
@@ -334,7 +543,6 @@ async function sendWhatsAppMessage(
       raw_payload: metaData,
     });
 
-  // Update contact last message
   await supabase
     .from('whatsapp_contacts')
     .update({
