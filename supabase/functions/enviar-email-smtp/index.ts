@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,88 +45,121 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const { to, subject, message, corretoraId, contatoId }: EmailRequest = await req.json();
+    const emailHtml = message.replace(/\n/g, '<br>');
 
     // Get SMTP configuration
-    const { data: smtpConfig, error: configError } = await supabase
+    const { data: smtpConfig } = await supabase
       .from('email_config')
       .select('*')
       .eq('user_id', user.id)
       .single();
 
-    if (configError || !smtpConfig) {
-      return new Response(JSON.stringify({ error: 'SMTP não configurado' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // Get Resend configuration
+    const { data: resendConfig } = await supabase
+      .from('resend_config')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    const results = [];
+
+    for (const recipient of to) {
+      let emailSent = false;
+      let method = '';
+      let errorMessage = '';
+
+      // Try SMTP first
+      if (smtpConfig) {
+        try {
+          const useImplicitTls = smtpConfig.smtp_port === 465;
+          console.log(`Trying SMTP for ${recipient} (host=${smtpConfig.smtp_host}, port=${smtpConfig.smtp_port}, tls=${useImplicitTls})`);
+
+          const client = new SMTPClient({
+            connection: {
+              hostname: smtpConfig.smtp_host,
+              port: smtpConfig.smtp_port,
+              tls: useImplicitTls,
+              auth: {
+                username: smtpConfig.smtp_user,
+                password: smtpConfig.smtp_password,
+              },
+            },
+          });
+
+          await client.send({
+            from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`,
+            to: recipient,
+            subject: subject,
+            content: message,
+            html: emailHtml,
+            headers: {
+              'X-Priority': '3',
+              'X-Mailer': 'ATCD Sistema',
+              'Reply-To': smtpConfig.from_email,
+            },
+          });
+
+          try { await client.close(); } catch (_) {}
+          emailSent = true;
+          method = 'SMTP';
+          console.log(`Email sent via SMTP to ${recipient}`);
+        } catch (smtpError: any) {
+          console.error(`SMTP failed for ${recipient}:`, smtpError.message);
+          errorMessage = smtpError.message;
+        }
+      }
+
+      // Fallback to Resend
+      if (!emailSent) {
+        try {
+          const resendApiKey = Deno.env.get("RESEND_API_KEY");
+          if (resendApiKey) {
+            let fromEmail = "Atendimentos <onboarding@resend.dev>";
+            if (resendConfig) {
+              fromEmail = `${resendConfig.from_name} <${resendConfig.from_email}>`;
+            } else if (smtpConfig) {
+              fromEmail = `${smtpConfig.from_name} <onboarding@resend.dev>`;
+            }
+
+            console.log(`Trying Resend for ${recipient}...`);
+            const resend = new Resend(resendApiKey);
+            const { error: resendError } = await resend.emails.send({
+              from: fromEmail,
+              to: recipient,
+              subject: subject,
+              html: emailHtml,
+            });
+
+            if (resendError) throw new Error(resendError.message);
+
+            emailSent = true;
+            method = 'Resend';
+            console.log(`Email sent via Resend to ${recipient}`);
+          }
+        } catch (resendError: any) {
+          console.error(`Resend failed for ${recipient}:`, resendError.message);
+          errorMessage = errorMessage ? `SMTP: ${errorMessage}; Resend: ${resendError.message}` : resendError.message;
+        }
+      }
+
+      // Log to email_historico
+      await supabase.from('email_historico').insert({
+        destinatario: recipient,
+        assunto: subject,
+        corpo: `[${method || 'FALHA'}] ${message}`,
+        enviado_por: user.id,
+        status: emailSent ? 'enviado' : 'erro',
+        erro_mensagem: emailSent ? null : errorMessage,
+        atendimento_id: '00000000-0000-0000-0000-000000000000',
+      });
+
+      results.push({
+        email: recipient,
+        status: emailSent ? 'enviado' : 'erro',
+        method: method || 'nenhum',
+        error: emailSent ? undefined : errorMessage,
       });
     }
-
-    // Create SMTP client with proper SSL/TLS configuration
-    // Port 465 = implicit TLS (tls: true)
-    // Port 587 = STARTTLS (tls: false, denomailer auto-negotiates STARTTLS)
-    // Port 25 = no TLS
-    const useImplicitTls = smtpConfig.smtp_port === 465;
-    console.log(`SMTP config: host=${smtpConfig.smtp_host}, port=${smtpConfig.smtp_port}, tls=${useImplicitTls}`);
-    
-    const client = new SMTPClient({
-      connection: {
-        hostname: smtpConfig.smtp_host,
-        port: smtpConfig.smtp_port,
-        tls: useImplicitTls,
-        auth: {
-          username: smtpConfig.smtp_user,
-          password: smtpConfig.smtp_password,
-        },
-      },
-    });
-
-    // Send emails
-    const results = [];
-    for (const recipient of to) {
-      try {
-        await client.send({
-          from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`,
-          to: recipient,
-          subject: subject,
-          content: message,
-          html: message.replace(/\n/g, '<br>'),
-          headers: {
-            'X-Priority': '3',
-            'X-Mailer': 'ATCD Sistema',
-            'Reply-To': smtpConfig.from_email,
-            'List-Unsubscribe': `<mailto:${smtpConfig.from_email}?subject=unsubscribe>`,
-          },
-        });
-
-        // Log email history
-        await supabase.from('email_historico').insert({
-          destinatario: recipient,
-          assunto: subject,
-          corpo: message,
-          enviado_por: user.id,
-          status: 'enviado',
-          atendimento_id: '00000000-0000-0000-0000-000000000000', // Placeholder for manual emails
-        });
-
-        results.push({ email: recipient, status: 'enviado' });
-      } catch (error: any) {
-        console.error(`Error sending to ${recipient}:`, error);
-        
-        // Log error
-        await supabase.from('email_historico').insert({
-          destinatario: recipient,
-          assunto: subject,
-          corpo: message,
-          enviado_por: user.id,
-          status: 'erro',
-          erro_mensagem: error.message || 'Erro desconhecido',
-          atendimento_id: '00000000-0000-0000-0000-000000000000',
-        });
-
-        results.push({ email: recipient, status: 'erro', error: error.message || 'Erro desconhecido' });
-      }
-    }
-
-    try { await client.close(); } catch (_) { /* connection may not have been established */ }
 
     return new Response(JSON.stringify({ results }), {
       status: 200,
@@ -135,7 +169,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.error('Error in enviar-email-smtp:', error);
     return new Response(
       JSON.stringify({ 
-        error: 'Erro ao enviar emails. Por favor, verifique as configurações e tente novamente.',
+        error: error.message || 'Erro ao enviar emails.',
         code: 'EMAIL_SEND_ERROR'
       }),
       {
