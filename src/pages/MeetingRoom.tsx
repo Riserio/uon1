@@ -248,26 +248,26 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
   };
 
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 bg-card border-b border-border/50 shadow-sm">
+    <div className="flex items-center justify-between px-4 py-2.5 bg-[#0d1117] border-b border-white/10">
       <div className="flex items-center gap-3">
-        <img src="/images/logo-full.png" alt="UON1" className="h-7 w-auto" />
-        <div className="h-5 w-px bg-border/50" />
-        <img src="/images/logo-vg.png" alt="Vangard" className="h-7 w-auto" />
-        <div className="h-5 w-px bg-border/50" />
-        <div>
+        <img src="/images/logo-full.png" alt="UON1" className="h-7 w-auto brightness-0 invert" />
+        <div className="h-5 w-px bg-white/20" />
+        <img src="/images/logo-vg.png" alt="Vangard" className="h-7 w-auto brightness-0 invert" />
+        <div className="h-5 w-px bg-white/20 hidden sm:block" />
+        <div className="hidden sm:block">
           <h2 className="font-semibold text-sm flex items-center gap-1.5">
             <span className="text-primary">Talk</span>
-            <span className="text-[10px] text-muted-foreground font-normal">by Uon1</span>
-            <span className="mx-1 text-muted-foreground">•</span>
-            <span className="text-foreground">{room.nome}</span>
+            <span className="text-[10px] text-white/50 font-normal">by Uon1</span>
+            <span className="mx-1 text-white/30">•</span>
+            <span className="text-white">{room.nome}</span>
           </h2>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-white/50">
             {participants.length} participante(s) • {isHost ? "Moderador" : "Participante"}
           </p>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" onClick={copyLink} className="h-8 text-xs rounded-lg">
+        <Button size="sm" variant="outline" onClick={copyLink} className="h-8 text-xs rounded-lg border-white/20 text-white hover:bg-white/10 bg-transparent">
           <Copy className="h-3.5 w-3.5 mr-1.5" /> Copiar Link
         </Button>
       </div>
@@ -287,11 +287,9 @@ function VideoGrid() {
   const [enlargedSid, setEnlargedSid] = useState<string | null>(null);
   const [pipSid, setPipSid] = useState<string | null>(null);
 
-  // Separate audio tracks to render invisibly, visual tracks for grid
   const audioTracks = tracks.filter((t) => t.source === Track.Source.Microphone);
   const visualTracks = tracks.filter((t) => t.source !== Track.Source.Microphone);
-  
-  // Deduplicate: show one tile per participant (camera), plus screen shares
+
   const seen = new Set<string>();
   const dedupedTracks = visualTracks.filter((trackRef) => {
     if (trackRef.source === Track.Source.ScreenShare) return true;
@@ -301,21 +299,19 @@ function VideoGrid() {
     return true;
   });
 
-  const count = dedupedTracks.length;
   const enlargedTrack = enlargedSid ? dedupedTracks.find(t => t.participant.sid === enlargedSid) : null;
-  const pipTrack = pipSid ? dedupedTracks.find(t => t.participant.sid === pipSid) : null;
   const gridTracks = enlargedTrack ? dedupedTracks.filter(t => t.participant.sid !== enlargedSid) : dedupedTracks;
-  
   const gridCount = gridTracks.length;
-  const gridClass = enlargedTrack
-    ? "grid-cols-1 max-w-xs mx-auto"
-    : gridCount <= 1
-      ? "grid-cols-1 max-w-4xl mx-auto"
-      : gridCount <= 2
-        ? "grid-cols-2 mx-auto"
-        : gridCount <= 4
-          ? "grid-cols-2 mx-auto"
-          : "grid-cols-2 lg:grid-cols-3 mx-auto";
+
+  // Dynamic grid: Meet/Zoom-style layout
+  const getGridClass = () => {
+    if (enlargedTrack) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+    if (gridCount <= 1) return "grid-cols-1";
+    if (gridCount === 2) return "grid-cols-1 sm:grid-cols-2";
+    if (gridCount <= 4) return "grid-cols-2";
+    if (gridCount <= 6) return "grid-cols-2 lg:grid-cols-3";
+    return "grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+  };
 
   const handlePip = async (trackRef: any) => {
     const videoEl = document.querySelector(`[data-participant-sid="${trackRef.participant.sid}"] video`) as HTMLVideoElement | null;
@@ -339,13 +335,17 @@ function VideoGrid() {
     const hasTrack = trackRef.publication && trackRef.publication.track;
     const trackRefAny = trackRef as any;
     const sid = trackRef.participant.sid;
+    const name = trackRef.participant.name || trackRef.participant.identity;
+    const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+
     return (
       <div
         key={sid + (trackRef.publication?.trackSid || "placeholder")}
         data-participant-sid={sid}
-        className={`relative bg-muted/50 rounded-xl overflow-hidden flex items-center justify-center border border-border/30 group/tile ${
-          isEnlarged ? "w-full h-full" : "w-full h-full"
-        }`}
+        className={`relative rounded-2xl overflow-hidden flex items-center justify-center group/tile transition-shadow duration-300 ${
+          isEnlarged ? "w-full h-full" : "w-full aspect-video"
+        } ${hasTrack ? "bg-[#1a1a2e]" : "bg-gradient-to-br from-[#1a1a2e] to-[#16213e]"}`}
+        style={{ minHeight: isEnlarged ? undefined : '200px' }}
       >
         {hasTrack ? (
           trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare ? (
@@ -355,24 +355,26 @@ function VideoGrid() {
           )
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center">
-              <VideoOff className="h-6 w-6 text-primary/70" />
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-primary/20 flex items-center justify-center ring-2 ring-primary/30">
+              <span className="text-2xl sm:text-3xl font-bold text-primary">{initials}</span>
             </div>
-            <span className="text-xs text-muted-foreground font-medium">{trackRef.participant.name || trackRef.participant.identity}</span>
           </div>
         )}
-        <div className="absolute bottom-2 left-2 px-2.5 py-1 bg-background/80 backdrop-blur-sm rounded-md text-xs text-foreground font-medium border border-border/20">
-          {trackRef.participant.name || trackRef.participant.identity}
+        {/* Name badge - bottom left */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-3 pt-8">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-white font-medium drop-shadow-md truncate">{name}</span>
+          </div>
         </div>
-        {/* Controls overlay */}
-        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/tile:opacity-100 transition-opacity">
+        {/* Controls overlay - top right */}
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/tile:opacity-100 transition-opacity">
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={() => setEnlargedSid(isEnlarged ? null : sid)}
-                className="h-7 w-7 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center border border-border/30 hover:bg-background transition-colors"
+                className="h-8 w-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
               >
-                {isEnlarged ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                {isEnlarged ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </button>
             </TooltipTrigger>
             <TooltipContent>{isEnlarged ? "Reduzir" : "Ampliar"}</TooltipContent>
@@ -382,9 +384,9 @@ function VideoGrid() {
               <TooltipTrigger asChild>
                 <button
                   onClick={() => handlePip(trackRef)}
-                  className={`h-7 w-7 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center border border-border/30 hover:bg-background transition-colors ${pipSid === sid ? 'ring-2 ring-primary' : ''}`}
+                  className={`h-8 w-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors ${pipSid === sid ? 'ring-2 ring-primary' : ''}`}
                 >
-                  <PictureInPicture2 className="h-3.5 w-3.5" />
+                  <PictureInPicture2 className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
               <TooltipContent>Picture-in-Picture</TooltipContent>
@@ -396,21 +398,21 @@ function VideoGrid() {
   };
 
   return (
-    <div className="flex-1 p-2 overflow-hidden flex flex-col">
+    <div className="flex-1 overflow-hidden flex flex-col bg-[#0d1117] p-2 sm:p-4">
       {/* Invisible audio tracks */}
       {audioTracks.map((trackRef) => (
         trackRef.publication?.track ? (
           <AudioTrack key={trackRef.participant.sid + '-audio'} trackRef={trackRef} />
         ) : null
       ))}
-      {/* Enlarged view */}
+      {/* Enlarged speaker view */}
       {enlargedTrack && (
-        <div className="flex-1 min-h-0 mb-2">
+        <div className="flex-1 min-h-0 mb-3 rounded-2xl overflow-hidden">
           {renderTile(enlargedTrack, true)}
         </div>
       )}
-      {/* Grid - fills remaining space */}
-      <div className={`grid ${gridClass} gap-2 flex-1 min-h-0 ${enlargedTrack ? 'max-h-[30%]' : 'h-full'}`}>
+      {/* Grid */}
+      <div className={`grid ${getGridClass()} gap-2 sm:gap-3 ${enlargedTrack ? 'h-[25%] shrink-0' : 'flex-1'} items-center content-center`}>
         {gridTracks.map((trackRef) => renderTile(trackRef))}
       </div>
     </div>
@@ -421,21 +423,16 @@ function VideoGrid() {
 function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
 
-  // Individual rounded buttons matching system design (reference image)
-  const btnBase = "h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 border";
-  const btnOff = "bg-card border-border/50 text-muted-foreground hover:bg-accent";
-
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center justify-center gap-3 px-6 py-3 border-t border-border/50 bg-card">
-        {/* Control buttons in a grouped container */}
-        <div className="flex items-center gap-2 bg-muted/20 rounded-full px-2 py-1.5">
+      <div className="flex items-center justify-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4 bg-[#0d1117] border-t border-white/10">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Tooltip>
             <TooltipTrigger asChild>
               <TrackToggle
                 source={Track.Source.Microphone}
                 showIcon={true}
-                className={`${btnBase} ${btnOff} data-[lk-muted=false]:bg-primary data-[lk-muted=false]:border-primary data-[lk-muted=false]:text-primary-foreground data-[lk-muted=false]:shadow-sm`}
+                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 [&_svg]:!h-5 [&_svg]:!w-5 data-[lk-muted=true]:bg-destructive data-[lk-muted=true]:text-destructive-foreground data-[lk-muted=false]:bg-white/10 data-[lk-muted=false]:text-white data-[lk-muted=false]:hover:bg-white/20"
               />
             </TooltipTrigger>
             <TooltipContent side="top"><p>Microfone</p></TooltipContent>
@@ -446,7 +443,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
               <TrackToggle
                 source={Track.Source.Camera}
                 showIcon={true}
-                className={`${btnBase} ${btnOff} data-[lk-muted=false]:bg-primary data-[lk-muted=false]:border-primary data-[lk-muted=false]:text-primary-foreground data-[lk-muted=false]:shadow-sm`}
+                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 [&_svg]:!h-5 [&_svg]:!w-5 data-[lk-muted=true]:bg-destructive data-[lk-muted=true]:text-destructive-foreground data-[lk-muted=false]:bg-white/10 data-[lk-muted=false]:text-white data-[lk-muted=false]:hover:bg-white/20"
               />
             </TooltipTrigger>
             <TooltipContent side="top"><p>Câmera</p></TooltipContent>
@@ -457,7 +454,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
               <TrackToggle
                 source={Track.Source.ScreenShare}
                 showIcon={true}
-                className={`${btnBase} ${btnOff} data-[lk-muted=false]:bg-primary data-[lk-muted=false]:border-primary data-[lk-muted=false]:text-primary-foreground data-[lk-muted=false]:shadow-sm`}
+                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 [&_svg]:!h-5 [&_svg]:!w-5 data-[lk-muted=true]:bg-white/10 data-[lk-muted=true]:text-white data-[lk-muted=true]:hover:bg-white/20 data-[lk-muted=false]:bg-primary data-[lk-muted=false]:text-primary-foreground"
               />
             </TooltipTrigger>
             <TooltipContent side="top"><p>Compartilhar Tela</p></TooltipContent>
@@ -467,35 +464,39 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
             <TooltipTrigger asChild>
               <button
                 onClick={onToggleChat}
-                className={`${btnBase} ${chatOpen ? "bg-primary border-primary text-primary-foreground shadow-sm hover:bg-primary/90" : btnOff}`}
+                className={`h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  chatOpen
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
               >
-                <MessageCircle className="h-4.5 w-4.5" />
+                <MessageCircle className="h-5 w-5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="top"><p>Chat</p></TooltipContent>
           </Tooltip>
         </div>
 
-        {/* Leave button */}
+        <div className="w-px h-8 bg-white/20 mx-1 sm:mx-2" />
+
         {confirmLeave ? (
           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-            <span className="text-sm text-muted-foreground">Tem certeza?</span>
+            <span className="text-xs sm:text-sm text-white/70">Tem certeza?</span>
             <Button size="sm" variant="destructive" onClick={onLeave} className="rounded-full h-9 px-4 text-xs">
-              Sim, finalizar
+              Sim
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setConfirmLeave(false)} className="rounded-full h-9 px-4 text-xs">
-              Cancelar
+            <Button size="sm" variant="outline" onClick={() => setConfirmLeave(false)} className="rounded-full h-9 px-4 text-xs border-white/20 text-white hover:bg-white/10">
+              Não
             </Button>
           </div>
         ) : (
-          <Button
-            variant="destructive"
+          <button
             onClick={() => setConfirmLeave(true)}
-            className="rounded-full h-11 px-6 text-sm font-medium gap-2"
+            className="h-12 sm:h-14 px-5 sm:px-6 rounded-full bg-destructive text-destructive-foreground font-medium text-sm flex items-center gap-2 hover:bg-destructive/90 transition-colors"
           >
             <Phone className="h-4 w-4 rotate-[135deg]" />
-            Finalizar
-          </Button>
+            <span className="hidden sm:inline">Finalizar</span>
+          </button>
         )}
       </div>
     </TooltipProvider>
