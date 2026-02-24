@@ -532,6 +532,50 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── GET GUEST TOKEN (public, no auth - for approved guests) ──
+    if (action === "getGuestToken") {
+      const body = await req.json();
+      const { roomId, identity } = body;
+
+      if (!roomId || !identity) throw new Error("roomId e identity são obrigatórios");
+
+      const { data: participant } = await supabaseAdmin
+        .from("meeting_participants")
+        .select("*")
+        .eq("room_id", roomId)
+        .eq("identity", identity)
+        .single();
+
+      if (!participant) throw new Error("Participante não encontrado");
+      if (participant.status !== "approved") throw new Error("Participante não aprovado");
+
+      const { data: room } = await supabaseAdmin
+        .from("meeting_rooms")
+        .select("*")
+        .eq("id", roomId)
+        .single();
+
+      if (!room) throw new Error("Sala não encontrada");
+
+      const newToken = await createLiveKitToken(
+        livekitApiKey, livekitApiSecret,
+        identity, room.livekit_room_name,
+        {
+          roomJoin: true,
+          room: room.livekit_room_name,
+          canPublish: true,
+          canSubscribe: true,
+          canPublishData: true,
+          name: participant.display_name,
+        }
+      );
+
+      return new Response(
+        JSON.stringify({ token: newToken, livekitUrl, room, participantStatus: "approved" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Ação inválida" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

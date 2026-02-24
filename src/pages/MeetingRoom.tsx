@@ -338,21 +338,21 @@ function VideoGrid() {
 function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
 
-  // Pill-style buttons matching system design (reference: rounded pill with fill toggle)
-  const pillBase = "h-10 px-5 rounded-full flex items-center gap-2 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-  const pillActive = "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90";
-  const pillInactive = "bg-muted/50 text-muted-foreground hover:bg-accent hover:text-accent-foreground";
+  // Individual rounded buttons matching system design (reference image)
+  const btnBase = "h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 border";
+  const btnOff = "bg-card border-border/50 text-muted-foreground hover:bg-accent";
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center justify-center gap-2 px-6 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md">
-        <div className="flex items-center bg-muted/30 rounded-full p-1 gap-0.5">
+      <div className="flex items-center justify-center gap-3 px-6 py-3 border-t border-border/50 bg-card">
+        {/* Control buttons in a grouped container */}
+        <div className="flex items-center gap-2 bg-muted/20 rounded-full px-2 py-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
               <TrackToggle
                 source={Track.Source.Microphone}
                 showIcon={true}
-                className={`${pillBase} ${pillActive} data-[lk-muted=true]:bg-muted/50 data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
+                className={`${btnBase} ${btnOff} data-[lk-muted=false]:bg-primary data-[lk-muted=false]:border-primary data-[lk-muted=false]:text-primary-foreground data-[lk-muted=false]:shadow-sm`}
               />
             </TooltipTrigger>
             <TooltipContent side="top"><p>Microfone</p></TooltipContent>
@@ -363,7 +363,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
               <TrackToggle
                 source={Track.Source.Camera}
                 showIcon={true}
-                className={`${pillBase} ${pillActive} data-[lk-muted=true]:bg-muted/50 data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
+                className={`${btnBase} ${btnOff} data-[lk-muted=false]:bg-primary data-[lk-muted=false]:border-primary data-[lk-muted=false]:text-primary-foreground data-[lk-muted=false]:shadow-sm`}
               />
             </TooltipTrigger>
             <TooltipContent side="top"><p>Câmera</p></TooltipContent>
@@ -374,27 +374,26 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
               <TrackToggle
                 source={Track.Source.ScreenShare}
                 showIcon={true}
-                className={`${pillBase} ${pillActive} data-[lk-muted=true]:bg-muted/50 data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
+                className={`${btnBase} ${btnOff} data-[lk-muted=false]:bg-primary data-[lk-muted=false]:border-primary data-[lk-muted=false]:text-primary-foreground data-[lk-muted=false]:shadow-sm`}
               />
             </TooltipTrigger>
-            <TooltipContent side="top"><p>Tela</p></TooltipContent>
+            <TooltipContent side="top"><p>Compartilhar Tela</p></TooltipContent>
           </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={onToggleChat}
-                className={`${pillBase} ${chatOpen ? pillActive : pillInactive}`}
+                className={`${btnBase} ${chatOpen ? "bg-primary border-primary text-primary-foreground shadow-sm hover:bg-primary/90" : btnOff}`}
               >
-                <MessageCircle className="h-4 w-4" />
+                <MessageCircle className="h-4.5 w-4.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="top"><p>Chat</p></TooltipContent>
           </Tooltip>
         </div>
 
-        <div className="w-px h-7 bg-border/50 mx-2" />
-
+        {/* Leave button */}
         {confirmLeave ? (
           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
             <span className="text-sm text-muted-foreground">Tem certeza?</span>
@@ -409,7 +408,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
           <Button
             variant="destructive"
             onClick={() => setConfirmLeave(true)}
-            className="rounded-full h-10 px-5 text-sm font-medium gap-2"
+            className="rounded-full h-11 px-6 text-sm font-medium gap-2"
           >
             <Phone className="h-4 w-4 rotate-[135deg]" />
             Finalizar
