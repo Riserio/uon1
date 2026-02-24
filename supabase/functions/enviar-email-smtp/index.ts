@@ -1,7 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,6 +12,62 @@ interface EmailRequest {
   message: string;
   corretoraId?: string;
   contatoId?: string;
+}
+
+async function sendViaResend(apiKey: string, from: string, to: string, subject: string, html: string): Promise<{ success: boolean; error?: string }> {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ from, to, subject, html }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    return { success: false, error: errorData?.message || `Resend HTTP ${response.status}` };
+  }
+
+  return { success: true };
+}
+
+async function sendViaSmtp(config: any, to: string, subject: string, message: string, html: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Dynamic import to avoid crashing the runtime if denomailer fails to load
+    const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
+    
+    const useImplicitTls = config.smtp_port === 465;
+    const client = new SMTPClient({
+      connection: {
+        hostname: config.smtp_host,
+        port: config.smtp_port,
+        tls: useImplicitTls,
+        auth: {
+          username: config.smtp_user,
+          password: config.smtp_password,
+        },
+      },
+    });
+
+    await client.send({
+      from: `${config.from_name} <${config.from_email}>`,
+      to,
+      subject,
+      content: message,
+      html,
+      headers: {
+        'X-Priority': '3',
+        'X-Mailer': 'ATCD Sistema',
+        'Reply-To': config.from_email,
+      },
+    });
+
+    try { await client.close(); } catch (_) {}
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'SMTP error' };
+  }
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -44,23 +98,23 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { to, subject, message, corretoraId, contatoId }: EmailRequest = await req.json();
+    const { to, subject, message }: EmailRequest = await req.json();
     const emailHtml = message.replace(/\n/g, '<br>');
 
-    // Get SMTP configuration
+    // Get configs
     const { data: smtpConfig } = await supabase
       .from('email_config')
       .select('*')
       .eq('user_id', user.id)
       .single();
 
-    // Get Resend configuration
     const { data: resendConfig } = await supabase
       .from('resend_config')
       .select('*')
       .eq('user_id', user.id)
       .single();
 
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
     const results = [];
 
     for (const recipient of to) {
@@ -68,81 +122,43 @@ const handler = async (req: Request): Promise<Response> => {
       let method = '';
       let errorMessage = '';
 
-      // Try SMTP first
-      if (smtpConfig) {
-        try {
-          const useImplicitTls = smtpConfig.smtp_port === 465;
-          console.log(`Trying SMTP for ${recipient} (host=${smtpConfig.smtp_host}, port=${smtpConfig.smtp_port}, tls=${useImplicitTls})`);
+      // Try Resend first (more reliable in edge functions)
+      if (resendApiKey) {
+        const fromEmail = resendConfig
+          ? `${resendConfig.from_name} <${resendConfig.from_email}>`
+          : smtpConfig
+            ? `${smtpConfig.from_name} <onboarding@resend.dev>`
+            : 'Atendimentos <onboarding@resend.dev>';
 
-          const client = new SMTPClient({
-            connection: {
-              hostname: smtpConfig.smtp_host,
-              port: smtpConfig.smtp_port,
-              tls: useImplicitTls,
-              auth: {
-                username: smtpConfig.smtp_user,
-                password: smtpConfig.smtp_password,
-              },
-            },
-          });
+        console.log(`Trying Resend for ${recipient}...`);
+        const result = await sendViaResend(resendApiKey, fromEmail, recipient, subject, emailHtml);
+        
+        if (result.success) {
+          emailSent = true;
+          method = 'Resend';
+          console.log(`Email sent via Resend to ${recipient}`);
+        } else {
+          errorMessage = `Resend: ${result.error}`;
+          console.error(`Resend failed: ${result.error}`);
+        }
+      }
 
-          await client.send({
-            from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`,
-            to: recipient,
-            subject: subject,
-            content: message,
-            html: emailHtml,
-            headers: {
-              'X-Priority': '3',
-              'X-Mailer': 'ATCD Sistema',
-              'Reply-To': smtpConfig.from_email,
-            },
-          });
-
-          try { await client.close(); } catch (_) {}
+      // Fallback to SMTP
+      if (!emailSent && smtpConfig) {
+        console.log(`Trying SMTP for ${recipient} (${smtpConfig.smtp_host}:${smtpConfig.smtp_port})...`);
+        const result = await sendViaSmtp(smtpConfig, recipient, subject, message, emailHtml);
+        
+        if (result.success) {
           emailSent = true;
           method = 'SMTP';
           console.log(`Email sent via SMTP to ${recipient}`);
-        } catch (smtpError: any) {
-          console.error(`SMTP failed for ${recipient}:`, smtpError.message);
-          errorMessage = smtpError.message;
+        } else {
+          errorMessage = errorMessage ? `${errorMessage}; SMTP: ${result.error}` : `SMTP: ${result.error}`;
+          console.error(`SMTP failed: ${result.error}`);
         }
       }
 
-      // Fallback to Resend
-      if (!emailSent) {
-        try {
-          const resendApiKey = Deno.env.get("RESEND_API_KEY");
-          if (resendApiKey) {
-            let fromEmail = "Atendimentos <onboarding@resend.dev>";
-            if (resendConfig) {
-              fromEmail = `${resendConfig.from_name} <${resendConfig.from_email}>`;
-            } else if (smtpConfig) {
-              fromEmail = `${smtpConfig.from_name} <onboarding@resend.dev>`;
-            }
-
-            console.log(`Trying Resend for ${recipient}...`);
-            const resend = new Resend(resendApiKey);
-            const { error: resendError } = await resend.emails.send({
-              from: fromEmail,
-              to: recipient,
-              subject: subject,
-              html: emailHtml,
-            });
-
-            if (resendError) throw new Error(resendError.message);
-
-            emailSent = true;
-            method = 'Resend';
-            console.log(`Email sent via Resend to ${recipient}`);
-          }
-        } catch (resendError: any) {
-          console.error(`Resend failed for ${recipient}:`, resendError.message);
-          errorMessage = errorMessage ? `SMTP: ${errorMessage}; Resend: ${resendError.message}` : resendError.message;
-        }
-      }
-
-      // Log to email_historico
+      // Log to history
       await supabase.from('email_historico').insert({
         destinatario: recipient,
         assunto: subject,
@@ -168,14 +184,8 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error('Error in enviar-email-smtp:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message || 'Erro ao enviar emails.',
-        code: 'EMAIL_SEND_ERROR'
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ error: error.message || 'Erro ao enviar emails.', code: 'EMAIL_SEND_ERROR' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 };
