@@ -10,8 +10,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import {
   Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, MessageCircle, Send,
-  Maximize2, Minimize2, PictureInPicture2
+  Maximize2, Minimize2, PictureInPicture2, LayoutGrid, Settings2
 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 // Lazy-load LiveKit to avoid module import crashes
 let LiveKitRoom: any;
@@ -275,6 +280,8 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
   );
 }
 
+type LayoutMode = "auto" | "mosaic" | "spotlight" | "sidebar";
+
 // ── Video Grid ──
 function VideoGrid() {
   const participants = useParticipants();
@@ -286,12 +293,34 @@ function VideoGrid() {
 
   const [enlargedSid, setEnlargedSid] = useState<string | null>(null);
   const [pipSid, setPipSid] = useState<string | null>(null);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => {
+    return (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto";
+  });
+  const [maxTiles, setMaxTiles] = useState<number>(() => {
+    return parseInt(localStorage.getItem("uon1-video-max-tiles") || "16", 10);
+  });
+  const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => {
+    return localStorage.getItem("uon1-video-hide-novideo") === "true";
+  });
+
+  const saveLayoutMode = (mode: LayoutMode) => {
+    setLayoutMode(mode);
+    localStorage.setItem("uon1-video-layout", mode);
+  };
+  const saveMaxTiles = (val: number) => {
+    setMaxTiles(val);
+    localStorage.setItem("uon1-video-max-tiles", String(val));
+  };
+  const saveHideNoVideo = (val: boolean) => {
+    setHideNoVideo(val);
+    localStorage.setItem("uon1-video-hide-novideo", String(val));
+  };
 
   const audioTracks = tracks.filter((t) => t.source === Track.Source.Microphone);
   const visualTracks = tracks.filter((t) => t.source !== Track.Source.Microphone);
 
   const seen = new Set<string>();
-  const dedupedTracks = visualTracks.filter((trackRef) => {
+  let dedupedTracks = visualTracks.filter((trackRef) => {
     if (trackRef.source === Track.Source.ScreenShare) return true;
     const pid = trackRef.participant.sid;
     if (seen.has(pid)) return false;
@@ -299,13 +328,37 @@ function VideoGrid() {
     return true;
   });
 
-  const enlargedTrack = enlargedSid ? dedupedTracks.find(t => t.participant.sid === enlargedSid) : null;
-  const gridTracks = enlargedTrack ? dedupedTracks.filter(t => t.participant.sid !== enlargedSid) : dedupedTracks;
+  // Filter no-video if enabled
+  if (hideNoVideo) {
+    dedupedTracks = dedupedTracks.filter(t => t.publication?.track || t.source === Track.Source.ScreenShare);
+  }
+
+  // Apply max tiles limit
+  const limitedTracks = dedupedTracks.slice(0, maxTiles);
+
+  const effectiveLayout = layoutMode;
+  const spotlightTrack = effectiveLayout === "spotlight" || effectiveLayout === "sidebar"
+    ? limitedTracks[0] || null
+    : (enlargedSid ? limitedTracks.find(t => t.participant.sid === enlargedSid) : null);
+  
+  const gridTracks = spotlightTrack 
+    ? limitedTracks.filter(t => t !== spotlightTrack) 
+    : limitedTracks;
   const gridCount = gridTracks.length;
 
-  // Dynamic grid: Meet/Zoom-style layout
+  // Dynamic grid class based on layout mode
   const getGridClass = () => {
-    if (enlargedTrack) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+    if (effectiveLayout === "mosaic") {
+      if (gridCount <= 1) return "grid-cols-1";
+      if (gridCount <= 4) return "grid-cols-2";
+      if (gridCount <= 9) return "grid-cols-3";
+      return "grid-cols-4";
+    }
+    if (spotlightTrack) {
+      if (effectiveLayout === "sidebar") return "grid-cols-1";
+      return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+    }
+    // auto
     if (gridCount <= 1) return "grid-cols-1";
     if (gridCount === 2) return "grid-cols-1 sm:grid-cols-2";
     if (gridCount <= 4) return "grid-cols-2";
@@ -397,22 +450,84 @@ function VideoGrid() {
     );
   };
 
+  const layoutOptions: { value: LayoutMode; label: string; desc: string }[] = [
+    { value: "auto", label: "Automático (dinâmico)", desc: "Ajusta conforme participantes" },
+    { value: "mosaic", label: "Mosaico", desc: "Grid uniforme para todos" },
+    { value: "spotlight", label: "Destaque", desc: "Um participante em foco" },
+    { value: "sidebar", label: "Barra lateral", desc: "Principal + lista lateral" },
+  ];
+
   return (
-    <div className="flex-1 overflow-hidden flex flex-col bg-muted/30 p-2 sm:p-4">
+    <div className={`flex-1 overflow-hidden flex ${effectiveLayout === "sidebar" && spotlightTrack ? "flex-row" : "flex-col"} bg-muted/30 p-2 sm:p-4`}>
       {/* Invisible audio tracks */}
       {audioTracks.map((trackRef) => (
         trackRef.publication?.track ? (
           <AudioTrack key={trackRef.participant.sid + '-audio'} trackRef={trackRef} />
         ) : null
       ))}
-      {/* Enlarged speaker view */}
-      {enlargedTrack && (
-        <div className="flex-1 min-h-0 mb-3 rounded-2xl overflow-hidden">
-          {renderTile(enlargedTrack, true)}
+
+      {/* Layout settings button */}
+      <div className="absolute top-16 right-4 z-10">
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="h-9 w-9 rounded-full bg-card/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-card transition-colors border border-border/30 shadow-sm">
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72" align="end">
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold text-sm mb-1">Ajuste a visualização</h4>
+                <p className="text-xs text-muted-foreground">A seleção é salva para as próximas reuniões</p>
+              </div>
+              <RadioGroup value={layoutMode} onValueChange={(v) => saveLayoutMode(v as LayoutMode)}>
+                {layoutOptions.map(opt => (
+                  <div key={opt.value} className="flex items-center gap-3 py-1.5">
+                    <RadioGroupItem value={opt.value} id={`layout-${opt.value}`} />
+                    <Label htmlFor={`layout-${opt.value}`} className="cursor-pointer">
+                      <span className="text-sm font-medium">{opt.label}</span>
+                      <span className="block text-xs text-muted-foreground">{opt.desc}</span>
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+              <div className="space-y-2 pt-2 border-t border-border/50">
+                <div>
+                  <h5 className="text-xs font-semibold mb-1">Blocos</h5>
+                  <p className="text-[10px] text-muted-foreground">Máximo de blocos para exibição</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <LayoutGrid className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <Slider
+                    value={[maxTiles]}
+                    onValueChange={([v]) => saveMaxTiles(v)}
+                    min={1}
+                    max={25}
+                    step={1}
+                    className="flex-1"
+                  />
+                  <span className="text-xs text-muted-foreground w-5 text-right">{maxTiles}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                <Label htmlFor="hide-no-video" className="text-xs">Ocultar blocos sem vídeo</Label>
+                <Switch id="hide-no-video" checked={hideNoVideo} onCheckedChange={saveHideNoVideo} className="scale-90" />
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Spotlight/Enlarged speaker view */}
+      {spotlightTrack && (
+        <div className={`${effectiveLayout === "sidebar" ? "flex-1 min-w-0" : "flex-1 min-h-0 mb-3"} rounded-2xl overflow-hidden`}>
+          {renderTile(spotlightTrack, true)}
         </div>
       )}
       {/* Grid */}
-      <div className={`grid ${getGridClass()} gap-2 sm:gap-3 ${enlargedTrack ? 'h-[25%] shrink-0' : 'flex-1'} items-center content-center`}>
+      <div className={`${effectiveLayout === "sidebar" && spotlightTrack 
+        ? "w-48 shrink-0 flex flex-col gap-2 overflow-y-auto ml-2" 
+        : `grid ${getGridClass()} gap-2 sm:gap-3 ${spotlightTrack ? 'h-[25%] shrink-0' : 'flex-1'} items-center content-center`}`}>
         {gridTracks.map((trackRef) => renderTile(trackRef))}
       </div>
     </div>
