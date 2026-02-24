@@ -127,6 +127,31 @@ function normalizeText(text: string): string {
     .trim();
 }
 
+// Robust Brazilian phone matching: handles 9th digit variation
+// e.g. webhook: 553183131491 (no 9th digit) vs config: 31983131491 (with 9th digit)
+function phonesMatch(phoneA: string, phoneB: string): boolean {
+  const a = phoneA.replace(/\D/g, '');
+  const b = phoneB.replace(/\D/g, '');
+  if (!a || !b) return false;
+  // Exact match
+  if (a === b) return true;
+  // Match by last 11, 10 digits
+  if (a.slice(-11) === b.slice(-11)) return true;
+  if (a.slice(-10) === b.slice(-10)) return true;
+  // Handle 9th digit variation: compare last 8 digits (subscriber number without 9th digit prefix)
+  // Extract area code + 8-digit number from both
+  const aLast8 = a.slice(-8);
+  const bLast8 = b.slice(-8);
+  // Get area code: for 55XXNNNNNNNN format, area code is digits 2-4 from right of (length-8)
+  const aArea = a.length >= 10 ? a.slice(-10, -8) : a.slice(-10, -8);
+  const bArea = b.length >= 10 ? b.slice(-10, -8) : b.slice(-10, -8);
+  // Same area code + same last 8 digits = match (handles 9th digit difference)
+  if (aArea === bArea && aLast8 === bLast8) return true;
+  // Fallback: just compare last 8 digits (less strict but catches edge cases)
+  if (aLast8 === bLast8 && aArea && bArea) return true;
+  return false;
+}
+
 function matchTrigger(flow: any, messageBody: string, isFirstMessage: boolean): boolean {
   const { trigger_type, trigger_config } = flow;
 
@@ -432,11 +457,7 @@ async function executeStep(
 
     case 'request_report': {
       // Check if phone is authorized - collect ALL matching associations
-      const cleanPhone = phone.replace(/\D/g, '');
-      const phoneLast11 = cleanPhone.slice(-11);
-      const phoneLast10 = cleanPhone.slice(-10);
-
-      console.log(`[flow-engine] Auth check - phone: ${phone}, clean: ${cleanPhone}, last11: ${phoneLast11}, last10: ${phoneLast10}`);
+      console.log(`[flow-engine] Auth check - phone: ${phone}`);
 
       const { data: configs } = await supabase
         .from('whatsapp_config')
@@ -448,14 +469,10 @@ async function executeStep(
 
       if (configs) {
         for (const cfg of configs) {
-          const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.replace(/\D/g, '').trim());
+          const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.trim()).filter(Boolean);
           for (const n of numbers) {
-            if (!n) continue;
-            const nLast11 = n.slice(-11);
-            const nLast10 = n.slice(-10);
-            if (nLast11 === phoneLast11 || nLast10 === phoneLast10 || n === cleanPhone) {
+            if (phonesMatch(phone, n)) {
               const nome = (cfg as any).corretoras?.nome || 'Associação';
-              // Avoid duplicates
               if (!matchedCorretoras.find(c => c.id === cfg.corretora_id)) {
                 matchedCorretoras.push({ id: cfg.corretora_id, nome });
               }
@@ -464,7 +481,7 @@ async function executeStep(
           }
         }
       }
-      console.log(`[flow-engine] Auth result: matched=${matchedCorretoras.length} corretoras`);
+      console.log(`[flow-engine] Auth result: matched=${matchedCorretoras.length} corretoras: ${matchedCorretoras.map(c => c.nome).join(', ')}`);
 
       if (matchedCorretoras.length === 0) {
         const denyMsg = replaceVariables(step.config?.deny_message || '⚠️ Você não tem permissão para solicitar relatórios. Entre em contato com sua associação para liberação.', state.variables || {});
@@ -530,10 +547,6 @@ async function executeStep(
     }
 
     case 'deny_unauthorized': {
-      const cleanPhone = phone.replace(/\D/g, '');
-      const phoneLast11 = cleanPhone.slice(-11);
-      const phoneLast10 = cleanPhone.slice(-10);
-
       const { data: configs } = await supabase
         .from('whatsapp_config')
         .select('telefone_whatsapp')
@@ -542,12 +555,9 @@ async function executeStep(
       let authorized = false;
       if (configs) {
         for (const cfg of configs) {
-          const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.replace(/\D/g, '').trim());
+          const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.trim()).filter(Boolean);
           for (const n of numbers) {
-            if (!n) continue;
-            const nLast11 = n.slice(-11);
-            const nLast10 = n.slice(-10);
-            if (nLast11 === phoneLast11 || nLast10 === phoneLast10 || n === cleanPhone) {
+            if (phonesMatch(phone, n)) {
               authorized = true;
               break;
             }
