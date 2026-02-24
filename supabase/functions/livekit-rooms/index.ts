@@ -532,6 +532,27 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── CHECK GUEST STATUS (public, no auth - polling) ──
+    if (action === "checkGuestStatus") {
+      const body = await req.json();
+      const { roomId, identity } = body;
+      if (!roomId || !identity) throw new Error("roomId e identity são obrigatórios");
+
+      const { data: participant } = await supabaseAdmin
+        .from("meeting_participants")
+        .select("status")
+        .eq("room_id", roomId)
+        .eq("identity", identity)
+        .single();
+
+      if (!participant) throw new Error("Participante não encontrado");
+
+      return new Response(
+        JSON.stringify({ status: participant.status }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ── GET GUEST TOKEN (public, no auth - for approved guests) ──
     if (action === "getGuestToken") {
       const body = await req.json();

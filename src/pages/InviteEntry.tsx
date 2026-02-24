@@ -71,51 +71,50 @@ export default function InviteEntry() {
     validateInvite();
   }, [inviteId]);
 
-  // Listen for approval via realtime
+  // Poll for approval (realtime requires auth/RLS which guests don't have)
   useEffect(() => {
     if (!roomId || !participantIdentity || approved) return;
 
-    const channel = supabase
-      .channel(`guest-approval-${roomId}-${participantIdentity}`)
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "meeting_participants",
-        filter: `room_id=eq.${roomId}`,
-      }, async (payload) => {
-        const updated = payload.new as any;
-        if (updated.identity !== participantIdentity) return;
-
-        if (updated.status === "approved") {
-          // Fetch new token with canPublish=true
-          try {
-            const res = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=getGuestToken`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ roomId, identity: participantIdentity }),
-              }
-            );
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            setToken(data.token);
-            setLivekitUrl(data.livekitUrl);
-            setApproved(true);
-            toast.success("Aprovado! Entrando na sala...");
-          } catch (e: any) {
-            console.error("Error fetching guest token:", e);
-            toast.error("Erro ao entrar na sala");
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=checkGuestStatus`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ roomId, identity: participantIdentity }),
           }
-        } else if (updated.status === "denied") {
+        );
+        const data = await res.json();
+        if (data.error) return;
+
+        if (data.status === "approved") {
+          // Fetch new token with canPublish=true
+          const tokenRes = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=getGuestToken`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ roomId, identity: participantIdentity }),
+            }
+          );
+          const tokenData = await tokenRes.json();
+          if (tokenData.error) throw new Error(tokenData.error);
+          setToken(tokenData.token);
+          setLivekitUrl(tokenData.livekitUrl);
+          setApproved(true);
+          toast.success("Aprovado! Entrando na sala...");
+        } else if (data.status === "denied") {
           toast.error("Sua entrada foi recusada pelo moderador");
           setToken(null);
           setError("Entrada recusada pelo moderador");
         }
-      })
-      .subscribe();
+      } catch (e) {
+        console.warn("Poll error:", e);
+      }
+    }, 2000); // Poll every 2 seconds
 
-    return () => { supabase.removeChannel(channel); };
+    return () => clearInterval(pollInterval);
   }, [roomId, participantIdentity, approved]);
 
   const validateInvite = async () => {
