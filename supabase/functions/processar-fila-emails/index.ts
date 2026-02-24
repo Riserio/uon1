@@ -89,12 +89,11 @@ const handler = async (req: Request): Promise<Response> => {
       // Try SMTP first
       if (smtpConfig) {
         try {
-          const useImplicitTls = smtpConfig.smtp_port === 465;
           const client = new SMTPClient({
             connection: {
               hostname: smtpConfig.smtp_host,
               port: smtpConfig.smtp_port,
-              tls: useImplicitTls,
+              tls: true,
               auth: {
                 username: smtpConfig.smtp_user,
                 password: smtpConfig.smtp_password,

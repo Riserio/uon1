@@ -1,1 +1,0 @@
-UPDATE email_config SET smtp_port = 465 WHERE smtp_host = 'smtp.vangardgestora.com.br';

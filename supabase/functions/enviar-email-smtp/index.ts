@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,44 +13,6 @@ interface EmailRequest {
   message: string;
   corretoraId?: string;
   contatoId?: string;
-}
-
-async function sendViaSmtp(config: any, to: string, subject: string, message: string, html: string): Promise<{ success: boolean; error?: string }> {
-  try {
-    const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
-    
-    // Force port 465 with implicit TLS to avoid STARTTLS crashes
-    const port = config.smtp_port === 587 ? 465 : config.smtp_port;
-    const client = new SMTPClient({
-      connection: {
-        hostname: config.smtp_host,
-        port: port,
-        tls: true, // Always use implicit TLS
-        auth: {
-          username: config.smtp_user,
-          password: config.smtp_password,
-        },
-      },
-    });
-
-    await client.send({
-      from: `${config.from_name} <${config.from_email}>`,
-      to,
-      subject,
-      content: message,
-      html,
-      headers: {
-        'X-Priority': '3',
-        'X-Mailer': 'ATCD Sistema',
-        'Reply-To': config.from_email,
-      },
-    });
-
-    try { await client.close(); } catch (_) {}
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'SMTP error' };
-  }
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -80,58 +43,84 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { to, subject, message }: EmailRequest = await req.json();
-    const emailHtml = message.replace(/\n/g, '<br>');
+    const { to, subject, message, corretoraId, contatoId }: EmailRequest = await req.json();
 
-    // Get SMTP config
-    const { data: smtpConfig } = await supabase
+    // Get SMTP configuration
+    const { data: smtpConfig, error: configError } = await supabase
       .from('email_config')
       .select('*')
       .eq('user_id', user.id)
       .single();
 
-    if (!smtpConfig) {
-      return new Response(JSON.stringify({ error: 'Configuração SMTP não encontrada. Configure seu servidor SMTP nas configurações.' }), {
+    if (configError || !smtpConfig) {
+      return new Response(JSON.stringify({ error: 'SMTP não configurado' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    // Create SMTP client with proper SSL/TLS configuration
+    const useSsl = smtpConfig.smtp_port === 465;
+    const client = new SMTPClient({
+      connection: {
+        hostname: smtpConfig.smtp_host,
+        port: smtpConfig.smtp_port,
+        tls: useSsl ? true : true, // Always use secure connection
+        auth: {
+          username: smtpConfig.smtp_user,
+          password: smtpConfig.smtp_password,
+        },
+      },
+    });
+
+    // Send emails
     const results = [];
-
     for (const recipient of to) {
-      console.log(`Sending via SMTP to ${recipient} (${smtpConfig.smtp_host}:465 TLS)...`);
-      const result = await sendViaSmtp(smtpConfig, recipient, subject, message, emailHtml);
+      try {
+        await client.send({
+          from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`,
+          to: recipient,
+          subject: subject,
+          content: message,
+          html: message.replace(/\n/g, '<br>'),
+          headers: {
+            'X-Priority': '3',
+            'X-Mailer': 'ATCD Sistema',
+            'Reply-To': smtpConfig.from_email,
+            'List-Unsubscribe': `<mailto:${smtpConfig.from_email}?subject=unsubscribe>`,
+          },
+        });
 
-      let method = '';
-      let errorMessage = '';
+        // Log email history
+        await supabase.from('email_historico').insert({
+          destinatario: recipient,
+          assunto: subject,
+          corpo: message,
+          enviado_por: user.id,
+          status: 'enviado',
+          atendimento_id: '00000000-0000-0000-0000-000000000000', // Placeholder for manual emails
+        });
 
-      if (result.success) {
-        method = 'SMTP';
-        console.log(`Email sent via SMTP to ${recipient}`);
-      } else {
-        errorMessage = `SMTP: ${result.error}`;
-        console.error(`SMTP failed for ${recipient}: ${result.error}`);
+        results.push({ email: recipient, status: 'enviado' });
+      } catch (error: any) {
+        console.error(`Error sending to ${recipient}:`, error);
+        
+        // Log error
+        await supabase.from('email_historico').insert({
+          destinatario: recipient,
+          assunto: subject,
+          corpo: message,
+          enviado_por: user.id,
+          status: 'erro',
+          erro_mensagem: error.message || 'Erro desconhecido',
+          atendimento_id: '00000000-0000-0000-0000-000000000000',
+        });
+
+        results.push({ email: recipient, status: 'erro', error: error.message || 'Erro desconhecido' });
       }
-
-      // Log to history
-      await supabase.from('email_historico').insert({
-        destinatario: recipient,
-        assunto: subject,
-        corpo: `[${method || 'FALHA'}] ${message}`,
-        enviado_por: user.id,
-        status: result.success ? 'enviado' : 'erro',
-        erro_mensagem: result.success ? null : errorMessage,
-        atendimento_id: '00000000-0000-0000-0000-000000000000',
-      });
-
-      results.push({
-        email: recipient,
-        status: result.success ? 'enviado' : 'erro',
-        method: method || 'nenhum',
-        error: result.success ? undefined : errorMessage,
-      });
     }
+
+    await client.close();
 
     return new Response(JSON.stringify({ results }), {
       status: 200,
@@ -140,8 +129,14 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error('Error in enviar-email-smtp:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Erro ao enviar emails.', code: 'EMAIL_SEND_ERROR' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        error: 'Erro ao enviar emails. Por favor, verifique as configurações e tente novamente.',
+        code: 'EMAIL_SEND_ERROR'
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     );
   }
 };
