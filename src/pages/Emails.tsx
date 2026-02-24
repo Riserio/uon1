@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,7 @@ interface EmailAutoConfig {
 
 export default function Emails() {
   const { user } = useAuth();
+  const totalUnread = useWhatsAppUnread();
   const [resendConfig, setResendConfig] = useState<ResendConfig>({
     from_email: "",
     from_name: "",
@@ -452,9 +454,14 @@ export default function Emails() {
         {/* Top-level tabs — modern pill style */}
         <Tabs defaultValue="central" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="central" className="gap-2">
+            <TabsTrigger value="central" className="gap-2 relative">
               <Headset className="h-4 w-4" />
               Central
+              {totalUnread > 0 && (
+                <Badge className="bg-primary text-primary-foreground h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5 ml-1">
+                  {totalUnread}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="whatsapp" className="gap-2">
               <MessageCircle className="h-4 w-4" />
