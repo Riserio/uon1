@@ -147,33 +147,52 @@ serve(async (req) => {
     }
     const isResetCommand = resetKeywords.includes(normalizeText(message_body));
 
-    // Check for active flow state
-    const { data: activeState } = await supabase
-      .from('whatsapp_contact_flow_state')
-      .select('*, whatsapp_flows(*)')
-      .eq('contact_id', contact_id)
-      .eq('status', 'active')
-      .maybeSingle();
+    // Check for active flow state(s) — handle multiple actives defensively
+    let activeState: any = null;
+    {
+      const { data: activeStates } = await supabase
+        .from('whatsapp_contact_flow_state')
+        .select('*, whatsapp_flows(*)')
+        .eq('contact_id', contact_id)
+        .eq('status', 'active')
+        .order('started_at', { ascending: false });
+
+      if (activeStates && activeStates.length > 1) {
+        // Expire all but the most recent
+        const toExpire = activeStates.slice(1).map((s: any) => s.id);
+        console.log(`[flow-engine] Found ${activeStates.length} active states for contact ${contact_id}, expiring ${toExpire.length} old ones`);
+        const { error: expErr } = await supabase
+          .from('whatsapp_contact_flow_state')
+          .update({ status: 'expired', completed_at: new Date().toISOString() })
+          .in('id', toExpire);
+        if (expErr) console.error(`[flow-engine] Error expiring duplicate states:`, expErr);
+      }
+      activeState = activeStates?.[0] || null;
+    }
 
     // Handle reset command: expire active state and fall through to trigger matching
     if (activeState && isResetCommand) {
       console.log(`[flow-engine] Reset command "${message_body}" — expiring state ${activeState.id}`);
-      await supabase.from('whatsapp_contact_flow_state')
+      const { error: resetErr } = await supabase.from('whatsapp_contact_flow_state')
         .update({ status: 'expired', completed_at: new Date().toISOString() })
         .eq('id', activeState.id);
+      if (resetErr) console.error(`[flow-engine] RESET FAILED for state ${activeState.id}:`, resetErr);
+      else console.log(`[flow-engine] State ${activeState.id} expired successfully via reset`);
       await sendWhatsAppMessage(supabase, contact_id, phone, '🔄 Fluxo reiniciado com sucesso! Envie sua mensagem novamente para começar.', metaToken!, metaPhoneNumberId!);
       // Fall through to try matching new triggers below
     }
     // Auto-expire stale active states
     else if (activeState) {
-      const lastInteraction = activeState.last_interaction_at || activeState.created_at;
+      const lastInteraction = activeState.last_interaction_at || activeState.started_at;
       const staleMs = Date.now() - new Date(lastInteraction).getTime();
       const STALE_THRESHOLD_MS = timeoutMinutos * 60 * 1000;
       if (staleMs > STALE_THRESHOLD_MS) {
-        console.log(`[flow-engine] Auto-expiring stale state ${activeState.id} (${Math.round(staleMs / 60000)}min old)`);
-        await supabase.from('whatsapp_contact_flow_state')
+        console.log(`[flow-engine] Auto-expiring stale state ${activeState.id} (${Math.round(staleMs / 60000)}min old, threshold: ${timeoutMinutos}min)`);
+        const { error: timeoutErr } = await supabase.from('whatsapp_contact_flow_state')
           .update({ status: 'expired', completed_at: new Date().toISOString() })
           .eq('id', activeState.id);
+        if (timeoutErr) console.error(`[flow-engine] TIMEOUT EXPIRE FAILED for state ${activeState.id}:`, timeoutErr);
+        else console.log(`[flow-engine] State ${activeState.id} expired successfully via timeout`);
         // Fall through to try matching new triggers
       } else {
         console.log(`[flow-engine] Active state found: ${activeState.id}, step: ${activeState.current_step_key}`);
@@ -863,10 +882,21 @@ function replaceVariables(template: string, variables: Record<string, string>): 
 }
 
 async function completeFlow(supabase: any, stateId: string) {
-  await supabase
+  const { error } = await supabase
     .from('whatsapp_contact_flow_state')
     .update({ status: 'completed', completed_at: new Date().toISOString() })
     .eq('id', stateId);
+  if (error) {
+    console.error(`[flow-engine] completeFlow FAILED for state ${stateId}:`, error);
+    // Fallback: try 'expired' instead
+    const { error: fallbackErr } = await supabase
+      .from('whatsapp_contact_flow_state')
+      .update({ status: 'expired', completed_at: new Date().toISOString() })
+      .eq('id', stateId);
+    if (fallbackErr) console.error(`[flow-engine] completeFlow fallback also FAILED:`, fallbackErr);
+  } else {
+    console.log(`[flow-engine] Flow state ${stateId} completed successfully`);
+  }
 }
 
 async function scheduleMessage(

@@ -116,17 +116,25 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     if (!selectedContact) return;
     loadMessages(selectedContact.id);
 
-    // Mark as read and immediately update local state
+    // Mark as read — optimistic local update FIRST, then persist
     if (selectedContact.unread_count > 0) {
+      // Optimistic: zero locally immediately
+      setContacts(prev => prev.map(c => 
+        c.id === selectedContact.id ? { ...c, unread_count: 0 } : c
+      ));
+      setSelectedContact(prev => prev ? { ...prev, unread_count: 0 } : prev);
+      
+      // Persist to backend
       supabase
         .from('whatsapp_contacts')
         .update({ unread_count: 0 })
         .eq('id', selectedContact.id)
-        .then(() => {
-          // Update local contacts list immediately
-          setContacts(prev => prev.map(c => 
-            c.id === selectedContact.id ? { ...c, unread_count: 0 } : c
-          ));
+        .then(({ error }) => {
+          if (error) {
+            console.error('Failed to zero unread_count:', error);
+            // Rollback on error
+            loadContacts();
+          }
         });
     }
 
@@ -629,7 +637,14 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-medium text-sm">{getContactDisplayName(selectedContact)}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-sm">{getContactDisplayName(selectedContact)}</p>
+                    {selectedContact.unread_count > 0 && (
+                      <Badge className="bg-primary text-primary-foreground h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
+                        {selectedContact.unread_count}
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Phone className="h-3 w-3" /> {selectedContact.phone}
                     {selectedContact.human_mode && (
