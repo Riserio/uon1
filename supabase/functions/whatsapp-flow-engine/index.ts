@@ -37,9 +37,28 @@ serve(async (req) => {
       .eq('status', 'active')
       .maybeSingle();
 
+    // Auto-expire stale active states (no interaction for 2+ hours)
     if (activeState) {
-      await processFlowStep(supabase, activeState, message_body, contact_id, phone, metaToken!, metaPhoneNumberId!);
-    } else {
+      const lastInteraction = activeState.last_interaction_at || activeState.created_at;
+      const staleMs = Date.now() - new Date(lastInteraction).getTime();
+      const STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
+      if (staleMs > STALE_THRESHOLD_MS) {
+        console.log(`[flow-engine] Auto-expiring stale state ${activeState.id} (${Math.round(staleMs / 60000)}min old)`);
+        await supabase.from('whatsapp_contact_flow_state')
+          .update({ status: 'expired', completed_at: new Date().toISOString() })
+          .eq('id', activeState.id);
+        // Fall through to try matching new triggers
+      } else {
+        console.log(`[flow-engine] Active state found: ${activeState.id}, step: ${activeState.current_step_key}`);
+        await processFlowStep(supabase, activeState, message_body, contact_id, phone, metaToken!, metaPhoneNumberId!);
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    // No active state (or expired) - try to match triggers
+    {
       const { data: flows } = await supabase
         .from('whatsapp_flows')
         .select('*, whatsapp_flow_steps(*)')
@@ -61,11 +80,13 @@ serve(async (req) => {
 
       const isFirstMessage = (msgCount || 0) <= 1;
 
+      console.log(`[flow-engine] Checking ${flows.length} flows for message: "${message_body}"`);
       for (const flow of flows) {
         const matched = matchTrigger(flow, message_body, isFirstMessage);
+        console.log(`[flow-engine] Flow "${flow.name}" (trigger: ${flow.trigger_type}, keywords: ${JSON.stringify(flow.trigger_config?.keywords || [])}) → ${matched ? 'MATCH' : 'no match'}`);
         if (!matched) continue;
 
-        console.log(`[flow-engine] Fluxo matched: ${flow.name}`);
+        console.log(`[flow-engine] ✅ Fluxo matched: ${flow.name}`);
 
         const steps = flow.whatsapp_flow_steps || [];
         const firstStep = steps.sort((a: any, b: any) => a.step_order - b.step_order)[0];
@@ -191,8 +212,9 @@ async function processFlowStep(
     if (!isNaN(optionIndex) && optionIndex >= 0 && optionIndex < options.length) {
       selectedOption = options[optionIndex];
     } else {
-      // Try matching by label text
-      selectedOption = options.find((o: any) => o.label.toLowerCase() === trimmed.toLowerCase());
+      // Try matching by label text (case-insensitive, accent-insensitive)
+      const normTrimmed = normalizeText(trimmed);
+      selectedOption = options.find((o: any) => normalizeText(o.label) === normTrimmed);
     }
 
     if (!selectedOption) {
