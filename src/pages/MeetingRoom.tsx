@@ -9,7 +9,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import {
-  Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, MessageCircle, Send
+  Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, MessageCircle, Send,
+  Maximize2, Minimize2, PictureInPicture2
 } from "lucide-react";
 
 // Lazy-load LiveKit to avoid module import crashes
@@ -155,6 +156,8 @@ export default function MeetingRoomPage() {
         serverUrl={livekitUrl}
         token={token}
         connect={true}
+        video={true}
+        audio={true}
         onDisconnected={handleDisconnect}
         className="flex flex-col flex-1"
       >
@@ -279,6 +282,9 @@ function VideoGrid() {
     { source: Track.Source.ScreenShare, withPlaceholder: false },
   ]);
 
+  const [enlargedSid, setEnlargedSid] = useState<string | null>(null);
+  const [pipSid, setPipSid] = useState<string | null>(null);
+
   // Deduplicate: show one tile per participant (camera), plus screen shares
   const seen = new Set<string>();
   const dedupedTracks = tracks.filter((trackRef) => {
@@ -290,45 +296,110 @@ function VideoGrid() {
   });
 
   const count = dedupedTracks.length;
-  const gridClass = count <= 1
-    ? "grid-cols-1 max-w-3xl mx-auto"
-    : count <= 2
-      ? "grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto"
-      : count <= 4
+  const enlargedTrack = enlargedSid ? dedupedTracks.find(t => t.participant.sid === enlargedSid) : null;
+  const pipTrack = pipSid ? dedupedTracks.find(t => t.participant.sid === pipSid) : null;
+  const gridTracks = enlargedTrack ? dedupedTracks.filter(t => t.participant.sid !== enlargedSid) : dedupedTracks;
+  
+  const gridCount = gridTracks.length;
+  const gridClass = enlargedTrack
+    ? "grid-cols-1 max-w-xl mx-auto"
+    : gridCount <= 1
+      ? "grid-cols-1 max-w-3xl mx-auto"
+      : gridCount <= 2
         ? "grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto"
-        : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+        : gridCount <= 4
+          ? "grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto"
+          : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+
+  const handlePip = async (trackRef: any) => {
+    const videoEl = document.querySelector(`[data-participant-sid="${trackRef.participant.sid}"] video`) as HTMLVideoElement | null;
+    if (videoEl && document.pictureInPictureEnabled) {
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+          setPipSid(null);
+        } else {
+          await videoEl.requestPictureInPicture();
+          setPipSid(trackRef.participant.sid);
+          videoEl.addEventListener('leavepictureinpicture', () => setPipSid(null), { once: true });
+        }
+      } catch { /* ignore */ }
+    } else {
+      toast.error("PIP não suportado neste navegador");
+    }
+  };
+
+  const renderTile = (trackRef: any, isEnlarged = false) => {
+    const hasTrack = trackRef.publication && trackRef.publication.track;
+    const trackRefAny = trackRef as any;
+    const sid = trackRef.participant.sid;
+    return (
+      <div
+        key={sid + (trackRef.publication?.trackSid || "placeholder")}
+        data-participant-sid={sid}
+        className={`relative bg-muted/50 rounded-xl overflow-hidden flex items-center justify-center border border-border/30 group/tile ${
+          isEnlarged ? "aspect-video w-full" : "aspect-video"
+        }`}
+      >
+        {hasTrack ? (
+          trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare ? (
+            <VideoTrack trackRef={trackRefAny} className="w-full h-full object-cover" />
+          ) : (
+            <AudioTrack trackRef={trackRefAny} />
+          )
+        ) : (
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center">
+              <VideoOff className="h-6 w-6 text-primary/70" />
+            </div>
+            <span className="text-xs text-muted-foreground font-medium">{trackRef.participant.name || trackRef.participant.identity}</span>
+          </div>
+        )}
+        <div className="absolute bottom-2 left-2 px-2.5 py-1 bg-background/80 backdrop-blur-sm rounded-md text-xs text-foreground font-medium border border-border/20">
+          {trackRef.participant.name || trackRef.participant.identity}
+        </div>
+        {/* Controls overlay */}
+        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/tile:opacity-100 transition-opacity">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setEnlargedSid(isEnlarged ? null : sid)}
+                className="h-7 w-7 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center border border-border/30 hover:bg-background transition-colors"
+              >
+                {isEnlarged ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{isEnlarged ? "Reduzir" : "Ampliar"}</TooltipContent>
+          </Tooltip>
+          {hasTrack && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => handlePip(trackRef)}
+                  className={`h-7 w-7 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center border border-border/30 hover:bg-background transition-colors ${pipSid === sid ? 'ring-2 ring-primary' : ''}`}
+                >
+                  <PictureInPicture2 className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Picture-in-Picture</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="flex-1 p-3 overflow-auto flex items-center">
+    <div className="flex-1 p-3 overflow-auto flex flex-col items-center justify-center gap-3">
+      {/* Enlarged view */}
+      {enlargedTrack && (
+        <div className="w-full max-w-4xl">
+          {renderTile(enlargedTrack, true)}
+        </div>
+      )}
+      {/* Grid */}
       <div className={`grid ${gridClass} gap-3 w-full`}>
-        {dedupedTracks.map((trackRef) => {
-          const hasTrack = trackRef.publication && trackRef.publication.track;
-          const trackRefAny = trackRef as any;
-          return (
-            <div
-              key={trackRef.participant.sid + (trackRef.publication?.trackSid || "placeholder")}
-              className="relative bg-muted/50 rounded-xl overflow-hidden aspect-video flex items-center justify-center border border-border/30"
-            >
-              {hasTrack ? (
-                trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare ? (
-                  <VideoTrack trackRef={trackRefAny} className="w-full h-full object-cover" />
-                ) : (
-                  <AudioTrack trackRef={trackRefAny} />
-                )
-              ) : (
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center">
-                    <VideoOff className="h-6 w-6 text-primary/70" />
-                  </div>
-                  <span className="text-xs text-muted-foreground font-medium">{trackRef.participant.name || trackRef.participant.identity}</span>
-                </div>
-              )}
-              <div className="absolute bottom-2 left-2 px-2.5 py-1 bg-background/80 backdrop-blur-sm rounded-md text-xs text-foreground font-medium border border-border/20">
-                {trackRef.participant.name || trackRef.participant.identity}
-              </div>
-            </div>
-          );
-        })}
+        {gridTracks.map((trackRef) => renderTile(trackRef))}
       </div>
     </div>
   );

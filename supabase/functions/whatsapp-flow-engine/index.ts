@@ -326,7 +326,11 @@ async function executeStep(
     case 'request_report': {
       // Check if phone is authorized (registered in whatsapp_config destination numbers)
       const cleanPhone = phone.replace(/\D/g, '');
-      const phoneWithout55 = cleanPhone.startsWith('55') ? cleanPhone.substring(2) : cleanPhone;
+      // Extract last 10 and 11 digits for flexible matching
+      const phoneLast11 = cleanPhone.slice(-11);
+      const phoneLast10 = cleanPhone.slice(-10);
+
+      console.log(`[flow-engine] Auth check - phone: ${phone}, clean: ${cleanPhone}, last11: ${phoneLast11}, last10: ${phoneLast10}`);
 
       const { data: configs } = await supabase
         .from('whatsapp_config')
@@ -338,14 +342,23 @@ async function executeStep(
 
       if (configs) {
         for (const cfg of configs) {
-          const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.replace(/\D/g, ''));
-          if (numbers.some((n: string) => n === phoneWithout55 || n === cleanPhone || `55${n}` === cleanPhone)) {
-            authorized = true;
-            corretoraId = cfg.corretora_id;
-            break;
+          const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.replace(/\D/g, '').trim());
+          console.log(`[flow-engine] Config numbers: ${JSON.stringify(numbers)}`);
+          for (const n of numbers) {
+            if (!n) continue;
+            const nLast11 = n.slice(-11);
+            const nLast10 = n.slice(-10);
+            // Match by last 11 digits (area+number) or last 10 digits (number without 9th digit)
+            if (nLast11 === phoneLast11 || nLast10 === phoneLast10 || n === cleanPhone) {
+              authorized = true;
+              corretoraId = cfg.corretora_id;
+              break;
+            }
           }
+          if (authorized) break;
         }
       }
+      console.log(`[flow-engine] Auth result: authorized=${authorized}, corretoraId=${corretoraId}`);
 
       if (!authorized) {
         const denyMsg = replaceVariables(step.config?.deny_message || '⚠️ Você não tem permissão para solicitar relatórios. Entre em contato com sua associação para liberação.', state.variables || {});
@@ -410,7 +423,8 @@ async function executeStep(
 
     case 'deny_unauthorized': {
       const cleanPhone = phone.replace(/\D/g, '');
-      const phoneWithout55 = cleanPhone.startsWith('55') ? cleanPhone.substring(2) : cleanPhone;
+      const phoneLast11 = cleanPhone.slice(-11);
+      const phoneLast10 = cleanPhone.slice(-10);
 
       const { data: configs } = await supabase
         .from('whatsapp_config')
@@ -420,11 +434,17 @@ async function executeStep(
       let authorized = false;
       if (configs) {
         for (const cfg of configs) {
-          const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.replace(/\D/g, ''));
-          if (numbers.some((n: string) => n === phoneWithout55 || n === cleanPhone || `55${n}` === cleanPhone)) {
-            authorized = true;
-            break;
+          const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.replace(/\D/g, '').trim());
+          for (const n of numbers) {
+            if (!n) continue;
+            const nLast11 = n.slice(-11);
+            const nLast10 = n.slice(-10);
+            if (nLast11 === phoneLast11 || nLast10 === phoneLast10 || n === cleanPhone) {
+              authorized = true;
+              break;
+            }
           }
+          if (authorized) break;
         }
       }
 
