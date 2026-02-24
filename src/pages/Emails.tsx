@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Mail,
+  Plus,
   Trash2,
   Save,
   FileText,
@@ -68,16 +69,12 @@ interface EmailAutoConfig {
   enabled: boolean;
 }
 
-type CheckedState = boolean | "indeterminate";
-
 export default function Emails() {
   const { user } = useAuth();
-
   const [resendConfig, setResendConfig] = useState<ResendConfig>({
     from_email: "",
     from_name: "",
   });
-
   const [smtpConfig, setSmtpConfig] = useState<SMTPConfig>({
     smtp_host: "",
     smtp_port: 587,
@@ -86,7 +83,6 @@ export default function Emails() {
     from_email: "",
     from_name: "",
   });
-
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [novoTemplate, setNovoTemplate] = useState({
     nome: "",
@@ -96,12 +92,10 @@ export default function Emails() {
     ativo: true,
     tipo: "atendimento" as "atendimento" | "alerta_performance" | "recuperacao",
   });
-
   const [editandoTemplate, setEditandoTemplate] = useState<string | null>(null);
   const [historico, setHistorico] = useState<any[]>([]);
   const [emailQueue, setEmailQueue] = useState<any[]>([]);
   const [emailAuto, setEmailAuto] = useState<EmailAutoConfig>({ enabled: false });
-
   const [stats, setStats] = useState({
     total: 0,
     enviados: 0,
@@ -109,72 +103,63 @@ export default function Emails() {
     falhados: 0,
     taxaSucesso: 0,
   });
-
   const [processandoFila, setProcessandoFila] = useState(false);
   const [availableStatus, setAvailableStatus] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (user) {
+      loadResendConfig();
+      loadSMTPConfig();
+      loadTemplates();
+      loadHistorico();
+      loadEmailQueue();
+      loadEmailAutoConfig();
+      loadStats();
+      loadAvailableStatus();
+    }
 
-    // Carrega tudo (com tratamento de erro) quando o usuário existir
-    loadResendConfig();
-    loadSMTPConfig();
-    loadTemplates();
-    loadHistorico();
-    loadEmailQueue();
-    loadEmailAutoConfig();
-    loadStats();
-    loadAvailableStatus();
-
-    // Realtime status_config
+    // Subscribe to realtime changes for status_config
     const channel = supabase
       .channel("email_status_config_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "status_config" }, () => loadAvailableStatus())
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "status_config",
+        },
+        () => {
+          loadAvailableStatus();
+        },
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user]);
 
   const loadResendConfig = async () => {
-    if (!user?.id) return;
-    try {
-      const { data, error } = await supabase.from("resend_config").select("*").eq("user_id", user.id).maybeSingle();
+    const { data } = await supabase.from("resend_config").select("*").eq("user_id", user!.id).single();
 
-      // maybeSingle evita exception quando não existe linha
-      if (error) {
-        console.error("Error loading resend config:", error);
-        return;
-      }
-      if (data) setResendConfig(data);
-    } catch (e) {
-      console.error("Error loading resend config (catch):", e);
+    if (data) {
+      setResendConfig(data);
     }
   };
 
   const loadSMTPConfig = async () => {
-    if (!user?.id) return;
-    try {
-      const { data, error } = await supabase.from("email_config").select("*").eq("user_id", user.id).maybeSingle();
+    const { data } = await supabase.from("email_config").select("*").eq("user_id", user!.id).single();
 
-      if (error) {
-        console.error("Error loading SMTP config:", error);
-        return;
-      }
-      if (data) setSmtpConfig(data);
-    } catch (e) {
-      console.error("Error loading SMTP config (catch):", e);
+    if (data) {
+      setSmtpConfig(data);
     }
   };
 
   const loadTemplates = async () => {
-    if (!user?.id) return;
     const { data, error } = await supabase
       .from("email_templates")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", user!.id)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -183,76 +168,44 @@ export default function Emails() {
       return;
     }
 
-    if (data) setTemplates(data as EmailTemplate[]);
+    if (data) {
+      setTemplates(data as EmailTemplate[]);
+    }
   };
 
   const loadEmailAutoConfig = async () => {
-    if (!user?.id) return;
-    try {
-      const { data, error } = await supabase.from("email_auto_config").select("*").eq("user_id", user.id).maybeSingle();
+    const { data } = await supabase.from("email_auto_config").select("*").eq("user_id", user!.id).single();
 
-      if (error) {
-        console.error("Error loading email auto config:", error);
-        return;
-      }
-      if (data) setEmailAuto({ enabled: !!data.enabled });
-      else setEmailAuto({ enabled: false });
-    } catch (e) {
-      console.error("Error loading email auto config (catch):", e);
+    if (data) {
+      setEmailAuto({ enabled: data.enabled });
     }
   };
 
   const loadAvailableStatus = async () => {
-    try {
-      const { data, error } = await supabase.from("status_config").select("nome").eq("ativo", true).order("ordem");
+    const { data, error } = await supabase.from("status_config").select("nome").eq("ativo", true).order("ordem");
 
-      if (error) {
-        console.error("Error loading status:", error);
-        return;
-      }
+    if (error) {
+      console.error("Error loading status:", error);
+      return;
+    }
 
-      if (data) setAvailableStatus(data.map((s) => s.nome));
-    } catch (e) {
-      console.error("Error loading available status (catch):", e);
+    if (data) {
+      setAvailableStatus(data.map((s) => s.nome));
     }
   };
 
-  /**
-   * ✅ CORREÇÃO PRINCIPAL (muito comum no shadcn/ui):
-   * Checkbox onCheckedChange NÃO retorna boolean puro sempre.
-   * Ele retorna boolean | "indeterminate".
-   * Se você passa direto para função que espera boolean, a automação de "ativar/desativar"
-   * pode falhar silenciosamente ou gravar errado.
-   */
-  const handleToggleEmailAuto = async (checked: CheckedState) => {
-    if (!user?.id) return;
-
-    const enabled = checked === true; // transforma em boolean puro
+  const handleToggleEmailAuto = async (checked: boolean) => {
     try {
-      const { data: existing, error: existingErr } = await supabase
-        .from("email_auto_config")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const { data: existing } = await supabase.from("email_auto_config").select("id").eq("user_id", user!.id).single();
 
-      if (existingErr) {
-        console.error("Error checking existing email_auto_config:", existingErr);
-        toast.error("Erro ao verificar configuração");
-        return;
-      }
-
-      if (existing?.id) {
-        const { error } = await supabase.from("email_auto_config").update({ enabled }).eq("user_id", user.id);
-
-        if (error) throw error;
+      if (existing) {
+        await supabase.from("email_auto_config").update({ enabled: checked }).eq("user_id", user!.id);
       } else {
-        const { error } = await supabase.from("email_auto_config").insert({ user_id: user.id, enabled });
-
-        if (error) throw error;
+        await supabase.from("email_auto_config").insert({ user_id: user!.id, enabled: checked });
       }
 
-      setEmailAuto({ enabled });
-      toast.success(enabled ? "Envio automático ativado" : "Envio automático desativado");
+      setEmailAuto({ enabled: checked });
+      toast.success(checked ? "Envio automático ativado" : "Envio automático desativado");
     } catch (error) {
       console.error("Error toggling email auto:", error);
       toast.error("Erro ao atualizar configuração");
@@ -276,9 +229,9 @@ export default function Emails() {
     if (error) {
       console.error("Erro ao carregar histórico:", error);
       toast.error("Erro ao carregar histórico de e-mails");
-      return;
+    } else if (data) {
+      setHistorico(data);
     }
-    if (data) setHistorico(data);
   };
 
   const loadEmailQueue = async () => {
@@ -290,37 +243,24 @@ export default function Emails() {
 
     if (error) {
       console.error("Erro ao carregar fila de emails:", error);
-      return;
+    } else if (data) {
+      setEmailQueue(data);
     }
-    if (data) setEmailQueue(data);
   };
 
   const handleSaveResendConfig = async () => {
-    if (!user?.id) return;
     if (!resendConfig.from_email || !resendConfig.from_name) {
       toast.error("Preencha todos os campos");
       return;
     }
 
     try {
-      const { data: existing, error: existingErr } = await supabase
-        .from("resend_config")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const { data: existing } = await supabase.from("resend_config").select("id").eq("user_id", user!.id).single();
 
-      if (existingErr) {
-        console.error("Erro ao verificar resend_config:", existingErr);
-        toast.error("Erro ao salvar configuração");
-        return;
-      }
-
-      if (existing?.id) {
-        const { error } = await supabase.from("resend_config").update(resendConfig).eq("user_id", user.id);
-        if (error) throw error;
+      if (existing) {
+        await supabase.from("resend_config").update(resendConfig).eq("user_id", user!.id);
       } else {
-        const { error } = await supabase.from("resend_config").insert({ ...resendConfig, user_id: user.id });
-        if (error) throw error;
+        await supabase.from("resend_config").insert({ ...resendConfig, user_id: user!.id });
       }
 
       toast.success("Configuração salva com sucesso");
@@ -331,7 +271,6 @@ export default function Emails() {
   };
 
   const handleSaveSMTPConfig = async () => {
-    if (!user?.id) return;
     if (
       !smtpConfig.smtp_host ||
       !smtpConfig.smtp_user ||
@@ -344,24 +283,12 @@ export default function Emails() {
     }
 
     try {
-      const { data: existing, error: existingErr } = await supabase
-        .from("email_config")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const { data: existing } = await supabase.from("email_config").select("id").eq("user_id", user!.id).single();
 
-      if (existingErr) {
-        console.error("Erro ao verificar email_config:", existingErr);
-        toast.error("Erro ao salvar configuração");
-        return;
-      }
-
-      if (existing?.id) {
-        const { error } = await supabase.from("email_config").update(smtpConfig).eq("user_id", user.id);
-        if (error) throw error;
+      if (existing) {
+        await supabase.from("email_config").update(smtpConfig).eq("user_id", user!.id);
       } else {
-        const { error } = await supabase.from("email_config").insert({ ...smtpConfig, user_id: user.id });
-        if (error) throw error;
+        await supabase.from("email_config").insert({ ...smtpConfig, user_id: user!.id });
       }
 
       toast.success("Configuração SMTP salva!");
@@ -372,7 +299,6 @@ export default function Emails() {
   };
 
   const handleSaveTemplate = async () => {
-    if (!user?.id) return;
     if (!novoTemplate.nome || !novoTemplate.assunto || !novoTemplate.corpo) {
       toast.error("Preencha todos os campos do template");
       return;
@@ -384,7 +310,7 @@ export default function Emails() {
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("email_templates").insert({ ...novoTemplate, user_id: user.id });
+        const { error } = await supabase.from("email_templates").insert({ ...novoTemplate, user_id: user!.id });
 
         if (error) throw error;
       }
@@ -430,36 +356,33 @@ export default function Emails() {
   };
 
   const toggleStatus = (status: string) => {
-    setNovoTemplate((prev) => {
-      const exists = prev.status.includes(status);
-      return {
-        ...prev,
-        status: exists ? prev.status.filter((s) => s !== status) : [...prev.status, status],
-      };
-    });
+    if (novoTemplate.status.includes(status)) {
+      setNovoTemplate({
+        ...novoTemplate,
+        status: novoTemplate.status.filter((s) => s !== status),
+      });
+    } else {
+      setNovoTemplate({
+        ...novoTemplate,
+        status: [...novoTemplate.status, status],
+      });
+    }
   };
 
   const loadStats = async () => {
     try {
-      const { data: historicoData, error: histErr } = await supabase.from("email_historico").select("status");
-
-      if (histErr) {
-        console.error("Error loading stats history:", histErr);
-        return;
-      }
+      // Get ALL emails from history (system-wide, not filtered by user)
+      const { data: historicoData } = await supabase.from("email_historico").select("status");
 
       const enviados = historicoData?.filter((e) => e.status === "enviado").length || 0;
       const falhados = historicoData?.filter((e) => e.status === "erro").length || 0;
       const total = historicoData?.length || 0;
 
-      const { count: pendentes, error: queueErr } = await supabase
+      // Get ALL pending from queue (system-wide)
+      const { count: pendentes } = await supabase
         .from("email_queue")
         .select("*", { count: "exact", head: true })
         .eq("status", "pendente");
-
-      if (queueErr) {
-        console.error("Error loading pending count:", queueErr);
-      }
 
       const taxaSucesso = total > 0 ? Math.round((enviados / total) * 100) : 0;
 
@@ -488,14 +411,19 @@ export default function Emails() {
       }
 
       const response = await supabase.functions.invoke("processar-fila-emails", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
 
       const result = response.data;
       toast.success(`${result.succeeded} email(s) enviado(s) com sucesso`);
 
+      // Reload stats, history and queue
       loadStats();
       loadHistorico();
       loadEmailQueue();
@@ -521,7 +449,7 @@ export default function Emails() {
           </div>
         </div>
 
-        {/* Top-level tabs */}
+        {/* Top-level tabs — modern pill style */}
         <Tabs defaultValue="central" className="space-y-6">
           <TabsList>
             <TabsTrigger value="central" className="gap-2">
@@ -538,12 +466,12 @@ export default function Emails() {
             </TabsTrigger>
           </TabsList>
 
-          {/* CENTRAL */}
+          {/* =================== CENTRAL TAB =================== */}
           <TabsContent value="central">
             <CentralAtendimento embedded />
           </TabsContent>
 
-          {/* WHATSAPP */}
+          {/* =================== WHATSAPP TAB (unified) =================== */}
           <TabsContent value="whatsapp" className="space-y-6">
             <Tabs defaultValue="dashboard" className="space-y-4">
               <TabsList>
@@ -583,26 +511,22 @@ export default function Emails() {
                   <WhatsAppConfig />
                 </div>
               </TabsContent>
-
               <TabsContent value="templates">
                 <WhatsAppTemplates />
               </TabsContent>
-
               <TabsContent value="envio">
                 <WhatsAppEnvioManual />
               </TabsContent>
-
               <TabsContent value="automacoes">
                 <WhatsAppFlows embedded />
               </TabsContent>
-
               <TabsContent value="historico">
                 <WhatsAppHistorico />
               </TabsContent>
             </Tabs>
           </TabsContent>
 
-          {/* EMAIL */}
+          {/* =================== E-MAIL TAB =================== */}
           <TabsContent value="email" className="space-y-6">
             <Tabs defaultValue="dashboard" className="space-y-4">
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
@@ -632,7 +556,6 @@ export default function Emails() {
                     Histórico
                   </TabsTrigger>
                 </TabsList>
-
                 <div className="flex items-center gap-3 bg-muted/50 px-4 py-2.5 rounded-lg border shrink-0">
                   <Label className="text-sm font-medium cursor-pointer whitespace-nowrap" htmlFor="email-auto-toggle">
                     Envio Automático
@@ -1202,8 +1125,8 @@ export default function Emails() {
                             <div className="flex-1">
                               <h4 className="font-semibold">{template.nome}</h4>
                               <p className="text-sm text-muted-foreground">{template.assunto}</p>
-                              <div className="flex gap-1 mt-2 flex-wrap">
-                                {(template.status || []).map((s) => (
+                              <div className="flex gap-1 mt-2">
+                                {template.status.map((s) => (
                                   <Badge key={s} variant="secondary" className="text-xs">
                                     {s}
                                   </Badge>
@@ -1221,7 +1144,6 @@ export default function Emails() {
                           </div>
                         </div>
                       ))}
-
                       {templates.length === 0 && (
                         <p className="text-center text-muted-foreground py-8">Nenhum template criado ainda</p>
                       )}
@@ -1240,6 +1162,7 @@ export default function Emails() {
                     <CardDescription>Configure quando os e-mails devem ser enviados automaticamente</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
+                    {/* Alertas de Performance */}
                     <div className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="h-5 w-5 text-destructive" />
@@ -1279,6 +1202,7 @@ export default function Emails() {
                       </div>
                     </div>
 
+                    {/* Mudanças de Status */}
                     <div className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <Mail className="h-5 w-5 text-primary" />
