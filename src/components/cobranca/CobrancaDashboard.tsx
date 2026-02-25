@@ -402,6 +402,18 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     const groupedByVencimento = buildGroupedData(b => parseDayFromDate(b.data_vencimento_original || b.data_vencimento));
     const groupedByPagamento = buildGroupedData(b => parseDayFromDate(b.data_pagamento));
 
+    // Debug: log situacao distribution for day 20
+    const dia20Boletos = boletosFiltrados.filter(b => b.dia_vencimento_veiculo === 20 || b.dia_vencimento_veiculo === '20');
+    if (dia20Boletos.length > 0) {
+      const situacoes: Record<string, number> = {};
+      dia20Boletos.forEach(b => {
+        const sit = b.situacao || 'NULL';
+        situacoes[sit] = (situacoes[sit] || 0) + 1;
+      });
+      console.log('[DEBUG] Dia 20 - dia_vencimento_veiculo boletos:', dia20Boletos.length, 'situações:', situacoes);
+      console.log('[DEBUG] Dia 20 - sample:', dia20Boletos.slice(0, 3).map(b => ({ situacao: b.situacao, data_pagamento: b.data_pagamento, dia_vencimento_veiculo: b.dia_vencimento_veiculo })));
+    }
+
     // Legacy aliases used by the rest of the component
     const diasVencimentoData = groupedByVeiculo;
     const diasVencimentoPagosData = groupedByVeiculo.filter(d => d.pagos > 0);
@@ -879,8 +891,8 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
                   <tbody>
                     {activeData.map((item, index) => {
                       const taxaPagamento = item.qtde > 0 ? (item.pagos / item.qtde) * 100 : 0;
-                      const taxaColor = taxaPagamento >= 80 ? 'text-emerald-600' : taxaPagamento >= 50 ? 'text-amber-600' : 'text-red-600';
-                      const barColor = taxaPagamento >= 80 ? 'bg-emerald-500' : taxaPagamento >= 50 ? 'bg-amber-500' : 'bg-red-500';
+                      const taxaColor = taxaPagamento >= 95 ? 'text-emerald-600' : taxaPagamento >= 51 ? 'text-amber-600' : 'text-red-600';
+                      const barColor = taxaPagamento >= 95 ? 'bg-emerald-500' : taxaPagamento >= 51 ? 'bg-amber-500' : 'bg-red-500';
 
                       return (
                         <tr key={item.dia} className={`border-b border-border/30 hover:bg-muted/20 transition-colors ${index % 2 === 0 ? '' : 'bg-muted/5'}`}>
