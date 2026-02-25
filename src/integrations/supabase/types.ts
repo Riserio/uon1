@@ -2994,6 +2994,7 @@ export type Database = {
           created_at: string
           descricao: string | null
           duracao_minutos: number | null
+          finalizado_em: string | null
           host_id: string
           id: string
           livekit_room_name: string
@@ -3009,6 +3010,7 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           duracao_minutos?: number | null
+          finalizado_em?: string | null
           host_id: string
           id?: string
           livekit_room_name: string
@@ -3024,6 +3026,7 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           duracao_minutos?: number | null
+          finalizado_em?: string | null
           host_id?: string
           id?: string
           livekit_room_name?: string
