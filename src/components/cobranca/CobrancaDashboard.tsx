@@ -61,7 +61,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
   const [inadimplenciaHistorico, setInadimplenciaHistorico] = useState<Map<number, number>>(new Map());
   const inadimplenciaScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollIndicators, setShowScrollIndicators] = useState({ left: false, right: false });
-  const [diaGroupMode, setDiaGroupMode] = useState<'veiculo' | 'vencimento' | 'pagamento'>('veiculo');
+  
 
   // Carregar configuração de inadimplência do banco
   const loadInadimplenciaConfig = async () => {
@@ -399,20 +399,6 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     };
 
     const groupedByVeiculo = buildGroupedData(b => b.dia_vencimento_veiculo);
-    const groupedByVencimento = buildGroupedData(b => parseDayFromDate(b.data_vencimento_original || b.data_vencimento));
-    const groupedByPagamento = buildGroupedData(b => parseDayFromDate(b.data_pagamento));
-
-    // Debug: log situacao distribution for day 20
-    const dia20Boletos = boletosFiltrados.filter(b => b.dia_vencimento_veiculo === 20 || b.dia_vencimento_veiculo === '20');
-    if (dia20Boletos.length > 0) {
-      const situacoes: Record<string, number> = {};
-      dia20Boletos.forEach(b => {
-        const sit = b.situacao || 'NULL';
-        situacoes[sit] = (situacoes[sit] || 0) + 1;
-      });
-      console.log('[DEBUG] Dia 20 - dia_vencimento_veiculo boletos:', dia20Boletos.length, 'situações:', situacoes);
-      console.log('[DEBUG] Dia 20 - sample:', dia20Boletos.slice(0, 3).map(b => ({ situacao: b.situacao, data_pagamento: b.data_pagamento, dia_vencimento_veiculo: b.dia_vencimento_veiculo })));
-    }
 
     // Legacy aliases used by the rest of the component
     const diasVencimentoData = groupedByVeiculo;
@@ -669,8 +655,6 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       diasVencimentoPagosData,
       diasVencimentoAbertosData,
       groupedByVeiculo,
-      groupedByVencimento,
-      groupedByPagamento,
       inadimplenciaPorDia,
       arrecadacaoData,
       regionaisPagosData,
@@ -762,45 +746,17 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         ))}
       </div>
 
-      {/* Boletos por Dia - Card moderno com gráfico + tabela + seletor de agrupamento */}
+      {/* Boletos por Dia de Vencimento Veículo */}
       {(() => {
-        const activeData = diaGroupMode === 'veiculo' 
-          ? stats.groupedByVeiculo 
-          : diaGroupMode === 'vencimento' 
-            ? stats.groupedByVencimento 
-            : stats.groupedByPagamento;
-
-        const modeLabels = {
-          veiculo: 'Vcto Veículo',
-          vencimento: 'Vcto Original',
-          pagamento: 'Pagamento',
-        };
+        const activeData = stats.groupedByVeiculo;
 
         return (
           <Card className="rounded-2xl overflow-hidden border-border/40">
             <CardHeader className="pb-0 pt-4 px-5">
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  Boletos por Dia
-                </CardTitle>
-                {/* Segmented toggle */}
-                <div className="flex items-center bg-muted/60 rounded-lg p-0.5 gap-0.5">
-                  {(['veiculo', 'vencimento', 'pagamento'] as const).map(mode => (
-                    <button
-                      key={mode}
-                      onClick={() => setDiaGroupMode(mode)}
-                      className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-all ${
-                        diaGroupMode === mode 
-                          ? 'bg-background text-foreground shadow-sm' 
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {modeLabels[mode]}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Calendar className="h-4 w-4 text-primary" />
+                Boletos por Dia de Vencimento
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {/* Totais */}
