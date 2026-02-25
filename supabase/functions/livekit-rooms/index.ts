@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "npm:resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -469,8 +470,10 @@ Deno.serve(async (req) => {
 
     // ── NOTIFY MEETING (email + whatsapp) ──
     if (action === "notifyMeeting") {
+      console.log("[notifyMeeting] Starting...");
       const user = await getUser();
       const body = await req.json();
+      console.log("[notifyMeeting] Body:", JSON.stringify({ roomId: body.roomId, roomName: body.roomName, convidadosCount: body.convidados?.length, enviarEmail: body.enviarEmail, hasTemplate: !!body.templateCorpo }));
       const { roomId, roomName, agendadoPara, descricao, meetingLink, convidados, enviarEmail, enviarWhatsApp, templateCorpo, templateAssunto } = body;
 
       const { data: profile } = await supabaseAdmin.from("profiles").select("nome").eq("id", user.id).single();
@@ -484,12 +487,24 @@ Deno.serve(async (req) => {
 
       // Pre-load email configs
       const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+      console.log("[notifyMeeting] RESEND_API_KEY configured:", !!RESEND_API_KEY);
       let resendFromEmail = "Reuniões <onboarding@resend.dev>";
       if (RESEND_API_KEY) {
-        const { data: resendConfig } = await supabaseAdmin.from("resend_config").select("*").eq("user_id", user.id).single();
-        if (resendConfig) resendFromEmail = `${resendConfig.from_name} <${resendConfig.from_email}>`;
+        try {
+          const { data: resendConfig } = await supabaseAdmin.from("resend_config").select("*").eq("user_id", user.id).single();
+          if (resendConfig) resendFromEmail = `${resendConfig.from_name} <${resendConfig.from_email}>`;
+        } catch (e) {
+          console.log("[notifyMeeting] No resend_config found, using default from");
+        }
       }
-      const { data: smtpConfig } = await supabaseAdmin.from("email_config").select("*").eq("user_id", user.id).single();
+      let smtpConfig: any = null;
+      try {
+        const { data } = await supabaseAdmin.from("email_config").select("*").eq("user_id", user.id).single();
+        smtpConfig = data;
+      } catch (e) {
+        console.log("[notifyMeeting] No SMTP config found");
+      }
+      console.log("[notifyMeeting] From email:", resendFromEmail, "SMTP configured:", !!smtpConfig);
 
       // Generate ICS content helper
       const generateICS = (startDate: string, durationMin: number, title: string, desc: string, location: string, organizerEmail: string, attendeeEmail: string): string => {
@@ -669,7 +684,7 @@ Deno.serve(async (req) => {
           // Try Resend first
           if (RESEND_API_KEY) {
             try {
-              const { Resend } = await import("https://esm.sh/resend@2.0.0");
+              console.log(`[notifyMeeting] Sending via Resend to ${convidado.email}...`);
               const resend = new Resend(RESEND_API_KEY);
               const emailPayload: any = {
                 from: resendFromEmail,
@@ -682,15 +697,15 @@ Deno.serve(async (req) => {
                 emailPayload.attachments = [{
                   filename: 'invite.ics',
                   content: btoa(icsContent),
-                  content_type: 'text/calendar; method=REQUEST',
                 }];
               }
-              const { error: resendErr } = await resend.emails.send(emailPayload);
-              if (resendErr) throw new Error(resendErr.message);
+              const resendResult = await resend.emails.send(emailPayload);
+              console.log(`[notifyMeeting] Resend result:`, JSON.stringify(resendResult));
+              if (resendResult.error) throw new Error(resendResult.error.message);
               emailSent = true;
               emailMethod = 'Resend';
             } catch (resendErr: any) {
-              console.error(`Resend failed for ${convidado.email}:`, resendErr.message);
+              console.error(`[notifyMeeting] Resend failed for ${convidado.email}:`, resendErr.message);
               emailError = resendErr.message;
             }
           }
