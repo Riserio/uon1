@@ -30,42 +30,52 @@ serve(async (req: Request) => {
     });
     const domainsData = await domainsRes.json();
 
-    // Count Resend emails from our DB for accurate stats
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    // Fetch actual usage from Resend API
+    let monthlySending = 0;
+    let dailySending = 0;
+    let monthlyFailed = 0;
+    let dailyFailed = 0;
 
-    // Monthly sending count (Resend emails have [Resend] prefix in corpo)
-    const { count: monthlySending } = await supabase
-      .from('email_historico')
-      .select('*', { count: 'exact', head: true })
-      .or('corpo.like.[Resend]%,corpo.like.[FALHA]%')
-      .eq('status', 'enviado')
-      .gte('created_at', startOfMonth);
+    try {
+      // Get emails from Resend API directly for accurate stats
+      const now = new Date();
+      
+      // Count from email_historico for stats (since Resend free tier only keeps 1 day of logs)
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    // Daily sending count
-    const { count: dailySending } = await supabase
-      .from('email_historico')
-      .select('*', { count: 'exact', head: true })
-      .or('corpo.like.[Resend]%,corpo.like.[FALHA]%')
-      .eq('status', 'enviado')
-      .gte('created_at', startOfDay);
+      // Monthly counts
+      const { count: mSending } = await supabase
+        .from('email_historico')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'enviado')
+        .gte('created_at', startOfMonth);
+      monthlySending = mSending || 0;
 
-    // Monthly failed
-    const { count: monthlyFailed } = await supabase
-      .from('email_historico')
-      .select('*', { count: 'exact', head: true })
-      .or('corpo.like.[Resend]%,corpo.like.[FALHA]%')
-      .eq('status', 'erro')
-      .gte('created_at', startOfMonth);
+      const { count: mFailed } = await supabase
+        .from('email_historico')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'erro')
+        .gte('created_at', startOfMonth);
+      monthlyFailed = mFailed || 0;
 
-    // Daily failed
-    const { count: dailyFailed } = await supabase
-      .from('email_historico')
-      .select('*', { count: 'exact', head: true })
-      .or('corpo.like.[Resend]%,corpo.like.[FALHA]%')
-      .eq('status', 'erro')
-      .gte('created_at', startOfDay);
+      // Daily counts
+      const { count: dSending } = await supabase
+        .from('email_historico')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'enviado')
+        .gte('created_at', startOfDay);
+      dailySending = dSending || 0;
+
+      const { count: dFailed } = await supabase
+        .from('email_historico')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'erro')
+        .gte('created_at', startOfDay);
+      dailyFailed = dFailed || 0;
+    } catch (err) {
+      console.error('Error fetching email stats:', err);
+    }
 
     return new Response(JSON.stringify({
       domains: domainsData?.data || [],

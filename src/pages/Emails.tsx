@@ -605,10 +605,6 @@ export default function Emails() {
                     <Target className="h-3.5 w-3.5" />
                     Regras
                   </TabsTrigger>
-                  <TabsTrigger value="historico" className="gap-1.5">
-                    <History className="h-3.5 w-3.5" />
-                    Histórico
-                  </TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-3 bg-muted/50 px-4 py-2.5 rounded-lg border shrink-0">
                   <Label className="text-sm font-medium cursor-pointer whitespace-nowrap" htmlFor="email-auto-toggle">
@@ -767,8 +763,8 @@ export default function Emails() {
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <div>
-                          <CardTitle className="text-base">Limite Mensal (Resend)</CardTitle>
-                          <CardDescription>Free tier — 3.000 emails/mês</CardDescription>
+                          <CardTitle className="text-base">Limite Mensal</CardTitle>
+                          <CardDescription>Free — 3.000 emails/mês</CardDescription>
                         </div>
                         <Badge variant="outline">Free</Badge>
                       </div>
@@ -777,21 +773,21 @@ export default function Emails() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">Monthly limit</span>
                         <span className="text-lg font-bold">
-                          {resendUsage?.monthly?.sending ?? 0} / {resendUsage?.monthly?.limit ?? 3000}
+                          {resendUsage?.monthly?.sending ?? stats.enviados} / {resendUsage?.monthly?.limit ?? 3000}
                         </span>
                       </div>
                       <Progress
-                        value={resendUsage ? (resendUsage.monthly.sending / resendUsage.monthly.limit) * 100 : 0}
+                        value={((resendUsage?.monthly?.sending ?? stats.enviados) / (resendUsage?.monthly?.limit ?? 3000)) * 100}
                         className="h-2"
                       />
                       <div className="space-y-2 pt-2 border-t">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Sending</span>
-                          <span className="font-medium">{resendUsage?.monthly?.sending ?? 0}</span>
+                          <span className="font-medium">{resendUsage?.monthly?.sending ?? stats.enviados}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Falhados</span>
-                          <span className="font-medium text-destructive">{resendUsage?.monthly?.failed ?? 0}</span>
+                          <span className="font-medium text-destructive">{resendUsage?.monthly?.failed ?? stats.falhados}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -802,10 +798,10 @@ export default function Emails() {
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <div>
-                          <CardTitle className="text-base">Limite Diário (Resend)</CardTitle>
-                          <CardDescription>Free tier — 100 emails/dia</CardDescription>
+                          <CardTitle className="text-base">Limite Diário</CardTitle>
+                          <CardDescription>Free — 100 emails/dia</CardDescription>
                         </div>
-                        <Button variant="outline" size="sm" onClick={loadResendUsage}>
+                        <Button variant="outline" size="sm" onClick={() => { loadResendUsage(); loadStats(); }}>
                           <RefreshCw className="h-3.5 w-3.5 mr-1" />
                           Atualizar
                         </Button>
@@ -819,7 +815,7 @@ export default function Emails() {
                         </span>
                       </div>
                       <Progress
-                        value={resendUsage ? (resendUsage.daily.sending / resendUsage.daily.limit) * 100 : 0}
+                        value={((resendUsage?.daily?.sending ?? 0) / (resendUsage?.daily?.limit ?? 100)) * 100}
                         className="h-2"
                       />
                       <div className="space-y-2 pt-2 border-t">
@@ -1378,75 +1374,6 @@ export default function Emails() {
                 </Card>
               </TabsContent>
 
-              <TabsContent value="historico">
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Histórico de E-mails</CardTitle>
-                        <CardDescription>Todos os e-mails enviados pelo sistema</CardDescription>
-                      </div>
-                      <Badge variant="outline">{historico.length} registro(s)</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                      {historico.map((email) => (
-                        <div key={email.id} className="flex items-start gap-3 p-3 border rounded-lg">
-                          <div
-                            className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              email.status === "enviado" ? "bg-green-100" : "bg-red-100"
-                            }`}
-                          >
-                            {email.status === "enviado" ? (
-                              <CheckCircle2 className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <XCircle className="h-4 w-4 text-red-600" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-sm truncate">{email.assunto}</p>
-                              <Badge
-                                variant={email.status === "enviado" ? "default" : "destructive"}
-                                className="text-xs shrink-0"
-                              >
-                                {email.status === "enviado" ? "Enviado" : "Erro"}
-                              </Badge>
-                              {email.corpo?.startsWith("[Resend]") && (
-                                <Badge variant="outline" className="text-xs shrink-0">Resend</Badge>
-                              )}
-                              {email.corpo?.startsWith("[SMTP]") && (
-                                <Badge variant="outline" className="text-xs shrink-0">SMTP</Badge>
-                              )}
-                              {!email.atendimento_id && (
-                                <Badge variant="secondary" className="text-xs shrink-0">Sistema</Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">Para: {email.destinatario}</p>
-                            {email.atendimentos?.assunto && (
-                              <p className="text-xs text-muted-foreground">
-                                Atendimento: {email.atendimentos.assunto}
-                              </p>
-                            )}
-                            <p className="text-xs text-muted-foreground">
-                              {email.enviado_em
-                                ? new Date(email.enviado_em).toLocaleString("pt-BR")
-                                : new Date(email.created_at).toLocaleString("pt-BR")}
-                            </p>
-                            {email.erro_mensagem && (
-                              <p className="text-xs text-red-600 mt-1">{email.erro_mensagem}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {historico.length === 0 && (
-                        <p className="text-center text-muted-foreground py-8">Nenhum e-mail enviado ainda</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
             </Tabs>
           </TabsContent>
         </Tabs>
