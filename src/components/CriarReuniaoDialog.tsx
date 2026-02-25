@@ -163,6 +163,24 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
       // 2. Send notifications
       if (convidados.length > 0 && (enviarEmail || enviarWhatsApp)) {
         try {
+          // Check for active convite_reuniao template
+          let templateCorpo: string | null = null;
+          let templateAssunto: string | null = null;
+          if (enviarEmail) {
+            const { data: tmpl } = await supabase
+              .from('email_templates')
+              .select('corpo, assunto')
+              .eq('user_id', user?.id)
+              .eq('tipo', 'convite_reuniao')
+              .eq('ativo', true)
+              .limit(1)
+              .single();
+            if (tmpl) {
+              templateCorpo = tmpl.corpo;
+              templateAssunto = tmpl.assunto;
+            }
+          }
+
           const notifyRes = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=notifyMeeting`,
             {
@@ -181,6 +199,8 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
                 enviarEmail,
                 enviarWhatsApp,
                 duracaoMinutos: parseInt(form.duracao_minutos) || 60,
+                templateCorpo,
+                templateAssunto,
               }),
             }
           );
