@@ -244,7 +244,7 @@ export default function Emails() {
       .select(
         `
         *,
-        atendimentos (
+        atendimentos!email_historico_atendimento_id_fkey (
           assunto
         )
       `,
@@ -254,7 +254,13 @@ export default function Emails() {
 
     if (error) {
       console.error("Erro ao carregar histórico:", error);
-      toast.error("Erro ao carregar histórico de e-mails");
+      // Fallback: try without join
+      const { data: fallbackData } = await supabase
+        .from("email_historico")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (fallbackData) setHistorico(fallbackData);
     } else if (data) {
       setHistorico(data);
     }
@@ -1375,32 +1381,62 @@ export default function Emails() {
               <TabsContent value="historico">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Histórico de E-mails</CardTitle>
-                    <CardDescription>Últimos 50 e-mails enviados</CardDescription>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Histórico de E-mails</CardTitle>
+                        <CardDescription>Todos os e-mails enviados pelo sistema</CardDescription>
+                      </div>
+                      <Badge variant="outline">{historico.length} registro(s)</Badge>
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
+                    <div className="space-y-3 max-h-[600px] overflow-y-auto">
                       {historico.map((email) => (
-                        <div key={email.id} className="border rounded-lg p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-semibold">{email.assunto}</h4>
-                                <Badge variant={email.status === "enviado" ? "default" : "destructive"}>
-                                  {email.status}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground">Para: {email.destinatario}</p>
-                              <p className="text-sm text-muted-foreground">
-                                Atendimento: {email.atendimentos?.assunto}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {new Date(email.created_at).toLocaleString("pt-BR")}
-                              </p>
-                              {email.erro_mensagem && (
-                                <p className="text-xs text-destructive mt-2">Erro: {email.erro_mensagem}</p>
+                        <div key={email.id} className="flex items-start gap-3 p-3 border rounded-lg">
+                          <div
+                            className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              email.status === "enviado" ? "bg-green-100" : "bg-red-100"
+                            }`}
+                          >
+                            {email.status === "enviado" ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-red-600" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm truncate">{email.assunto}</p>
+                              <Badge
+                                variant={email.status === "enviado" ? "default" : "destructive"}
+                                className="text-xs shrink-0"
+                              >
+                                {email.status === "enviado" ? "Enviado" : "Erro"}
+                              </Badge>
+                              {email.corpo?.startsWith("[Resend]") && (
+                                <Badge variant="outline" className="text-xs shrink-0">Resend</Badge>
+                              )}
+                              {email.corpo?.startsWith("[SMTP]") && (
+                                <Badge variant="outline" className="text-xs shrink-0">SMTP</Badge>
+                              )}
+                              {!email.atendimento_id && (
+                                <Badge variant="secondary" className="text-xs shrink-0">Sistema</Badge>
                               )}
                             </div>
+                            <p className="text-xs text-muted-foreground truncate">Para: {email.destinatario}</p>
+                            {email.atendimentos?.assunto && (
+                              <p className="text-xs text-muted-foreground">
+                                Atendimento: {email.atendimentos.assunto}
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              {email.enviado_em
+                                ? new Date(email.enviado_em).toLocaleString("pt-BR")
+                                : new Date(email.created_at).toLocaleString("pt-BR")}
+                            </p>
+                            {email.erro_mensagem && (
+                              <p className="text-xs text-red-600 mt-1">{email.erro_mensagem}</p>
+                            )}
                           </div>
                         </div>
                       ))}

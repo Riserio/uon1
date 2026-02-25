@@ -35,11 +35,11 @@ serve(async (req: Request) => {
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    // Monthly sending count
+    // Monthly sending count (Resend emails have [Resend] prefix in corpo)
     const { count: monthlySending } = await supabase
       .from('email_historico')
       .select('*', { count: 'exact', head: true })
-      .like('corpo', '[Resend]%')
+      .or('corpo.like.[Resend]%,corpo.like.[FALHA]%')
       .eq('status', 'enviado')
       .gte('created_at', startOfMonth);
 
@@ -47,7 +47,7 @@ serve(async (req: Request) => {
     const { count: dailySending } = await supabase
       .from('email_historico')
       .select('*', { count: 'exact', head: true })
-      .like('corpo', '[Resend]%')
+      .or('corpo.like.[Resend]%,corpo.like.[FALHA]%')
       .eq('status', 'enviado')
       .gte('created_at', startOfDay);
 
@@ -55,7 +55,7 @@ serve(async (req: Request) => {
     const { count: monthlyFailed } = await supabase
       .from('email_historico')
       .select('*', { count: 'exact', head: true })
-      .like('corpo', '[Resend]%')
+      .or('corpo.like.[Resend]%,corpo.like.[FALHA]%')
       .eq('status', 'erro')
       .gte('created_at', startOfMonth);
 
@@ -63,7 +63,7 @@ serve(async (req: Request) => {
     const { count: dailyFailed } = await supabase
       .from('email_historico')
       .select('*', { count: 'exact', head: true })
-      .like('corpo', '[Resend]%')
+      .or('corpo.like.[Resend]%,corpo.like.[FALHA]%')
       .eq('status', 'erro')
       .gte('created_at', startOfDay);
 
