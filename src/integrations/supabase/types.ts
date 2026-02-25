@@ -6762,6 +6762,7 @@ export type Database = {
           ativo: boolean | null
           created_at: string | null
           created_by: string | null
+          formato: string
           id: string
           mensagem: string
           nome: string
@@ -6772,6 +6773,7 @@ export type Database = {
           ativo?: boolean | null
           created_at?: string | null
           created_by?: string | null
+          formato?: string
           id?: string
           mensagem: string
           nome: string
@@ -6782,6 +6784,7 @@ export type Database = {
           ativo?: boolean | null
           created_at?: string | null
           created_by?: string | null
+          formato?: string
           id?: string
           mensagem?: string
           nome?: string
