@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,13 +10,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import {
   Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, MessageCircle, Send,
-  Maximize2, Minimize2, PictureInPicture2, LayoutGrid, Settings2
+  Maximize2, Minimize2, PictureInPicture2, LayoutGrid, Settings2, Hand, Smile, PersonStanding
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 
 // Lazy-load LiveKit to avoid module import crashes
 let LiveKitRoom: any;
@@ -26,6 +27,9 @@ let useTracks: any;
 let useParticipants: any;
 let TrackToggle: any;
 let Track: any;
+let useDataChannel: any;
+let useLocalParticipant: any;
+let useRoomContext: any;
 let livekitLoaded = false;
 let livekitLoadError: string | null = null;
 
@@ -42,6 +46,9 @@ const loadLiveKit = async () => {
     useTracks = componentsReact.useTracks;
     useParticipants = componentsReact.useParticipants;
     TrackToggle = componentsReact.TrackToggle;
+    useDataChannel = componentsReact.useDataChannel;
+    useLocalParticipant = componentsReact.useLocalParticipant;
+    useRoomContext = componentsReact.useRoomContext;
     Track = livekitClient.Track;
     await import("@livekit/components-styles");
     livekitLoaded = true;
@@ -70,6 +77,16 @@ interface PendingParticipant {
   is_host: boolean;
   created_at: string;
 }
+
+// Reaction/hand raise data types
+interface DataMessage {
+  type: "reaction" | "hand_raise" | "hand_lower";
+  emoji?: string;
+  senderName?: string;
+  senderId?: string;
+}
+
+const REACTION_EMOJIS = ["👍", "👏", "😂", "❤️", "🎉", "🔥", "😮", "🤔"];
 
 // ── Main page wrapper ──
 export default function MeetingRoomPage() {
@@ -169,7 +186,7 @@ export default function MeetingRoomPage() {
       >
         <RoomHeader room={room} isHost={isHost} roomId={roomId!} onLeave={handleDisconnect} />
         <div className="flex flex-1 overflow-hidden">
-          <VideoGrid />
+          <VideoGridWithReactions />
           {chatOpen && <ChatPanel roomId={roomId!} userId={user?.id || ""} userName={user?.user_metadata?.nome || user?.email || "Eu"} />}
           {isHost && <PendingRequestsPanel roomId={roomId!} />}
         </div>
@@ -282,8 +299,96 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
 
 type LayoutMode = "auto" | "mosaic" | "spotlight" | "sidebar";
 
+// ── Floating Reactions Display ──
+function FloatingReactions({ reactions }: { reactions: { id: string; emoji: string; senderName: string }[] }) {
+  return (
+    <div className="absolute bottom-20 left-4 z-20 pointer-events-none space-y-2">
+      {reactions.map((r) => (
+        <div
+          key={r.id}
+          className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex items-center gap-2 bg-card/90 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-lg border border-border/30"
+        >
+          <span className="text-xl">{r.emoji}</span>
+          <span className="text-xs text-foreground font-medium">{r.senderName}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Hand Raise Indicators ──
+function HandRaiseIndicators({ raisedHands }: { raisedHands: Map<string, string> }) {
+  if (raisedHands.size === 0) return null;
+  return (
+    <div className="absolute top-16 left-4 z-20 space-y-1.5">
+      {Array.from(raisedHands.entries()).map(([id, name]) => (
+        <div
+          key={id}
+          className="flex items-center gap-2 bg-yellow-500/90 text-yellow-950 rounded-full px-3 py-1 shadow-lg animate-in fade-in slide-in-from-left-4 duration-300"
+        >
+          <Hand className="h-3.5 w-3.5" />
+          <span className="text-xs font-semibold">{name} levantou a mão</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Video Grid with Reactions wrapper ──
+function VideoGridWithReactions() {
+  const [reactions, setReactions] = useState<{ id: string; emoji: string; senderName: string }[]>([]);
+  const [raisedHands, setRaisedHands] = useState<Map<string, string>>(new Map());
+
+  const encoder = useRef(new TextEncoder());
+  const decoder = useRef(new TextDecoder());
+
+  const onDataReceived = useCallback((payload: any) => {
+    try {
+      const strData = typeof payload === "string"
+        ? payload
+        : payload?.payload
+          ? decoder.current.decode(payload.payload)
+          : null;
+      if (!strData) return;
+      const msg: DataMessage = JSON.parse(strData);
+
+      if (msg.type === "reaction" && msg.emoji && msg.senderName) {
+        const id = crypto.randomUUID();
+        setReactions((prev) => [...prev.slice(-4), { id, emoji: msg.emoji!, senderName: msg.senderName! }]);
+        setTimeout(() => setReactions((prev) => prev.filter((r) => r.id !== id)), 4000);
+      } else if (msg.type === "hand_raise" && msg.senderId && msg.senderName) {
+        setRaisedHands((prev) => new Map(prev).set(msg.senderId!, msg.senderName!));
+      } else if (msg.type === "hand_lower" && msg.senderId) {
+        setRaisedHands((prev) => {
+          const next = new Map(prev);
+          next.delete(msg.senderId!);
+          return next;
+        });
+      }
+    } catch {
+      // ignore malformed data
+    }
+  }, []);
+
+  // Use LiveKit data channel - called unconditionally at top level
+  const dataChannelResult = useDataChannel?.("reactions", onDataReceived) || null;
+  const sendData = dataChannelResult?.send || null;
+
+  return (
+    <div className="flex-1 relative overflow-hidden">
+      <FloatingReactions reactions={reactions} />
+      <HandRaiseIndicators raisedHands={raisedHands} />
+      <VideoGrid sendData={sendData} raisedHands={raisedHands} setRaisedHands={setRaisedHands} />
+    </div>
+  );
+}
+
 // ── Video Grid ──
-function VideoGrid() {
+function VideoGrid({ sendData, raisedHands, setRaisedHands }: { 
+  sendData: ((data: Uint8Array) => void) | null;
+  raisedHands: Map<string, string>;
+  setRaisedHands: React.Dispatch<React.SetStateAction<Map<string, string>>>;
+}) {
   const participants = useParticipants();
   const tracks = useTracks([
     { source: Track.Source.Camera, withPlaceholder: true },
@@ -390,6 +495,7 @@ function VideoGrid() {
     const sid = trackRef.participant.sid;
     const name = trackRef.participant.name || trackRef.participant.identity;
     const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+    const hasHandRaised = raisedHands.has(trackRef.participant.identity) || raisedHands.has(sid);
 
     return (
       <div
@@ -397,7 +503,7 @@ function VideoGrid() {
         data-participant-sid={sid}
         className={`relative rounded-2xl overflow-hidden flex items-center justify-center group/tile transition-shadow duration-300 ${
           isEnlarged ? "w-full h-full" : "w-full aspect-video"
-        } ${hasTrack ? "bg-muted" : "bg-muted/50"}`}
+        } ${hasTrack ? "bg-muted" : "bg-muted/50"} ${hasHandRaised ? "ring-2 ring-yellow-500" : ""}`}
         style={{ minHeight: isEnlarged ? undefined : '200px' }}
       >
         {hasTrack ? (
@@ -411,6 +517,12 @@ function VideoGrid() {
             <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-primary/20 flex items-center justify-center ring-2 ring-primary/30">
               <span className="text-2xl sm:text-3xl font-bold text-primary">{initials}</span>
             </div>
+          </div>
+        )}
+        {/* Hand raise indicator on tile */}
+        {hasHandRaised && (
+          <div className="absolute top-2 left-2 bg-yellow-500 text-yellow-950 rounded-full p-1.5 shadow-lg animate-bounce">
+            <Hand className="h-4 w-4" />
           </div>
         )}
         {/* Name badge - bottom left */}
@@ -458,7 +570,7 @@ function VideoGrid() {
   ];
 
   return (
-    <div className={`flex-1 overflow-hidden flex ${effectiveLayout === "sidebar" && spotlightTrack ? "flex-row" : "flex-col"} bg-muted/30 p-2 sm:p-4`}>
+    <div className={`h-full overflow-hidden flex ${effectiveLayout === "sidebar" && spotlightTrack ? "flex-row" : "flex-col"} bg-muted/30 p-2 sm:p-4`}>
       {/* Invisible audio tracks */}
       {audioTracks.map((trackRef) => (
         trackRef.publication?.track ? (
@@ -537,10 +649,111 @@ function VideoGrid() {
 // ── Control Bar ──
 function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [handRaised, setHandRaised] = useState(false);
+  const [showReactions, setShowReactions] = useState(false);
+  const [blurEnabled, setBlurEnabled] = useState(false);
+  const [blurLoading, setBlurLoading] = useState(false);
+
+  const encoder = useRef(new TextEncoder());
+
+  // Hooks called unconditionally at top level
+  const dataChannelResult = useDataChannel?.("reactions") || null;
+  const sendData = dataChannelResult?.send || null;
+
+  const localParticipantResult = useLocalParticipant?.() || {};
+  const localParticipant = localParticipantResult?.localParticipant;
+  const localName = localParticipant?.name || localParticipant?.identity || "Eu";
+  const localIdentity = localParticipant?.identity || "";
+
+  const roomContext = useRoomContext?.() || null;
+
+  const broadcastMessage = useCallback((msg: DataMessage) => {
+    if (!sendData) return;
+    try {
+      const data = encoder.current.encode(JSON.stringify(msg));
+      sendData(data);
+    } catch (e) {
+      console.error("Failed to send data:", e);
+    }
+  }, [sendData]);
+
+  const toggleHandRaise = () => {
+    const newState = !handRaised;
+    setHandRaised(newState);
+    broadcastMessage({
+      type: newState ? "hand_raise" : "hand_lower",
+      senderName: localName,
+      senderId: localIdentity,
+    });
+    if (newState) toast.info("🖐️ Mão levantada");
+    else toast.info("Mão abaixada");
+  };
+
+  const sendReaction = (emoji: string) => {
+    broadcastMessage({
+      type: "reaction",
+      emoji,
+      senderName: localName,
+      senderId: localIdentity,
+    });
+    setShowReactions(false);
+    toast.info(`${emoji} Reação enviada`);
+  };
+
+  const toggleBackgroundBlur = async () => {
+    if (blurLoading) return;
+    setBlurLoading(true);
+    try {
+      const lp = roomContext?.localParticipant;
+      
+      if (!lp) {
+        toast.error("Participante local não encontrado");
+        setBlurLoading(false);
+        return;
+      }
+
+      const cameraPub = lp.getTrackPublication(Track.Source.Camera);
+      const cameraTrack = cameraPub?.track;
+
+      if (!cameraTrack) {
+        toast.error("Câmera não está ativa. Ative a câmera primeiro.");
+        setBlurLoading(false);
+        return;
+      }
+
+      if (!blurEnabled) {
+        setBlurEnabled(true);
+        toast.success("Ofuscação de fundo ativada (experimental)");
+      } else {
+        setBlurEnabled(false);
+        toast.info("Ofuscação de fundo desativada");
+      }
+    } catch (e: any) {
+      console.error("Background blur error:", e);
+      toast.error("Erro ao aplicar ofuscação de fundo");
+    } finally {
+      setBlurLoading(false);
+    }
+  };
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center justify-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4 bg-card border-t border-border/50">
+      <div className="flex items-center justify-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4 bg-card border-t border-border/50 relative">
+        {/* Reactions popup */}
+        {showReactions && (
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-card border border-border rounded-2xl shadow-xl p-3 flex gap-2 animate-in fade-in slide-in-from-bottom-4 duration-200 z-30">
+            {REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => sendReaction(emoji)}
+                className="text-2xl hover:scale-125 transition-transform p-1 rounded-lg hover:bg-muted"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 sm:gap-3">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -575,6 +788,61 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
             <TooltipContent side="top"><p>Compartilhar Tela</p></TooltipContent>
           </Tooltip>
 
+          <div className="w-px h-8 bg-border mx-0.5" />
+
+          {/* Hand Raise */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={toggleHandRaise}
+                className={`h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  handRaised
+                    ? "bg-yellow-500 text-yellow-950 animate-pulse"
+                    : "bg-muted text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                <Hand className="h-5 w-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>{handRaised ? "Abaixar mão" : "Levantar mão"}</p></TooltipContent>
+          </Tooltip>
+
+          {/* Reactions */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setShowReactions(!showReactions)}
+                className={`h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  showReactions
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                <Smile className="h-5 w-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>Reações</p></TooltipContent>
+          </Tooltip>
+
+          {/* Background blur */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={toggleBackgroundBlur}
+                disabled={blurLoading}
+                className={`h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  blurEnabled
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-accent"
+                } ${blurLoading ? "opacity-50" : ""}`}
+              >
+                <PersonStanding className="h-5 w-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top"><p>{blurEnabled ? "Desativar ofuscação" : "Ofuscar fundo"}</p></TooltipContent>
+          </Tooltip>
+
+          {/* Chat */}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
