@@ -43,6 +43,7 @@ export default function VideoRooms() {
   const [inviteLink, setInviteLink] = useState("");
   const [editRoom, setEditRoom] = useState<MeetingRoom | null>(null);
   const [activeTab, setActiveTab] = useState("salas");
+  const [rsvpMap, setRsvpMap] = useState<Record<string, { sim: number; nao: number; talvez: number; pendente: number }>>({});
 
   useEffect(() => {
     if (user) fetchRooms();
@@ -57,7 +58,28 @@ export default function VideoRooms() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setRooms((data || []) as unknown as MeetingRoom[]);
+      const roomsList = (data || []) as unknown as MeetingRoom[];
+      setRooms(roomsList);
+
+      // Fetch RSVP statuses for all rooms
+      const roomIds = roomsList.map(r => r.id);
+      if (roomIds.length > 0) {
+        const { data: rsvpData } = await supabase
+          .from("meeting_rsvp")
+          .select("room_id, resposta")
+          .in("room_id", roomIds);
+        const map: Record<string, { sim: number; nao: number; talvez: number; pendente: number }> = {};
+        for (const r of roomsList) {
+          const rsvps = (rsvpData || []).filter(rv => rv.room_id === r.id);
+          const totalConvidados = (r.convidados as any[])?.length || 0;
+          const sim = rsvps.filter(rv => rv.resposta === 'sim').length;
+          const nao = rsvps.filter(rv => rv.resposta === 'nao').length;
+          const talvez = rsvps.filter(rv => rv.resposta === 'talvez').length;
+          const respondidos = sim + nao + talvez;
+          map[r.id] = { sim, nao, talvez, pendente: Math.max(0, totalConvidados - respondidos) };
+        }
+        setRsvpMap(map);
+      }
     } catch (e: any) {
       toast.error(e.message || "Erro ao carregar salas");
     }
@@ -283,6 +305,15 @@ export default function VideoRooms() {
                                 <span className="flex items-center gap-1">
                                   <MessageSquare className="h-3 w-3" />
                                   {(room.convidados as any[]).length} convidado(s)
+                                </span>
+                              )}
+                              {rsvpMap[room.id] && (rsvpMap[room.id].sim > 0 || rsvpMap[room.id].nao > 0 || rsvpMap[room.id].talvez > 0) && (
+                                <span className="flex items-center gap-2">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  <span className="text-emerald-600">✓{rsvpMap[room.id].sim}</span>
+                                  {rsvpMap[room.id].talvez > 0 && <span className="text-amber-600">?{rsvpMap[room.id].talvez}</span>}
+                                  {rsvpMap[room.id].nao > 0 && <span className="text-red-600">✕{rsvpMap[room.id].nao}</span>}
+                                  {rsvpMap[room.id].pendente > 0 && <span>⏳{rsvpMap[room.id].pendente}</span>}
                                 </span>
                               )}
                             </div>
