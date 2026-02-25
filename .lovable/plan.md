@@ -1,38 +1,35 @@
 
 
-## Parecer: Comparação Excel vs Dados Importados
+## Problem
 
-### Análise da Coluna G (Dia Vencimento Veículo)
+The "Boletos por Dia de Vencimento" table sums to 3,750 instead of the expected 4,729. The missing 979 boletos have `dia_vencimento_veiculo = NULL` and get grouped as `'N/I'`, which is then filtered out at line 379.
 
-Analisei o arquivo Excel enviado e comparei com os dados no banco.
+## Solution
 
-**No Excel original**, a coluna G contém exclusivamente os dias: **5, 10, 15, 20, 25**.
+Change line 401 to use a fallback: when `dia_vencimento_veiculo` is NULL, extract the day from `data_vencimento_original` instead.
 
-**No banco de dados**, a distribuição atual é:
+### Change in `src/components/cobranca/CobrancaDashboard.tsx`
 
-```text
-Dia | Qtd Registros
-----|------
-  1 |     1  ← INCORRETO (não existe no Excel)
-  2 |     3  ← INCORRETO (não existe no Excel)
-  5 |    16  ✓
- 10 | 2.161  ✓
- 15 | 1.277  ✓
- 20 | 1.193  ✓
- 25 | 1.109  ✓
-----|------
-    | 5.760 total
+**Line 401** — replace:
+```js
+const groupedByVeiculo = buildGroupedData(b => b.dia_vencimento_veiculo);
+```
+with:
+```js
+const groupedByVeiculo = buildGroupedData(b => 
+  b.dia_vencimento_veiculo ?? parseDayFromDate(b.data_vencimento_original)
+);
 ```
 
-### Diagnóstico
+The `parseDayFromDate` helper already exists at line 348. This ensures every boleto with at least one date reference gets assigned to the correct day, making the table total match the KPI total (4,729).
 
-Existem **4 registros corrompidos** (dia 1 e dia 2) que não correspondem ao Excel original. Inclusive, os 3 registros com dia=2 possuem **placas concatenadas** (múltiplas placas grudadas numa string), confirmando erro de parsing.
+The same fallback should also be applied in the inadimplência calculations (lines ~218-220 and ~424-426) where `dia_vencimento_veiculo` is checked, so those boletos are not excluded from the real delinquency rate either.
 
-Os demais 5.756 registros estão com o dia de vencimento correto em relação ao Excel.
+### Additional lines to update (same fallback pattern)
 
-### Plano de Correção
+- **Line 218-219**: `const diaVenc = b.dia_vencimento_veiculo;` → `const diaVenc = b.dia_vencimento_veiculo ?? parseDayFromDate(b.data_vencimento_original);`
+- **Line 425**: Same change
+- **Line 452**: Same change
 
-1. **Corrigir os 4 registros corrompidos via SQL** - atualizar o `dia_vencimento_veiculo` com base na `data_vencimento_original` (extraindo o dia correto) e limpar os campos de placas concatenadas.
-
-2. **Nenhuma alteração de código necessária** - o parser atual já está correto (extrai apenas os primeiros 2 dígitos e aceita 1-31). Os 4 registros corrompidos vieram de importações anteriores com o parser antigo.
+This is a ~4-line change in a single file.
 
