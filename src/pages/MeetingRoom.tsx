@@ -533,7 +533,7 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   const [enlargedSid, setEnlargedSid] = useState<string | null>(null);
   const [pipSid, setPipSid] = useState<string | null>(null);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
-  const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "16", 10));
+  const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "50", 10));
   const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
 
   // Sync with ControlBar layout changes via storage event
@@ -583,18 +583,25 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
       if (gridCount <= 1) return "grid-cols-1";
       if (gridCount <= 4) return "grid-cols-2";
       if (gridCount <= 9) return "grid-cols-3";
-      return "grid-cols-4";
+      if (gridCount <= 16) return "grid-cols-4";
+      if (gridCount <= 25) return "grid-cols-5";
+      if (gridCount <= 36) return "grid-cols-6";
+      return "grid-cols-7";
     }
     if (spotlightTrack) {
       if (effectiveLayout === "sidebar") return "grid-cols-1";
       return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
     }
-    // auto
+    // auto - Google Meet style
     if (gridCount <= 1) return "grid-cols-1";
     if (gridCount === 2) return "grid-cols-1 sm:grid-cols-2";
     if (gridCount <= 4) return "grid-cols-2";
     if (gridCount <= 6) return "grid-cols-2 lg:grid-cols-3";
-    return "grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+    if (gridCount <= 9) return "grid-cols-3";
+    if (gridCount <= 16) return "grid-cols-3 lg:grid-cols-4";
+    if (gridCount <= 25) return "grid-cols-4 lg:grid-cols-5";
+    if (gridCount <= 36) return "grid-cols-5 lg:grid-cols-6";
+    return "grid-cols-6 lg:grid-cols-7";
   };
 
   const handlePip = async (trackRef: any) => {
@@ -630,7 +637,7 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
         className={`relative rounded-2xl overflow-hidden flex items-center justify-center group/tile transition-shadow duration-300 ${
           isEnlarged ? "w-full h-full" : "w-full aspect-video"
         } ${hasTrack ? "bg-muted" : "bg-muted/50"} ${hasHandRaised ? "ring-2 ring-yellow-500" : ""}`}
-        style={{ minHeight: isEnlarged ? undefined : '200px' }}
+        style={{ minHeight: isEnlarged ? undefined : gridCount > 16 ? '120px' : '160px' }}
       >
         {hasTrack ? (
           trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare ? (
@@ -729,8 +736,9 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
   const [showReactions, setShowReactions] = useState(false);
   const [blurEnabled, setBlurEnabled] = useState(false);
   const [blurLoading, setBlurLoading] = useState(false);
+  const blurEnabledRef = useRef(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
-  const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "16", 10));
+  const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "50", 10));
   const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
 
   const saveLayoutMode = (mode: LayoutMode) => { setLayoutMode(mode); localStorage.setItem("uon1-video-layout", mode); window.dispatchEvent(new Event("storage")); };
@@ -794,7 +802,8 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
     if (blurLoading) return;
     setBlurLoading(true);
     try {
-      const lp = roomContext?.localParticipant;
+      const room = roomContext;
+      const lp = room?.localParticipant;
       
       if (!lp) {
         toast.error("Participante local não encontrado");
@@ -811,10 +820,65 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
         return;
       }
 
+      const mediaTrack = cameraTrack.mediaStreamTrack;
+      if (!mediaTrack) {
+        toast.error("Track de mídia não disponível");
+        setBlurLoading(false);
+        return;
+      }
+
       if (!blurEnabled) {
-        setBlurEnabled(true);
-        toast.success("Ofuscação de fundo ativada (experimental)");
+        // Apply blur using canvas processing
+        try {
+          const stream = new MediaStream([mediaTrack]);
+          const videoEl = document.createElement("video");
+          videoEl.srcObject = stream;
+          videoEl.muted = true;
+          await videoEl.play();
+
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d")!;
+          canvas.width = mediaTrack.getSettings().width || 640;
+          canvas.height = mediaTrack.getSettings().height || 480;
+
+          const processFrame = () => {
+            if (!blurEnabledRef.current) return;
+            ctx.filter = "blur(10px)";
+            ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+            ctx.filter = "none";
+            // Draw person area with less blur (center)
+            const cx = canvas.width * 0.15;
+            const cy = canvas.height * 0.05;
+            const cw = canvas.width * 0.7;
+            const ch = canvas.height * 0.9;
+            ctx.drawImage(videoEl, cx, cy, cw, ch, cx, cy, cw, ch);
+            requestAnimationFrame(processFrame);
+          };
+
+          blurEnabledRef.current = true;
+          processFrame();
+
+          const canvasStream = canvas.captureStream(30);
+          const canvasTrack = canvasStream.getVideoTracks()[0];
+          
+          // Store original track for restoration
+          (lp as any)._originalCameraTrack = mediaTrack;
+          
+          await cameraTrack.replaceTrack(canvasTrack);
+          setBlurEnabled(true);
+          toast.success("Ofuscação de fundo ativada");
+        } catch (err: any) {
+          console.error("Blur processing error:", err);
+          toast.error("Erro ao aplicar ofuscação: " + (err.message || ""));
+        }
       } else {
+        // Restore original track
+        blurEnabledRef.current = false;
+        const originalTrack = (lp as any)._originalCameraTrack;
+        if (originalTrack) {
+          await cameraTrack.replaceTrack(originalTrack);
+          delete (lp as any)._originalCameraTrack;
+        }
         setBlurEnabled(false);
         toast.info("Ofuscação de fundo desativada");
       }
@@ -985,7 +1049,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
                   </div>
                   <div className="flex items-center gap-3">
                     <LayoutGrid className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <Slider value={[maxTiles]} onValueChange={([v]) => saveMaxTiles(v)} min={1} max={25} step={1} className="flex-1" />
+                    <Slider value={[maxTiles]} onValueChange={([v]) => saveMaxTiles(v)} min={1} max={50} step={1} className="flex-1" />
                     <span className="text-xs text-muted-foreground w-5 text-right">{maxTiles}</span>
                   </div>
                 </div>

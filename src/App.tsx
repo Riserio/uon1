@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { usePontoAlertas } from "@/hooks/usePontoAlertas";
@@ -115,9 +115,6 @@ function MainContent({ children }: { children: React.ReactNode }) {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isParceiro } = useAuth();
-  usePushNotifications();
-  usePontoAlertas();
-  useVisitorTracking();
   
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
@@ -127,18 +124,24 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  // DECISÃO DEFINITIVA: Parceiros têm acesso EXCLUSIVO ao portal PID
-  // Eles NÃO podem acessar nenhuma outra parte do sistema
   if (isParceiro) {
     return <Navigate to="/portal" replace />;
   }
+  
+  return <>{children}</>;
+}
+
+function AppLayout() {
+  usePushNotifications();
+  usePontoAlertas();
+  useVisitorTracking();
   
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="min-h-screen w-full flex">
         <AppSidebar />
         <MainContent>
-          {children}
+          <Outlet />
         </MainContent>
       </div>
     </SidebarProvider>
@@ -231,52 +234,56 @@ const App = () => (
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
               <Route path="/contrato/:token" element={<ContratoAssinatura />} />
               <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
-              <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
               <Route path="/" element={<DomainBasedRoute />} />
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/atendimentos" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-              <Route path="/sinistros" element={<ProtectedRoute><Sinistros /></ProtectedRoute>} />
-              <Route path="/sinistros/configuracoes" element={<ProtectedRoute><SinistroConfiguracoes /></ProtectedRoute>} />
-              <Route path="/sinistros/:id/acompanhamento" element={<ProtectedRoute><AcompanhamentoSinistroInterno /></ProtectedRoute>} />
-              <Route path="/sinistros/:atendimentoId/deliberacao" element={<ProtectedRoute><ComiteDeliberacao /></ProtectedRoute>} />
-              <Route path="/vistorias/nova/digital" element={<ProtectedRoute><VistoriaDigital /></ProtectedRoute>} />
-              <Route path="/vistorias/nova/manual" element={<ProtectedRoute><VistoriaManual /></ProtectedRoute>} />
-              <Route path="/vistorias/:id" element={<ProtectedRoute><VistoriaDetalhe /></ProtectedRoute>} />
-              <Route path="/dashboard-analytics" element={<ProtectedRoute><DashboardAnalytics /></ProtectedRoute>} />
-              <Route path="/desempenho-individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />
-              <Route path="/performance/individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />
-              <Route path="/performance/corretoras" element={<ProtectedRoute><DesempenhoCorretoras /></ProtectedRoute>} />
-              <Route path="/corretoras" element={<ProtectedRoute><Corretoras /></ProtectedRoute>} />
-              <Route path="/termos" element={<ProtectedRoute><Termos /></ProtectedRoute>} />
-              <Route path="/administradora" element={<ProtectedRoute><AdminRoute><Administradora /></AdminRoute></ProtectedRoute>} />
-              <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
-              <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
-              <Route path="/equipes" element={<ProtectedRoute><Equipes /></ProtectedRoute>} />
-              <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
+              
+              {/* All protected routes share sidebar via AppLayout */}
+              <Route element={<AppLayout />}>
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/atendimentos" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+                <Route path="/sinistros" element={<ProtectedRoute><Sinistros /></ProtectedRoute>} />
+                <Route path="/sinistros/configuracoes" element={<ProtectedRoute><SinistroConfiguracoes /></ProtectedRoute>} />
+                <Route path="/sinistros/:id/acompanhamento" element={<ProtectedRoute><AcompanhamentoSinistroInterno /></ProtectedRoute>} />
+                <Route path="/sinistros/:atendimentoId/deliberacao" element={<ProtectedRoute><ComiteDeliberacao /></ProtectedRoute>} />
+                <Route path="/vistorias/nova/digital" element={<ProtectedRoute><VistoriaDigital /></ProtectedRoute>} />
+                <Route path="/vistorias/nova/manual" element={<ProtectedRoute><VistoriaManual /></ProtectedRoute>} />
+                <Route path="/vistorias/:id" element={<ProtectedRoute><VistoriaDetalhe /></ProtectedRoute>} />
+                <Route path="/dashboard-analytics" element={<ProtectedRoute><DashboardAnalytics /></ProtectedRoute>} />
+                <Route path="/desempenho-individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />
+                <Route path="/performance/individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />
+                <Route path="/performance/corretoras" element={<ProtectedRoute><DesempenhoCorretoras /></ProtectedRoute>} />
+                <Route path="/corretoras" element={<ProtectedRoute><Corretoras /></ProtectedRoute>} />
+                <Route path="/termos" element={<ProtectedRoute><Termos /></ProtectedRoute>} />
+                <Route path="/administradora" element={<ProtectedRoute><AdminRoute><Administradora /></AdminRoute></ProtectedRoute>} />
+                <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
+                <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
+                <Route path="/equipes" element={<ProtectedRoute><Equipes /></ProtectedRoute>} />
+                <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
                 <Route path="/dashboard-financeiro" element={<ProtectedRoute><DashboardFinanceiro /></ProtectedRoute>} />
                 <Route path="/custos-sinistros" element={<ProtectedRoute><CustosSinistros /></ProtectedRoute>} />
-              
-              <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
-              <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
-              <Route path="/mensagens" element={<ProtectedRoute><Mensagens /></ProtectedRoute>} />
-              <Route path="/central-atendimento" element={<ProtectedRoute><Emails /></ProtectedRoute>} />
-              <Route path="/emails" element={<Navigate to="/central-atendimento" replace />} />
-              <Route path="/central-whatsapp" element={<Navigate to="/central-atendimento" replace />} />
-              <Route path="/whatsapp-flows" element={<Navigate to="/central-atendimento" replace />} />
-              <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
-              <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
-              <Route element={<ProtectedRoute><BILayout /></ProtectedRoute>}>
-                <Route path="/pid" element={<PID />} />
-                <Route path="/sga-insights" element={<SGAInsights />} />
-                <Route path="/mgf-insights" element={<MGFInsights />} />
-                <Route path="/cobranca-insights" element={<CobrancaInsights />} />
-                <Route path="/estudo-base-insights" element={<EstudoBaseInsights />} />
-                <Route path="/acompanhamento-eventos" element={<AcompanhamentoEventos />} />
+                <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+                <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
+                <Route path="/mensagens" element={<ProtectedRoute><Mensagens /></ProtectedRoute>} />
+                <Route path="/central-atendimento" element={<ProtectedRoute><Emails /></ProtectedRoute>} />
+                <Route path="/emails" element={<Navigate to="/central-atendimento" replace />} />
+                <Route path="/central-whatsapp" element={<Navigate to="/central-atendimento" replace />} />
+                <Route path="/whatsapp-flows" element={<Navigate to="/central-atendimento" replace />} />
+                <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
+                <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
+                <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
+                <Route element={<ProtectedRoute><BILayout /></ProtectedRoute>}>
+                  <Route path="/pid" element={<PID />} />
+                  <Route path="/sga-insights" element={<SGAInsights />} />
+                  <Route path="/mgf-insights" element={<MGFInsights />} />
+                  <Route path="/cobranca-insights" element={<CobrancaInsights />} />
+                  <Route path="/estudo-base-insights" element={<EstudoBaseInsights />} />
+                  <Route path="/acompanhamento-eventos" element={<AcompanhamentoEventos />} />
+                </Route>
+                <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
+                <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
+                <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
+                <Route path="/talk" element={<Navigate to="/video" replace />} />
               </Route>
-              <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
-              <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
-              <Route path="/talk" element={<Navigate to="/video" replace />} />
-              <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
+              
               <Route path="/video/:roomId" element={<ProtectedRoute><MeetingRoom /></ProtectedRoute>} />
               <Route path="/invite/:inviteId" element={<InviteEntry />} />
               <Route path="/portal" element={<PortalRoute><PortalLayout /></PortalRoute>}>
