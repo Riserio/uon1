@@ -475,7 +475,7 @@ export default function CobrancaInsights() {
                   {!filtersOpen && hasActiveFilters && (
                     <span className="text-xs text-muted-foreground truncate max-w-[280px]">
                       {[
-                        filters.mesReferencia && format(new Date(filters.mesReferencia + "-01"), "MMM/yy", { locale: ptBR }),
+                        filters.mesReferencia && format(new Date(parseInt(filters.mesReferencia.split("-")[0]), parseInt(filters.mesReferencia.split("-")[1]) - 1, 1), "MMM/yy", { locale: ptBR }),
                         filters.situacao !== "todos" && filters.situacao,
                         filters.regional !== "todos" && filters.regional,
                         filters.cooperativa !== "todos" && filters.cooperativa,
@@ -509,7 +509,7 @@ export default function CobrancaInsights() {
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {filters.mesReferencia ? (
-                              format(new Date(filters.mesReferencia + "-01"), "MMMM 'de' yyyy", { locale: ptBR })
+                              format(new Date(parseInt(filters.mesReferencia.split("-")[0]), parseInt(filters.mesReferencia.split("-")[1]) - 1, 1), "MMMM 'de' yyyy", { locale: ptBR })
                             ) : (
                               <span>Selecione o mês</span>
                             )}
