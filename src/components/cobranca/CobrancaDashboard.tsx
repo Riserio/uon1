@@ -61,6 +61,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
   const [inadimplenciaHistorico, setInadimplenciaHistorico] = useState<Map<number, number>>(new Map());
   const inadimplenciaScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollIndicators, setShowScrollIndicators] = useState({ left: false, right: false });
+  const [diaGroupMode, setDiaGroupMode] = useState<'veiculo' | 'vencimento' | 'pagamento'>('veiculo');
 
   // Carregar configuração de inadimplência do banco
   const loadInadimplenciaConfig = async () => {
@@ -343,79 +344,68 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       return getProximoDiaUtil(anoAtual, mesAtual, diaVenc);
     };
 
-    // Por Dia Vencimento Veículo (emitidos, pagos, abertos) - usa dia ORIGINAL para agrupamento
-    const porDiaVencimentoAll: Record<string, { emitido: number; emitidoValor: number; pago: number; pagoValor: number; aberto: number; abertoValor: number }> = {};
-    
-    boletosFiltrados.forEach(b => {
-      const dia = b.dia_vencimento_veiculo || 'N/I';
-      if (!porDiaVencimentoAll[dia]) {
-        porDiaVencimentoAll[dia] = { emitido: 0, emitidoValor: 0, pago: 0, pagoValor: 0, aberto: 0, abertoValor: 0 };
-      }
-      porDiaVencimentoAll[dia].emitido += 1;
-      porDiaVencimentoAll[dia].emitidoValor += b.valor || 0;
+    // Helper to parse day from date string (YYYY-MM-DD)
+    const parseDayFromDate = (dateStr: string | null): number | null => {
+      if (!dateStr) return null;
+      const parts = dateStr.split("T")[0].split("-");
+      const d = parseInt(parts[2], 10);
+      return isNaN(d) ? null : d;
+    };
+
+    // Build grouped data for all 3 modes
+    const buildGroupedData = (getDia: (b: any) => number | string | null) => {
+      const grouped: Record<string, { emitido: number; emitidoValor: number; pago: number; pagoValor: number; aberto: number; abertoValor: number }> = {};
       
-      if (b.situacao && b.situacao.toUpperCase() === 'BAIXADO') {
-        porDiaVencimentoAll[dia].pago += 1;
-        porDiaVencimentoAll[dia].pagoValor += b.valor || 0;
-      } else if (b.situacao && b.situacao.toUpperCase() === 'ABERTO') {
-        porDiaVencimentoAll[dia].aberto += 1;
-        porDiaVencimentoAll[dia].abertoValor += b.valor || 0;
-      }
-    });
-    
-    // Converter para arrays com percentuais
-    const diasVencimentoData = Object.entries(porDiaVencimentoAll)
-      .filter(([dia]) => dia !== 'N/I')
-      .map(([dia, data]) => {
-        const total = data.emitido;
-        const percPago = total > 0 ? (data.pago / total) * 100 : 0;
-        const percAberto = total > 0 ? (data.aberto / total) * 100 : 0;
-        return {
-          dia: `Dia ${dia}`,
-          diaNum: parseInt(dia),
-          qtde: data.emitido,
-          valor: data.emitidoValor,
-          percPago,
-          percAberto
-        };
-      })
-      .sort((a, b) => a.diaNum - b.diaNum);
-    
-    const diasVencimentoPagosData = Object.entries(porDiaVencimentoAll)
-      .filter(([dia]) => dia !== 'N/I' && (porDiaVencimentoAll[dia].pago > 0 || porDiaVencimentoAll[dia].aberto > 0))
-      .map(([dia, data]) => {
-        const total = data.emitido;
-        const percPago = total > 0 ? (data.pago / total) * 100 : 0;
-        const percAberto = total > 0 ? (data.aberto / total) * 100 : 0;
-        return {
-          dia: `Dia ${dia}`,
-          diaNum: parseInt(dia),
-          qtde: data.pago,
-          valor: data.pagoValor,
-          percPago,
-          percAberto
-        };
-      })
-      .filter(item => item.qtde > 0)
-      .sort((a, b) => a.diaNum - b.diaNum);
-    
-    const diasVencimentoAbertosData = Object.entries(porDiaVencimentoAll)
-      .filter(([dia]) => dia !== 'N/I' && (porDiaVencimentoAll[dia].pago > 0 || porDiaVencimentoAll[dia].aberto > 0))
-      .map(([dia, data]) => {
-        const total = data.emitido;
-        const percPago = total > 0 ? (data.pago / total) * 100 : 0;
-        const percAberto = total > 0 ? (data.aberto / total) * 100 : 0;
-        return {
-          dia: `Dia ${dia}`,
-          diaNum: parseInt(dia),
-          qtde: data.aberto,
-          valor: data.abertoValor,
-          percPago,
-          percAberto
-        };
-      })
-      .filter(item => item.qtde > 0)
-      .sort((a, b) => a.diaNum - b.diaNum);
+      boletosFiltrados.forEach(b => {
+        const dia = getDia(b) ?? 'N/I';
+        const key = String(dia);
+        if (!grouped[key]) {
+          grouped[key] = { emitido: 0, emitidoValor: 0, pago: 0, pagoValor: 0, aberto: 0, abertoValor: 0 };
+        }
+        grouped[key].emitido += 1;
+        grouped[key].emitidoValor += b.valor || 0;
+        
+        if (b.situacao && b.situacao.toUpperCase() === 'BAIXADO') {
+          grouped[key].pago += 1;
+          grouped[key].pagoValor += b.valor || 0;
+        } else if (b.situacao && b.situacao.toUpperCase() === 'ABERTO') {
+          grouped[key].aberto += 1;
+          grouped[key].abertoValor += b.valor || 0;
+        }
+      });
+
+      const toChartData = (filterFn?: (data: any) => boolean) => 
+        Object.entries(grouped)
+          .filter(([dia]) => dia !== 'N/I')
+          .map(([dia, data]) => {
+            const total = data.emitido;
+            return {
+              dia: `Dia ${dia}`,
+              diaNum: parseInt(dia),
+              qtde: data.emitido,
+              valor: data.emitidoValor,
+              pagos: data.pago,
+              pagosValor: data.pagoValor,
+              abertos: data.aberto,
+              abertosValor: data.abertoValor,
+              percPago: total > 0 ? (data.pago / total) * 100 : 0,
+              percAberto: total > 0 ? (data.aberto / total) * 100 : 0,
+            };
+          })
+          .filter(item => !filterFn || filterFn(item))
+          .sort((a, b) => a.diaNum - b.diaNum);
+
+      return toChartData();
+    };
+
+    const groupedByVeiculo = buildGroupedData(b => b.dia_vencimento_veiculo);
+    const groupedByVencimento = buildGroupedData(b => parseDayFromDate(b.data_vencimento_original || b.data_vencimento));
+    const groupedByPagamento = buildGroupedData(b => parseDayFromDate(b.data_pagamento));
+
+    // Legacy aliases used by the rest of the component
+    const diasVencimentoData = groupedByVeiculo;
+    const diasVencimentoPagosData = groupedByVeiculo.filter(d => d.pagos > 0);
+    const diasVencimentoAbertosData = groupedByVeiculo.filter(d => d.abertos > 0);
 
     // Gráfico de Inadimplência por Dia do Mês (usando dia_vencimento_veiculo)
     const diaHoje = hoje.getDate();
@@ -666,6 +656,9 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       diasVencimentoData,
       diasVencimentoPagosData,
       diasVencimentoAbertosData,
+      groupedByVeiculo,
+      groupedByVencimento,
+      groupedByPagamento,
       inadimplenciaPorDia,
       arrecadacaoData,
       regionaisPagosData,
@@ -757,140 +750,167 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         ))}
       </div>
 
-      {/* Boletos por Dia de Vencimento - Card moderno com gráfico + tabela */}
-      <Card className="rounded-2xl overflow-hidden border-border/40">
-        <CardHeader className="pb-0 pt-4 px-5">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <Calendar className="h-4 w-4 text-primary" />
-            Boletos por Dia de Vencimento
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {/* Totais - destaque visual com separadores */}
-          <div className="grid grid-cols-3 divide-x divide-border/40 border-b border-border/40 px-1 py-4">
-            <div className="px-5">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Emitidos</p>
-              <p className="text-2xl font-bold text-primary tabular-nums">{stats.totalBoletos.toLocaleString('pt-BR')}</p>
-              <p className="text-xs text-primary/70 mt-0.5">{formatCurrency(stats.totalValor)}</p>
-            </div>
-            <div className="px-5">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Pagos</p>
-              <p className="text-2xl font-bold text-emerald-600 tabular-nums">{stats.qtdePagos.toLocaleString('pt-BR')}</p>
-              <p className="text-xs text-emerald-600/70 mt-0.5">{formatCurrency(stats.totalPago)}</p>
-            </div>
-            <div className="px-5">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Em Aberto</p>
-              <p className="text-2xl font-bold text-destructive tabular-nums">{stats.qtdeAbertos.toLocaleString('pt-BR')}</p>
-              <p className="text-xs text-destructive/70 mt-0.5">{formatCurrency(stats.totalAberto)}</p>
-            </div>
-          </div>
+      {/* Boletos por Dia - Card moderno com gráfico + tabela + seletor de agrupamento */}
+      {(() => {
+        const activeData = diaGroupMode === 'veiculo' 
+          ? stats.groupedByVeiculo 
+          : diaGroupMode === 'vencimento' 
+            ? stats.groupedByVencimento 
+            : stats.groupedByPagamento;
 
-          {/* Gráfico de barras agrupadas - Emitidos, Pagos, Abertos por dia */}
-          {stats.diasVencimentoData.length > 0 && (
-            <div className="px-4 pt-4 pb-1 overflow-x-auto scrollbar-hide">
-              <div style={{ minWidth: Math.max(500, stats.diasVencimentoData.length * 52) + 'px' }}>
-                <ResponsiveContainer width="100%" height={150}>
-                  <BarChart
-                    data={stats.diasVencimentoData.map(item => {
-                      const pagos = stats.diasVencimentoPagosData.find(p => p.diaNum === item.diaNum)?.qtde || 0;
-                      const abertos = stats.diasVencimentoAbertosData.find(a => a.diaNum === item.diaNum)?.qtde || 0;
-                      return { ...item, pagos, abertos };
-                    })}
-                    margin={{ top: 4, right: 8, bottom: 4, left: 0 }}
-                    barCategoryGap="25%"
-                    barGap={2}
-                  >
-                    <defs>
-                      <linearGradient id="gradEmitidos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.85} />
-                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
-                      </linearGradient>
-                      <linearGradient id="gradPagos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#22c55e" stopOpacity={0.9} />
-                        <stop offset="100%" stopColor="#22c55e" stopOpacity={0.3} />
-                      </linearGradient>
-                      <linearGradient id="gradAbertos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
-                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.3} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="dia" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} tickFormatter={(v) => v.replace('Dia ', '')} />
-                    <YAxis tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} width={30} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: 10, fontSize: 11, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }}
-                      labelStyle={{ fontWeight: 700, marginBottom: 6, fontSize: 12 }}
-                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
-                      formatter={(v: any, name: string) => [v.toLocaleString('pt-BR'), name]}
-                    />
-                    <Bar dataKey="qtde" name="Emitidos" fill="url(#gradEmitidos)" radius={[4, 4, 0, 0]} maxBarSize={16} />
-                    <Bar dataKey="pagos" name="Pagos" fill="url(#gradPagos)" radius={[4, 4, 0, 0]} maxBarSize={16} />
-                    <Bar dataKey="abertos" name="Em Aberto" fill="url(#gradAbertos)" radius={[4, 4, 0, 0]} maxBarSize={16} />
-                  </BarChart>
-                </ResponsiveContainer>
+        const modeLabels = {
+          veiculo: 'Vcto Veículo',
+          vencimento: 'Vcto Original',
+          pagamento: 'Pagamento',
+        };
+
+        return (
+          <Card className="rounded-2xl overflow-hidden border-border/40">
+            <CardHeader className="pb-0 pt-4 px-5">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  Boletos por Dia
+                </CardTitle>
+                {/* Segmented toggle */}
+                <div className="flex items-center bg-muted/60 rounded-lg p-0.5 gap-0.5">
+                  {(['veiculo', 'vencimento', 'pagamento'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setDiaGroupMode(mode)}
+                      className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-all ${
+                        diaGroupMode === mode 
+                          ? 'bg-background text-foreground shadow-sm' 
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {modeLabels[mode]}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {/* Legenda manual compacta */}
-              <div className="flex items-center gap-5 justify-center pb-3 mt-2">
-                {[
-                  { label: "Emitidos", color: "hsl(var(--primary))" },
-                  { label: "Pagos", color: "#22c55e" },
-                  { label: "Em Aberto", color: "#ef4444" },
-                ].map(({ label, color }) => (
-                  <div key={label} className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
-                    <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
+            </CardHeader>
+            <CardContent className="p-0">
+              {/* Totais */}
+              <div className="grid grid-cols-3 divide-x divide-border/40 border-b border-border/40 px-1 py-4">
+                <div className="px-5">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Emitidos</p>
+                  <p className="text-2xl font-bold text-primary tabular-nums">{stats.totalBoletos.toLocaleString('pt-BR')}</p>
+                  <p className="text-xs text-primary/70 mt-0.5">{formatCurrency(stats.totalValor)}</p>
+                </div>
+                <div className="px-5">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Pagos</p>
+                  <p className="text-2xl font-bold text-emerald-600 tabular-nums">{stats.qtdePagos.toLocaleString('pt-BR')}</p>
+                  <p className="text-xs text-emerald-600/70 mt-0.5">{formatCurrency(stats.totalPago)}</p>
+                </div>
+                <div className="px-5">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Em Aberto</p>
+                  <p className="text-2xl font-bold text-destructive tabular-nums">{stats.qtdeAbertos.toLocaleString('pt-BR')}</p>
+                  <p className="text-xs text-destructive/70 mt-0.5">{formatCurrency(stats.totalAberto)}</p>
+                </div>
+              </div>
+
+              {/* Gráfico de barras */}
+              {activeData.length > 0 && (
+                <div className="px-4 pt-4 pb-1 overflow-x-auto scrollbar-hide">
+                  <div style={{ minWidth: Math.max(500, activeData.length * 52) + 'px' }}>
+                    <ResponsiveContainer width="100%" height={150}>
+                      <BarChart
+                        data={activeData}
+                        margin={{ top: 4, right: 8, bottom: 4, left: 0 }}
+                        barCategoryGap="25%"
+                        barGap={2}
+                      >
+                        <defs>
+                          <linearGradient id="gradEmitidos" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.85} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
+                          </linearGradient>
+                          <linearGradient id="gradPagos" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#22c55e" stopOpacity={0.9} />
+                            <stop offset="100%" stopColor="#22c55e" stopOpacity={0.3} />
+                          </linearGradient>
+                          <linearGradient id="gradAbertos" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
+                            <stop offset="100%" stopColor="#ef4444" stopOpacity={0.3} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="dia" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} tickFormatter={(v) => v.replace('Dia ', '')} />
+                        <YAxis tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} width={30} />
+                        <Tooltip
+                          contentStyle={{ borderRadius: 10, fontSize: 11, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }}
+                          labelStyle={{ fontWeight: 700, marginBottom: 6, fontSize: 12 }}
+                          cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+                          formatter={(v: any, name: string) => [v.toLocaleString('pt-BR'), name]}
+                        />
+                        <Bar dataKey="qtde" name="Emitidos" fill="url(#gradEmitidos)" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                        <Bar dataKey="pagos" name="Pagos" fill="url(#gradPagos)" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                        <Bar dataKey="abertos" name="Em Aberto" fill="url(#gradAbertos)" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div className="flex items-center gap-5 justify-center pb-3 mt-2">
+                    {[
+                      { label: "Emitidos", color: "hsl(var(--primary))" },
+                      { label: "Pagos", color: "#22c55e" },
+                      { label: "Em Aberto", color: "#ef4444" },
+                    ].map(({ label, color }) => (
+                      <div key={label} className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
+                        <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Tabela compacta */}
-          <div className="max-h-[280px] overflow-y-auto border-t border-border/40">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 sticky top-0 z-10">
-                <tr>
-                  <th className="text-left px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Dia</th>
-                  <th className="text-center px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Emitidos</th>
-                  <th className="text-center px-3 py-2 text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">Pagos</th>
-                  <th className="text-center px-3 py-2 text-[11px] font-semibold text-red-600 uppercase tracking-wide">Aberto</th>
-                  <th className="text-right px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Taxa</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.diasVencimentoData.map((item, index) => {
-                  const pagosItem = stats.diasVencimentoPagosData.find(p => p.diaNum === item.diaNum);
-                  const abertosItem = stats.diasVencimentoAbertosData.find(a => a.diaNum === item.diaNum);
-                  const taxaPagamento = item.qtde > 0 ? (pagosItem?.qtde || 0) / item.qtde * 100 : 0;
-                  const taxaColor = taxaPagamento >= 80 ? 'text-emerald-600' : taxaPagamento >= 50 ? 'text-amber-600' : 'text-red-600';
-                  const barColor = taxaPagamento >= 80 ? 'bg-emerald-500' : taxaPagamento >= 50 ? 'bg-amber-500' : 'bg-red-500';
-
-                  return (
-                    <tr key={item.dia} className={`border-b border-border/30 hover:bg-muted/20 transition-colors ${index % 2 === 0 ? '' : 'bg-muted/5'}`}>
-                      <td className="px-4 py-2"><span className="font-semibold text-sm">{item.dia}</span></td>
-                      <td className="px-3 py-2 text-center"><span className="font-medium text-sm">{item.qtde.toLocaleString('pt-BR')}</span></td>
-                      <td className="px-3 py-2 text-center"><span className="font-medium text-sm text-emerald-600">{(pagosItem?.qtde || 0).toLocaleString('pt-BR')}</span></td>
-                      <td className="px-3 py-2 text-center">
-                        {(abertosItem?.qtde || 0) > 0
-                          ? <span className="font-medium text-sm text-red-600">{abertosItem!.qtde.toLocaleString('pt-BR')}</span>
-                          : <span className="text-emerald-500 text-sm">✓</span>
-                        }
-                      </td>
-                      <td className="px-4 py-2">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="w-14 h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(100, taxaPagamento)}%` }} />
-                          </div>
-                          <span className={`text-[11px] font-bold tabular-nums w-10 text-right ${taxaColor}`}>{taxaPagamento.toFixed(0)}%</span>
-                        </div>
-                      </td>
+              {/* Tabela compacta */}
+              <div className="max-h-[280px] overflow-y-auto border-t border-border/40">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 sticky top-0 z-10">
+                    <tr>
+                      <th className="text-left px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Dia</th>
+                      <th className="text-center px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Emitidos</th>
+                      <th className="text-center px-3 py-2 text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">Pagos</th>
+                      <th className="text-center px-3 py-2 text-[11px] font-semibold text-red-600 uppercase tracking-wide">Aberto</th>
+                      <th className="text-right px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Taxa</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                  </thead>
+                  <tbody>
+                    {activeData.map((item, index) => {
+                      const taxaPagamento = item.qtde > 0 ? (item.pagos / item.qtde) * 100 : 0;
+                      const taxaColor = taxaPagamento >= 80 ? 'text-emerald-600' : taxaPagamento >= 50 ? 'text-amber-600' : 'text-red-600';
+                      const barColor = taxaPagamento >= 80 ? 'bg-emerald-500' : taxaPagamento >= 50 ? 'bg-amber-500' : 'bg-red-500';
+
+                      return (
+                        <tr key={item.dia} className={`border-b border-border/30 hover:bg-muted/20 transition-colors ${index % 2 === 0 ? '' : 'bg-muted/5'}`}>
+                          <td className="px-4 py-2"><span className="font-semibold text-sm">{item.dia}</span></td>
+                          <td className="px-3 py-2 text-center"><span className="font-medium text-sm">{item.qtde.toLocaleString('pt-BR')}</span></td>
+                          <td className="px-3 py-2 text-center"><span className="font-medium text-sm text-emerald-600">{item.pagos.toLocaleString('pt-BR')}</span></td>
+                          <td className="px-3 py-2 text-center">
+                            {item.abertos > 0
+                              ? <span className="font-medium text-sm text-red-600">{item.abertos.toLocaleString('pt-BR')}</span>
+                              : <span className="text-emerald-500 text-sm">✓</span>
+                            }
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="w-14 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(100, taxaPagamento)}%` }} />
+                              </div>
+                              <span className={`text-[11px] font-bold tabular-nums w-10 text-right ${taxaColor}`}>{taxaPagamento.toFixed(0)}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Gráfico de Inadimplência - 3 linhas */}
       <Card className="rounded-2xl border-border/40">
