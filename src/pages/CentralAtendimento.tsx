@@ -569,41 +569,62 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
               <p>Nenhum contato encontrado</p>
             </div>
           ) : (
-            filteredContacts.map((contact) => (
+            filteredContacts.map((contact) => {
+              const hasUnread = contact.unread_count > 0;
+              return (
               <div
                 key={contact.id}
                 onClick={() => handleSelectContact(contact)}
                 className={cn(
-                  'flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border/50',
-                  selectedContact?.id === contact.id && 'bg-primary/10'
+                  'flex items-center gap-3 p-3 cursor-pointer transition-colors border-b border-border/50',
+                  selectedContact?.id === contact.id && 'bg-primary/10',
+                  hasUnread && selectedContact?.id !== contact.id && 'bg-primary/5 border-l-2 border-l-primary',
+                  !hasUnread && selectedContact?.id !== contact.id && 'hover:bg-muted/50'
                 )}
               >
-                <Avatar className="h-10 w-10 shrink-0">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                    {getInitials(contact)}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="h-10 w-10 shrink-0">
+                    <AvatarFallback className={cn(
+                      "text-xs",
+                      hasUnread ? "bg-primary/20 text-primary font-bold" : "bg-primary/10 text-primary"
+                    )}>
+                      {getInitials(contact)}
+                    </AvatarFallback>
+                  </Avatar>
+                  {hasUnread && (
+                    <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-card" />
+                  )}
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm truncate">
+                    <span className={cn(
+                      "text-sm truncate",
+                      hasUnread ? "font-bold text-foreground" : "font-medium"
+                    )}>
                       {getContactDisplayName(contact)}
                     </span>
                     {contact.last_message_at && (
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
+                      <span className={cn(
+                        "text-[10px] whitespace-nowrap ml-2",
+                        hasUnread ? "text-primary font-semibold" : "text-muted-foreground"
+                      )}>
                         {format(new Date(contact.last_message_at), 'HH:mm', { locale: ptBR })}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
-                    <span className="text-xs text-muted-foreground truncate">
+                    <span className={cn(
+                      "text-xs truncate",
+                      hasUnread ? "text-foreground/70 font-medium" : "text-muted-foreground"
+                    )}>
                       {contact.last_message_preview || contact.phone}
                     </span>
                     <div className="flex items-center gap-1 ml-2 shrink-0">
                       {contact.human_mode && (
                         <UserCheck className="h-3 w-3 text-amber-500" />
                       )}
-                      {contact.unread_count > 0 && (
-                        <Badge className="bg-primary text-primary-foreground h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
+                      {hasUnread && (
+                        <Badge className="bg-emerald-500 text-white h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5 font-bold shadow-sm">
                           {contact.unread_count}
                         </Badge>
                       )}
@@ -611,7 +632,8 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                   </div>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </ScrollArea>
       </div>
