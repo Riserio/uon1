@@ -408,6 +408,37 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── RSVP (public, no auth) ──
+    if (action === "rsvp") {
+      const token = url.searchParams.get("token");
+      const resposta = url.searchParams.get("resposta");
+      if (!token || !["sim", "talvez", "nao"].includes(resposta || "")) {
+        return new Response("<html><body><h2>Link inválido</h2></body></html>", { headers: { ...corsHeaders, "Content-Type": "text/html" } });
+      }
+
+      const { data: rsvp, error: rsvpErr } = await supabaseAdmin
+        .from("meeting_rsvp")
+        .update({ resposta, respondido_em: new Date().toISOString() })
+        .eq("token", token)
+        .select("*, meeting_rooms(nome)")
+        .single();
+
+      const nome = rsvp?.meeting_rooms?.nome || "Reunião";
+      const msgs: Record<string, string> = {
+        sim: "✅ Presença confirmada!",
+        talvez: "🤔 Resposta registrada como 'Talvez'.",
+        nao: "❌ Você declinou o convite.",
+      };
+
+      return new Response(`
+        <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RSVP - ${nome}</title>
+        <style>body{font-family:'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc;margin:0;}
+        .card{background:#fff;border-radius:12px;padding:40px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.08);max-width:400px;}
+        h2{margin:0 0 8px;color:#1e293b;}p{color:#64748b;margin:0;}</style></head>
+        <body><div class="card"><h2>${msgs[resposta!]}</h2><p>Reunião: <strong>${nome}</strong></p><p style="margin-top:16px;font-size:13px;">Você pode fechar esta página.</p></div></body></html>
+      `, { headers: { ...corsHeaders, "Content-Type": "text/html" } });
+    }
+
     // ── NOTIFY MEETING (email + whatsapp) ──
     if (action === "notifyMeeting") {
       const user = await getUser();
@@ -432,9 +463,63 @@ Deno.serve(async (req) => {
       }
       const { data: smtpConfig } = await supabaseAdmin.from("email_config").select("*").eq("user_id", user.id).single();
 
+      // Generate ICS content helper
+      const generateICS = (startDate: string, durationMin: number, title: string, desc: string, location: string, organizerEmail: string, attendeeEmail: string): string => {
+        const start = new Date(startDate);
+        const end = new Date(start.getTime() + durationMin * 60000);
+        const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+        const uid = crypto.randomUUID();
+        const now = fmt(new Date());
+        return [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//Uon1 Talk//Meeting//PT',
+          'CALSCALE:GREGORIAN',
+          'METHOD:REQUEST',
+          'BEGIN:VEVENT',
+          `DTSTART:${fmt(start)}`,
+          `DTEND:${fmt(end)}`,
+          `DTSTAMP:${now}`,
+          `UID:${uid}@uon1.com.br`,
+          `SUMMARY:${title}`,
+          `DESCRIPTION:${desc.replace(/\n/g, '\\n')}`,
+          `LOCATION:${location}`,
+          `ORGANIZER;CN=${hostName}:mailto:${organizerEmail}`,
+          `ATTENDEE;RSVP=TRUE;CN=${attendeeEmail}:mailto:${attendeeEmail}`,
+          'STATUS:CONFIRMED',
+          `URL:${location}`,
+          'BEGIN:VALARM',
+          'TRIGGER:-PT15M',
+          'ACTION:DISPLAY',
+          'DESCRIPTION:Reunião em 15 minutos',
+          'END:VALARM',
+          'END:VEVENT',
+          'END:VCALENDAR',
+        ].join('\r\n');
+      };
+
+      const organizerEmail = user.email || 'noreply@uon1.com.br';
+      const edgeFunctionBaseUrl = `${supabaseUrl}/functions/v1/livekit-rooms`;
+
       for (const convidado of convidados || []) {
         // Email
         if (enviarEmail && convidado.email) {
+          // Create RSVP token
+          let rsvpToken = '';
+          try {
+            const { data: rsvpData } = await supabaseAdmin.from("meeting_rsvp").insert({
+              room_id: roomId,
+              email: convidado.email,
+              nome: convidado.nome || null,
+            }).select("token").single();
+            rsvpToken = rsvpData?.token || '';
+          } catch (e) { console.error("RSVP insert error:", e); }
+
+          const rsvpBaseUrl = `${edgeFunctionBaseUrl}?action=rsvp&token=${rsvpToken}`;
+          const rsvpSim = `${rsvpBaseUrl}&resposta=sim`;
+          const rsvpTalvez = `${rsvpBaseUrl}&resposta=talvez`;
+          const rsvpNao = `${rsvpBaseUrl}&resposta=nao`;
+
           const subject = `Convite: ${roomName} - ${dataFormatada}`;
 
           // Google Calendar link
@@ -474,21 +559,27 @@ Deno.serve(async (req) => {
                     </tr>
                   </table>
                 </div>
-                <div style="margin-bottom:24px;">
-                  <table style="border-collapse:separate;border-spacing:8px 0;">
+
+                <!-- RSVP Buttons -->
+                <div style="margin-bottom:24px;text-align:center;">
+                  <p style="font-size:13px;color:#475569;font-weight:600;margin:0 0 12px;">Confirme sua presença:</p>
+                  <table style="margin:0 auto;border-collapse:separate;border-spacing:8px 0;">
                     <tr>
-                      <td><a href="${meetingLink}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">✓ Sim, participar</a></td>
-                      <td><a href="${meetingLink}" style="display:inline-block;background:#fff;color:#334155;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:500;font-size:14px;border:1px solid #cbd5e1;">Talvez</a></td>
-                      <td><span style="display:inline-block;color:#64748b;padding:10px 12px;font-size:14px;">Não</span></td>
+                      <td><a href="${rsvpSim}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">✓ Sim</a></td>
+                      <td><a href="${rsvpTalvez}" style="display:inline-block;background:#f59e0b;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">🤔 Talvez</a></td>
+                      <td><a href="${rsvpNao}" style="display:inline-block;background:#ef4444;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">✕ Não</a></td>
                     </tr>
                   </table>
                 </div>
+
+                <!-- Action Buttons -->
                 <table style="width:100%;border-collapse:separate;border-spacing:0 8px;">
                   <tr>
                     <td style="width:50%;"><a href="${meetingLink}" style="display:block;text-align:center;background:#2563eb;color:#fff;padding:14px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">🎥 Entrar na Reunião</a></td>
-                    ${googleCalUrl ? `<td style="width:50%;"><a href="${googleCalUrl}" target="_blank" style="display:block;text-align:center;background:#fff;color:#334155;padding:14px;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;border:1px solid #cbd5e1;">📅 Adicionar ao Google Agenda</a></td>` : ''}
+                    ${googleCalUrl ? `<td style="width:50%;"><a href="${googleCalUrl}" target="_blank" style="display:block;text-align:center;background:#fff;color:#334155;padding:14px;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;border:1px solid #cbd5e1;">📅 Google Agenda</a></td>` : ''}
                   </tr>
                 </table>
+
                 ${(convidados || []).length > 1 ? `
                 <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;">
                   <p style="font-size:12px;font-weight:600;color:#475569;margin:0 0 8px;">Convidados</p>
@@ -497,13 +588,19 @@ Deno.serve(async (req) => {
                     ${(convidados || []).filter((c: any) => c.email !== convidado.email).map((c: any) => c.nome || c.email).join('<br/>')}
                   </p>
                 </div>` : ''}
+
                 <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;">
-                  <p style="font-size:11px;color:#94a3b8;margin:0;">Link da reunião: <a href="${meetingLink}" style="color:#2563eb;">${meetingLink}</a></p>
+                  <p style="font-size:11px;color:#94a3b8;margin:0;">📎 Arquivo .ics em anexo para importar no calendário</p>
                   <p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">Convite enviado via Talk by Uon1</p>
                 </div>
               </div>
             </div>
           `;
+
+          // Generate ICS
+          const icsContent = agendadoPara
+            ? generateICS(agendadoPara, body.duracaoMinutos || 60, roomName, `Entrar: ${meetingLink}\n${descricao || ''}`, meetingLink, organizerEmail, convidado.email)
+            : '';
 
           let emailSent = false;
           let emailMethod = '';
@@ -514,12 +611,21 @@ Deno.serve(async (req) => {
             try {
               const { Resend } = await import("https://esm.sh/resend@2.0.0");
               const resend = new Resend(RESEND_API_KEY);
-              const { error: resendErr } = await resend.emails.send({
+              const emailPayload: any = {
                 from: resendFromEmail,
                 to: convidado.email,
                 subject,
                 html: htmlBody,
-              });
+              };
+              // Attach ICS if available
+              if (icsContent) {
+                emailPayload.attachments = [{
+                  filename: 'invite.ics',
+                  content: btoa(icsContent),
+                  content_type: 'text/calendar; method=REQUEST',
+                }];
+              }
+              const { error: resendErr } = await resend.emails.send(emailPayload);
               if (resendErr) throw new Error(resendErr.message);
               emailSent = true;
               emailMethod = 'Resend';
@@ -538,8 +644,17 @@ Deno.serve(async (req) => {
               const client = new SMTPClient({
                 connection: { hostname, port: smtpConfig.smtp_port, tls: true, auth: { username: smtpConfig.smtp_user, password: smtpConfig.smtp_password } },
               });
-              await client.send({ from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`, to: convidado.email, subject, html: htmlBody });
-              await client.close();
+              const sendPayload: any = { from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`, to: convidado.email, subject, html: htmlBody };
+              if (icsContent) {
+                sendPayload.attachments = [{
+                  encoding: 'text',
+                  filename: 'invite.ics',
+                  contentType: 'text/calendar; method=REQUEST',
+                  content: icsContent,
+                }];
+              }
+              await client.send(sendPayload);
+              try { await client.close(); } catch {}
               emailSent = true;
               emailMethod = 'SMTP';
             } catch (smtpErr: any) {
