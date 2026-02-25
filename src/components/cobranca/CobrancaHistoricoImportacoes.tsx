@@ -23,6 +23,17 @@ interface CobrancaHistoricoImportacoesProps {
   onImportacaoAtivada?: () => void;
 }
 
+// Parse YYYY-MM-DD as local date to avoid UTC shift
+const formatLocalDate = (dateStr: string): string => {
+  if (!dateStr) return "";
+  const parts = dateStr.split("T")[0].split("-");
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    return `${d}/${m}/${y}`;
+  }
+  return dateStr;
+};
+
 export default function CobrancaHistoricoImportacoes({ corretoraId, onImportacaoAtivada }: CobrancaHistoricoImportacoesProps) {
   const [importacoes, setImportacoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,9 +191,9 @@ export default function CobrancaHistoricoImportacoes({ corretoraId, onImportacao
         "Regional": boleto.regional_boleto || "",
         "Situação": boleto.situacao || "",
         "Valor": boleto.valor || 0,
-        "Data Vencimento": boleto.data_vencimento ? format(new Date(boleto.data_vencimento), "dd/MM/yyyy") : "",
-        "Data Vencimento Original": boleto.data_vencimento_original ? format(new Date(boleto.data_vencimento_original), "dd/MM/yyyy") : "",
-        "Data Pagamento": boleto.data_pagamento ? format(new Date(boleto.data_pagamento), "dd/MM/yyyy") : "",
+        "Data Vencimento": boleto.data_vencimento ? formatLocalDate(boleto.data_vencimento) : "",
+        "Data Vencimento Original": boleto.data_vencimento_original ? formatLocalDate(boleto.data_vencimento_original) : "",
+        "Data Pagamento": boleto.data_pagamento ? formatLocalDate(boleto.data_pagamento) : "",
         "Dia Vencimento Veículo": boleto.dia_vencimento_veiculo || "",
         "Dias Atraso": boleto.qtde_dias_atraso_vencimento_original || "",
       }));
