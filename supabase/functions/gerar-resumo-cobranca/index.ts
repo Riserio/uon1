@@ -90,6 +90,15 @@ serve(async (req) => {
       return upper === 'BAIXADO' || upper.includes('BAIXADO');
     };
 
+    // Helper: get next business day (skip weekends)
+    const getProximoDiaUtil = (dia: number): number => {
+      const date = new Date(now.getFullYear(), now.getMonth(), dia);
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek === 6) return dia + 2; // Sábado → Segunda
+      if (dayOfWeek === 0) return dia + 1; // Domingo → Segunda
+      return dia;
+    };
+
     // Calculate metrics
     const totalGerados = boletos?.length || 0;
     const boletosAbertos = boletos?.filter(b => isAberto(b.situacao)) || [];
@@ -106,11 +115,18 @@ serve(async (req) => {
     const valorTotalPago = boletosBaixados.reduce((acc, b) => acc + (b.valor || 0), 0);
     const faturamentoEsperado = boletos?.reduce((acc, b) => acc + (b.valor || 0), 0) || 0;
 
-    // Calculate by due day
+    // Calculate by due day (using business day reference for delinquency)
     const diasVencimento = [5, 10, 15, 20];
     const boletosPorDia = diasVencimento.map(dia => {
       const gerados = boletos?.filter(b => b.dia_vencimento_veiculo === dia).length || 0;
-      const abertos = boletos?.filter(b => b.dia_vencimento_veiculo === dia && isAberto(b.situacao)).length || 0;
+      const diaUtilRef = getProximoDiaUtil(dia);
+      const diaHoje = now.getDate();
+      // Boletos em aberto cujo dia útil de referência já passou
+      const abertos = boletos?.filter(b => 
+        b.dia_vencimento_veiculo === dia && 
+        isAberto(b.situacao) && 
+        diaUtilRef <= diaHoje
+      ).length || 0;
       return `${dia} – Total Gerado (${gerados}) – Total em aberto (${abertos})`;
     }).join('\n');
 
