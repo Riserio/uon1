@@ -8,7 +8,7 @@ import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/respo
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Video, Plus, Copy, Trash2, Calendar, Users, Clock, Link2, MessageSquare, Pencil, BarChart3, Timer, TrendingUp } from "lucide-react";
+import { Video, Plus, Copy, Trash2, Calendar, Users, Clock, Link2, MessageSquare, Pencil, BarChart3, Timer, TrendingUp, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import CriarReuniaoDialog from "@/components/CriarReuniaoDialog";
@@ -300,8 +300,8 @@ export default function VideoRooms() {
                               <Link2 className="h-3.5 w-3.5" />
                             </Button>
                             {room.host_id === user?.id && (
-                              <Button size="sm" variant="ghost" onClick={() => handleEndRoom(room.id)} className="text-destructive hover:text-destructive">
-                                <Trash2 className="h-3.5 w-3.5" />
+                              <Button size="sm" variant="ghost" onClick={() => handleEndRoom(room.id)} className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Concluir reunião">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
                               </Button>
                             )}
                           </div>
