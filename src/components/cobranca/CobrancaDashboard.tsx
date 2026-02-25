@@ -212,10 +212,12 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         const dataRef = new Date(anoAtual, mesAtual, diaCalc);
         const dataRefStr = dataRef.toISOString().split('T')[0];
         
-        // Boletos emitidos até este dia (dia_vencimento_veiculo <= diaCalc)
+        // Boletos emitidos até este dia (usando dia útil de referência)
         const boletosEmitidosAteDia = boletosFiltrados.filter(b => {
           const diaVenc = b.dia_vencimento_veiculo;
-          return diaVenc != null && diaVenc <= diaCalc;
+          if (diaVenc == null) return false;
+          const diaUtilRef = getProximoDiaUtil(anoAtual, mesAtual, diaVenc);
+          return diaUtilRef <= diaCalc;
         });
         
         // Boletos que estavam pagos ATÉ aquela data específica
@@ -297,8 +299,21 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     }
   };
   
+  // Função para obter o próximo dia útil (pula sáb/dom)
+  const getProximoDiaUtil = (ano: number, mes: number, dia: number): number => {
+    const date = new Date(ano, mes, dia);
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek === 6) return dia + 2; // Sábado → Segunda
+    if (dayOfWeek === 0) return dia + 1; // Domingo → Segunda
+    return dia;
+  };
+
   const stats = useMemo(() => {
     if (!boletos.length) return null;
+
+    const hoje = new Date();
+    const mesAtual = hoje.getMonth();
+    const anoAtual = hoje.getFullYear();
 
     // Filtrar cancelados conforme especificação
     const boletosFiltrados = boletos.filter(b => 
@@ -319,8 +334,15 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     const totalPago = boletosPagos.reduce((acc, b) => acc + (b.valor || 0), 0);
     const totalAberto = boletosAbertos.reduce((acc, b) => acc + (b.valor || 0), 0);
 
-    // Por Dia Vencimento Veículo (emitidos, pagos, abertos)
-    // Primeiro agregamos tudo junto para calcular percentuais
+    // Pré-calcular dia útil de referência para cada boleto (para inadimplência)
+    // O dia_vencimento_veiculo original é mantido para exibição, 
+    // mas para fins de cálculo de inadimplência usa-se o próximo dia útil
+    const getDiaUtilRef = (diaVenc: number | null): number | null => {
+      if (diaVenc == null) return null;
+      return getProximoDiaUtil(anoAtual, mesAtual, diaVenc);
+    };
+
+    // Por Dia Vencimento Veículo (emitidos, pagos, abertos) - usa dia ORIGINAL para agrupamento
     const porDiaVencimentoAll: Record<string, { emitido: number; emitidoValor: number; pago: number; pagoValor: number; aberto: number; abertoValor: number }> = {};
     
     boletosFiltrados.forEach(b => {
@@ -395,9 +417,6 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       .sort((a, b) => a.diaNum - b.diaNum);
 
     // Gráfico de Inadimplência por Dia do Mês (usando dia_vencimento_veiculo)
-    const hoje = new Date();
-    const mesAtual = hoje.getMonth();
-    const anoAtual = hoje.getFullYear();
     const diaHoje = hoje.getDate();
     const diasDoMes = new Date(anoAtual, mesAtual + 1, 0).getDate();
     const inadimplenciaPorDia = [];
@@ -411,41 +430,40 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       // Data de referência para este dia do mês
       const dataRef = new Date(anoAtual, mesAtual, dia);
       
-      // Boletos com dia_vencimento_veiculo ATÉ este dia (emitidos até este dia)
+      // Para inadimplência, usar dia útil de referência (pula fds)
+      // Boletos com dia_vencimento_veiculo cujo dia útil de referência <= dia atual
       const boletosEmitidosAteDia = boletosFiltrados.filter(b => {
         const diaVenc = b.dia_vencimento_veiculo;
-        return diaVenc != null && diaVenc <= dia;
+        if (diaVenc == null) return false;
+        // Calcular dia útil de referência para este boleto
+        const diaUtilRef = getProximoDiaUtil(anoAtual, mesAtual, diaVenc);
+        return diaUtilRef <= dia;
       });
       
       // Boletos pagos até este dia
       const boletosPagosAteDia = boletosEmitidosAteDia.filter(b => {
         if (b.situacao && b.situacao.toUpperCase() === 'BAIXADO') {
-          // Se tem data de pagamento, verificar se foi pago até esta data
           if (b.data_pagamento) {
             const dataPagamento = new Date(b.data_pagamento);
             return dataPagamento <= dataRef;
           }
-          // Se não tem data de pagamento mas está baixado, considerar pago
           return true;
         }
         return false;
       });
       
-      // Boletos vencidos = Boletos em aberto (emitidos - pagos)
-      // Ou seja: boletos que deveriam ter sido pagos mas não foram
       let percentInadimplenciaReal: number;
       let qtdeVencidos: number;
       
       if (dia >= diaHoje) {
-        // Para hoje e dias futuros: usar a inadimplência atual (linha reta)
         percentInadimplenciaReal = inadimplenciaAtual;
-        // Vencidos = boletos em aberto cujo dia de vencimento já passou
         qtdeVencidos = boletosAbertos.filter(b => {
           const diaVenc = b.dia_vencimento_veiculo;
-          return diaVenc != null && diaVenc <= dia;
+          if (diaVenc == null) return false;
+          const diaUtilRef = getProximoDiaUtil(anoAtual, mesAtual, diaVenc);
+          return diaUtilRef <= dia;
         }).length;
       } else {
-        // Para dias passados: Vencidos = Emitidos até dia - Pagos até dia
         qtdeVencidos = boletosEmitidosAteDia.length - boletosPagosAteDia.length;
         
         percentInadimplenciaReal = boletosEmitidosAteDia.length > 0 
