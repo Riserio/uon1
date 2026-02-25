@@ -91,7 +91,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     
     try {
       const hoje = new Date();
-      const hojeStr = hoje.toISOString().split('T')[0];
+      const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
       
       // Primeiro, tentar buscar registros de dias anteriores
       let { data, error } = await supabase
@@ -142,7 +142,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     
     try {
       const hoje = new Date();
-      const hojeStr = hoje.toISOString().split('T')[0];
+      const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
       
       // Preparar dados para upsert
       const registros = inadimplenciaPorDia.map(item => ({
@@ -210,7 +210,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       // Para cada dia passado do mês, calcular a inadimplência que existia naquele dia
       for (let diaCalc = 1; diaCalc < diaHoje; diaCalc++) {
         const dataRef = new Date(anoAtual, mesAtual, diaCalc);
-        const dataRefStr = dataRef.toISOString().split('T')[0];
+        const dataRefStr = `${anoAtual}-${String(mesAtual+1).padStart(2,'0')}-${String(diaCalc).padStart(2,'0')}`;
         
         // Boletos emitidos até este dia (usando dia útil de referência)
         const boletosEmitidosAteDia = boletosFiltrados.filter(b => {

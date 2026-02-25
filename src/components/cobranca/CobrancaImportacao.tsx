@@ -91,10 +91,17 @@ const getValueFromRow = (row: any, targetHeader: string): any => {
 const parseExcelDate = (value: any): string | null => {
   if (!value) return null;
   
-  // Se for número (serial date do Excel)
+  // Se for número (serial date do Excel) - parse without timezone shift
   if (typeof value === "number") {
-    const date = new Date((value - 25569) * 86400 * 1000);
-    return date.toISOString().split("T")[0];
+    // Excel serial: days since 1900-01-01 (with the 1900 leap year bug)
+    const utcDays = value - 25569; // days since Unix epoch
+    const totalMs = utcDays * 86400 * 1000;
+    const d = new Date(totalMs);
+    // Use UTC components to avoid timezone shift
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
   
   // Se for string no formato M/D/YY
@@ -276,7 +283,8 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
       const totalBatches = Math.ceil(jsonData.length / batchSize);
 
       // Data de referência para cálculo de atraso
-      const hojeStr = new Date().toISOString().split("T")[0];
+      const hojeDate = new Date();
+      const hojeStr = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth()+1).padStart(2,'0')}-${String(hojeDate.getDate()).padStart(2,'0')}`;
 
       for (let i = 0; i < totalBatches; i++) {
         const batch = jsonData.slice(i * batchSize, (i + 1) * batchSize);
