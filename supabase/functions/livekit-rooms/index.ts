@@ -423,134 +423,149 @@ Deno.serve(async (req) => {
 
       const results: { tipo: string; destinatario: string; status: string; erro?: string }[] = [];
 
+      // Pre-load email configs
+      const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+      let resendFromEmail = "Reuniões <onboarding@resend.dev>";
+      if (RESEND_API_KEY) {
+        const { data: resendConfig } = await supabaseAdmin.from("resend_config").select("*").eq("user_id", user.id).single();
+        if (resendConfig) resendFromEmail = `${resendConfig.from_name} <${resendConfig.from_email}>`;
+      }
+      const { data: smtpConfig } = await supabaseAdmin.from("email_config").select("*").eq("user_id", user.id).single();
+
       for (const convidado of convidados || []) {
         // Email
         if (enviarEmail && convidado.email) {
-          try {
-            // Get SMTP config for the user
-            const { data: smtpConfig } = await supabaseAdmin
-              .from("email_config")
-              .select("*")
-              .eq("user_id", user.id)
-              .single();
+          const subject = `Convite: ${roomName} - ${dataFormatada}`;
 
-            if (smtpConfig) {
-              const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
-              const useSsl = smtpConfig.smtp_port === 465;
-              const client = new SMTPClient({
-                connection: {
-                  hostname: smtpConfig.smtp_host,
-                  port: smtpConfig.smtp_port,
-                  tls: true,
-                  auth: { username: smtpConfig.smtp_user, password: smtpConfig.smtp_password },
-                },
-              });
+          // Google Calendar link
+          const calStart = agendadoPara ? new Date(agendadoPara).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '') : '';
+          const calEnd = agendadoPara ? new Date(new Date(agendadoPara).getTime() + (body.duracaoMinutos || 60) * 60000).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '') : '';
+          const googleCalUrl = agendadoPara
+            ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(roomName)}&dates=${calStart}/${calEnd}&details=${encodeURIComponent(`Entrar na reunião: ${meetingLink}\n\n${descricao || ''}`)}&location=${encodeURIComponent(meetingLink)}`
+            : '';
 
-              const subject = `Convite: ${roomName} - ${dataFormatada}`;
-
-              // Google Calendar link
-              const calStart = agendadoPara ? new Date(agendadoPara).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '') : '';
-              const calEnd = agendadoPara ? new Date(new Date(agendadoPara).getTime() + (body.duracaoMinutos || 60) * 60000).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '') : '';
-              const googleCalUrl = agendadoPara
-                ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(roomName)}&dates=${calStart}/${calEnd}&details=${encodeURIComponent(`Entrar na reunião: ${meetingLink}\n\n${descricao || ''}`)}&location=${encodeURIComponent(meetingLink)}`
-                : '';
-
-              const htmlBody = `
-                <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;">
-                  <!-- Header -->
-                  <div style="background:linear-gradient(135deg,#1e293b 0%,#334155 100%);padding:28px 32px;border-radius:12px 12px 0 0;">
-                    <table style="width:100%;"><tr>
-                      <td><span style="color:#fff;font-size:20px;font-weight:700;">📹 Convite para Reunião</span></td>
-                      <td style="text-align:right;"><span style="color:#94a3b8;font-size:12px;">Talk by Uon1</span></td>
-                    </tr></table>
-                  </div>
-
-                  <!-- Body -->
-                  <div style="padding:28px 32px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;">
-                    <p style="color:#334155;font-size:15px;margin:0 0 6px;">Olá <strong>${convidado.nome || "convidado(a)"}</strong>,</p>
-                    <p style="color:#64748b;font-size:14px;margin:0 0 24px;"><strong style="color:#334155;">${hostName}</strong> convidou você para uma reunião.</p>
-
-                    <!-- Meeting card -->
-                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin-bottom:24px;">
-                      <table style="width:100%;border-collapse:collapse;">
-                        <tr>
-                          <td style="width:70px;vertical-align:top;padding-right:16px;">
-                            <div style="background:#2563eb;border-radius:8px;text-align:center;padding:8px 0;width:60px;">
-                              <span style="color:#93c5fd;font-size:10px;text-transform:uppercase;letter-spacing:1px;">${agendadoPara ? new Date(agendadoPara).toLocaleDateString('pt-BR', { month: 'short', timeZone: 'America/Sao_Paulo' }) : 'Agora'}</span><br/>
-                              <span style="color:#fff;font-size:22px;font-weight:700;">${agendadoPara ? new Date(agendadoPara).toLocaleDateString('pt-BR', { day: '2-digit', timeZone: 'America/Sao_Paulo' }) : '—'}</span><br/>
-                              <span style="color:#93c5fd;font-size:10px;">${agendadoPara ? new Date(agendadoPara).toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'America/Sao_Paulo' }) : ''}</span>
-                            </div>
-                          </td>
-                          <td style="vertical-align:top;">
-                            <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#1e293b;">${roomName}</p>
-                            ${agendadoPara ? `<p style="margin:0 0 4px;font-size:13px;color:#64748b;">📅 ${dataFormatada}</p>` : '<p style="margin:0 0 4px;font-size:13px;color:#64748b;">⚡ Reunião imediata</p>'}
-                            ${descricao ? `<p style="margin:0;font-size:13px;color:#64748b;">📋 ${descricao}</p>` : ''}
-                            <p style="margin:4px 0 0;font-size:13px;color:#64748b;">👤 Organizador: ${hostName}</p>
-                          </td>
-                        </tr>
-                      </table>
-                    </div>
-
-                    <!-- RSVP Buttons -->
-                    <div style="margin-bottom:24px;">
-                      <table style="border-collapse:separate;border-spacing:8px 0;">
-                        <tr>
-                          <td><a href="${meetingLink}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">✓ Sim, participar</a></td>
-                          <td><a href="${meetingLink}" style="display:inline-block;background:#fff;color:#334155;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:500;font-size:14px;border:1px solid #cbd5e1;">Talvez</a></td>
-                          <td><span style="display:inline-block;color:#64748b;padding:10px 12px;font-size:14px;">Não</span></td>
-                        </tr>
-                      </table>
-                    </div>
-
-                    <!-- Action buttons -->
-                    <table style="width:100%;border-collapse:separate;border-spacing:0 8px;">
-                      <tr>
-                        <td style="width:50%;">
-                          <a href="${meetingLink}" style="display:block;text-align:center;background:#2563eb;color:#fff;padding:14px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
-                            🎥 Entrar na Reunião
-                          </a>
-                        </td>
-                        ${googleCalUrl ? `<td style="width:50%;">
-                          <a href="${googleCalUrl}" target="_blank" style="display:block;text-align:center;background:#fff;color:#334155;padding:14px;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;border:1px solid #cbd5e1;">
-                            📅 Adicionar ao Google Agenda
-                          </a>
-                        </td>` : ''}
-                      </tr>
-                    </table>
-
-                    <!-- Convidados -->
-                    ${(convidados || []).length > 1 ? `
-                    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;">
-                      <p style="font-size:12px;font-weight:600;color:#475569;margin:0 0 8px;">Convidados</p>
-                      <p style="font-size:12px;color:#64748b;margin:0;">
-                        ${hostName} - organizador<br/>
-                        ${(convidados || []).filter((c: any) => c.email !== convidado.email).map((c: any) => c.nome || c.email).join('<br/>')}
-                      </p>
-                    </div>` : ''}
-
-                    <!-- Footer -->
-                    <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;">
-                      <p style="font-size:11px;color:#94a3b8;margin:0;">Link da reunião: <a href="${meetingLink}" style="color:#2563eb;">${meetingLink}</a></p>
-                      <p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">Convite enviado via Talk by Uon1</p>
-                    </div>
-                  </div>
+          const htmlBody = `
+            <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;">
+              <div style="background:linear-gradient(135deg,#1e293b 0%,#334155 100%);padding:28px 32px;border-radius:12px 12px 0 0;">
+                <table style="width:100%;"><tr>
+                  <td><span style="color:#fff;font-size:20px;font-weight:700;">📹 Convite para Reunião</span></td>
+                  <td style="text-align:right;"><span style="color:#94a3b8;font-size:12px;">Talk by Uon1</span></td>
+                </tr></table>
+              </div>
+              <div style="padding:28px 32px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;">
+                <p style="color:#334155;font-size:15px;margin:0 0 6px;">Olá <strong>${convidado.nome || "convidado(a)"}</strong>,</p>
+                <p style="color:#64748b;font-size:14px;margin:0 0 24px;"><strong style="color:#334155;">${hostName}</strong> convidou você para uma reunião.</p>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin-bottom:24px;">
+                  <table style="width:100%;border-collapse:collapse;">
+                    <tr>
+                      <td style="width:70px;vertical-align:top;padding-right:16px;">
+                        <div style="background:#2563eb;border-radius:8px;text-align:center;padding:8px 0;width:60px;">
+                          <span style="color:#93c5fd;font-size:10px;text-transform:uppercase;letter-spacing:1px;">${agendadoPara ? new Date(agendadoPara).toLocaleDateString('pt-BR', { month: 'short', timeZone: 'America/Sao_Paulo' }) : 'Agora'}</span><br/>
+                          <span style="color:#fff;font-size:22px;font-weight:700;">${agendadoPara ? new Date(agendadoPara).toLocaleDateString('pt-BR', { day: '2-digit', timeZone: 'America/Sao_Paulo' }) : '—'}</span><br/>
+                          <span style="color:#93c5fd;font-size:10px;">${agendadoPara ? new Date(agendadoPara).toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'America/Sao_Paulo' }) : ''}</span>
+                        </div>
+                      </td>
+                      <td style="vertical-align:top;">
+                        <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#1e293b;">${roomName}</p>
+                        ${agendadoPara ? `<p style="margin:0 0 4px;font-size:13px;color:#64748b;">📅 ${dataFormatada}</p>` : '<p style="margin:0 0 4px;font-size:13px;color:#64748b;">⚡ Reunião imediata</p>'}
+                        ${descricao ? `<p style="margin:0;font-size:13px;color:#64748b;">📋 ${descricao}</p>` : ''}
+                        <p style="margin:4px 0 0;font-size:13px;color:#64748b;">👤 Organizador: ${hostName}</p>
+                      </td>
+                    </tr>
+                  </table>
                 </div>
-              `;
+                <div style="margin-bottom:24px;">
+                  <table style="border-collapse:separate;border-spacing:8px 0;">
+                    <tr>
+                      <td><a href="${meetingLink}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">✓ Sim, participar</a></td>
+                      <td><a href="${meetingLink}" style="display:inline-block;background:#fff;color:#334155;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:500;font-size:14px;border:1px solid #cbd5e1;">Talvez</a></td>
+                      <td><span style="display:inline-block;color:#64748b;padding:10px 12px;font-size:14px;">Não</span></td>
+                    </tr>
+                  </table>
+                </div>
+                <table style="width:100%;border-collapse:separate;border-spacing:0 8px;">
+                  <tr>
+                    <td style="width:50%;"><a href="${meetingLink}" style="display:block;text-align:center;background:#2563eb;color:#fff;padding:14px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">🎥 Entrar na Reunião</a></td>
+                    ${googleCalUrl ? `<td style="width:50%;"><a href="${googleCalUrl}" target="_blank" style="display:block;text-align:center;background:#fff;color:#334155;padding:14px;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;border:1px solid #cbd5e1;">📅 Adicionar ao Google Agenda</a></td>` : ''}
+                  </tr>
+                </table>
+                ${(convidados || []).length > 1 ? `
+                <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;">
+                  <p style="font-size:12px;font-weight:600;color:#475569;margin:0 0 8px;">Convidados</p>
+                  <p style="font-size:12px;color:#64748b;margin:0;">
+                    ${hostName} - organizador<br/>
+                    ${(convidados || []).filter((c: any) => c.email !== convidado.email).map((c: any) => c.nome || c.email).join('<br/>')}
+                  </p>
+                </div>` : ''}
+                <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;">
+                  <p style="font-size:11px;color:#94a3b8;margin:0;">Link da reunião: <a href="${meetingLink}" style="color:#2563eb;">${meetingLink}</a></p>
+                  <p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">Convite enviado via Talk by Uon1</p>
+                </div>
+              </div>
+            </div>
+          `;
 
-              await client.send({
-                from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`,
+          let emailSent = false;
+          let emailMethod = '';
+          let emailError = '';
+
+          // Try Resend first
+          if (RESEND_API_KEY) {
+            try {
+              const { Resend } = await import("https://esm.sh/resend@2.0.0");
+              const resend = new Resend(RESEND_API_KEY);
+              const { error: resendErr } = await resend.emails.send({
+                from: resendFromEmail,
                 to: convidado.email,
                 subject,
                 html: htmlBody,
               });
-              await client.close();
-
-              results.push({ tipo: "email", destinatario: convidado.email, status: "enviado" });
-            } else {
-              results.push({ tipo: "email", destinatario: convidado.email, status: "erro", erro: "SMTP não configurado" });
+              if (resendErr) throw new Error(resendErr.message);
+              emailSent = true;
+              emailMethod = 'Resend';
+            } catch (resendErr: any) {
+              console.error(`Resend failed for ${convidado.email}:`, resendErr.message);
+              emailError = resendErr.message;
             }
-          } catch (emailErr: any) {
-            results.push({ tipo: "email", destinatario: convidado.email, status: "erro", erro: emailErr.message });
+          }
+
+          // Fallback to SMTP
+          if (!emailSent && smtpConfig) {
+            try {
+              const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
+              let hostname = smtpConfig.smtp_host || '';
+              hostname = hostname.replace(/^(ssl|tls|https?):\/\//i, '').trim();
+              const client = new SMTPClient({
+                connection: { hostname, port: smtpConfig.smtp_port, tls: true, auth: { username: smtpConfig.smtp_user, password: smtpConfig.smtp_password } },
+              });
+              await client.send({ from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`, to: convidado.email, subject, html: htmlBody });
+              await client.close();
+              emailSent = true;
+              emailMethod = 'SMTP';
+            } catch (smtpErr: any) {
+              emailError = emailError ? `${emailError}; SMTP: ${smtpErr.message}` : smtpErr.message;
+            }
+          }
+
+          if (!emailSent && !RESEND_API_KEY && !smtpConfig) {
+            emailError = "Nenhum provedor de email configurado";
+          }
+
+          results.push({ tipo: "email", destinatario: convidado.email, status: emailSent ? "enviado" : "erro", erro: emailSent ? undefined : emailError });
+
+          // Log to email_historico for dashboard visibility
+          try {
+            await supabaseAdmin.from("email_historico").insert({
+              destinatario: convidado.email,
+              assunto: subject,
+              corpo: `[${emailMethod || 'FALHA'}] Convite para reunião: ${roomName}`,
+              enviado_por: user.id,
+              status: emailSent ? 'enviado' : 'erro',
+              erro_mensagem: emailSent ? null : emailError,
+              atendimento_id: '00000000-0000-0000-0000-000000000000',
+            });
+          } catch (logErr) {
+            console.error("Error logging email to historico:", logErr);
           }
         }
 
@@ -588,7 +603,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Log notification
+        // Log notification to meeting_notifications
         for (const r of results.filter(r2 => r2.destinatario === convidado.email || r2.destinatario === convidado.telefone?.replace(/\D/g, "") || r2.destinatario === `55${convidado.telefone?.replace(/\D/g, "")}`)) {
           await supabaseAdmin.from("meeting_notifications").insert({
             room_id: roomId,
