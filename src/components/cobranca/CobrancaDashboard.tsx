@@ -69,6 +69,9 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
   const inadimplenciaScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollIndicators, setShowScrollIndicators] = useState({ left: false, right: false });
   const snapshotSavedRef = useRef(false);
+  // Serialized keys for stable useMemo deps (avoid new Map reference triggering re-renders)
+  const [configVersion, setConfigVersion] = useState(0);
+  const [historicoVersion, setHistoricoVersion] = useState(0);
   
 
   // Carregar configuração de inadimplência do banco
@@ -89,6 +92,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         configMap.set(d.dia, Number(d.percentual_referencia));
       });
       setInadimplenciaConfig(configMap);
+      setConfigVersion(v => v + 1);
     } catch (error) {
       console.error("Erro ao carregar config inadimplência:", error);
     }
@@ -140,6 +144,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       
       console.log("Histórico carregado:", historicoMap.size, "dias, data:", dataRegistroMaisRecente);
       setInadimplenciaHistorico(historicoMap);
+      setHistoricoVersion(v => v + 1);
     } catch (error) {
       console.error("Erro ao carregar histórico inadimplência:", error);
     }
@@ -268,7 +273,6 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
           console.error("Erro ao gerar histórico retroativo:", error);
         } else {
           console.log("Histórico retroativo gerado:", registrosHistorico.length, "dias");
-          loadInadimplenciaHistorico();
         }
       }
     } catch (error) {
@@ -666,7 +670,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       cooperativasMaiorInadimplencia,
       percentualInadimplencia: totalBoletos > 0 ? (boletosAbertos.length / totalBoletos) * 100 : 0
     };
-  }, [boletos, inadimplenciaConfig, inadimplenciaHistorico]);
+  }, [boletos, configVersion, historicoVersion]);
 
   // Salvar snapshot diário quando os dados mudam (apenas uma vez por sessão)
   useEffect(() => {
