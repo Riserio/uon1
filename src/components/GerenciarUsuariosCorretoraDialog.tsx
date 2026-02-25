@@ -257,7 +257,11 @@ export function GerenciarUsuariosCorretoraDialog({
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:border-primary/50'
                     }`}
-                    onClick={() => handleModuloChange(modulo.id, !formData.modulos_bi.includes(modulo.id))}
+                    onClick={(e) => {
+                      // Avoid double-toggle when clicking the checkbox itself
+                      if ((e.target as HTMLElement).closest('button[role="checkbox"]')) return;
+                      handleModuloChange(modulo.id, !formData.modulos_bi.includes(modulo.id));
+                    }}
                   >
                     <Checkbox
                       id={`modulo-${modulo.id}`}
@@ -314,7 +318,10 @@ export function GerenciarUsuariosCorretoraDialog({
                                     ? 'border-primary bg-primary/10'
                                     : 'border-border'
                                 }`}
-                                onClick={() => handleEditModuloChange(modulo.id, !editingModulos.includes(modulo.id))}
+                                onClick={(e) => {
+                                  if ((e.target as HTMLElement).closest('button[role="checkbox"]')) return;
+                                  handleEditModuloChange(modulo.id, !editingModulos.includes(modulo.id));
+                                }}
                               >
                                 <Checkbox
                                   checked={editingModulos.includes(modulo.id)}
