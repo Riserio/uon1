@@ -1248,7 +1248,7 @@ export default function Emails() {
                         {novoTemplate.tipo === "atendimento" && " {assunto}, {status}, {corretora}"}
                         {novoTemplate.tipo === "boas_vindas" && " {nome_usuario}, {nome_corretora}, {link_portal}"}
                         {novoTemplate.tipo === "relatorio" && " {periodo}, {total_atendimentos}, {taxa_conclusao}, {nome_corretora}"}
-                        {novoTemplate.tipo === "convite_reuniao" && " {titulo_reuniao}, {data_hora}, {link_reuniao}, {organizador}"}
+                        {novoTemplate.tipo === "convite_reuniao" && " {nome_convidado}, {nome_reuniao}, {data_reuniao}, {link_reuniao}, {organizador}, {descricao}, {duracao}, {rsvp_sim}, {rsvp_talvez}, {rsvp_nao}, {google_calendar_url}"}
                         {novoTemplate.tipo === "alerta_performance" && " {nome_responsavel}, {tipo_alerta}, {valor_atual}, {meta}"}
                         {novoTemplate.tipo === "recuperacao" && " {link_recuperacao}, {nome_usuario}"}
                       </p>

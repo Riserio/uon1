@@ -471,7 +471,7 @@ Deno.serve(async (req) => {
     if (action === "notifyMeeting") {
       const user = await getUser();
       const body = await req.json();
-      const { roomId, roomName, agendadoPara, descricao, meetingLink, convidados, enviarEmail, enviarWhatsApp } = body;
+      const { roomId, roomName, agendadoPara, descricao, meetingLink, convidados, enviarEmail, enviarWhatsApp, templateCorpo, templateAssunto } = body;
 
       const { data: profile } = await supabaseAdmin.from("profiles").select("nome").eq("id", user.id).single();
       const hostName = profile?.nome || user.email || "Organizador";
@@ -548,16 +548,32 @@ Deno.serve(async (req) => {
           const rsvpTalvez = `${rsvpBaseUrl}&resposta=talvez`;
           const rsvpNao = `${rsvpBaseUrl}&resposta=nao`;
 
-          const subject = `Convite: ${roomName} - ${dataFormatada}`;
+          // Use custom template if provided, otherwise use default
+          const templateVars: Record<string, string> = {
+            '{nome_convidado}': convidado.nome || 'convidado(a)',
+            '{nome_reuniao}': roomName,
+            '{data_reuniao}': dataFormatada,
+            '{link_reuniao}': meetingLink,
+            '{organizador}': hostName,
+            '{descricao}': descricao || '',
+            '{duracao}': `${body.duracaoMinutos || 60} min`,
+            '{rsvp_sim}': rsvpSim,
+            '{rsvp_talvez}': rsvpTalvez,
+            '{rsvp_nao}': rsvpNao,
+            '{google_calendar_url}': googleCalUrl,
+          };
 
-          // Google Calendar link
-          const calStart = agendadoPara ? new Date(agendadoPara).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '') : '';
-          const calEnd = agendadoPara ? new Date(new Date(agendadoPara).getTime() + (body.duracaoMinutos || 60) * 60000).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '') : '';
-          const googleCalUrl = agendadoPara
-            ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(roomName)}&dates=${calStart}/${calEnd}&details=${encodeURIComponent(`Entrar na reunião: ${meetingLink}\n\n${descricao || ''}`)}&location=${encodeURIComponent(meetingLink)}`
-            : '';
+          const replaceVars = (text: string) => {
+            let result = text;
+            for (const [key, val] of Object.entries(templateVars)) {
+              result = result.split(key).join(val);
+            }
+            return result;
+          };
 
-          const htmlBody = `
+          const subject = templateAssunto ? replaceVars(templateAssunto) : `Convite: ${roomName} - ${dataFormatada}`;
+
+          const defaultHtmlBody = `
             <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;">
               <div style="background:linear-gradient(135deg,#1e293b 0%,#334155 100%);padding:28px 32px;border-radius:12px 12px 0 0;">
                 <table style="width:100%;"><tr>
@@ -625,6 +641,7 @@ Deno.serve(async (req) => {
             </div>
           `;
 
+          const htmlBody = templateCorpo ? replaceVars(templateCorpo) : defaultHtmlBody;
           // Generate ICS
           const icsContent = agendadoPara
             ? generateICS(agendadoPara, body.duracaoMinutos || 60, roomName, `Entrar: ${meetingLink}\n${descricao || ''}`, meetingLink, organizerEmail, convidado.email)
