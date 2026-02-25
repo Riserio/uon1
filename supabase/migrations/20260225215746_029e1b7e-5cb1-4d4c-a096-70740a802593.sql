@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_templates ADD COLUMN IF NOT EXISTS formato text NOT NULL DEFAULT 'texto';
