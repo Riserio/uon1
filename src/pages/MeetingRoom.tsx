@@ -458,7 +458,7 @@ function HandRaiseIndicators({ raisedHands }: { raisedHands: Map<string, string>
       {Array.from(raisedHands.entries()).map(([id, name]) => (
         <div
           key={id}
-          className="flex items-center gap-2 bg-yellow-500/90 text-yellow-950 rounded-full px-3 py-1 shadow-lg animate-in fade-in slide-in-from-left-4 duration-300"
+          className="flex items-center gap-2 bg-purple-600 text-white rounded-full px-3 py-1 shadow-lg animate-in fade-in slide-in-from-left-4 duration-300"
         >
           <Hand className="h-3.5 w-3.5" />
           <span className="text-xs font-semibold">{name} levantou a mão</span>
@@ -532,28 +532,20 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
 
   const [enlargedSid, setEnlargedSid] = useState<string | null>(null);
   const [pipSid, setPipSid] = useState<string | null>(null);
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => {
-    return (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto";
-  });
-  const [maxTiles, setMaxTiles] = useState<number>(() => {
-    return parseInt(localStorage.getItem("uon1-video-max-tiles") || "16", 10);
-  });
-  const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => {
-    return localStorage.getItem("uon1-video-hide-novideo") === "true";
-  });
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
+  const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "16", 10));
+  const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
 
-  const saveLayoutMode = (mode: LayoutMode) => {
-    setLayoutMode(mode);
-    localStorage.setItem("uon1-video-layout", mode);
-  };
-  const saveMaxTiles = (val: number) => {
-    setMaxTiles(val);
-    localStorage.setItem("uon1-video-max-tiles", String(val));
-  };
-  const saveHideNoVideo = (val: boolean) => {
-    setHideNoVideo(val);
-    localStorage.setItem("uon1-video-hide-novideo", String(val));
-  };
+  // Sync with ControlBar layout changes via storage event
+  useEffect(() => {
+    const handler = () => {
+      setLayoutMode((localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
+      setMaxTiles(parseInt(localStorage.getItem("uon1-video-max-tiles") || "16", 10));
+      setHideNoVideo(localStorage.getItem("uon1-video-hide-novideo") === "true");
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
 
   const audioTracks = tracks.filter((t) => t.source === Track.Source.Microphone);
   const visualTracks = tracks.filter((t) => t.source !== Track.Source.Microphone);
@@ -653,9 +645,9 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
             </div>
           </div>
         )}
-        {/* Hand raise indicator on tile */}
+        {/* Hand raise indicator on tile - top right */}
         {hasHandRaised && (
-          <div className="absolute top-2 left-2 bg-yellow-500 text-yellow-950 rounded-full p-1.5 shadow-lg animate-bounce">
+          <div className="absolute top-2 right-2 bg-purple-600 text-white rounded-full p-1.5 shadow-lg z-10">
             <Hand className="h-4 w-4" />
           </div>
         )}
@@ -712,57 +704,7 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
         ) : null
       ))}
 
-      {/* Layout settings button */}
-      <div className="absolute top-16 right-4 z-10">
-        <Popover>
-          <PopoverTrigger asChild>
-            <button className="h-9 w-9 rounded-full bg-card/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-card transition-colors border border-border/30 shadow-sm">
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-72" align="end">
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-semibold text-sm mb-1">Ajuste a visualização</h4>
-                <p className="text-xs text-muted-foreground">A seleção é salva para as próximas reuniões</p>
-              </div>
-              <RadioGroup value={layoutMode} onValueChange={(v) => saveLayoutMode(v as LayoutMode)}>
-                {layoutOptions.map(opt => (
-                  <div key={opt.value} className="flex items-center gap-3 py-1.5">
-                    <RadioGroupItem value={opt.value} id={`layout-${opt.value}`} />
-                    <Label htmlFor={`layout-${opt.value}`} className="cursor-pointer">
-                      <span className="text-sm font-medium">{opt.label}</span>
-                      <span className="block text-xs text-muted-foreground">{opt.desc}</span>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-              <div className="space-y-2 pt-2 border-t border-border/50">
-                <div>
-                  <h5 className="text-xs font-semibold mb-1">Blocos</h5>
-                  <p className="text-[10px] text-muted-foreground">Máximo de blocos para exibição</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <LayoutGrid className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <Slider
-                    value={[maxTiles]}
-                    onValueChange={([v]) => saveMaxTiles(v)}
-                    min={1}
-                    max={25}
-                    step={1}
-                    className="flex-1"
-                  />
-                  <span className="text-xs text-muted-foreground w-5 text-right">{maxTiles}</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                <Label htmlFor="hide-no-video" className="text-xs">Ocultar blocos sem vídeo</Label>
-                <Switch id="hide-no-video" checked={hideNoVideo} onCheckedChange={saveHideNoVideo} className="scale-90" />
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
+      {/* Layout settings moved to ControlBar */}
 
       {/* Spotlight/Enlarged speaker view */}
       {spotlightTrack && (
@@ -787,6 +729,20 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
   const [showReactions, setShowReactions] = useState(false);
   const [blurEnabled, setBlurEnabled] = useState(false);
   const [blurLoading, setBlurLoading] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
+  const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "16", 10));
+  const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
+
+  const saveLayoutMode = (mode: LayoutMode) => { setLayoutMode(mode); localStorage.setItem("uon1-video-layout", mode); window.dispatchEvent(new Event("storage")); };
+  const saveMaxTiles = (val: number) => { setMaxTiles(val); localStorage.setItem("uon1-video-max-tiles", String(val)); window.dispatchEvent(new Event("storage")); };
+  const saveHideNoVideo = (val: boolean) => { setHideNoVideo(val); localStorage.setItem("uon1-video-hide-novideo", String(val)); window.dispatchEvent(new Event("storage")); };
+
+  const layoutOptions: { value: LayoutMode; label: string; desc: string }[] = [
+    { value: "auto", label: "Automático", desc: "Ajusta conforme participantes" },
+    { value: "mosaic", label: "Mosaico", desc: "Grid uniforme para todos" },
+    { value: "spotlight", label: "Destaque", desc: "Um participante em foco" },
+    { value: "sidebar", label: "Barra lateral", desc: "Principal + lista lateral" },
+  ];
 
   const encoder = useRef(new TextEncoder());
 
@@ -931,7 +887,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
                 onClick={toggleHandRaise}
                 className={`h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 ${
                   handRaised
-                    ? "bg-yellow-500 text-yellow-950 animate-pulse"
+                    ? "bg-purple-600 text-white"
                     : "bg-muted text-muted-foreground hover:bg-accent"
                 }`}
               >
@@ -992,6 +948,54 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
             </TooltipTrigger>
             <TooltipContent side="top"><p>Chat</p></TooltipContent>
           </Tooltip>
+
+          {/* Layout settings */}
+          <Popover>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <button className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 bg-muted text-muted-foreground hover:bg-accent">
+                    <LayoutGrid className="h-5 w-5" />
+                  </button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top"><p>Visualização</p></TooltipContent>
+            </Tooltip>
+            <PopoverContent className="w-72" align="center" side="top">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-sm mb-1">Ajuste a visualização</h4>
+                  <p className="text-xs text-muted-foreground">A seleção é salva para as próximas reuniões</p>
+                </div>
+                <RadioGroup value={layoutMode} onValueChange={(v) => saveLayoutMode(v as LayoutMode)}>
+                  {layoutOptions.map(opt => (
+                    <div key={opt.value} className="flex items-center gap-3 py-1.5">
+                      <RadioGroupItem value={opt.value} id={`layout-bar-${opt.value}`} />
+                      <Label htmlFor={`layout-bar-${opt.value}`} className="cursor-pointer">
+                        <span className="text-sm font-medium">{opt.label}</span>
+                        <span className="block text-xs text-muted-foreground">{opt.desc}</span>
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+                <div className="space-y-2 pt-2 border-t border-border/50">
+                  <div>
+                    <h5 className="text-xs font-semibold mb-1">Blocos</h5>
+                    <p className="text-[10px] text-muted-foreground">Máximo de blocos para exibição</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <LayoutGrid className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Slider value={[maxTiles]} onValueChange={([v]) => saveMaxTiles(v)} min={1} max={25} step={1} className="flex-1" />
+                    <span className="text-xs text-muted-foreground w-5 text-right">{maxTiles}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                  <Label htmlFor="hide-no-video-bar" className="text-xs">Ocultar blocos sem vídeo</Label>
+                  <Switch id="hide-no-video-bar" checked={hideNoVideo} onCheckedChange={saveHideNoVideo} className="scale-90" />
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="w-px h-8 bg-border mx-1 sm:mx-2" />
