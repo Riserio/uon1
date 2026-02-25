@@ -249,33 +249,30 @@ export function GerenciarUsuariosCorretoraDialog({
             <div className="space-y-3">
               <Label className="text-base font-semibold">Módulos BI Permitidos</Label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {MODULOS_BI.map((modulo) => (
-                  <div
-                    key={modulo.id}
-                    className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-all ${
-                      formData.modulos_bi.includes(modulo.id)
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                    onClick={(e) => {
-                      // Avoid double-toggle when clicking the checkbox itself
-                      if ((e.target as HTMLElement).closest('button[role="checkbox"]')) return;
-                      handleModuloChange(modulo.id, !formData.modulos_bi.includes(modulo.id));
-                    }}
-                  >
-                    <Checkbox
-                      id={`modulo-${modulo.id}`}
-                      checked={formData.modulos_bi.includes(modulo.id)}
-                      onCheckedChange={(checked) => handleModuloChange(modulo.id, checked as boolean)}
-                    />
-                    <div className="space-y-1">
-                      <label htmlFor={`modulo-${modulo.id}`} className="text-sm font-medium cursor-pointer">
-                        {modulo.label}
-                      </label>
-                      <p className="text-xs text-muted-foreground">{modulo.description}</p>
-                    </div>
-                  </div>
-                ))}
+                {MODULOS_BI.map((modulo) => {
+                  const isChecked = formData.modulos_bi.includes(modulo.id);
+                  return (
+                    <label
+                      key={modulo.id}
+                      htmlFor={`modulo-${modulo.id}`}
+                      className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                        isChecked
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      <Checkbox
+                        id={`modulo-${modulo.id}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => handleModuloChange(modulo.id, !!checked)}
+                      />
+                      <div className="space-y-1">
+                        <span className="text-sm font-medium">{modulo.label}</span>
+                        <p className="text-xs text-muted-foreground">{modulo.description}</p>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -310,27 +307,26 @@ export function GerenciarUsuariosCorretoraDialog({
                       <TableCell>
                         {editingId === usuario.id ? (
                           <div className="flex flex-wrap gap-2">
-                            {MODULOS_BI.map((modulo) => (
-                              <div
-                                key={modulo.id}
-                                className={`flex items-center gap-1 px-2 py-1 border rounded cursor-pointer text-xs ${
-                                  editingModulos.includes(modulo.id)
-                                    ? 'border-primary bg-primary/10'
-                                    : 'border-border'
-                                }`}
-                                onClick={(e) => {
-                                  if ((e.target as HTMLElement).closest('button[role="checkbox"]')) return;
-                                  handleEditModuloChange(modulo.id, !editingModulos.includes(modulo.id));
-                                }}
-                              >
-                                <Checkbox
-                                  checked={editingModulos.includes(modulo.id)}
-                                  onCheckedChange={(checked) => handleEditModuloChange(modulo.id, checked as boolean)}
-                                  className="h-3 w-3"
-                                />
-                                <span>{modulo.label}</span>
-                              </div>
-                            ))}
+                            {MODULOS_BI.map((modulo) => {
+                              const isChecked = editingModulos.includes(modulo.id);
+                              return (
+                                <label
+                                  key={modulo.id}
+                                  className={`flex items-center gap-1 px-2 py-1 border rounded cursor-pointer text-xs ${
+                                    isChecked
+                                      ? 'border-primary bg-primary/10'
+                                      : 'border-border'
+                                  }`}
+                                >
+                                  <Checkbox
+                                    checked={isChecked}
+                                    onCheckedChange={(checked) => handleEditModuloChange(modulo.id, !!checked)}
+                                    className="h-3 w-3"
+                                  />
+                                  <span>{modulo.label}</span>
+                                </label>
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="flex flex-wrap gap-1">
