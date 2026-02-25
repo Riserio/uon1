@@ -543,7 +543,7 @@ export default function Emails() {
     <div className="min-h-screen bg-background">
       {/* Email Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eye className="h-5 w-5 text-primary" />
