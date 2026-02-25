@@ -18,6 +18,13 @@ interface CobrancaDashboardProps {
   isPortalAccess?: boolean;
 }
 
+const parseDayFromDate = (dateStr: string | null): number | null => {
+  if (!dateStr) return null;
+  const parts = dateStr.split("T")[0].split("-");
+  const d = parseInt(parts[2], 10);
+  return isNaN(d) ? null : d;
+};
+
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
 
 const formatCurrency = (value: number) => {
@@ -215,7 +222,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         
         // Boletos emitidos até este dia (usando dia útil de referência)
         const boletosEmitidosAteDia = boletosFiltrados.filter(b => {
-          const diaVenc = b.dia_vencimento_veiculo;
+          const diaVenc = b.dia_vencimento_veiculo ?? parseDayFromDate(b.data_vencimento_original);
           if (diaVenc == null) return false;
           const diaUtilRef = getProximoDiaUtil(anoAtual, mesAtual, diaVenc);
           return diaUtilRef <= diaCalc;
@@ -344,13 +351,6 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       return getProximoDiaUtil(anoAtual, mesAtual, diaVenc);
     };
 
-    // Helper to parse day from date string (YYYY-MM-DD)
-    const parseDayFromDate = (dateStr: string | null): number | null => {
-      if (!dateStr) return null;
-      const parts = dateStr.split("T")[0].split("-");
-      const d = parseInt(parts[2], 10);
-      return isNaN(d) ? null : d;
-    };
 
     // Build grouped data for all 3 modes
     const buildGroupedData = (getDia: (b: any) => number | string | null) => {
@@ -398,7 +398,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       return toChartData();
     };
 
-    const groupedByVeiculo = buildGroupedData(b => b.dia_vencimento_veiculo);
+    const groupedByVeiculo = buildGroupedData(b => b.dia_vencimento_veiculo ?? parseDayFromDate(b.data_vencimento_original));
 
     // Legacy aliases used by the rest of the component
     const diasVencimentoData = groupedByVeiculo;
@@ -422,9 +422,8 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       // Para inadimplência, usar dia útil de referência (pula fds)
       // Boletos com dia_vencimento_veiculo cujo dia útil de referência <= dia atual
       const boletosEmitidosAteDia = boletosFiltrados.filter(b => {
-        const diaVenc = b.dia_vencimento_veiculo;
+        const diaVenc = b.dia_vencimento_veiculo ?? parseDayFromDate(b.data_vencimento_original);
         if (diaVenc == null) return false;
-        // Calcular dia útil de referência para este boleto
         const diaUtilRef = getProximoDiaUtil(anoAtual, mesAtual, diaVenc);
         return diaUtilRef <= dia;
       });
@@ -449,7 +448,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       if (dia >= diaHoje) {
         percentInadimplenciaReal = inadimplenciaAtual;
         qtdeVencidos = boletosAbertos.filter(b => {
-          const diaVenc = b.dia_vencimento_veiculo;
+           const diaVenc = b.dia_vencimento_veiculo ?? parseDayFromDate(b.data_vencimento_original);
           if (diaVenc == null) return false;
           const diaUtilRef = getProximoDiaUtil(anoAtual, mesAtual, diaVenc);
           return diaUtilRef <= dia;
