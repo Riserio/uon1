@@ -100,35 +100,84 @@ function isUuidString(value: unknown): value is string {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-// Parse de data no formato DD/MM/YYYY ou YYYY-MM-DD
+function normalizeColumnKey(key: string): string {
+  return key
+    .trim()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function formatDateParts(year: number, month: number, day: number): string | null {
+  if (year < 1900 || year > 2100) return null;
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function getTodayInSaoPaulo(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = Number(parts.find((p) => p.type === "year")?.value);
+  const month = Number(parts.find((p) => p.type === "month")?.value);
+  const day = Number(parts.find((p) => p.type === "day")?.value);
+
+  return formatDateParts(year, month, day) || new Date().toISOString().split("T")[0];
+}
+
+// Parse de data no formato brasileiro (timezone-safe)
 function parseDate(value: any): string | null {
   if (!value) return null;
-  
+
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return null;
+    return formatDateParts(value.getFullYear(), value.getMonth() + 1, value.getDate());
+  }
+
+  if (typeof value === "number") {
+    if (value < 1 || value > 100000) return null;
+    const excelEpochUtc = Date.UTC(1899, 11, 30);
+    const dateUtc = new Date(excelEpochUtc + Math.round(value) * 86400000);
+    if (isNaN(dateUtc.getTime())) return null;
+    return formatDateParts(dateUtc.getUTCFullYear(), dateUtc.getUTCMonth() + 1, dateUtc.getUTCDate());
+  }
+
   const strValue = String(value).trim();
-  
-  // Formato DD/MM/YYYY
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(strValue)) {
-    const [day, month, year] = strValue.split('/');
-    return `${year}-${month}-${day}`;
-  }
-  
-  // Formato YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(strValue)) {
-    return strValue;
-  }
-  
-  // Formato M/D/YY ou MM/DD/YY
-  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(strValue)) {
-    const parts = strValue.split('/');
-    let day = parts[0].padStart(2, '0');
-    let month = parts[1].padStart(2, '0');
-    let year = parts[2];
-    if (year.length === 2) {
-      year = parseInt(year) > 50 ? `19${year}` : `20${year}`;
+  if (!strValue) return null;
+
+  const baseDate = strValue.split("T")[0].split(" ")[0];
+
+  // Brasil: DD/MM/YYYY (padrão)
+  const brMatch = baseDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (brMatch) {
+    let day = Number(brMatch[1]);
+    let month = Number(brMatch[2]);
+    let year = Number(brMatch[3]);
+    if (year < 100) year += 2000;
+
+    // fallback para MM/DD quando detectado
+    if (month > 12 && day <= 12) {
+      const tmp = day;
+      day = month;
+      month = tmp;
     }
-    return `${year}-${month}-${day}`;
+
+    return formatDateParts(year, month, day);
   }
-  
+
+  // ISO: YYYY-MM-DD
+  const isoMatch = baseDate.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    return formatDateParts(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
+  }
+
   return null;
 }
 
@@ -762,7 +811,7 @@ serve(async (req) => {
     let erros = 0;
 
     // Data de referência para cálculo de atraso
-    const hojeStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const hojeStr = getTodayInSaoPaulo(); // YYYY-MM-DD em São Paulo
 
     for (let i = 0; i < dados.length; i += BATCH_SIZE) {
       const batch = dados.slice(i, i + BATCH_SIZE);
@@ -774,16 +823,16 @@ serve(async (req) => {
 
         // Mapear campos primários
         for (const [key, value] of Object.entries(row)) {
-          const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
+          const normalizedKey = normalizeColumnKey(key);
           const dbField = COLUMN_MAP[normalizedKey];
 
           if (dbField) {
-            if (dbField.includes('data') || dbField.includes('vencimento') || dbField.includes('pagamento')) {
+            if (["data_pagamento", "data_vencimento_original", "data_vencimento"].includes(dbField)) {
               boleto[dbField] = parseDate(value);
             } else if (dbField === 'valor') {
               boleto[dbField] = parseMoneyValue(value);
             } else if (dbField === 'dia_vencimento_veiculo' || dbField === 'qtde_dias_atraso_vencimento_original') {
-              boleto[dbField] = parseInt(String(value)) || null;
+              boleto[dbField] = parseInt(String(value).replace(/\D/g, '')) || null;
             } else {
               boleto[dbField] = value ? String(value).trim() : null;
             }
@@ -794,14 +843,8 @@ serve(async (req) => {
         // FALLBACK: Derivar campos críticos quando vazios
         // ============================================
 
-        // Dia Vencimento Veículo = dia do mês de data_vencimento
-        if (boleto.dia_vencimento_veiculo == null && boleto.data_vencimento) {
-          const dv = String(boleto.data_vencimento); // YYYY-MM-DD
-          const dia = parseInt(dv.split('-')[2], 10);
-          if (!isNaN(dia) && dia >= 1 && dia <= 31) {
-            boleto.dia_vencimento_veiculo = dia;
-          }
-        }
+        // Dia Vencimento Veículo deve vir da coluna específica do relatório.
+        // Não derivar de data_vencimento para evitar introduzir dias indevidos (ex: 12, 18, 23, 24).
 
         // Se tem data de pagamento, o boleto foi pago - dias de atraso = 0
         if (boleto.data_pagamento) {
@@ -821,7 +864,7 @@ serve(async (req) => {
         // Dados extras (campos não mapeados)
         const dadosExtras: any = {};
         for (const [key, value] of Object.entries(row)) {
-          const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
+          const normalizedKey = normalizeColumnKey(key);
           if (!COLUMN_MAP[normalizedKey] && value) {
             dadosExtras[key] = value;
           }
