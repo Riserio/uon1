@@ -20,6 +20,13 @@ const formatCurrency = (value: number) => {
 const formatDate = (dateStr: string | null) => {
   if (!dateStr) return "-";
   try {
+    // Parse date string manually to avoid UTC interpretation shifting dates by -1 day
+    const parts = dateStr.split("T")[0].split("-");
+    if (parts.length === 3) {
+      const [year, month, day] = parts.map(Number);
+      const localDate = new Date(year, month - 1, day);
+      return format(localDate, "dd/MM/yyyy", { locale: ptBR });
+    }
     return format(new Date(dateStr), "dd/MM/yyyy", { locale: ptBR });
   } catch {
     return dateStr;

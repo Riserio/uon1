@@ -162,7 +162,7 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
       // 2. Send notifications
       if (convidados.length > 0 && (enviarEmail || enviarWhatsApp)) {
         try {
-          await fetch(
+          const notifyRes = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=notifyMeeting`,
             {
               method: "POST",
@@ -179,9 +179,20 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
                 convidados,
                 enviarEmail,
                 enviarWhatsApp,
+                duracaoMinutos: parseInt(form.duracao_minutos) || 60,
               }),
             }
           );
+          const notifyData = await notifyRes.json();
+          if (notifyData.error) {
+            console.error("Notify error:", notifyData.error);
+            toast.warning("Sala criada, mas houve erro ao enviar notificações: " + notifyData.error);
+          } else {
+            const enviados = notifyData.results?.filter((r: any) => r.status === "enviado").length || 0;
+            if (enviados > 0) {
+              toast.success(`${enviados} convite(s) enviado(s) com sucesso!`);
+            }
+          }
         } catch (notifErr) {
           console.error("Notification error:", notifErr);
           toast.warning("Sala criada, mas houve erro ao enviar notificações");
