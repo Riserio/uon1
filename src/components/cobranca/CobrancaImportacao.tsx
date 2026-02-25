@@ -68,58 +68,109 @@ const COLUMN_MAP: { [key: string]: string } = {
   "SITUAÇÃO": "situacao"
 };
 
-// Função para normalizar header
+// Função para normalizar header (ignora acentos, múltiplos espaços e pontuação)
 const normalizeHeader = (header: string): string => {
-  return header.trim().toUpperCase().replace(/\s+/g, " ");
+  return header
+    .trim()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ");
 };
 
 // Função para encontrar valor no row
 const getValueFromRow = (row: any, targetHeader: string): any => {
   if (row[targetHeader] !== undefined) return row[targetHeader];
-  
+
   const normalizedTarget = normalizeHeader(targetHeader);
   for (const key of Object.keys(row)) {
     if (normalizeHeader(key) === normalizedTarget) {
       return row[key];
     }
   }
-  
+
   return undefined;
 };
 
-// Função para converter data do Excel
+// Parse rígido para dia de vencimento do veículo
+// Regra de negócio: ciclo de vencimento permitido (1, 5, 10, 15, 20, 25)
+const parseVehicleDueDay = (value: any): number | null => {
+  if (value === undefined || value === null || value === "") return null;
+
+  const numeric = parseInt(String(value).replace(/\D/g, ""), 10);
+  if (isNaN(numeric)) return null;
+
+  const allowedDays = new Set([1, 5, 10, 15, 20, 25]);
+  return allowedDays.has(numeric) ? numeric : null;
+};
+
+// Função para converter data do Excel (timezone-safe para São Paulo / Brasil)
 const parseExcelDate = (value: any): string | null => {
   if (!value) return null;
-  
-  // Se for número (serial date do Excel) - parse without timezone shift
-  if (typeof value === "number") {
-    // Excel serial: days since 1900-01-01 (with the 1900 leap year bug)
-    const utcDays = value - 25569; // days since Unix epoch
-    const totalMs = utcDays * 86400 * 1000;
-    const d = new Date(totalMs);
-    // Use UTC components to avoid timezone shift
-    const year = d.getUTCFullYear();
-    const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(d.getUTCDate()).padStart(2, "0");
+
+  // Date já parseado pela lib
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return null;
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   }
-  
-  // Se for string no formato M/D/YY
+
+  // Serial date do Excel
+  if (typeof value === "number") {
+    if (value < 1 || value > 100000) return null;
+
+    const excelEpochUtc = Date.UTC(1899, 11, 30);
+    const dateUtc = new Date(excelEpochUtc + Math.round(value) * 86400000);
+    if (isNaN(dateUtc.getTime())) return null;
+
+    const year = dateUtc.getUTCFullYear();
+    const month = String(dateUtc.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(dateUtc.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
   if (typeof value === "string") {
-    const parts = value.split("/");
-    if (parts.length === 3) {
-      const [p1, p2, p3] = parts;
-      const month = parseInt(p1);
-      const day = parseInt(p2);
-      let year = parseInt(p3);
+    const cleaned = value.trim();
+    if (!cleaned) return null;
+
+    // Mantém apenas parte da data quando vier com horário
+    const baseDate = cleaned.split("T")[0].split(" ")[0];
+
+    // ISO: YYYY-MM-DD
+    const isoMatch = baseDate.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+      const year = Number(isoMatch[1]);
+      const month = Number(isoMatch[2]);
+      const day = Number(isoMatch[3]);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      }
+    }
+
+    // Brasil: DD/MM/YYYY (padrão), com fallback para MM/DD quando necessário
+    const brMatch = baseDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (brMatch) {
+      let day = Number(brMatch[1]);
+      let month = Number(brMatch[2]);
+      let year = Number(brMatch[3]);
       if (year < 100) year += 2000;
-      
+
+      // Se segunda parte > 12 e primeira <= 12, veio MM/DD
+      if (month > 12 && day <= 12) {
+        const tmp = day;
+        day = month;
+        month = tmp;
+      }
+
       if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
         return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       }
     }
   }
-  
+
   return null;
 };
 
@@ -314,8 +365,11 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
               record[dbCol] = parseMoneyValue(value);
             }
             // Campos numéricos
-            else if (dbCol === "dia_vencimento_veiculo" || dbCol === "qtde_dias_atraso_vencimento_original") {
-              record[dbCol] = value ? parseInt(String(value)) || null : null;
+            else if (dbCol === "dia_vencimento_veiculo") {
+              record[dbCol] = parseVehicleDueDay(value);
+            }
+            else if (dbCol === "qtde_dias_atraso_vencimento_original") {
+              record[dbCol] = value ? parseInt(String(value).replace(/\D/g, ""), 10) || null : null;
             }
             // Placas e situação (limpar links)
             else if (dbCol === "placas" || dbCol === "situacao") {
@@ -344,7 +398,7 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
             for (const alias of diaAliases) {
               const v = row[alias];
               if (v !== undefined && v !== null && v !== "") {
-                record.dia_vencimento_veiculo = parseInt(String(v)) || null;
+                record.dia_vencimento_veiculo = parseVehicleDueDay(v);
                 break;
               }
             }
