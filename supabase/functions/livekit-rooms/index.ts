@@ -530,6 +530,21 @@ Deno.serve(async (req) => {
       const edgeFunctionBaseUrl = `${supabaseUrl}/functions/v1/livekit-rooms`;
 
       for (const convidado of convidados || []) {
+        // Build Google Calendar URL
+        let googleCalUrl = '';
+        if (agendadoPara) {
+          const startDt = new Date(agendadoPara);
+          const endDt = new Date(startDt.getTime() + (body.duracaoMinutos || 60) * 60000);
+          const fmtGcal = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+          const gcalParams = new URLSearchParams({
+            action: 'TEMPLATE',
+            text: roomName,
+            dates: `${fmtGcal(startDt)}/${fmtGcal(endDt)}`,
+            details: `${descricao || ''}\n\nLink: ${meetingLink}`,
+            location: meetingLink,
+          });
+          googleCalUrl = `https://calendar.google.com/calendar/render?${gcalParams.toString()}`;
+        }
         // Email
         if (enviarEmail && convidado.email) {
           // Create RSVP token
