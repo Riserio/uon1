@@ -832,10 +832,15 @@ serve(async (req) => {
             } else if (dbField === 'valor') {
               boleto[dbField] = parseMoneyValue(value);
             } else if (dbField === 'dia_vencimento_veiculo') {
-              // Validação estrita: apenas dias do ciclo operacional
-              const rawDay = parseInt(String(value).replace(/\D/g, ''), 10);
-              const allowedDays = [1, 5, 10, 15, 20, 25];
-              boleto[dbField] = allowedDays.includes(rawDay) ? rawDay : null;
+              // Aceita qualquer dia válido (1-31) - pegar apenas primeiros 2 dígitos para evitar concatenação
+              const dayStr = String(value).trim();
+              const dayMatch = dayStr.match(/^\d{1,2}/);
+              if (dayMatch) {
+                const day = parseInt(dayMatch[0], 10);
+                boleto[dbField] = (day >= 1 && day <= 31) ? day : null;
+              } else {
+                boleto[dbField] = null;
+              }
             } else if (dbField === 'qtde_dias_atraso_vencimento_original') {
               boleto[dbField] = parseInt(String(value).replace(/\D/g, ''), 10) || null;
             } else {
