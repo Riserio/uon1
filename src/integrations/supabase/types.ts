@@ -3017,6 +3017,47 @@ export type Database = {
         }
         Relationships: []
       }
+      meeting_rsvp: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          nome: string | null
+          respondido_em: string | null
+          resposta: string | null
+          room_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          nome?: string | null
+          respondido_em?: string | null
+          resposta?: string | null
+          room_id: string
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          nome?: string | null
+          respondido_em?: string | null
+          resposta?: string | null
+          room_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_rsvp_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mensagens: {
         Row: {
           anexos: Json | null

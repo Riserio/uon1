@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Pencil, Search, X, Plus, UserPlus, Loader2 } from "lucide-react";
+import { Pencil, Search, X, Plus, UserPlus, Loader2, Mail, MessageSquare, CheckCircle2 } from "lucide-react";
 
 // Convert UTC ISO string to local datetime-local input value (YYYY-MM-DDTHH:mm)
 function formatDateTimeLocal(isoString: string): string {
@@ -31,6 +32,13 @@ interface Convidado {
   email: string;
   telefone: string;
   fromContato?: boolean;
+}
+
+interface RsvpStatus {
+  email: string;
+  nome: string | null;
+  resposta: string | null;
+  respondido_em: string | null;
 }
 
 interface MeetingRoom {
@@ -60,12 +68,16 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
     duracao_minutos: "60",
   });
   const [convidados, setConvidados] = useState<Convidado[]>((room.convidados as Convidado[]) || []);
+  const [originalEmails, setOriginalEmails] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<Contato[]>([]);
   const [searching, setSearching] = useState(false);
   const [novoConvidado, setNovoConvidado] = useState({ nome: "", email: "", telefone: "" });
   const [showAddNew, setShowAddNew] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [enviarEmailNovos, setEnviarEmailNovos] = useState(true);
+  const [enviarWhatsAppNovos, setEnviarWhatsAppNovos] = useState(false);
+  const [rsvpStatuses, setRsvpStatuses] = useState<RsvpStatus[]>([]);
 
   useEffect(() => {
     setForm({
@@ -75,8 +87,21 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
       agendado_para: room.agendado_para ? formatDateTimeLocal(room.agendado_para) : "",
       duracao_minutos: "60",
     });
-    setConvidados((room.convidados as Convidado[]) || []);
+    const existing = (room.convidados as Convidado[]) || [];
+    setConvidados(existing);
+    setOriginalEmails(new Set(existing.map(c => c.email).filter(Boolean)));
+    loadRsvpStatuses();
   }, [room]);
+
+  const loadRsvpStatuses = async () => {
+    try {
+      const { data } = await supabase
+        .from("meeting_rsvp")
+        .select("email, nome, resposta, respondido_em")
+        .eq("room_id", room.id);
+      setRsvpStatuses((data as RsvpStatus[]) || []);
+    } catch {}
+  };
 
   const searchContatos = useCallback(async (term: string) => {
     if (term.length < 2) { setSearchResults([]); return; }
@@ -124,6 +149,20 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
     setConvidados((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const getRsvpBadge = (email: string) => {
+    const rsvp = rsvpStatuses.find(r => r.email === email);
+    if (!rsvp || !rsvp.resposta) return null;
+    const map: Record<string, { label: string; className: string }> = {
+      sim: { label: "Confirmado", className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+      talvez: { label: "Talvez", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+      nao: { label: "Recusou", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+    };
+    const info = map[rsvp.resposta];
+    return info ? <Badge className={`text-[10px] ${info.className}`}>{info.label}</Badge> : null;
+  };
+
+  const newConvidados = convidados.filter(c => c.email && !originalEmails.has(c.email));
+
   const handleSave = async () => {
     if (!form.nome.trim()) { toast.error("Informe o nome da reunião"); return; }
     setSaving(true);
@@ -152,6 +191,42 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
       );
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+
+      // Send notifications to NEW participants only
+      if (newConvidados.length > 0 && (enviarEmailNovos || enviarWhatsAppNovos)) {
+        try {
+          const meetingLink = `${window.location.origin}/video/${room.id}`;
+          const notifyRes = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=notifyMeeting`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                roomId: room.id,
+                roomName: form.nome,
+                agendadoPara: form.agendado_para ? new Date(form.agendado_para).toISOString() : null,
+                descricao: form.descricao || null,
+                meetingLink,
+                convidados: newConvidados,
+                enviarEmail: enviarEmailNovos,
+                enviarWhatsApp: enviarWhatsAppNovos,
+                duracaoMinutos: parseInt(form.duracao_minutos) || 60,
+              }),
+            }
+          );
+          const notifyData = await notifyRes.json();
+          const enviados = notifyData.results?.filter((r: any) => r.status === "enviado").length || 0;
+          if (enviados > 0) {
+            toast.success(`${enviados} convite(s) enviado(s) aos novos participantes!`);
+          }
+        } catch (notifErr) {
+          console.error("Notification error:", notifErr);
+          toast.warning("Reunião salva, mas houve erro ao enviar notificações");
+        }
+      }
 
       toast.success("Reunião atualizada!");
       onOpenChange(false);
@@ -245,10 +320,12 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
               <div className="space-y-1.5">
                 {convidados.map((c, i) => (
                   <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-muted/40 rounded-md text-sm">
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
                       <span className="font-medium truncate">{c.nome || "Sem nome"}</span>
                       {c.email && <span className="text-muted-foreground truncate">• {c.email}</span>}
                       {c.telefone && <span className="text-muted-foreground truncate">• {c.telefone}</span>}
+                      {c.email && !originalEmails.has(c.email) && <Badge variant="outline" className="text-[10px] border-primary text-primary">Novo</Badge>}
+                      {c.email && getRsvpBadge(c.email)}
                     </div>
                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => removeConvidado(i)}>
                       <X className="h-3.5 w-3.5" />
@@ -258,6 +335,38 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
               </div>
             )}
           </div>
+
+          {/* Notification for new participants */}
+          {newConvidados.length > 0 && (
+            <div className="space-y-2 p-3 border rounded-lg bg-muted/20">
+              <Label className="text-sm font-semibold">Enviar convite para {newConvidados.length} novo(s) participante(s):</Label>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={enviarEmailNovos} onCheckedChange={(v) => setEnviarEmailNovos(!!v)} />
+                  <Mail className="h-4 w-4 text-muted-foreground" /> Email
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={enviarWhatsAppNovos} onCheckedChange={(v) => setEnviarWhatsAppNovos(!!v)} />
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" /> WhatsApp
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* RSVP Summary */}
+          {rsvpStatuses.length > 0 && (
+            <div className="p-3 border rounded-lg bg-muted/20">
+              <Label className="text-sm font-semibold flex items-center gap-1.5 mb-2">
+                <CheckCircle2 className="h-4 w-4" /> Respostas (RSVP)
+              </Label>
+              <div className="flex gap-4 text-sm">
+                <span className="text-green-600 font-medium">✓ {rsvpStatuses.filter(r => r.resposta === 'sim').length} confirmado(s)</span>
+                <span className="text-amber-600 font-medium">🤔 {rsvpStatuses.filter(r => r.resposta === 'talvez').length} talvez</span>
+                <span className="text-red-600 font-medium">✕ {rsvpStatuses.filter(r => r.resposta === 'nao').length} recusou</span>
+                <span className="text-muted-foreground">{rsvpStatuses.filter(r => !r.resposta).length} pendente(s)</span>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>

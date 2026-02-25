@@ -224,7 +224,8 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         const boletosPagosAteDia = boletosEmitidosAteDia.filter(b => {
           if (b.situacao && b.situacao.toUpperCase() === 'BAIXADO') {
             if (b.data_pagamento) {
-              const dataPagamento = new Date(b.data_pagamento);
+              const parts = b.data_pagamento.split("T")[0].split("-").map(Number);
+              const dataPagamento = new Date(parts[0], parts[1] - 1, parts[2]);
               return dataPagamento <= dataRef;
             }
             return true;
@@ -444,7 +445,9 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       const boletosPagosAteDia = boletosEmitidosAteDia.filter(b => {
         if (b.situacao && b.situacao.toUpperCase() === 'BAIXADO') {
           if (b.data_pagamento) {
-            const dataPagamento = new Date(b.data_pagamento);
+            // Parse date as local to avoid UTC shift
+            const parts = b.data_pagamento.split("T")[0].split("-").map(Number);
+            const dataPagamento = new Date(parts[0], parts[1] - 1, parts[2]);
             return dataPagamento <= dataRef;
           }
           return true;
@@ -489,13 +492,19 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       });
     }
 
+    // Helper to parse date string as local date (avoids UTC shift)
+    const parseLocalDay = (dateStr: string): number => {
+      const parts = dateStr.split("T")[0].split("-");
+      return parseInt(parts[2], 10);
+    };
+
     // Arrecadação Projetada x Recebida (por data de vencimento vs data de pagamento)
     const arrecadacaoPorDia: any = {};
     
     // Vencimentos por dia
     boletosFiltrados.forEach(b => {
       if (b.data_vencimento) {
-        const dia = new Date(b.data_vencimento).getDate();
+        const dia = parseLocalDay(b.data_vencimento);
         if (!arrecadacaoPorDia[dia]) {
           arrecadacaoPorDia[dia] = { projetado: 0, recebido: 0 };
         }
@@ -506,7 +515,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     // Pagamentos por dia
     boletosPagos.forEach(b => {
       if (b.data_pagamento) {
-        const dia = new Date(b.data_pagamento).getDate();
+        const dia = parseLocalDay(b.data_pagamento);
         if (!arrecadacaoPorDia[dia]) {
           arrecadacaoPorDia[dia] = { projetado: 0, recebido: 0 };
         }
