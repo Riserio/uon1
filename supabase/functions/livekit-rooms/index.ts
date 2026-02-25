@@ -379,12 +379,39 @@ Deno.serve(async (req) => {
 
       await supabaseAdmin
         .from("meeting_rooms")
-        .update({ status: "finalizada" })
+        .update({ status: "finalizada", finalizado_em: new Date().toISOString() })
         .eq("id", body.roomId)
         .eq("host_id", user.id);
 
       return new Response(
         JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── EXTEND ROOM ──
+    if (action === "extendRoom") {
+      const user = await getUser();
+      const body = await req.json();
+      const { roomId, extraMinutes } = body;
+
+      const { data: room } = await supabaseAdmin
+        .from("meeting_rooms")
+        .select("duracao_minutos")
+        .eq("id", roomId)
+        .eq("host_id", user.id)
+        .single();
+
+      if (!room) throw new Error("Sala não encontrada ou sem permissão");
+
+      const newDuration = (room.duracao_minutos || 60) + (extraMinutes || 30);
+      await supabaseAdmin
+        .from("meeting_rooms")
+        .update({ duracao_minutos: newDuration })
+        .eq("id", roomId);
+
+      return new Response(
+        JSON.stringify({ success: true, duracao_minutos: newDuration }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

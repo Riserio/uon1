@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import {
   Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, MessageCircle, Send,
-  Maximize2, Minimize2, PictureInPicture2, LayoutGrid, Settings2, Hand, Smile, PersonStanding
+  Maximize2, Minimize2, PictureInPicture2, LayoutGrid, Settings2, Hand, Smile, PersonStanding, Clock, Calendar, Timer
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -67,6 +67,9 @@ interface RoomData {
   host_id: string;
   livekit_room_name: string;
   status: string;
+  agendado_para: string | null;
+  duracao_minutos: number | null;
+  finalizado_em: string | null;
 }
 
 interface PendingParticipant {
@@ -185,6 +188,26 @@ export default function MeetingRoomPage() {
         className="flex flex-col flex-1"
       >
         <RoomHeader room={room} isHost={isHost} roomId={roomId!} onLeave={handleDisconnect} />
+        <MeetingTimer room={room} isHost={isHost} roomId={roomId!} onTimeUp={async () => {
+          // Auto-finalize
+          try {
+            await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=endRoom`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ roomId }),
+              }
+            );
+            toast.info("Reunião finalizada automaticamente (tempo esgotado)");
+            handleDisconnect();
+          } catch { handleDisconnect(); }
+        }} onExtend={(mins) => {
+          setRoom(prev => prev ? { ...prev, duracao_minutos: (prev.duracao_minutos || 60) + mins } : prev);
+        }} />
         <div className="flex flex-1 overflow-hidden">
           <VideoGridWithReactions />
           {chatOpen && <ChatPanel roomId={roomId!} userId={user?.id || ""} userName={user?.user_metadata?.nome || user?.email || "Eu"} />}
@@ -260,6 +283,107 @@ function WaitingRoom({ room, roomId, onApproved, onDenied }: { room: RoomData; r
   );
 }
 
+// ── Meeting Timer ──
+function MeetingTimer({ room, isHost, roomId, onTimeUp, onExtend }: { 
+  room: RoomData; isHost: boolean; roomId: string; 
+  onTimeUp: () => void; onExtend: (mins: number) => void;
+}) {
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const [warned, setWarned] = useState(false);
+  const [showExtend, setShowExtend] = useState(false);
+  const [extending, setExtending] = useState(false);
+
+  useEffect(() => {
+    if (!room.agendado_para || !room.duracao_minutos) return;
+    const startMs = new Date(room.agendado_para).getTime();
+    const endMs = startMs + room.duracao_minutos * 60 * 1000;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((endMs - now) / 1000));
+      setRemainingSeconds(remaining);
+
+      // Warning at 5 minutes
+      if (remaining <= 300 && remaining > 0 && !warned) {
+        setWarned(true);
+        toast.warning("⏰ Faltam 5 minutos para o fim da reunião!", { duration: 8000 });
+        if (isHost) setShowExtend(true);
+      }
+
+      // Time's up
+      if (remaining <= 0) {
+        clearInterval(interval);
+        onTimeUp();
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [room.agendado_para, room.duracao_minutos, warned, isHost]);
+
+  const handleExtend = async (mins: number) => {
+    setExtending(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=extendRoom`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ roomId, extraMinutes: mins }),
+        }
+      );
+      onExtend(mins);
+      setShowExtend(false);
+      setWarned(false);
+      toast.success(`Reunião estendida em ${mins} minutos`);
+    } catch {
+      toast.error("Erro ao estender reunião");
+    }
+    setExtending(false);
+  };
+
+  if (remainingSeconds === null) return null;
+
+  const hrs = Math.floor(remainingSeconds / 3600);
+  const mins = Math.floor((remainingSeconds % 3600) / 60);
+  const secs = remainingSeconds % 60;
+  const isUrgent = remainingSeconds <= 300;
+
+  return (
+    <>
+      {/* Timer badge in header */}
+      <div className={`flex items-center justify-center gap-2 py-1 text-xs font-mono ${
+        isUrgent ? "bg-destructive/10 text-destructive animate-pulse" : "bg-muted/50 text-muted-foreground"
+      }`}>
+        <Clock className="h-3 w-3" />
+        <span>Tempo restante: {hrs > 0 ? `${hrs}h ` : ""}{String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}</span>
+        {room.agendado_para && (
+          <span className="ml-2 opacity-70">
+            • Início: {new Date(room.agendado_para).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            {room.duracao_minutos && ` • Fim: ${new Date(new Date(room.agendado_para).getTime() + room.duracao_minutos * 60000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+          </span>
+        )}
+      </div>
+
+      {/* Extend dialog for host */}
+      {showExtend && isHost && (
+        <div className="flex items-center justify-center gap-3 py-2 bg-yellow-500/10 border-b border-yellow-500/30 px-4">
+          <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">⏰ Tempo acabando! Estender reunião?</span>
+          {[15, 30, 60].map(m => (
+            <Button key={m} size="sm" variant="outline" className="h-7 text-xs" disabled={extending} onClick={() => handleExtend(m)}>
+              +{m} min
+            </Button>
+          ))}
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowExtend(false)}>Ignorar</Button>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Room Header ──
 function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost: boolean; roomId: string; onLeave: () => void }) {
   const participants = useParticipants();
@@ -268,6 +392,9 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
     navigator.clipboard.writeText(`${window.location.origin}/video/${roomId}`);
     toast.success("Link copiado!");
   };
+
+  const startTime = room.agendado_para ? new Date(room.agendado_para) : null;
+  const endTime = startTime && room.duracao_minutos ? new Date(startTime.getTime() + room.duracao_minutos * 60000) : null;
 
   return (
     <div className="flex items-center justify-between px-4 py-2.5 bg-card border-b border-border/50 shadow-sm">
@@ -283,8 +410,15 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
             <span className="mx-1 text-muted-foreground">•</span>
             <span className="text-foreground">{room.nome}</span>
           </h2>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground flex items-center gap-2">
             {participants.length} participante(s) • {isHost ? "Moderador" : "Participante"}
+            {startTime && (
+              <span className="flex items-center gap-1">
+                • <Calendar className="h-3 w-3" />
+                {startTime.toLocaleDateString("pt-BR")} {startTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                {endTime && ` – ${endTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+              </span>
+            )}
           </p>
         </div>
       </div>
