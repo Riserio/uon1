@@ -93,16 +93,20 @@ const getValueFromRow = (row: any, targetHeader: string): any => {
   return undefined;
 };
 
-// Parse rígido para dia de vencimento do veículo
-// Regra de negócio: ciclo de vencimento permitido (1, 5, 10, 15, 20, 25)
+// Parse para dia de vencimento do veículo
+// Aceita qualquer dia válido (1-31) — cada associação define seus próprios dias
+// Pega apenas os primeiros 2 dígitos para evitar concatenação (ex: "1010" → 10)
 const parseVehicleDueDay = (value: any): number | null => {
   if (value === undefined || value === null || value === "") return null;
 
-  const numeric = parseInt(String(value).replace(/\D/g, ""), 10);
-  if (isNaN(numeric)) return null;
+  const str = String(value).trim();
+  const match = str.match(/^\d{1,2}/);
+  if (!match) return null;
 
-  const allowedDays = new Set([1, 5, 10, 15, 20, 25]);
-  return allowedDays.has(numeric) ? numeric : null;
+  const numeric = parseInt(match[0], 10);
+  if (isNaN(numeric) || numeric < 1 || numeric > 31) return null;
+
+  return numeric;
 };
 
 // Função para converter data do Excel (timezone-safe para São Paulo / Brasil)
