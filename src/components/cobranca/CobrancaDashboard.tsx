@@ -68,6 +68,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
   const [inadimplenciaHistorico, setInadimplenciaHistorico] = useState<Map<number, number>>(new Map());
   const inadimplenciaScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollIndicators, setShowScrollIndicators] = useState({ left: false, right: false });
+  const snapshotSavedRef = useRef(false);
   
 
   // Carregar configuração de inadimplência do banco
@@ -174,8 +175,6 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         console.error("Erro ao salvar histórico inadimplência:", error);
       } else {
         console.log("Snapshot salvo com sucesso:", registros.length, "registros para", hojeStr);
-        // Recarregar histórico para exibir os dados
-        loadInadimplenciaHistorico();
       }
     } catch (error) {
       console.error("Erro ao salvar histórico inadimplência:", error);
@@ -278,6 +277,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
   };
 
   useEffect(() => {
+    snapshotSavedRef.current = false;
     loadInadimplenciaConfig();
     loadInadimplenciaHistorico();
   }, [corretoraId, mesReferencia]);
@@ -668,9 +668,10 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     };
   }, [boletos, inadimplenciaConfig, inadimplenciaHistorico]);
 
-  // Salvar snapshot diário quando os dados mudam
+  // Salvar snapshot diário quando os dados mudam (apenas uma vez por sessão)
   useEffect(() => {
-    if (stats?.inadimplenciaPorDia && corretoraId && mesReferencia && !isPortalAccess) {
+    if (stats?.inadimplenciaPorDia && corretoraId && mesReferencia && !isPortalAccess && !snapshotSavedRef.current) {
+      snapshotSavedRef.current = true;
       saveInadimplenciaSnapshot(stats.inadimplenciaPorDia);
     }
   }, [stats?.inadimplenciaPorDia, corretoraId, mesReferencia, isPortalAccess]);
