@@ -28,6 +28,7 @@ import {
   MessageCircle,
   Headset,
   Bot,
+  Eye,
 } from "lucide-react";
 import CentralAtendimento from "@/pages/CentralAtendimento";
 import WhatsAppFlows from "@/pages/WhatsAppFlows";
@@ -35,6 +36,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import DOMPurify from 'dompurify';
 import { WhatsAppConfig } from "@/components/whatsapp/WhatsAppConfig";
 import { WhatsAppNotificacaoGlobal } from "@/components/whatsapp/WhatsAppNotificacaoGlobal";
 import { WhatsAppTemplates } from "@/components/whatsapp/WhatsAppTemplates";
@@ -121,6 +124,8 @@ export default function Emails() {
   } | null>(null);
   const [processandoFila, setProcessandoFila] = useState(false);
   const [availableStatus, setAvailableStatus] = useState<string[]>([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewContent, setPreviewContent] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -414,6 +419,43 @@ export default function Emails() {
     }
   };
 
+  const EMAIL_SAMPLE_DATA: Record<string, string> = {
+    '{assunto}': 'Revisão de contrato #1234',
+    '{status}': 'Em análise',
+    '{corretora}': 'Corretora Exemplo',
+    '{nome_usuario}': 'João Silva',
+    '{nome_corretora}': 'Corretora Exemplo',
+    '{link_portal}': 'https://portal.exemplo.com',
+    '{periodo}': 'Janeiro/2026',
+    '{total_atendimentos}': '150',
+    '{taxa_conclusao}': '87%',
+    '{nome_convidado}': 'Maria Oliveira',
+    '{nome_reuniao}': 'Reunião de Alinhamento',
+    '{data_reuniao}': '25/02/2026 às 14:00',
+    '{link_reuniao}': 'https://app.exemplo.com/video/abc123',
+    '{organizador}': 'João Silva',
+    '{descricao}': 'Pauta: revisar metas do trimestre',
+    '{duracao}': '60 min',
+    '{rsvp_sim}': '#',
+    '{rsvp_talvez}': '#',
+    '{rsvp_nao}': '#',
+    '{google_calendar_url}': '#',
+    '{nome_responsavel}': 'Carlos Mendes',
+    '{tipo_alerta}': 'SLA Crítico',
+    '{valor_atual}': '65%',
+    '{meta}': '90%',
+    '{link_recuperacao}': 'https://app.exemplo.com/reset',
+  };
+
+  const openEmailPreview = (corpo: string) => {
+    let rendered = corpo;
+    for (const [tag, value] of Object.entries(EMAIL_SAMPLE_DATA)) {
+      rendered = rendered.split(tag).join(value);
+    }
+    setPreviewContent(rendered);
+    setPreviewOpen(true);
+  };
+
   const loadStats = async () => {
     try {
       // Get ALL emails from history (system-wide, not filtered by user)
@@ -499,6 +541,26 @@ export default function Emails() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Email Preview Dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-primary" />
+              Prévia do Template
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto border rounded-lg bg-background">
+            <div 
+              className="p-6"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewContent) }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            * As variáveis foram substituídas por dados de exemplo para visualização
+          </p>
+        </DialogContent>
+      </Dialog>
       <div className="container mx-auto p-6 md:p-8 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -1276,6 +1338,12 @@ export default function Emails() {
                         <Save className="mr-2 h-4 w-4" />
                         {editandoTemplate ? "Atualizar" : "Criar"} Template
                       </Button>
+                      {novoTemplate.corpo && (
+                        <Button variant="outline" onClick={() => openEmailPreview(novoTemplate.corpo)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Prévia
+                        </Button>
+                      )}
                       {editandoTemplate && (
                         <Button
                           variant="outline"
@@ -1335,6 +1403,9 @@ export default function Emails() {
                               </div>
                             </div>
                             <div className="flex gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => openEmailPreview(template.corpo)} title="Prévia">
+                                <Eye className="h-4 w-4 text-primary" />
+                              </Button>
                               <Button size="sm" variant="ghost" onClick={() => handleEditTemplate(template)}>
                                 Editar
                               </Button>
