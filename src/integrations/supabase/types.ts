@@ -1667,38 +1667,56 @@ export type Database = {
         Row: {
           assunto: string
           ativo: boolean | null
+          categoria: string | null
           corpo: string
           created_at: string | null
+          destinatarios_tipo: string | null
+          frequencia: string | null
           id: string
           nome: string
+          proxima_execucao: string | null
           status: string[] | null
           tipo: string | null
+          ultima_execucao: string | null
           updated_at: string | null
           user_id: string
+          variaveis_extras: Json | null
         }
         Insert: {
           assunto: string
           ativo?: boolean | null
+          categoria?: string | null
           corpo: string
           created_at?: string | null
+          destinatarios_tipo?: string | null
+          frequencia?: string | null
           id?: string
           nome: string
+          proxima_execucao?: string | null
           status?: string[] | null
           tipo?: string | null
+          ultima_execucao?: string | null
           updated_at?: string | null
           user_id: string
+          variaveis_extras?: Json | null
         }
         Update: {
           assunto?: string
           ativo?: boolean | null
+          categoria?: string | null
           corpo?: string
           created_at?: string | null
+          destinatarios_tipo?: string | null
+          frequencia?: string | null
           id?: string
           nome?: string
+          proxima_execucao?: string | null
           status?: string[] | null
           tipo?: string | null
+          ultima_execucao?: string | null
           updated_at?: string | null
           user_id?: string
+          variaveis_extras?: Json | null
         }
         Relationships: []
       }
@@ -3689,36 +3707,60 @@ export type Database = {
       }
       performance_metas: {
         Row: {
+          alertas_inadimplencia: boolean | null
+          alertas_retencao: boolean | null
+          alertas_sinistralidade: boolean | null
           ativo: boolean
           created_at: string
           descricao: string | null
+          frequencia_verificacao: string | null
           id: string
+          meta_inadimplencia_percentual: number | null
           meta_minima_atendimentos: number
+          meta_retencao_percentual: number | null
+          meta_sinistralidade_percentual: number | null
           meta_taxa_conclusao: number
           meta_tempo_medio_horas: number
           nome: string
+          tipos_alerta_ativos: string[] | null
           updated_at: string
         }
         Insert: {
+          alertas_inadimplencia?: boolean | null
+          alertas_retencao?: boolean | null
+          alertas_sinistralidade?: boolean | null
           ativo?: boolean
           created_at?: string
           descricao?: string | null
+          frequencia_verificacao?: string | null
           id?: string
+          meta_inadimplencia_percentual?: number | null
           meta_minima_atendimentos?: number
+          meta_retencao_percentual?: number | null
+          meta_sinistralidade_percentual?: number | null
           meta_taxa_conclusao?: number
           meta_tempo_medio_horas?: number
           nome: string
+          tipos_alerta_ativos?: string[] | null
           updated_at?: string
         }
         Update: {
+          alertas_inadimplencia?: boolean | null
+          alertas_retencao?: boolean | null
+          alertas_sinistralidade?: boolean | null
           ativo?: boolean
           created_at?: string
           descricao?: string | null
+          frequencia_verificacao?: string | null
           id?: string
+          meta_inadimplencia_percentual?: number | null
           meta_minima_atendimentos?: number
+          meta_retencao_percentual?: number | null
+          meta_sinistralidade_percentual?: number | null
           meta_taxa_conclusao?: number
           meta_tempo_medio_horas?: number
           nome?: string
+          tipos_alerta_ativos?: string[] | null
           updated_at?: string
         }
         Relationships: []

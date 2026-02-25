@@ -56,6 +56,9 @@ interface SMTPConfig {
   from_name: string;
 }
 
+type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao";
+type TemplateFrequencia = "manual" | "diario" | "semanal" | "mensal";
+
 interface EmailTemplate {
   id: string;
   nome: string;
@@ -63,7 +66,11 @@ interface EmailTemplate {
   corpo: string;
   status: string[];
   ativo: boolean;
-  tipo: "atendimento" | "alerta_performance" | "recuperacao";
+  tipo: TemplateTipo;
+  categoria: string;
+  frequencia: TemplateFrequencia;
+  ultima_execucao: string | null;
+  proxima_execucao: string | null;
 }
 
 interface EmailAutoConfig {
@@ -92,7 +99,9 @@ export default function Emails() {
     corpo: "",
     status: [] as string[],
     ativo: true,
-    tipo: "atendimento" as "atendimento" | "alerta_performance" | "recuperacao",
+    tipo: "atendimento" as TemplateTipo,
+    categoria: "atendimento",
+    frequencia: "manual" as TemplateFrequencia,
   });
   const [editandoTemplate, setEditandoTemplate] = useState<string | null>(null);
   const [historico, setHistorico] = useState<any[]>([]);
@@ -353,9 +362,11 @@ export default function Emails() {
         nome: "",
         assunto: "",
         corpo: "",
-        status: [],
+        status: [] as string[],
         ativo: true,
         tipo: "atendimento",
+        categoria: "atendimento",
+        frequencia: "manual",
       });
       setEditandoTemplate(null);
     } catch (error) {
@@ -382,7 +393,9 @@ export default function Emails() {
       corpo: template.corpo,
       status: template.status || [],
       ativo: template.ativo,
-      tipo: template.tipo || "atendimento",
+      tipo: (template.tipo || "atendimento") as TemplateTipo,
+      categoria: template.categoria || "atendimento",
+      frequencia: (template.frequencia || "manual") as TemplateFrequencia,
     });
     setEditandoTemplate(template.id);
   };
@@ -1155,22 +1168,53 @@ export default function Emails() {
                     <CardDescription>Crie templates de e-mail para diferentes status</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Tipo de Template *</Label>
-                      <select
-                        className="w-full border rounded-md p-2"
-                        value={novoTemplate.tipo}
-                        onChange={(e) =>
-                          setNovoTemplate({
-                            ...novoTemplate,
-                            tipo: e.target.value as "atendimento" | "alerta_performance" | "recuperacao",
-                          })
-                        }
-                      >
-                        <option value="atendimento">Atendimento</option>
-                        <option value="alerta_performance">Alerta de Performance</option>
-                        <option value="recuperacao">Recuperação de Senha</option>
-                      </select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Tipo de Template *</Label>
+                        <select
+                          className="w-full border rounded-md p-2 bg-background text-foreground"
+                          value={novoTemplate.tipo}
+                          onChange={(e) =>
+                            setNovoTemplate({
+                              ...novoTemplate,
+                              tipo: e.target.value as TemplateTipo,
+                              categoria: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="atendimento">Atendimento</option>
+                          <option value="boas_vindas">Boas-vindas Portal</option>
+                          <option value="relatorio">Relatório</option>
+                          <option value="convite_reuniao">Convite de Reunião</option>
+                          <option value="alerta_performance">Alerta de Performance</option>
+                          <option value="recuperacao">Recuperação de Senha</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Frequência de Envio</Label>
+                        <select
+                          className="w-full border rounded-md p-2 bg-background text-foreground"
+                          value={novoTemplate.frequencia}
+                          onChange={(e) =>
+                            setNovoTemplate({
+                              ...novoTemplate,
+                              frequencia: e.target.value as TemplateFrequencia,
+                            })
+                          }
+                        >
+                          <option value="manual">Manual</option>
+                          <option value="diario">Diário</option>
+                          <option value="semanal">Semanal</option>
+                          <option value="mensal">Mensal</option>
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          {novoTemplate.frequencia === "manual" && "Enviado apenas manualmente ou por trigger"}
+                          {novoTemplate.frequencia === "diario" && "Enviado automaticamente todos os dias"}
+                          {novoTemplate.frequencia === "semanal" && "Enviado automaticamente toda semana"}
+                          {novoTemplate.frequencia === "mensal" && "Enviado automaticamente todo mês"}
+                        </p>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -1200,7 +1244,13 @@ export default function Emails() {
                         onChange={(e) => setNovoTemplate({ ...novoTemplate, corpo: e.target.value })}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Variáveis disponíveis: {"{assunto}"}, {"{status}"}, {"{corretora}"}
+                        Variáveis disponíveis: 
+                        {novoTemplate.tipo === "atendimento" && " {assunto}, {status}, {corretora}"}
+                        {novoTemplate.tipo === "boas_vindas" && " {nome_usuario}, {nome_corretora}, {link_portal}"}
+                        {novoTemplate.tipo === "relatorio" && " {periodo}, {total_atendimentos}, {taxa_conclusao}, {nome_corretora}"}
+                        {novoTemplate.tipo === "convite_reuniao" && " {titulo_reuniao}, {data_hora}, {link_reuniao}, {organizador}"}
+                        {novoTemplate.tipo === "alerta_performance" && " {nome_responsavel}, {tipo_alerta}, {valor_atual}, {meta}"}
+                        {novoTemplate.tipo === "recuperacao" && " {link_recuperacao}, {nome_usuario}"}
                       </p>
                     </div>
 
@@ -1235,9 +1285,11 @@ export default function Emails() {
                               nome: "",
                               assunto: "",
                               corpo: "",
-                              status: [],
+                              status: [] as string[],
                               ativo: true,
                               tipo: "atendimento",
+                              categoria: "atendimento",
+                              frequencia: "manual",
                             });
                           }}
                         >
@@ -1258,10 +1310,24 @@ export default function Emails() {
                         <div key={template.id} className="border rounded-lg p-4 space-y-2">
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
-                              <h4 className="font-semibold">{template.nome}</h4>
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-semibold">{template.nome}</h4>
+                                <Badge variant="outline" className="text-xs capitalize">
+                                  {template.tipo?.replace(/_/g, ' ') || 'atendimento'}
+                                </Badge>
+                                {template.frequencia && template.frequencia !== 'manual' && (
+                                  <Badge variant="secondary" className="text-xs capitalize">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    {template.frequencia}
+                                  </Badge>
+                                )}
+                                {!template.ativo && (
+                                  <Badge variant="destructive" className="text-xs">Inativo</Badge>
+                                )}
+                              </div>
                               <p className="text-sm text-muted-foreground">{template.assunto}</p>
                               <div className="flex gap-1 mt-2">
-                                {template.status.map((s) => (
+                                {template.status?.map((s) => (
                                   <Badge key={s} variant="secondary" className="text-xs">
                                     {s}
                                   </Badge>

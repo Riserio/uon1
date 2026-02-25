@@ -10,11 +10,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Target, TrendingUp, Clock, Activity } from 'lucide-react';
+import { Loader2, Target, TrendingUp, Clock, Activity, AlertTriangle, DollarSign, Shield, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface PerformanceMetasDialogProps {
   open: boolean;
@@ -29,7 +32,21 @@ interface Meta {
   meta_taxa_conclusao: number;
   meta_tempo_medio_horas: number;
   ativo: boolean;
+  alertas_inadimplencia: boolean;
+  meta_inadimplencia_percentual: number;
+  alertas_sinistralidade: boolean;
+  meta_sinistralidade_percentual: number;
+  alertas_retencao: boolean;
+  meta_retencao_percentual: number;
+  frequencia_verificacao: string;
+  tipos_alerta_ativos: string[];
 }
+
+const TIPOS_ALERTA = [
+  { id: 'volume_baixo', label: 'Volume Baixo de Atendimentos', icon: Activity },
+  { id: 'taxa_conclusao_baixa', label: 'Taxa de Conclusão Baixa', icon: TrendingUp },
+  { id: 'tempo_medio_alto', label: 'Tempo Médio Alto', icon: Clock },
+];
 
 export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasDialogProps) {
   const [loading, setLoading] = useState(false);
@@ -41,6 +58,14 @@ export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasD
     meta_minima_atendimentos: 5,
     meta_taxa_conclusao: 70,
     meta_tempo_medio_horas: 48,
+    alertas_inadimplencia: false,
+    meta_inadimplencia_percentual: 30,
+    alertas_sinistralidade: false,
+    meta_sinistralidade_percentual: 50,
+    alertas_retencao: false,
+    meta_retencao_percentual: 80,
+    frequencia_verificacao: 'diario',
+    tipos_alerta_ativos: ['volume_baixo', 'taxa_conclusao_baixa', 'tempo_medio_alto'] as string[],
   });
 
   useEffect(() => {
@@ -61,13 +86,21 @@ export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasD
       if (error && error.code !== 'PGRST116') throw error;
 
       if (data) {
-        setMeta(data);
+        setMeta(data as Meta);
         setFormData({
           nome: data.nome,
           descricao: data.descricao || '',
           meta_minima_atendimentos: data.meta_minima_atendimentos,
           meta_taxa_conclusao: data.meta_taxa_conclusao,
           meta_tempo_medio_horas: data.meta_tempo_medio_horas,
+          alertas_inadimplencia: data.alertas_inadimplencia ?? false,
+          meta_inadimplencia_percentual: data.meta_inadimplencia_percentual ?? 30,
+          alertas_sinistralidade: data.alertas_sinistralidade ?? false,
+          meta_sinistralidade_percentual: data.meta_sinistralidade_percentual ?? 50,
+          alertas_retencao: data.alertas_retencao ?? false,
+          meta_retencao_percentual: data.meta_retencao_percentual ?? 80,
+          frequencia_verificacao: data.frequencia_verificacao ?? 'diario',
+          tipos_alerta_ativos: data.tipos_alerta_ativos ?? ['volume_baixo', 'taxa_conclusao_baixa', 'tempo_medio_alto'],
         });
       }
     } catch (error) {
@@ -82,7 +115,6 @@ export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasD
     setLoading(true);
     try {
       if (meta) {
-        // Atualizar meta existente
         const { error } = await supabase
           .from('performance_metas')
           .update(formData)
@@ -91,7 +123,6 @@ export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasD
         if (error) throw error;
         toast.success('Metas atualizadas com sucesso!');
       } else {
-        // Criar nova meta
         const { error } = await supabase
           .from('performance_metas')
           .insert({ ...formData, ativo: true });
@@ -129,16 +160,25 @@ export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasD
     }
   };
 
+  const toggleTipoAlerta = (tipoId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      tipos_alerta_ativos: prev.tipos_alerta_ativos.includes(tipoId)
+        ? prev.tipos_alerta_ativos.filter(t => t !== tipoId)
+        : [...prev.tipos_alerta_ativos, tipoId],
+    }));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Target className="h-5 w-5" />
-            Configuração de Metas de Performance
+            Configuração de Metas e Alertas Críticos
           </DialogTitle>
           <DialogDescription>
-            Defina as metas mínimas de performance. Alertas serão enviados automaticamente quando responsáveis estiverem abaixo das metas.
+            Defina metas de performance e configure alertas para dados críticos como inadimplência, sinistralidade e retenção.
           </DialogDescription>
         </DialogHeader>
 
@@ -222,12 +262,10 @@ export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasD
                     min="1"
                     value={formData.meta_minima_atendimentos}
                     onChange={(e) =>
-                      setFormData({ ...formData, meta_minima_atendimentos: parseInt(e.target.value) })
+                      setFormData({ ...formData, meta_minima_atendimentos: parseInt(e.target.value) || 0 })
                     }
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Quantidade mínima em 30 dias
-                  </p>
+                  <p className="text-xs text-muted-foreground">Quantidade mínima em 30 dias</p>
                 </div>
 
                 <div className="space-y-2">
@@ -239,12 +277,10 @@ export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasD
                     max="100"
                     value={formData.meta_taxa_conclusao}
                     onChange={(e) =>
-                      setFormData({ ...formData, meta_taxa_conclusao: parseInt(e.target.value) })
+                      setFormData({ ...formData, meta_taxa_conclusao: parseInt(e.target.value) || 0 })
                     }
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Percentual de conclusão esperado
-                  </p>
+                  <p className="text-xs text-muted-foreground">Percentual de conclusão esperado</p>
                 </div>
 
                 <div className="space-y-2">
@@ -255,14 +291,186 @@ export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasD
                     min="1"
                     value={formData.meta_tempo_medio_horas}
                     onChange={(e) =>
-                      setFormData({ ...formData, meta_tempo_medio_horas: parseInt(e.target.value) })
+                      setFormData({ ...formData, meta_tempo_medio_horas: parseInt(e.target.value) || 0 })
                     }
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Tempo máximo por atendimento
-                  </p>
+                  <p className="text-xs text-muted-foreground">Tempo máximo por atendimento</p>
                 </div>
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Tipos de Alerta Ativos */}
+            <div className="space-y-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Tipos de Alerta de Performance
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {TIPOS_ALERTA.map((tipo) => (
+                  <label
+                    key={tipo.id}
+                    className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      formData.tipos_alerta_ativos.includes(tipo.id)
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border'
+                    }`}
+                  >
+                    <Checkbox
+                      checked={formData.tipos_alerta_ativos.includes(tipo.id)}
+                      onCheckedChange={() => toggleTipoAlerta(tipo.id)}
+                    />
+                    <div className="flex items-center gap-2">
+                      <tipo.icon className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{tipo.label}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Alertas de Dados Críticos */}
+            <div className="space-y-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Shield className="h-5 w-5 text-destructive" />
+                Alertas de Dados Críticos
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Configure alertas automáticos para indicadores operacionais críticos.
+              </p>
+
+              {/* Inadimplência */}
+              <Card className={formData.alertas_inadimplencia ? 'border-destructive/30' : ''}>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center">
+                        <DollarSign className="h-5 w-5 text-destructive" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Alto Índice de Inadimplência</p>
+                        <p className="text-xs text-muted-foreground">Alerta quando a inadimplência ultrapassar o limite</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={formData.alertas_inadimplencia}
+                      onCheckedChange={(checked) => setFormData({ ...formData, alertas_inadimplencia: checked })}
+                    />
+                  </div>
+                  {formData.alertas_inadimplencia && (
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t">
+                      <Label className="text-sm whitespace-nowrap">Limite máximo:</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="100"
+                        className="w-24"
+                        value={formData.meta_inadimplencia_percentual}
+                        onChange={(e) =>
+                          setFormData({ ...formData, meta_inadimplencia_percentual: parseInt(e.target.value) || 0 })
+                        }
+                      />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Sinistralidade */}
+              <Card className={formData.alertas_sinistralidade ? 'border-amber-500/30' : ''}>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                        <AlertTriangle className="h-5 w-5 text-amber-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Alta Sinistralidade</p>
+                        <p className="text-xs text-muted-foreground">Alerta quando a sinistralidade ultrapassar o limite</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={formData.alertas_sinistralidade}
+                      onCheckedChange={(checked) => setFormData({ ...formData, alertas_sinistralidade: checked })}
+                    />
+                  </div>
+                  {formData.alertas_sinistralidade && (
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t">
+                      <Label className="text-sm whitespace-nowrap">Limite máximo:</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="100"
+                        className="w-24"
+                        value={formData.meta_sinistralidade_percentual}
+                        onChange={(e) =>
+                          setFormData({ ...formData, meta_sinistralidade_percentual: parseInt(e.target.value) || 0 })
+                        }
+                      />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Retenção */}
+              <Card className={formData.alertas_retencao ? 'border-blue-500/30' : ''}>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                        <Users className="h-5 w-5 text-blue-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Baixa Retenção</p>
+                        <p className="text-xs text-muted-foreground">Alerta quando a taxa de retenção cair abaixo do mínimo</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={formData.alertas_retencao}
+                      onCheckedChange={(checked) => setFormData({ ...formData, alertas_retencao: checked })}
+                    />
+                  </div>
+                  {formData.alertas_retencao && (
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t">
+                      <Label className="text-sm whitespace-nowrap">Mínimo esperado:</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="100"
+                        className="w-24"
+                        value={formData.meta_retencao_percentual}
+                        onChange={(e) =>
+                          setFormData({ ...formData, meta_retencao_percentual: parseInt(e.target.value) || 0 })
+                        }
+                      />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <Separator />
+
+            {/* Frequência de Verificação */}
+            <div className="space-y-3">
+              <Label>Frequência de Verificação dos Alertas</Label>
+              <select
+                className="w-full border rounded-md p-2 bg-background text-foreground"
+                value={formData.frequencia_verificacao}
+                onChange={(e) => setFormData({ ...formData, frequencia_verificacao: e.target.value })}
+              >
+                <option value="diario">Diário</option>
+                <option value="semanal">Semanal</option>
+                <option value="mensal">Mensal</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Define com que frequência o sistema verifica os indicadores e envia alertas.
+              </p>
             </div>
 
             {/* Info sobre alertas */}
@@ -271,11 +479,11 @@ export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasD
                 <div className="flex items-start gap-3">
                   <Badge variant="outline" className="mt-1">ℹ️</Badge>
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    <p className="font-medium text-foreground">Como funcionam os alertas automáticos:</p>
+                    <p className="font-medium text-foreground">Como funcionam os alertas:</p>
                     <ul className="list-disc pl-5 space-y-1">
-                      <li>Os alertas são verificados periodicamente pelo sistema</li>
-                      <li>Emails são enviados para: o responsável, seu líder, seu administrativo e todos os superintendentes</li>
-                      <li>Alertas são gerados quando qualquer meta não é atingida no período de 30 dias</li>
+                      <li>Alertas de performance são enviados para: responsável, líder, administrativo e superintendentes</li>
+                      <li>Alertas de dados críticos (inadimplência, sinistralidade, retenção) são enviados para todos os superintendentes</li>
+                      <li>A verificação ocorre conforme a frequência configurada acima</li>
                     </ul>
                   </div>
                 </div>
@@ -305,7 +513,7 @@ export function PerformanceMetasDialog({ open, onOpenChange }: PerformanceMetasD
                     Salvando...
                   </>
                 ) : (
-                  'Salvar Metas'
+                  'Salvar Configurações'
                 )}
               </Button>
             </div>
