@@ -1,0 +1,1 @@
+UPDATE public.meeting_rooms SET status = 'finalizada', finalizado_em = now() WHERE status = 'ativa';

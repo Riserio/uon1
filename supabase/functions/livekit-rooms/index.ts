@@ -92,6 +92,7 @@ Deno.serve(async (req) => {
         livekit_room_name: roomName,
         max_participantes: body.max_participantes || 50,
         agendado_para: body.agendado_para || null,
+        duracao_minutos: body.duracao_minutos || 60,
         convidados: body.convidados || [],
       }).select().single();
 

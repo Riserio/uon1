@@ -130,6 +130,7 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
 
   const handleCreate = async () => {
     if (!form.nome.trim()) { toast.error("Informe o nome da reunião"); return; }
+    if (convidados.length === 0) { toast.error("Adicione pelo menos 1 convidado"); return; }
     setCreating(true);
 
     try {
