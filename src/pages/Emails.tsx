@@ -105,7 +105,11 @@ export default function Emails() {
     falhados: 0,
     taxaSucesso: 0,
   });
-  const [resendUsage, setResendUsage] = useState<{ sending: number; domains: any[] } | null>(null);
+  const [resendUsage, setResendUsage] = useState<{
+    domains: any[];
+    monthly: { sending: number; failed: number; limit: number };
+    daily: { sending: number; failed: number; limit: number };
+  } | null>(null);
   const [processandoFila, setProcessandoFila] = useState(false);
   const [availableStatus, setAvailableStatus] = useState<string[]>([]);
 
@@ -425,15 +429,13 @@ export default function Emails() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       
-      // Count emails sent via Resend (corpo starts with [Resend])
-      const { data: resendEmails } = await supabase
-        .from("email_historico")
-        .select("status, created_at")
-        .like("corpo", "[Resend]%");
+      const response = await supabase.functions.invoke('resend-stats', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (response.error) throw response.error;
       
-      const sending = resendEmails?.filter(e => e.status === 'enviado').length || 0;
-      
-      setResendUsage({ sending, domains: [] });
+      setResendUsage(response.data);
     } catch (error) {
       console.error("Error loading Resend usage:", error);
     }
@@ -753,13 +755,89 @@ export default function Emails() {
                   </Card>
                 </div>
 
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                  {/* Resend Monthly Limit */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-base">Limite Mensal (Resend)</CardTitle>
+                          <CardDescription>Free tier — 3.000 emails/mês</CardDescription>
+                        </div>
+                        <Badge variant="outline">Free</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Monthly limit</span>
+                        <span className="text-lg font-bold">
+                          {resendUsage?.monthly?.sending ?? 0} / {resendUsage?.monthly?.limit ?? 3000}
+                        </span>
+                      </div>
+                      <Progress
+                        value={resendUsage ? (resendUsage.monthly.sending / resendUsage.monthly.limit) * 100 : 0}
+                        className="h-2"
+                      />
+                      <div className="space-y-2 pt-2 border-t">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Sending</span>
+                          <span className="font-medium">{resendUsage?.monthly?.sending ?? 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Falhados</span>
+                          <span className="font-medium text-destructive">{resendUsage?.monthly?.failed ?? 0}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Resend Daily Limit */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-base">Limite Diário (Resend)</CardTitle>
+                          <CardDescription>Free tier — 100 emails/dia</CardDescription>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={loadResendUsage}>
+                          <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                          Atualizar
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Daily limit</span>
+                        <span className="text-lg font-bold">
+                          {resendUsage?.daily?.sending ?? 0} / {resendUsage?.daily?.limit ?? 100}
+                        </span>
+                      </div>
+                      <Progress
+                        value={resendUsage ? (resendUsage.daily.sending / resendUsage.daily.limit) * 100 : 0}
+                        className="h-2"
+                      />
+                      <div className="space-y-2 pt-2 border-t">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Sending</span>
+                          <span className="font-medium">{resendUsage?.daily?.sending ?? 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Falhados</span>
+                          <span className="font-medium text-destructive">{resendUsage?.daily?.failed ?? 0}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Informações do Sistema */}
                 <Card className="mt-6">
                   <CardHeader>
                     <CardTitle>Informações do Sistema</CardTitle>
                     <CardDescription>Status e configurações de envio</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="flex items-start gap-3 p-4 border rounded-lg">
                         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                           <Mail className="h-4 w-4 text-primary" />
@@ -768,19 +846,6 @@ export default function Emails() {
                           <p className="font-medium text-sm">Método Principal</p>
                           <p className="text-xs text-muted-foreground mt-1">Resend API (Primário)</p>
                           <p className="text-xs text-muted-foreground">Fallback: SMTP</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-3 p-4 border rounded-lg">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Send className="h-4 w-4 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">Resend - Uso</p>
-                          <p className="text-2xl font-bold text-primary mt-1">
-                            {resendUsage?.sending ?? '—'}
-                          </p>
-                          <p className="text-xs text-muted-foreground">emails enviados via Resend</p>
                         </div>
                       </div>
 
