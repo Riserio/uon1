@@ -105,6 +105,7 @@ export default function Emails() {
     falhados: 0,
     taxaSucesso: 0,
   });
+  const [resendUsage, setResendUsage] = useState<{ sending: number; domains: any[] } | null>(null);
   const [processandoFila, setProcessandoFila] = useState(false);
   const [availableStatus, setAvailableStatus] = useState<string[]>([]);
 
@@ -118,6 +119,7 @@ export default function Emails() {
       loadEmailAutoConfig();
       loadStats();
       loadAvailableStatus();
+      loadResendUsage();
     }
 
     // Subscribe to realtime changes for status_config
@@ -415,6 +417,25 @@ export default function Emails() {
       });
     } catch (error) {
       console.error("Error loading stats:", error);
+    }
+  };
+
+  const loadResendUsage = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      // Count emails sent via Resend (corpo starts with [Resend])
+      const { data: resendEmails } = await supabase
+        .from("email_historico")
+        .select("status, created_at")
+        .like("corpo", "[Resend]%");
+      
+      const sending = resendEmails?.filter(e => e.status === 'enviado').length || 0;
+      
+      setResendUsage({ sending, domains: [] });
+    } catch (error) {
+      console.error("Error loading Resend usage:", error);
     }
   };
 
@@ -738,15 +759,28 @@ export default function Emails() {
                     <CardDescription>Status e configurações de envio</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div className="flex items-start gap-3 p-4 border rounded-lg">
                         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                           <Mail className="h-4 w-4 text-primary" />
                         </div>
                         <div>
                           <p className="font-medium text-sm">Método Principal</p>
-                          <p className="text-xs text-muted-foreground mt-1">SMTP (Hostinger)</p>
-                          <p className="text-xs text-muted-foreground">Fallback: Resend</p>
+                          <p className="text-xs text-muted-foreground mt-1">Resend API (Primário)</p>
+                          <p className="text-xs text-muted-foreground">Fallback: SMTP</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3 p-4 border rounded-lg">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Send className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">Resend - Uso</p>
+                          <p className="text-2xl font-bold text-primary mt-1">
+                            {resendUsage?.sending ?? '—'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">emails enviados via Resend</p>
                         </div>
                       </div>
 
@@ -880,6 +914,15 @@ export default function Emails() {
                                 >
                                   {email.status === "enviado" ? "Enviado" : "Erro"}
                                 </Badge>
+                                {email.corpo?.startsWith("[Resend]") && (
+                                  <Badge variant="outline" className="text-xs shrink-0">Resend</Badge>
+                                )}
+                                {email.corpo?.startsWith("[SMTP]") && (
+                                  <Badge variant="outline" className="text-xs shrink-0">SMTP</Badge>
+                                )}
+                                {!email.atendimento_id && (
+                                  <Badge variant="secondary" className="text-xs shrink-0">Sistema</Badge>
+                                )}
                               </div>
                               <p className="text-xs text-muted-foreground truncate">Para: {email.destinatario}</p>
                               <p className="text-xs text-muted-foreground">

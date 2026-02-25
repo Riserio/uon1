@@ -1535,7 +1535,7 @@ export type Database = {
       email_historico: {
         Row: {
           assunto: string
-          atendimento_id: string
+          atendimento_id: string | null
           corpo: string
           created_at: string | null
           destinatario: string
@@ -1547,7 +1547,7 @@ export type Database = {
         }
         Insert: {
           assunto: string
-          atendimento_id: string
+          atendimento_id?: string | null
           corpo: string
           created_at?: string | null
           destinatario: string
@@ -1559,7 +1559,7 @@ export type Database = {
         }
         Update: {
           assunto?: string
-          atendimento_id?: string
+          atendimento_id?: string | null
           corpo?: string
           created_at?: string | null
           destinatario?: string
