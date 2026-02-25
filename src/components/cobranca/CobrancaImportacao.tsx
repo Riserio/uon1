@@ -243,7 +243,10 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
       
-      console.log("Import headers:", Object.keys(jsonData[0] || {}));
+      const headers = Object.keys(jsonData[0] || {});
+      console.log("Import headers:", headers);
+      console.log("Import first row raw:", JSON.stringify(jsonData[0]));
+      console.log("Import second row raw:", JSON.stringify(jsonData[1]));
 
       if (!jsonData.length) {
         toast.error("Arquivo vazio ou sem dados válidos");
@@ -328,12 +331,22 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
           // FALLBACK: derivar campos críticos se vazios
           // ============================================
 
-          // Dia Vencimento Veículo = dia do mês de data_vencimento
-          if (record.dia_vencimento_veiculo == null && record.data_vencimento) {
-            const dv = String(record.data_vencimento); // YYYY-MM-DD
-            const dia = parseInt(dv.split("-")[2], 10);
-            if (!isNaN(dia) && dia >= 1 && dia <= 31) {
-              record.dia_vencimento_veiculo = dia;
+          // Dia Vencimento Veículo - NÃO derivar de datas pois é o dia do ciclo de cobrança (5,10,15,20,25)
+          // e não necessariamente corresponde ao dia da data_vencimento ou data_vencimento_original.
+          // Se o valor não foi lido da coluna, tentar buscar por variações de nome
+          if (record.dia_vencimento_veiculo == null) {
+            // Tentar aliases adicionais para encontrar o valor
+            const diaAliases = [
+              "Dia Vencimento Veiculo", "DIA VENCIMENTO VEICULO", "Dia Vencimento Veículo",
+              "DIA VENCIMENTO VEÍCULO", "Dia Venc Veiculo", "DIA VENC VEICULO",
+              "DiaVencimentoVeiculo", "Dia Vcto Veiculo"
+            ];
+            for (const alias of diaAliases) {
+              const v = row[alias];
+              if (v !== undefined && v !== null && v !== "") {
+                record.dia_vencimento_veiculo = parseInt(String(v)) || null;
+                break;
+              }
             }
           }
 
