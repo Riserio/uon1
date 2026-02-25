@@ -179,7 +179,7 @@ const handler = async (req: Request): Promise<Response> => {
         enviado_por: user.id,
         status: emailSent ? 'enviado' : 'erro',
         erro_mensagem: emailSent ? null : errorMessage,
-        atendimento_id: '00000000-0000-0000-0000-000000000000',
+        atendimento_id: null,
       });
 
       results.push({
