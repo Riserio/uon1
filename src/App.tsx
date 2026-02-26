@@ -75,6 +75,7 @@ const InviteEntry = lazy(() => import("./pages/InviteEntry"));
 const PortalGestaoAssociacao = lazy(() => import("./pages/portal/PortalGestaoAssociacao"));
 const PortalLayout = lazy(() => import("./components/portal/PortalLayout"));
 const PortalAcompanhamentoEventos = lazy(() => import("./pages/portal/PortalAcompanhamentoEventos"));
+const MeetingRsvp = lazy(() => import("./pages/MeetingRsvp"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -284,6 +285,7 @@ const App = () => (
                 <Route path="/talk" element={<Navigate to="/video" replace />} />
               </Route>
               
+              <Route path="/meeting-rsvp" element={<MeetingRsvp />} />
               <Route path="/video/:roomId" element={<ProtectedRoute><MeetingRoom /></ProtectedRoute>} />
               <Route path="/invite/:inviteId" element={<InviteEntry />} />
               <Route path="/portal" element={<PortalRoute><PortalLayout /></PortalRoute>}>
