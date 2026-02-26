@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "npm:resend@2.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -204,6 +205,83 @@ serve(async (req) => {
     }
 
     console.log('Corretora link created');
+
+    // === Enviar email de boas-vindas ===
+    try {
+      // Buscar nome da corretora
+      const { data: corretora } = await supabaseClient
+        .from('corretoras')
+        .select('nome, slug')
+        .eq('id', corretoraId)
+        .single();
+
+      // Buscar template de boas-vindas ativo (de qualquer admin)
+      const { data: template } = await supabaseClient
+        .from('email_templates')
+        .select('assunto, corpo')
+        .eq('tipo', 'boas_vindas')
+        .eq('ativo', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (template) {
+        const portalUrl = corretora?.slug
+          ? `https://uon1.lovable.app/portal/${corretora.slug}/login`
+          : 'https://uon1.lovable.app';
+
+        // Substituir variáveis do template
+        const replaceVars = (text: string) =>
+          text
+            .replace(/\{nome_usuario\}/g, nome || email)
+            .replace(/\{nome_corretora\}/g, corretora?.nome || '')
+            .replace(/\{link_portal\}/g, portalUrl);
+
+        const assunto = replaceVars(template.assunto);
+        const corpo = replaceVars(template.corpo);
+
+        // Buscar config Resend
+        const { data: resendConfig } = await supabaseClient
+          .from('resend_config')
+          .select('from_email, from_name')
+          .limit(1)
+          .single();
+
+        const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+        if (RESEND_API_KEY) {
+          const resend = new Resend(RESEND_API_KEY);
+          const fromEmail = resendConfig?.from_email || 'noreply@resend.dev';
+          const fromName = resendConfig?.from_name || 'Portal PID';
+
+          const result = await resend.emails.send({
+            from: `${fromName} <${fromEmail}>`,
+            to: email,
+            subject: assunto,
+            html: corpo,
+          });
+
+          console.log('[boas-vindas] Email sent:', result);
+
+          // Registrar no histórico
+          await supabaseClient.from('email_historico').insert({
+            assunto,
+            corpo,
+            destinatario: email,
+            enviado_por: userId,
+            status: result.error ? 'erro' : 'enviado',
+            erro_mensagem: result.error?.message || null,
+            enviado_em: new Date().toISOString(),
+          });
+        } else {
+          console.warn('[boas-vindas] RESEND_API_KEY not configured, skipping email');
+        }
+      } else {
+        console.log('[boas-vindas] No active welcome template found, skipping email');
+      }
+    } catch (emailErr: any) {
+      console.error('[boas-vindas] Error sending welcome email:', emailErr.message);
+      // Não bloquear criação do usuário por falha no email
+    }
 
     return new Response(
       JSON.stringify({ 
