@@ -61,6 +61,10 @@ export default function MeetingRsvp() {
 
         {status === "success" && (
           <>
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <img src="/images/logo-full.png" alt="Logo" className="h-8 object-contain" />
+              <img src="/images/logo-vg.png" alt="Vangard" className="h-8 object-contain" />
+            </div>
             <div className={`inline-flex p-4 rounded-full ${c.bg}`}>{c.icon}</div>
             <h2 className={`text-2xl font-bold ${c.color}`}>{c.title}</h2>
             {meetingName && (
