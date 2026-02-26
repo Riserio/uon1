@@ -717,19 +717,24 @@ export default function Usuarios() {
     if (!confirm(`Tem certeza que deseja excluir/inativar o usuário "${profile.nome}"?`)) return;
 
     try {
-      await supabase.from("user_roles").delete().eq("user_id", profile.id);
-      await supabase.from("equipe_lideres").delete().eq("lider_id", profile.id);
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session) {
+        toast.error("Sessão inválida");
+        return;
+      }
 
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          ativo: false,
-          status: "inativo",
-        })
-        .eq("id", profile.id);
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { userId: profile.id },
+      });
 
       if (error) {
+        console.error("Erro ao excluir usuário:", error);
         toast.error("Erro ao excluir usuário");
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
         return;
       }
 
