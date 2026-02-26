@@ -466,13 +466,35 @@ Deno.serve(async (req) => {
         nao: "❌ Você declinou o convite.",
       };
 
-      return new Response(`
-        <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RSVP - ${nome}</title>
-        <style>body{font-family:'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc;margin:0;}
-        .card{background:#fff;border-radius:12px;padding:40px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.08);max-width:400px;}
-        h2{margin:0 0 8px;color:#1e293b;}p{color:#64748b;margin:0;}</style></head>
-        <body><div class="card"><h2>${msgs[resposta!]}</h2><p>Reunião: <strong>${nome}</strong></p><p style="margin-top:16px;font-size:13px;">Você pode fechar esta página.</p></div></body></html>
-      `, { headers: { ...corsHeaders, "Content-Type": "text/html" } });
+      const icons: Record<string, string> = {
+        sim: `<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`,
+        talvez: `<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>`,
+        nao: `<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`,
+      };
+      const bgColors: Record<string, string> = { sim: '#f0fdf4', talvez: '#fffbeb', nao: '#fef2f2' };
+      const borderColors: Record<string, string> = { sim: '#bbf7d0', talvez: '#fde68a', nao: '#fecaca' };
+
+      return new Response(`<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RSVP - ${nome}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);padding:20px;}
+.card{background:#fff;border-radius:20px;padding:48px 40px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.06);max-width:420px;width:100%;animation:fadeIn .5s ease-out;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.icon-wrap{width:80px;height:80px;border-radius:50%;background:${bgColors[resposta!]};border:2px solid ${borderColors[resposta!]};display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;}
+h2{font-size:22px;font-weight:700;color:#0f172a;margin-bottom:8px;}
+.meeting-name{display:inline-block;background:#f1f5f9;color:#334155;font-size:14px;font-weight:600;padding:6px 16px;border-radius:20px;margin:12px 0 20px;}
+.close-msg{color:#94a3b8;font-size:13px;margin-top:8px;}
+.brand{margin-top:24px;padding-top:20px;border-top:1px solid #f1f5f9;font-size:11px;color:#cbd5e1;letter-spacing:.5px;}
+</style></head>
+<body><div class="card">
+<div class="icon-wrap">${icons[resposta!]}</div>
+<h2>${msgs[resposta!]}</h2>
+<div class="meeting-name">📹 ${nome}</div>
+<p class="close-msg">Você já pode fechar esta página.</p>
+<div class="brand">TALK BY UON1</div>
+</div></body></html>`, { headers: { ...corsHeaders, "Content-Type": "text/html" } });
     }
 
     // ── NOTIFY MEETING (email + whatsapp) ──
