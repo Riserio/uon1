@@ -127,19 +127,19 @@ export default function Dashboard() {
   const [atendimentoTab, setAtendimentoTab] = useState("administradora");
   const [fluxos, setFluxos] = useState<{id: string;nome: string;}[]>([]);
 
-  // SGA atendimentos (Gestão Associação)
-  const [sgaEventos, setSgaEventos] = useState<any[]>([]);
+  // Corretora names for Associações tab
+  const [corretoraNames, setCorretoraNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [statusRes, profilesRes, corretorasRes, contratosRes, reunioesRes, sgaRes, fluxosRes] = await Promise.all([
+        const [statusRes, profilesRes, corretorasRes, contratosRes, reunioesRes, corretorasNamesRes, fluxosRes] = await Promise.all([
         supabase.from("status_config").select("nome, tipo_etapa").eq("ativo", true),
         supabase.from("profiles").select("id, nome"),
         supabase.from("corretoras").select("id", { count: "exact", head: true }),
         supabase.from("contratos").select("id, numero, titulo, status, data_fim, contratante_nome").eq("arquivado", false).order("created_at", { ascending: false }).limit(50),
         supabase.from("meeting_rooms").select("id, nome, descricao, agendado_para, status, duracao_minutos").not("agendado_para", "is", null).neq("status", "finalizada").gte("agendado_para", startOfDay(new Date()).toISOString()).order("agendado_para", { ascending: true }).limit(10),
-        supabase.from("sga_eventos").select("id, protocolo, situacao_evento, data_evento, tipo_evento, associado_nome, corretora_id").order("created_at", { ascending: false }).limit(500),
+        supabase.from("corretoras").select("id, nome"),
         supabase.from("fluxos").select("id, nome").eq("ativo", true).order("ordem", { ascending: true })]
         );
         if (statusRes.data) {
@@ -151,7 +151,7 @@ export default function Dashboard() {
         setTotalCorretoras(corretorasRes.count || 0);
         setContratos((contratosRes.data || []) as ContratoResumo[]);
         setReunioes((reunioesRes.data || []) as ReuniaoResumo[]);
-        setSgaEventos(sgaRes.data || []);
+        if (corretorasNamesRes.data) setCorretoraNames(corretorasNamesRes.data.reduce((a, c) => {a[c.id] = c.nome;return a;}, {} as Record<string, string>));
         setFluxos((fluxosRes.data || []) as {id: string;nome: string;}[]);
 
         // Count sync errors (just the total)
@@ -264,14 +264,12 @@ export default function Dashboard() {
   const emAndamento = total - finalizados;
   const taxa = total > 0 ? (finalizados / total * 100).toFixed(1) : "0";
 
-  // SGA computed - same logic: finalized situacoes
-  const SGA_FINALIZED = ["FINALIZ", "CANCELAD", "NEGAD", "CONCLUI", "ENCERRAD"];
-  const isSgaFinalizado = (s: string) => SGA_FINALIZED.some((k) => s.toUpperCase().includes(k));
-
-  const sgaEmAndamento = useMemo(() => sgaEventos.filter((e) => !isSgaFinalizado(e.situacao_evento || "")).length, [sgaEventos]);
-  const sgaFinalizados = useMemo(() => sgaEventos.filter((e) => isSgaFinalizado(e.situacao_evento || "")).length, [sgaEventos]);
-  const totalSga = sgaEventos.length;
-  const sgaTaxa = totalSga > 0 ? (sgaFinalizados / totalSga * 100).toFixed(1) : "0";
+  // Associações computed - atendimentos com corretora_id (vinculados a associações)
+  const assocAtendimentos = useMemo(() => atendimentos.filter((a) => a.corretoraId), [atendimentos]);
+  const totalAssoc = assocAtendimentos.length;
+  const assocFinalizados = useMemo(() => assocAtendimentos.filter((a) => a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId)).length, [assocAtendimentos, fluxoFinalizadoIds]);
+  const assocEmAndamento = totalAssoc - assocFinalizados;
+  const assocTaxa = totalAssoc > 0 ? (assocFinalizados / totalAssoc * 100).toFixed(1) : "0";
 
   // Group by fluxo for donut
   const fluxoData = useMemo(() => {
@@ -289,17 +287,25 @@ export default function Dashboard() {
   { name: "Baixa", value: atendimentos.filter((a) => a.prioridade === "Baixa").length }],
   [atendimentos]);
 
-  const sgaSituacaoData = useMemo(() => {
+  // Associações: group by fluxo
+  const assocFluxoData = useMemo(() => {
     const m = new Map<string, number>();
-    sgaEventos.forEach((e) => {const s = e.situacao_evento || "N/A";m.set(s, (m.get(s) || 0) + 1);});
+    assocAtendimentos.forEach((a) => {
+      const name = a.fluxoId ? fluxoNames[a.fluxoId] || "Sem fluxo" : "Sem fluxo";
+      m.set(name, (m.get(name) || 0) + 1);
+    });
     return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
-  }, [sgaEventos]);
+  }, [assocAtendimentos, fluxoNames]);
 
-  const sgaTipoData = useMemo(() => {
+  // Associações: group by corretora
+  const assocCorretoraData = useMemo(() => {
     const m = new Map<string, number>();
-    sgaEventos.forEach((e) => {const t = e.tipo_evento || "N/A";m.set(t, (m.get(t) || 0) + 1);});
+    assocAtendimentos.forEach((a) => {
+      const name = a.corretoraId ? (corretoraNames[a.corretoraId] || "N/A") : "N/A";
+      m.set(name, (m.get(name) || 0) + 1);
+    });
     return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
-  }, [sgaEventos]);
+  }, [assocAtendimentos, corretoraNames]);
 
   const responsavelData = useMemo(() => {
     const m = new Map<string, number>();
@@ -489,30 +495,30 @@ export default function Dashboard() {
               <div className="space-y-5">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold">{totalSga}</p>
-                      <p className="text-sm text-muted-foreground mt-1">Total Eventos</p>
+                      <p className="text-2xl font-bold">{totalAssoc}</p>
+                      <p className="text-sm text-muted-foreground mt-1">Total</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-amber-600">{sgaEmAndamento}</p>
+                      <p className="text-2xl font-bold text-amber-600">{assocEmAndamento}</p>
                       <p className="text-sm text-muted-foreground mt-1">Em Andamento</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-emerald-600">{sgaFinalizados}</p>
+                      <p className="text-2xl font-bold text-emerald-600">{assocFinalizados}</p>
                       <p className="text-sm text-muted-foreground mt-1">Finalizados</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-primary">{sgaTaxa}%</p>
+                      <p className="text-2xl font-bold text-primary">{assocTaxa}%</p>
                       <p className="text-sm text-muted-foreground mt-1">Taxa Conclusão</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm font-semibold text-muted-foreground mb-2">Por Situação</p>
-                      <MiniDonut data={sgaSituacaoData} total={totalSga} />
+                      <p className="text-sm font-semibold text-muted-foreground mb-2">Por Fluxo</p>
+                      <MiniDonut data={assocFluxoData} total={totalAssoc} />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-muted-foreground mb-2">Por Tipo de Evento</p>
-                      <MiniDonut data={sgaTipoData} total={totalSga} />
+                      <p className="text-sm font-semibold text-muted-foreground mb-2">Por Associação</p>
+                      <MiniDonut data={assocCorretoraData} total={totalAssoc} />
                     </div>
                   </div>
                 </div>
