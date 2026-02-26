@@ -199,9 +199,23 @@ export default function Dashboard() {
 
   const loadAtendimentos = async () => {
     try {
-      const { data, error } = await supabase.from("atendimentos").select("id, numero, assunto, corretora_id, contato_id, responsavel_id, prioridade, status, tags, observacoes, data_retorno, data_concluido, fluxo_concluido_nome, fluxo_concluido_id, fluxo_id, created_at, updated_at").order("created_at", { ascending: false });
-      if (error) throw error;
-      setAtendimentos(data?.map((i) => ({ id: i.id, numero: i.numero, assunto: i.assunto, corretora: i.corretora_id || "", corretoraId: i.corretora_id || undefined, contato: i.contato_id || "", responsavel: i.responsavel_id || "", prioridade: i.prioridade, status: i.status, tags: i.tags || [], observacoes: i.observacoes || "", dataRetorno: i.data_retorno, dataConcluido: i.data_concluido, fluxoConcluido: i.fluxo_concluido_nome, fluxoConcluidoId: i.fluxo_concluido_id, fluxoId: i.fluxo_id, createdAt: i.created_at, updatedAt: i.updated_at })) || []);
+      const selectFields = "id, numero, assunto, corretora_id, contato_id, responsavel_id, prioridade, status, tags, observacoes, data_retorno, data_concluido, fluxo_concluido_nome, fluxo_concluido_id, fluxo_id, created_at, updated_at";
+      const allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase.from("atendimentos").select(selectFields).order("created_at", { ascending: false }).range(offset, offset + batchSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allData.push(...data);
+          offset += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+      setAtendimentos(allData.map((i) => ({ id: i.id, numero: i.numero, assunto: i.assunto, corretora: i.corretora_id || "", corretoraId: i.corretora_id || undefined, contato: i.contato_id || "", responsavel: i.responsavel_id || "", prioridade: i.prioridade, status: i.status, tags: i.tags || [], observacoes: i.observacoes || "", dataRetorno: i.data_retorno, dataConcluido: i.data_concluido, fluxoConcluido: i.fluxo_concluido_nome, fluxoConcluidoId: i.fluxo_concluido_id, fluxoId: i.fluxo_id, createdAt: i.created_at, updatedAt: i.updated_at })));
     } catch (e) {console.error(e);}
   };
 
