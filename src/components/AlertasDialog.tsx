@@ -132,7 +132,7 @@ export function AlertasDialog({ overdueCount = 0, overdueList = [] }: AlertasDia
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden rounded-2xl border-border/50 shadow-2xl">
+      <DialogContent className="max-w-2xl w-[95vw] p-0 gap-0 overflow-hidden rounded-2xl border-border/50 shadow-2xl max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="px-5 pt-5 pb-3 border-b border-border/50 bg-gradient-to-b from-muted/40 to-transparent">
           <DialogHeader>
@@ -182,7 +182,7 @@ export function AlertasDialog({ overdueCount = 0, overdueList = [] }: AlertasDia
 
           {/* Hoje Tab */}
           <TabsContent value="hoje" className="m-0 flex-1">
-            <ScrollArea className="max-h-[55vh]">
+            <ScrollArea className="h-[60vh]">
               <div className="p-4 space-y-2">
                 {compromissos.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -248,7 +248,7 @@ export function AlertasDialog({ overdueCount = 0, overdueList = [] }: AlertasDia
 
           {/* Alertas Tab */}
           <TabsContent value="alertas" className="m-0 flex-1">
-            <ScrollArea className="max-h-[55vh]">
+            <ScrollArea className="h-[60vh]">
               <div className="p-4 space-y-3">
                 {/* Quick actions */}
                 {unreadMessages > 0 && (
