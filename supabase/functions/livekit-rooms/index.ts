@@ -335,6 +335,8 @@ Deno.serve(async (req) => {
       const body = await req.json();
       const { roomId, nome, descricao, tipo, agendado_para, duracao_minutos, convidados } = body;
 
+      console.log("[updateRoom] Updating room", roomId, "convidados count:", convidados?.length);
+
       const updateData: Record<string, unknown> = {};
       if (nome !== undefined) updateData.nome = nome;
       if (descricao !== undefined) updateData.descricao = descricao;
@@ -351,7 +353,12 @@ Deno.serve(async (req) => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("[updateRoom] Error:", error.message);
+        throw error;
+      }
+
+      console.log("[updateRoom] Success, convidados saved:", (data.convidados as any[])?.length);
       return new Response(JSON.stringify({ room: data }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -170,6 +170,8 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
       const session = (await supabase.auth.getSession()).data.session;
       if (!session) throw new Error("Não autenticado");
 
+      console.log("[EditarReuniao] Saving room", room.id, "with", convidados.length, "guests, newGuests:", newConvidados.length);
+
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=updateRoom`,
         {
@@ -189,12 +191,43 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
           }),
         }
       );
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("[EditarReuniao] updateRoom HTTP error:", res.status, errText);
+        throw new Error(`Erro ao atualizar (HTTP ${res.status})`);
+      }
+
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
+      console.log("[EditarReuniao] Room updated successfully");
+
       // Send notifications to NEW participants only
       if (newConvidados.length > 0 && (enviarEmailNovos || enviarWhatsAppNovos)) {
+        console.log("[EditarReuniao] Sending notifications to", newConvidados.length, "new guests");
         try {
+          // Fetch email template (like CriarReuniaoDialog)
+          let templateCorpo: string | null = null;
+          let templateAssunto: string | null = null;
+          if (enviarEmailNovos) {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (authUser) {
+              const { data: tmpl } = await supabase
+                .from('email_templates')
+                .select('corpo, assunto')
+                .eq('user_id', authUser.id)
+                .eq('tipo', 'convite_reuniao')
+                .eq('ativo', true)
+                .limit(1)
+                .single();
+              if (tmpl) {
+                templateCorpo = tmpl.corpo;
+                templateAssunto = tmpl.assunto;
+              }
+            }
+          }
+
           const meetingLink = `${window.location.origin}/video/${room.id}`;
           const notifyRes = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=notifyMeeting`,
@@ -214,16 +247,36 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
                 enviarEmail: enviarEmailNovos,
                 enviarWhatsApp: enviarWhatsAppNovos,
                 duracaoMinutos: parseInt(form.duracao_minutos) || 60,
+                templateCorpo,
+                templateAssunto,
               }),
             }
           );
-          const notifyData = await notifyRes.json();
-          const enviados = notifyData.results?.filter((r: any) => r.status === "enviado").length || 0;
-          if (enviados > 0) {
-            toast.success(`${enviados} convite(s) enviado(s) aos novos participantes!`);
+
+          if (!notifyRes.ok) {
+            const errText = await notifyRes.text();
+            console.error("[EditarReuniao] notifyMeeting HTTP error:", notifyRes.status, errText);
+            toast.warning("Reunião salva, mas houve erro ao enviar notificações");
+          } else {
+            const notifyData = await notifyRes.json();
+            console.log("[EditarReuniao] notifyMeeting result:", notifyData);
+            if (notifyData.error) {
+              console.error("[EditarReuniao] notifyMeeting error:", notifyData.error);
+              toast.warning("Reunião salva, mas houve erro ao enviar notificações: " + notifyData.error);
+            } else {
+              const enviados = notifyData.results?.filter((r: any) => r.status === "enviado").length || 0;
+              const erros = notifyData.results?.filter((r: any) => r.status === "erro") || [];
+              if (enviados > 0) {
+                toast.success(`${enviados} convite(s) enviado(s) aos novos participantes!`);
+              }
+              if (erros.length > 0) {
+                console.error("[EditarReuniao] Notification errors:", erros);
+                toast.warning(`${erros.length} convite(s) com erro de envio`);
+              }
+            }
           }
         } catch (notifErr) {
-          console.error("Notification error:", notifErr);
+          console.error("[EditarReuniao] Notification error:", notifErr);
           toast.warning("Reunião salva, mas houve erro ao enviar notificações");
         }
       }
@@ -232,6 +285,7 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
       onOpenChange(false);
       onUpdated();
     } catch (e: any) {
+      console.error("[EditarReuniao] Save error:", e);
       toast.error(e.message || "Erro ao atualizar");
     }
     setSaving(false);
