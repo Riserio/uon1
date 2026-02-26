@@ -50,6 +50,7 @@ interface MeetingRoom {
   host_id: string;
   agendado_para: string | null;
   convidados: any[] | null;
+  duracao_minutos: number | null;
 }
 
 interface Props {
@@ -65,7 +66,7 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
     descricao: room.descricao || "",
     tipo: room.tipo,
     agendado_para: room.agendado_para ? formatDateTimeLocal(room.agendado_para) : "",
-    duracao_minutos: "60",
+    duracao_minutos: String(room.duracao_minutos || 60),
   });
   const [convidados, setConvidados] = useState<Convidado[]>((room.convidados as Convidado[]) || []);
   const [originalEmails, setOriginalEmails] = useState<Set<string>>(new Set());
@@ -85,7 +86,7 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
       descricao: room.descricao || "",
       tipo: room.tipo,
       agendado_para: room.agendado_para ? formatDateTimeLocal(room.agendado_para) : "",
-      duracao_minutos: "60",
+      duracao_minutos: String(room.duracao_minutos || 60),
     });
     const existing = (room.convidados as Convidado[]) || [];
     setConvidados(existing);

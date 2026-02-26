@@ -478,9 +478,20 @@ Deno.serve(async (req) => {
       const { data: profile } = await supabaseAdmin.from("profiles").select("nome").eq("id", user.id).single();
       const hostName = profile?.nome || user.email || "Organizador";
 
-      const dataFormatada = agendadoPara
-        ? new Date(agendadoPara).toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short", timeZone: "America/Sao_Paulo" })
-        : "Imediata";
+      // Format date in São Paulo timezone manually to avoid Deno locale issues
+      let dataFormatada = "Imediata";
+      if (agendadoPara) {
+        const d = new Date(agendadoPara);
+        // Convert UTC to São Paulo (UTC-3)
+        const sp = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+        const dia = String(sp.getUTCDate()).padStart(2, '0');
+        const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+        const mes = meses[sp.getUTCMonth()];
+        const ano = sp.getUTCFullYear();
+        const hora = String(sp.getUTCHours()).padStart(2, '0');
+        const min = String(sp.getUTCMinutes()).padStart(2, '0');
+        dataFormatada = `${dia} de ${mes} de ${ano} às ${hora}:${min} (Brasília)`;
+      }
 
       const results: { tipo: string; destinatario: string; status: string; erro?: string }[] = [];
 
@@ -505,23 +516,36 @@ Deno.serve(async (req) => {
       }
       console.log("[notifyMeeting] From email:", resendFromEmail, "SMTP configured:", !!smtpConfig);
 
-      // Generate ICS content helper
+      // Generate ICS content helper – uses America/Sao_Paulo VTIMEZONE
       const generateICS = (startDate: string, durationMin: number, title: string, desc: string, location: string, organizerEmail: string, attendeeEmail: string): string => {
         const start = new Date(startDate);
         const end = new Date(start.getTime() + durationMin * 60000);
-        const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+        // Format as local São Paulo time (UTC-3)
+        const fmtSP = (d: Date) => {
+          const sp = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+          return sp.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '');
+        };
         const uid = crypto.randomUUID();
-        const now = fmt(new Date());
+        const now = fmtSP(new Date());
         return [
           'BEGIN:VCALENDAR',
           'VERSION:2.0',
           'PRODID:-//Uon1 Talk//Meeting//PT',
           'CALSCALE:GREGORIAN',
           'METHOD:REQUEST',
+          'BEGIN:VTIMEZONE',
+          'TZID:America/Sao_Paulo',
+          'BEGIN:STANDARD',
+          'DTSTART:19700101T000000',
+          'TZOFFSETFROM:-0300',
+          'TZOFFSETTO:-0300',
+          'TZNAME:BRT',
+          'END:STANDARD',
+          'END:VTIMEZONE',
           'BEGIN:VEVENT',
-          `DTSTART:${fmt(start)}`,
-          `DTEND:${fmt(end)}`,
-          `DTSTAMP:${now}`,
+          `DTSTART;TZID=America/Sao_Paulo:${fmtSP(start)}`,
+          `DTEND;TZID=America/Sao_Paulo:${fmtSP(end)}`,
+          `DTSTAMP:${now}Z`,
           `UID:${uid}@uon1.com.br`,
           `SUMMARY:${title}`,
           `DESCRIPTION:${desc.replace(/\n/g, '\\n')}`,
@@ -618,10 +642,15 @@ Deno.serve(async (req) => {
                   <table style="width:100%;border-collapse:collapse;">
                     <tr>
                       <td style="width:70px;vertical-align:top;padding-right:16px;">
-                        <div style="background:#2563eb;border-radius:8px;text-align:center;padding:8px 0;width:60px;">
-                          <span style="color:#93c5fd;font-size:10px;text-transform:uppercase;letter-spacing:1px;">${agendadoPara ? new Date(agendadoPara).toLocaleDateString('pt-BR', { month: 'short', timeZone: 'America/Sao_Paulo' }) : 'Agora'}</span><br/>
-                          <span style="color:#fff;font-size:22px;font-weight:700;">${agendadoPara ? new Date(agendadoPara).toLocaleDateString('pt-BR', { day: '2-digit', timeZone: 'America/Sao_Paulo' }) : '—'}</span><br/>
-                          <span style="color:#93c5fd;font-size:10px;">${agendadoPara ? new Date(agendadoPara).toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'America/Sao_Paulo' }) : ''}</span>
+                         <div style="background:#2563eb;border-radius:8px;text-align:center;padding:8px 0;width:60px;">
+                          ${(() => {
+                            if (!agendadoPara) return `<span style="color:#93c5fd;font-size:10px;">Agora</span><br/><span style="color:#fff;font-size:22px;font-weight:700;">—</span>`;
+                            const _d = new Date(agendadoPara);
+                            const _sp = new Date(_d.getTime() - 3 * 60 * 60 * 1000);
+                            const _mesesShort = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+                            const _diasSemana = ['dom','seg','ter','qua','qui','sex','sáb'];
+                            return `<span style="color:#93c5fd;font-size:10px;text-transform:uppercase;letter-spacing:1px;">${_mesesShort[_sp.getUTCMonth()]}</span><br/><span style="color:#fff;font-size:22px;font-weight:700;">${String(_sp.getUTCDate()).padStart(2,'0')}</span><br/><span style="color:#93c5fd;font-size:10px;">${_diasSemana[_sp.getUTCDay()]}</span>`;
+                          })()}
                         </div>
                       </td>
                       <td style="vertical-align:top;">
