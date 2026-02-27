@@ -34,8 +34,9 @@ import {
   List,
   CalendarRange,
   ChevronRight,
-  
+  ChevronLeft,
 } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
 import { useAuth } from '@/hooks/useAuth';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -100,6 +101,7 @@ type ListTab = 'upcoming' | 'past';
 
 export default function Agenda() {
   const { user } = useAuth();
+  const [miniCalendarDate, setMiniCalendarDate] = useState<Date | undefined>(new Date());
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [lembretes, setLembretes] = useState<Lembrete[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -470,63 +472,95 @@ export default function Agenda() {
           </div>
         </div>
 
-        {/* Stats Widgets */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Mini Calendar + Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 items-start">
+          {/* Mini Calendar */}
           <Card className="rounded-2xl border-0 shadow-sm bg-card">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-primary/10">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{eventosHoje.length}</p>
-                  <p className="text-[11px] text-muted-foreground">Hoje</p>
-                </div>
-              </div>
+            <CardContent className="p-2">
+              <Calendar
+                mode="single"
+                selected={miniCalendarDate}
+                onSelect={(date) => {
+                  setMiniCalendarDate(date);
+                  if (date) {
+                    const api = calendarRef.current?.getApi();
+                    if (api) {
+                      api.gotoDate(date);
+                      if (activeView === 'list') {
+                        // no FullCalendar navigation needed for list
+                      }
+                    }
+                  }
+                }}
+                modifiers={{
+                  hasEvent: eventos.map(e => new Date(e.data_inicio)),
+                }}
+                modifiersClassNames={{
+                  hasEvent: 'bg-primary/20 font-semibold text-primary',
+                }}
+                className="rounded-xl"
+              />
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-0 shadow-sm bg-card">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-blue-500/10">
-                  <Clock className="h-4 w-4 text-blue-500" />
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="rounded-2xl border-0 shadow-sm bg-card">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-primary/10">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{eventosHoje.length}</p>
+                    <p className="text-[11px] text-muted-foreground">Hoje</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{eventosProximos.length}</p>
-                  <p className="text-[11px] text-muted-foreground">Próx. 7 dias</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="rounded-2xl border-0 shadow-sm bg-card">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-amber-500/10">
-                  <Bell className="h-4 w-4 text-amber-500" />
+            <Card className="rounded-2xl border-0 shadow-sm bg-card">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-primary/10">
+                    <Clock className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{eventosProximos.length}</p>
+                    <p className="text-[11px] text-muted-foreground">Próx. 7 dias</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{lembretesAtivos}</p>
-                  <p className="text-[11px] text-muted-foreground">Lembretes</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="rounded-2xl border-0 shadow-sm bg-card">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-green-500/10">
-                  <RefreshCw className="h-4 w-4 text-green-500" />
+            <Card className="rounded-2xl border-0 shadow-sm bg-card">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-primary/10">
+                    <Bell className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{lembretesAtivos}</p>
+                    <p className="text-[11px] text-muted-foreground">Lembretes</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{integrations.filter(i => i.ativo).length}</p>
-                  <p className="text-[11px] text-muted-foreground">Contas sync</p>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-0 shadow-sm bg-card">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-primary/10">
+                    <RefreshCw className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{integrations.filter(i => i.ativo).length}</p>
+                    <p className="text-[11px] text-muted-foreground">Contas sync</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Pending Reminders */}
