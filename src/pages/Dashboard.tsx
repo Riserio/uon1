@@ -552,7 +552,7 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* ── Row 2: Atendimentos (com Tabs Admin/Associação) + Compromissos de Hoje ── */}
+        {/* ── Row 2: Atendimentos + Atividade Recente ── */}
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Atendimentos com Tabs */}
           <Card className="rounded-2xl border-border/40 shadow-sm lg:col-span-2">
@@ -637,35 +637,51 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Compromissos de Hoje */}
+          {/* Atividade Recente */}
           <Card className="rounded-2xl border-border/40 shadow-sm">
             <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" />
-                <CardTitle className="text-base font-semibold">Hoje</CardTitle>
-                <Badge variant="secondary" className="text-sm h-6 px-2.5 ml-auto">{compromissos.length}</Badge>
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base font-semibold">Atividade Recente</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="px-6 pb-5">
-              {compromissos.length === 0 ?
-              <div className="text-center py-10"><Calendar className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Nenhum compromisso hoje</p></div> :
+              {(() => {
+                const recentes = atendimentos
+                  .filter((a) => a.updatedAt)
+                  .sort((a, b) => new Date(b.updatedAt!).getTime() - new Date(a.updatedAt!).getTime())
+                  .slice(0, 6);
 
-              <div className="space-y-2.5 max-h-[320px] overflow-y-auto scrollbar-hide">
-                  {compromissos.map((c) =>
-                <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors group">
-                      <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: c.cor }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{c.titulo}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="secondary" className="text-xs h-5 px-2">{format(parseISO(c.horario_inicio), "HH:mm")}</Badge>
-                          <span className="text-sm text-muted-foreground">{c.tipo === "evento" ? "Evento" : "Follow-up"}</span>
+                return recentes.length === 0 ? (
+                  <div className="text-center py-10">
+                    <TrendingUp className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">Nenhuma atividade recente</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[320px] overflow-y-auto scrollbar-hide">
+                    {recentes.map((a) => (
+                      <Link
+                        key={a.id}
+                        to={`/central-atendimento?id=${a.id}`}
+                        className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted/50 transition-colors"
+                      >
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${
+                          a.prioridade === "Alta" ? "bg-destructive" : a.prioridade === "Média" ? "bg-amber-500" : "bg-emerald-500"
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{a.assunto}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            #{a.numero} · {a.status}
+                          </p>
                         </div>
-                      </div>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => handleConcluir(c)}><Check className="h-4 w-4" /></Button>
-                    </div>
-                )}
-                </div>
-              }
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {formatDistanceToNow(parseISO(a.updatedAt!), { addSuffix: true, locale: ptBR })}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </div>
