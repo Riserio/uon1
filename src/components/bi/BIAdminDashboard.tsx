@@ -14,10 +14,11 @@ import { ptBR } from "date-fns/locale";
 import {
   Building2, Users, Shield, ShieldOff, Loader2,
   CheckCircle, XCircle, Clock, AlertTriangle, Search,
-  RefreshCw, Activity, Zap, BarChart3
+  RefreshCw, Activity, Zap, BarChart3, GitBranch
 } from "lucide-react";
 import BISyncButton from "./BISyncButton";
 import BIAdminAnalytics from "./BIAdminAnalytics";
+import BIAdminGitHub from "./BIAdminGitHub";
 
 interface AssociacaoStatus {
   id: string;
@@ -347,6 +348,7 @@ export default function BIAdminDashboard() {
           <TabsTrigger value="visao-geral" className="gap-1.5"><Activity className="h-3.5 w-3.5" />Visão Geral</TabsTrigger>
           <TabsTrigger value="usuarios" className="gap-1.5"><Users className="h-3.5 w-3.5" />Usuários Portal</TabsTrigger>
           <TabsTrigger value="analytics" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" />Analytics</TabsTrigger>
+          <TabsTrigger value="github" className="gap-1.5"><GitBranch className="h-3.5 w-3.5" />GitHub</TabsTrigger>
         </TabsList>
 
         <TabsContent value="visao-geral" className="mt-4">
@@ -477,6 +479,10 @@ export default function BIAdminDashboard() {
 
         <TabsContent value="analytics" className="mt-4">
           <BIAdminAnalytics />
+        </TabsContent>
+
+        <TabsContent value="github" className="mt-4">
+          <BIAdminGitHub />
         </TabsContent>
       </Tabs>
     </div>
