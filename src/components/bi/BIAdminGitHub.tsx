@@ -209,7 +209,7 @@ export default function BIAdminGitHub() {
   const execErro = execFiltradas.filter(e => e.status === "erro").length;
   const totalMinutos = execFiltradas.reduce((sum, e) => sum + (e.duracao_segundos ? Math.ceil(e.duracao_segundos / 60) : 0), 0);
   const taxaSucesso = totalExecucoes > 0 ? Math.round((execSucesso / totalExecucoes) * 100) : 0;
-  const custoEstimado = (totalMinutos * 0.008).toFixed(2);
+  const custoEstimado = (totalMinutos * 0.006).toFixed(2);
 
   // Chart data
   const execPorDia = useMemo(() => {
@@ -265,7 +265,7 @@ export default function BIAdminGitHub() {
   const ghTotalRuns = ghBilling?.total_runs || totalExecucoes;
   const ghBillableMin = ghBilling?.total_billable_minutes || totalMinutos;
   const ghRunDurationMin = ghBilling?.total_run_duration_minutes || totalMinutos;
-  const ghCusto = (ghBillableMin * 0.008).toFixed(2);
+  const ghCusto = (ghBillableMin * 0.006).toFixed(2);
 
   const workflowLabels: Record<string, string> = {
     "cobranca-hinova": "Cobrança",
@@ -359,50 +359,8 @@ export default function BIAdminGitHub() {
         </Card>
       </div>
 
-      {/* GitHub per-workflow breakdown */}
-      {ghBilling?.per_workflow && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Consumo por Workflow (GitHub Real - 90d)</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Workflow</TableHead>
-                  <TableHead className="text-center">Runs</TableHead>
-                  <TableHead className="text-center">Erros</TableHead>
-                  <TableHead className="text-center">Min. Faturáveis</TableHead>
-                  <TableHead className="text-center">Min. Execução</TableHead>
-                  <TableHead className="text-right">Custo Est.</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Object.entries(ghBilling.per_workflow).map(([wf, stats]) => (
-                  <TableRow key={wf}>
-                    <TableCell className="font-medium text-sm">{workflowLabels[wf] || wf}</TableCell>
-                    <TableCell className="text-center">{stats.runs}</TableCell>
-                    <TableCell className="text-center">
-                      {stats.errors > 0 ? <Badge variant="destructive" className="text-[10px]">{stats.errors}</Badge> : <span className="text-xs text-muted-foreground">0</span>}
-                    </TableCell>
-                    <TableCell className="text-center text-sm">{stats.billable_minutes} min</TableCell>
-                    <TableCell className="text-center text-sm">{stats.run_duration_minutes} min</TableCell>
-                    <TableCell className="text-right text-sm font-medium">${(stats.billable_minutes * 0.008).toFixed(2)}</TableCell>
-                  </TableRow>
-                ))}
-                <TableRow className="font-semibold bg-muted/30">
-                  <TableCell>Total</TableCell>
-                  <TableCell className="text-center">{ghBilling.total_runs}</TableCell>
-                  <TableCell className="text-center">{Object.values(ghBilling.per_workflow).reduce((s, v) => s + v.errors, 0)}</TableCell>
-                  <TableCell className="text-center">{ghBilling.total_billable_minutes} min</TableCell>
-                  <TableCell className="text-center">{ghBilling.total_run_duration_minutes} min</TableCell>
-                  <TableCell className="text-right">${ghCusto}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+
+
 
       <Tabs value={subTab} onValueChange={setSubTab}>
         <div className="flex items-center justify-between">
@@ -529,45 +487,92 @@ export default function BIAdminGitHub() {
             </Card>
           </div>
 
+          {/* Consumo por Workflow — dados reais do GitHub + local */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Consumo por Módulo ({dias}d)</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">
+                  Consumo por Workflow
+                  {ghBilling ? (
+                    <Badge variant="secondary" className="ml-2 text-[10px] gap-1">
+                      <CheckCircle className="h-3 w-3 text-green-500" />GitHub Real (90d)
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="ml-2 text-[10px]">Local ({dias}d)</Badge>
+                  )}
+                </CardTitle>
+                <span className="text-[10px] text-muted-foreground">Preço: $0.006/min (Linux)</span>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Módulo</TableHead>
-                    <TableHead className="text-center">Total</TableHead>
+                    <TableHead>Workflow</TableHead>
+                    <TableHead className="text-center">Runs</TableHead>
                     <TableHead className="text-center">Sucesso</TableHead>
                     <TableHead className="text-center">Erros</TableHead>
-                    <TableHead className="text-center">Minutos</TableHead>
-                    <TableHead className="text-right">Custo Est.</TableHead>
+                    <TableHead className="text-center">Min. Faturáveis</TableHead>
+                    <TableHead className="text-center">Min. Execução</TableHead>
+                    <TableHead className="text-right">Custo (Gross)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {moduloStats.map(m => (
-                    <TableRow key={m.modulo}>
-                      <TableCell className="font-medium text-sm">{m.modulo}</TableCell>
-                      <TableCell className="text-center">{m.total}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-700">{m.sucesso}</Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {m.erro > 0 ? <Badge variant="destructive" className="text-[10px]">{m.erro}</Badge> : <span className="text-xs text-muted-foreground">0</span>}
-                      </TableCell>
-                      <TableCell className="text-center text-sm">{m.minutos} min</TableCell>
-                      <TableCell className="text-right text-sm font-medium">${(m.minutos * 0.008).toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow className="font-semibold bg-muted/30">
-                    <TableCell>Total</TableCell>
-                    <TableCell className="text-center">{totalExecucoes}</TableCell>
-                    <TableCell className="text-center">{execSucesso}</TableCell>
-                    <TableCell className="text-center">{execErro}</TableCell>
-                    <TableCell className="text-center">{totalMinutos} min</TableCell>
-                    <TableCell className="text-right">${custoEstimado}</TableCell>
-                  </TableRow>
+                  {ghBilling?.per_workflow ? (
+                    <>
+                      {Object.entries(ghBilling.per_workflow).map(([wf, stats]) => (
+                        <TableRow key={wf}>
+                          <TableCell className="font-medium text-sm">{workflowLabels[wf] || wf}</TableCell>
+                          <TableCell className="text-center">{stats.runs}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-700">{stats.runs - stats.errors}</Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {stats.errors > 0 ? <Badge variant="destructive" className="text-[10px]">{stats.errors}</Badge> : <span className="text-xs text-muted-foreground">0</span>}
+                          </TableCell>
+                          <TableCell className="text-center text-sm">{stats.billable_minutes} min</TableCell>
+                          <TableCell className="text-center text-sm">{stats.run_duration_minutes} min</TableCell>
+                          <TableCell className="text-right text-sm font-medium">${(stats.billable_minutes * 0.006).toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="font-semibold bg-muted/30">
+                        <TableCell>Total</TableCell>
+                        <TableCell className="text-center">{ghBilling.total_runs}</TableCell>
+                        <TableCell className="text-center">{ghBilling.total_runs - Object.values(ghBilling.per_workflow).reduce((s, v) => s + v.errors, 0)}</TableCell>
+                        <TableCell className="text-center">{Object.values(ghBilling.per_workflow).reduce((s, v) => s + v.errors, 0)}</TableCell>
+                        <TableCell className="text-center">{ghBilling.total_billable_minutes} min</TableCell>
+                        <TableCell className="text-center">{ghBilling.total_run_duration_minutes} min</TableCell>
+                        <TableCell className="text-right">${ghCusto}</TableCell>
+                      </TableRow>
+                    </>
+                  ) : (
+                    <>
+                      {moduloStats.map(m => (
+                        <TableRow key={m.modulo}>
+                          <TableCell className="font-medium text-sm">{m.modulo}</TableCell>
+                          <TableCell className="text-center">{m.total}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-700">{m.sucesso}</Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {m.erro > 0 ? <Badge variant="destructive" className="text-[10px]">{m.erro}</Badge> : <span className="text-xs text-muted-foreground">0</span>}
+                          </TableCell>
+                          <TableCell className="text-center text-sm">{m.minutos} min</TableCell>
+                          <TableCell className="text-center text-sm">—</TableCell>
+                          <TableCell className="text-right text-sm font-medium">${(m.minutos * 0.006).toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="font-semibold bg-muted/30">
+                        <TableCell>Total</TableCell>
+                        <TableCell className="text-center">{totalExecucoes}</TableCell>
+                        <TableCell className="text-center">{execSucesso}</TableCell>
+                        <TableCell className="text-center">{execErro}</TableCell>
+                        <TableCell className="text-center">{totalMinutos} min</TableCell>
+                        <TableCell className="text-center">—</TableCell>
+                        <TableCell className="text-right">${custoEstimado}</TableCell>
+                      </TableRow>
+                    </>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
