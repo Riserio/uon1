@@ -729,32 +729,84 @@ export default function Agenda() {
           {/* Side Panel - Mini Calendar + Today's events (list view only) */}
           {activeView === 'list' && (
             <div className="space-y-3">
-              {/* Mini Calendar */}
-              <Card className="rounded-2xl border-0 shadow-sm overflow-hidden">
-                <CardContent className="p-4 flex justify-center [&_.rdp]:w-full [&_.rdp-months]:w-full [&_.rdp-month]:w-full [&_.rdp-month]:space-y-2 [&_.rdp-table]:w-full [&_.rdp-caption_label]:text-xs [&_.rdp-head_cell]:w-[calc(100%/7)] [&_.rdp-head_cell]:text-[0.65rem] [&_.rdp-cell]:w-[calc(100%/7)] [&_.rdp-cell]:h-auto [&_.rdp-cell]:text-[0.7rem] [&_.rdp-day]:w-full [&_.rdp-day]:aspect-square [&_.rdp-day]:h-auto [&_.rdp-day]:text-[0.7rem] [&_.rdp-nav_button]:h-6 [&_.rdp-nav_button]:w-6 [&_.rdp-head_row]:flex [&_.rdp-head_row]:w-full [&_.rdp-row]:flex [&_.rdp-row]:w-full [&_.rdp-row]:mt-1">
-                  <Calendar
-                    mode="single"
-                    locale={ptBR}
-                    selected={miniCalendarDate}
-                    onSelect={(date) => {
-                      setMiniCalendarDate(date);
-                      if (date) {
-                        const api = calendarRef.current?.getApi();
-                        if (api) api.gotoDate(date);
-                      }
-                    }}
-                    modifiers={{
-                      hasEvent: eventos.map(e => new Date(e.data_inicio)),
-                    }}
-                    modifiersClassNames={{
-                      hasEvent: 'bg-primary/20 font-semibold text-primary',
-                    }}
-                    className="rounded-xl pointer-events-auto !w-full"
-                  />
-                </CardContent>
-              </Card>
+              {/* Mini Calendar - Dark Widget Style */}
+              <div className="rounded-3xl bg-zinc-900 dark:bg-zinc-950 text-white overflow-hidden shadow-xl">
+                <div className="p-4 pb-3">
+                  {/* Header with month + pending badge */}
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-300">
+                      {(miniCalendarDate || hoje).toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase()}
+                    </h3>
+                    {eventosProximos.length > 0 && (
+                      <Badge className="bg-zinc-700/80 text-zinc-200 border-0 gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full hover:bg-zinc-700">
+                        <CheckCircle2 className="h-3 w-3" />
+                        {eventosProximos.length} pendente{eventosProximos.length !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {/* Calendar Grid */}
+                  <div className="[&_.rdp]:w-full [&_.rdp-months]:w-full [&_.rdp-month]:w-full [&_.rdp-month]:space-y-1 [&_.rdp-table]:w-full [&_.rdp-caption]:hidden [&_.rdp-head_cell]:w-[calc(100%/7)] [&_.rdp-head_cell]:text-[0.6rem] [&_.rdp-head_cell]:font-medium [&_.rdp-head_cell]:text-zinc-500 [&_.rdp-cell]:w-[calc(100%/7)] [&_.rdp-cell]:h-auto [&_.rdp-cell]:text-[0.75rem] [&_.rdp-day]:w-full [&_.rdp-day]:aspect-square [&_.rdp-day]:h-auto [&_.rdp-day]:text-[0.75rem] [&_.rdp-day]:text-zinc-300 [&_.rdp-day]:rounded-full [&_.rdp-day:hover]:bg-zinc-700/50 [&_.rdp-nav]:hidden [&_.rdp-head_row]:flex [&_.rdp-head_row]:w-full [&_.rdp-row]:flex [&_.rdp-row]:w-full [&_.rdp-row]:mt-0.5 [&_.rdp-day_selected]:bg-primary [&_.rdp-day_selected]:text-primary-foreground [&_.rdp-day_today]:bg-primary/80 [&_.rdp-day_today]:text-white [&_.rdp-day_today]:font-bold [&_.rdp-day_outside]:text-zinc-700 [&_.rdp-day_outside]:opacity-100">
+                    <Calendar
+                      mode="single"
+                      locale={ptBR}
+                      selected={miniCalendarDate}
+                      month={miniCalendarDate || hoje}
+                      onMonthChange={(month) => setMiniCalendarDate(month)}
+                      onSelect={(date) => {
+                        setMiniCalendarDate(date);
+                        if (date) {
+                          const api = calendarRef.current?.getApi();
+                          if (api) api.gotoDate(date);
+                        }
+                      }}
+                      modifiers={{
+                        hasEvent: eventos.map(e => new Date(e.data_inicio)),
+                      }}
+                      modifiersClassNames={{
+                        hasEvent: '!text-primary font-bold',
+                      }}
+                      className="rounded-xl pointer-events-auto !w-full !p-0 !bg-transparent"
+                    />
+                  </div>
 
-              {/* Hoje */}
+                  {/* Month navigation */}
+                  <div className="flex items-center justify-center gap-3 mt-2 pt-2 border-t border-zinc-800">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-zinc-400 hover:text-white hover:bg-zinc-800"
+                      onClick={() => {
+                        const d = new Date(miniCalendarDate || hoje);
+                        d.setMonth(d.getMonth() - 1);
+                        setMiniCalendarDate(d);
+                      }}
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <button
+                      onClick={() => setMiniCalendarDate(new Date())}
+                      className="text-[10px] text-zinc-500 hover:text-zinc-300 font-medium uppercase tracking-wider transition-colors"
+                    >
+                      Hoje
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-zinc-400 hover:text-white hover:bg-zinc-800"
+                      onClick={() => {
+                        const d = new Date(miniCalendarDate || hoje);
+                        d.setMonth(d.getMonth() + 1);
+                        setMiniCalendarDate(d);
+                      }}
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Compromissos do Dia */}
               <Card className="rounded-2xl border-0 shadow-sm">
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -771,23 +823,38 @@ export default function Agenda() {
                       <p className="text-xs text-muted-foreground py-4 text-center">Sem eventos neste dia</p>
                     ) : (
                       <div className="space-y-2">
-                        {eventosDia.map(evento => (
-                          <button
-                            key={evento.id}
-                            onClick={() => { setEditingEvento(evento); setFormData(evento); setDialogOpen(true); }}
-                            className="w-full p-2.5 rounded-xl border hover:bg-muted/50 transition-colors text-left"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-1 h-6 rounded-full" style={{ backgroundColor: evento.cor }} />
-                              <div className="min-w-0">
-                                <p className="text-xs font-medium truncate">{evento.titulo}</p>
-                                <p className="text-[10px] text-muted-foreground">
-                                  {new Date(evento.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                              </div>
+                        {eventosDia.map(evento => {
+                          const isPast = new Date(evento.data_inicio) < hoje;
+                          return (
+                            <div key={evento.id} className="flex items-center gap-2">
+                              <button
+                                onClick={() => { setEditingEvento(evento); setFormData(evento); setDialogOpen(true); }}
+                                className="flex-1 p-2.5 rounded-xl border hover:bg-muted/50 transition-colors text-left"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className="w-1 h-6 rounded-full" style={{ backgroundColor: evento.cor }} />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium truncate">{evento.titulo}</p>
+                                    <p className="text-[10px] text-muted-foreground">
+                                      {new Date(evento.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                              {!isPast && (evento.tipo === 'reuniao' || evento.tipo === 'compromisso' || evento.tipo === 'tarefa') && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 shrink-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                  title="Concluir"
+                                  onClick={(e) => handleConcluirEvento(evento.id, e)}
+                                >
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                             </div>
-                          </button>
-                        ))}
+                          );
+                        })}
                       </div>
                     );
                   })()}
