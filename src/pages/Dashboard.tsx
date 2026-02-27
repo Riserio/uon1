@@ -127,6 +127,7 @@ export default function Dashboard() {
   const [selectedCalDay, setSelectedCalDay] = useState<Date | null>(null);
   const [atendimentoTab, setAtendimentoTab] = useState("administradora");
   const [fluxos, setFluxos] = useState<{id: string;nome: string;}[]>([]);
+  const [assocFluxos, setAssocFluxos] = useState<{id: string;nome: string;corretora_id: string;}[]>([]);
 
   // Corretora names for Associações tab
   const [corretoraNames, setCorretoraNames] = useState<Record<string, string>>({});
@@ -134,14 +135,15 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [statusRes, profilesRes, corretorasRes, contratosRes, reunioesRes, corretorasNamesRes, fluxosRes] = await Promise.all([
+        const [statusRes, profilesRes, corretorasRes, contratosRes, reunioesRes, corretorasNamesRes, fluxosRes, assocFluxosRes] = await Promise.all([
         supabase.from("status_config").select("nome, tipo_etapa").eq("ativo", true),
         supabase.from("profiles").select("id, nome"),
         supabase.from("corretoras").select("id", { count: "exact", head: true }),
         supabase.from("contratos").select("id, numero, titulo, status, data_fim, contratante_nome").eq("arquivado", false).order("created_at", { ascending: false }).limit(50),
         supabase.from("meeting_rooms").select("id, nome, descricao, agendado_para, status, duracao_minutos").not("agendado_para", "is", null).neq("status", "finalizada").gte("agendado_para", startOfDay(new Date()).toISOString()).order("agendado_para", { ascending: true }).limit(10),
         supabase.from("corretoras").select("id, nome"),
-        supabase.from("fluxos").select("id, nome").eq("ativo", true).order("ordem", { ascending: true })]
+        supabase.from("fluxos").select("id, nome").eq("ativo", true).order("ordem", { ascending: true }),
+        supabase.from("gestao_associacao_fluxos").select("id, nome, corretora_id").eq("ativo", true).order("ordem", { ascending: true })]
         );
         if (statusRes.data) {
           setStatusFinalizados(new Set(statusRes.data.filter((s) => s.tipo_etapa === "finalizado").map((s) => s.nome)));
@@ -154,6 +156,7 @@ export default function Dashboard() {
         setReunioes((reunioesRes.data || []) as ReuniaoResumo[]);
         if (corretorasNamesRes.data) setCorretoraNames(corretorasNamesRes.data.reduce((a, c) => {a[c.id] = c.nome;return a;}, {} as Record<string, string>));
         setFluxos((fluxosRes.data || []) as {id: string;nome: string;}[]);
+        setAssocFluxos((assocFluxosRes.data || []) as {id: string;nome: string;corretora_id: string;}[]);
 
         // Count sync errors (just the total)
         const [cobErr, sgaErr, mgfErr] = await Promise.all([
@@ -302,27 +305,46 @@ export default function Dashboard() {
   { name: "Baixa", value: atendimentos.filter((a) => a.prioridade === "Baixa").length }],
   [atendimentos]);
 
-  // Associações: group by ALL registered fluxos
+  // Associações: group by gestao_associacao_fluxos names
   const assocFluxoData = useMemo(() => {
     const m = new Map<string, number>();
-    // Initialize all registered fluxos with 0
-    fluxos.forEach((f) => m.set(f.nome, 0));
+    // Use gestao_associacao_fluxos for association-specific fluxo names
+    const assocFluxoNames = new Map(assocFluxos.map((f) => [f.nome, 0]));
+    // Count atendimentos by their fluxo name (matching against both regular fluxos and assoc fluxos)
     assocAtendimentos.forEach((a) => {
       const name = a.fluxoId ? fluxoNames[a.fluxoId] || "Sem fluxo" : "Sem fluxo";
       m.set(name, (m.get(name) || 0) + 1);
     });
-    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).filter(d => d.value > 0).sort((a, b) => b.value - a.value).slice(0, 5);
-  }, [assocAtendimentos, fluxoNames, fluxos]);
+    // Merge: show assoc fluxos with counts from atendimentos
+    const merged = new Map<string, number>();
+    // Add all unique gestao_associacao_fluxos names
+    assocFluxos.forEach((f) => {
+      const existing = merged.get(f.nome) || 0;
+      merged.set(f.nome, existing);
+    });
+    // Add atendimento counts
+    m.forEach((count, name) => {
+      merged.set(name, (merged.get(name) || 0) + count);
+    });
+    return Array.from(merged.entries()).map(([name, value]) => ({ name, value })).filter(d => d.value > 0).sort((a, b) => b.value - a.value).slice(0, 6);
+  }, [assocAtendimentos, fluxoNames, assocFluxos]);
 
-  // Associações: group by corretora
+  // Associações: group by corretora - include ALL associations that have gestao_associacao_fluxos configured
   const assocCorretoraData = useMemo(() => {
     const m = new Map<string, number>();
+    // Initialize with all associations that have fluxos configured
+    const assocWithFluxos = new Set(assocFluxos.map((f) => f.corretora_id));
+    assocWithFluxos.forEach((cId) => {
+      const name = corretoraNames[cId] || "N/A";
+      if (!m.has(name)) m.set(name, 0);
+    });
+    // Count atendimentos per corretora
     assocAtendimentos.forEach((a) => {
       const name = a.corretoraId ? (corretoraNames[a.corretoraId] || "N/A") : "N/A";
       m.set(name, (m.get(name) || 0) + 1);
     });
-    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
-  }, [assocAtendimentos, corretoraNames]);
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
+  }, [assocAtendimentos, corretoraNames, assocFluxos]);
 
   const responsavelData = useMemo(() => {
     const m = new Map<string, number>();
