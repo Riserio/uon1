@@ -124,6 +124,7 @@ export default function Dashboard() {
   const [reunioes, setReunioes] = useState<ReuniaoResumo[]>([]);
   const [syncErrorCount, setSyncErrorCount] = useState(0);
   const [calWeek, setCalWeek] = useState(new Date());
+  const [selectedCalDay, setSelectedCalDay] = useState<Date | null>(null);
   const [atendimentoTab, setAtendimentoTab] = useState("administradora");
   const [fluxos, setFluxos] = useState<{id: string;nome: string;}[]>([]);
 
@@ -419,19 +420,19 @@ export default function Dashboard() {
           <Card className="rounded-2xl border-border/40 shadow-sm lg:col-span-3">
             <CardContent className="p-5">
               <div className="flex gap-5">
-                {/* Mini Calendar */}
-                <div className="shrink-0 w-[220px]">
-                  <div className="flex items-center justify-between mb-2">
-                    <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground" onClick={() => setCalWeek(subWeeks(calWeek, 4))}><ChevronLeft className="h-3.5 w-3.5" /></Button>
-                    <span className="text-sm font-semibold uppercase tracking-wide text-foreground">
+                {/* Mini Calendar - centered */}
+                <div className="shrink-0 w-[240px] flex flex-col items-center">
+                  <div className="flex items-center justify-between w-full mb-3">
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" onClick={() => setCalWeek(subWeeks(calWeek, 4))}><ChevronLeft className="h-4 w-4" /></Button>
+                    <span className="text-sm font-bold uppercase tracking-wider text-foreground">
                       {format(calWeek, "MMMM", { locale: ptBR })}
                     </span>
-                    <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground" onClick={() => setCalWeek(addWeeks(calWeek, 4))}><ChevronRight className="h-3.5 w-3.5" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" onClick={() => setCalWeek(addWeeks(calWeek, 4))}><ChevronRight className="h-4 w-4" /></Button>
                   </div>
 
-                  <div className="grid grid-cols-7">
+                  <div className="grid grid-cols-7 w-full mb-1">
                     {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
-                      <div key={i} className="text-center text-[10px] font-semibold text-muted-foreground/50 py-0.5">{d}</div>
+                      <div key={i} className="text-center text-[11px] font-semibold text-muted-foreground/50 py-1">{d}</div>
                     ))}
                   </div>
 
@@ -445,28 +446,33 @@ export default function Dashboard() {
                     while (d <= calEnd) { days.push(d); d = addDays(d, 1); }
 
                     return (
-                      <div className="grid grid-cols-7">
+                      <div className="grid grid-cols-7 w-full">
                         {days.map((day) => {
                           const isToday = isSameDay(day, new Date());
                           const isCurrentMonth = day.getMonth() === calWeek.getMonth();
+                          const isSelected = selectedCalDay ? isSameDay(day, selectedCalDay) : false;
                           const dayItems = weekCompromissos.filter((c) => isSameDay(parseISO(c.horario_inicio), day));
                           const hasEvents = dayItems.length > 0;
 
                           return (
-                            <div
+                            <button
                               key={day.toISOString()}
-                              className={`relative flex items-center justify-center aspect-square text-xs cursor-default
-                                ${isToday ? "font-bold" : ""}
-                                ${!isCurrentMonth ? "text-muted-foreground/20" : "text-foreground"}
+                              onClick={() => isCurrentMonth && setSelectedCalDay(isSameDay(day, selectedCalDay || new Date(0)) ? null : day)}
+                              className={`relative flex items-center justify-center aspect-square text-[13px] transition-all
+                                ${!isCurrentMonth ? "text-muted-foreground/20 cursor-default" : "cursor-pointer hover:bg-muted/50 rounded-full"}
+                                ${isToday && !isSelected ? "font-bold" : ""}
                               `}
                             >
-                              <span className={`flex items-center justify-center w-7 h-7 rounded-full ${isToday ? "bg-primary text-primary-foreground" : ""}`}>
+                              <span className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors
+                                ${isSelected ? "bg-primary text-primary-foreground font-bold" : ""}
+                                ${isToday && !isSelected ? "bg-primary/15 text-primary font-bold" : ""}
+                              `}>
                                 {format(day, "d")}
                               </span>
-                              {hasEvents && !isToday && isCurrentMonth && (
-                                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                              {hasEvents && isCurrentMonth && !isSelected && (
+                                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-primary" />
                               )}
-                            </div>
+                            </button>
                           );
                         })}
                       </div>
@@ -477,45 +483,61 @@ export default function Dashboard() {
                 {/* Divider */}
                 <div className="w-px bg-border/40 self-stretch" />
 
-                {/* Compromissos */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-semibold">Compromissos</span>
-                    </div>
-                    {weekCompromissos.length > 0 && (
-                      <Badge variant="secondary" className="gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full">
-                        <CheckCircle2 className="h-3 w-3" />
-                        {weekCompromissos.length} pendente{weekCompromissos.length !== 1 ? 's' : ''}
-                      </Badge>
-                    )}
-                  </div>
+                {/* Compromissos - filtered by selected day or all week */}
+                {(() => {
+                  const filteredItems = selectedCalDay
+                    ? weekCompromissos.filter((c) => isSameDay(parseISO(c.horario_inicio), selectedCalDay))
+                    : weekCompromissos;
+                  const headerLabel = selectedCalDay
+                    ? format(selectedCalDay, "EEEE, dd", { locale: ptBR })
+                    : "Semana";
 
-                  <div className="space-y-1.5 overflow-y-auto max-h-[220px] scrollbar-hide">
-                    {weekCompromissos.length === 0 ? (
-                      <div className="text-center py-8">
-                        <Calendar className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-                        <p className="text-xs text-muted-foreground">Nenhum compromisso esta semana</p>
-                      </div>
-                    ) : (
-                      weekCompromissos.map((item) => (
-                        <div key={item.id} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/40 transition-colors">
-                          <div className="w-1 h-8 rounded-full shrink-0" style={{ backgroundColor: item.cor }} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{item.titulo}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {format(parseISO(item.horario_inicio), "EEE, dd MMM · HH:mm", { locale: ptBR })}
-                            </p>
-                          </div>
-                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
-                            {item.tipo === "evento" ? "Evento" : "Follow-up"}
-                          </Badge>
+                  return (
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-semibold capitalize">{headerLabel}</span>
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+                        {filteredItems.length > 0 && (
+                          <Badge variant="secondary" className="gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                            <CheckCircle2 className="h-3 w-3" />
+                            {filteredItems.length} pendente{filteredItems.length !== 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5 overflow-y-auto max-h-[220px] scrollbar-hide">
+                        {filteredItems.length === 0 ? (
+                          <div className="text-center py-8">
+                            <Calendar className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
+                            <p className="text-xs text-muted-foreground">
+                              {selectedCalDay ? "Nenhum compromisso neste dia" : "Nenhum compromisso esta semana"}
+                            </p>
+                            {selectedCalDay && (
+                              <button onClick={() => setSelectedCalDay(null)} className="text-[10px] text-primary hover:underline mt-1">Ver semana toda</button>
+                            )}
+                          </div>
+                        ) : (
+                          filteredItems.map((item) => (
+                            <div key={item.id} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/40 transition-colors">
+                              <div className="w-1 h-8 rounded-full shrink-0" style={{ backgroundColor: item.cor }} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium truncate">{item.titulo}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {format(parseISO(item.horario_inicio), selectedCalDay ? "HH:mm" : "EEE, dd MMM · HH:mm", { locale: ptBR })}
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
+                                {item.tipo === "evento" ? "Evento" : "Follow-up"}
+                              </Badge>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </CardContent>
           </Card>
