@@ -47,6 +47,7 @@ const STEP_TYPES = [
   { value: 'send_text', label: 'Enviar Texto', icon: MessageSquare, color: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20', desc: 'Envia uma mensagem de texto' },
   { value: 'ask_input', label: 'Pergunta Aberta', icon: HelpCircle, color: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20', desc: 'Aguarda resposta em texto livre' },
   { value: 'ask_options', label: 'Pergunta com Opções', icon: ListChecks, color: 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/20', desc: 'Até 3 opções numeradas com desvio' },
+  { value: 'wait_response', label: 'Aguardar Resposta', icon: Clock, color: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/20', desc: 'Espera resposta com timeout' },
   { value: 'request_report', label: 'Enviar Relatório', icon: FileBarChart, color: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20', desc: 'Gera e envia relatório automaticamente' },
   { value: 'deny_unauthorized', label: 'Negar Acesso', icon: ShieldX, color: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20', desc: 'Bloqueia números não autorizados' },
   { value: 'transfer_human', label: 'Transferir p/ Humano', icon: UserCheck, color: 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/20', desc: 'Ativa modo de atendimento humano' },
@@ -110,7 +111,8 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
   const [stepScheduleTime, setStepScheduleTime] = useState('');
   const [stepQuietStart, setStepQuietStart] = useState('');
   const [stepQuietEnd, setStepQuietEnd] = useState('');
-
+  const [stepTimeout, setStepTimeout] = useState('11h');
+  const [stepTimeoutNextKey, setStepTimeoutNextKey] = useState('');
   useEffect(() => { loadFlows(); }, []);
 
   const loadFlows = async () => {
@@ -261,6 +263,8 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
       setStepScheduleTime(step.config?.schedule_time || '');
       setStepQuietStart(step.config?.quiet_start || '');
       setStepQuietEnd(step.config?.quiet_end || '');
+      setStepTimeout(step.config?.timeout || '11h');
+      setStepTimeoutNextKey(step.config?.timeout_next_step_key || '');
     } else {
       setEditingStep(null);
       setStepType('send_text');
@@ -273,6 +277,8 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
       setStepScheduleTime('');
       setStepQuietStart('');
       setStepQuietEnd('');
+      setStepTimeout('11h');
+      setStepTimeoutNextKey('');
     }
     setShowStepDialog(true);
   };
@@ -281,7 +287,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
     if (!selectedFlow) return;
     const config: any = {};
 
-    if (['send_text', 'ask_input', 'ask_options', 'end', 'transfer_human'].includes(stepType)) {
+    if (['send_text', 'ask_input', 'ask_options', 'end', 'transfer_human', 'wait_response'].includes(stepType)) {
       config.message = stepMessage;
     }
     if (stepScheduleTime) {
@@ -312,6 +318,10 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
     }
     if (stepType === 'deny_unauthorized') {
       config.message = stepDenyMessage;
+    }
+    if (stepType === 'wait_response') {
+      config.timeout = stepTimeout;
+      config.timeout_next_step_key = stepTimeoutNextKey || null;
     }
 
     if (editingStep) {
@@ -724,6 +734,20 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                                       {`{${step.config.variable_name}}`}
                                     </Badge>
                                   )}
+                                  {/* Wait response badges */}
+                                  {step.type === 'wait_response' && (
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                      <Badge variant="outline" className="text-[10px] font-normal gap-1 border-cyan-500/30 text-cyan-600">
+                                        <Clock className="h-3 w-3" />
+                                        Timeout: {step.config?.timeout || '11h'}
+                                      </Badge>
+                                      {step.config?.timeout_next_step_key && (
+                                        <Badge variant="outline" className="text-[10px] font-normal gap-1 border-amber-500/30 text-amber-600">
+                                          ⏰ Sem resposta → {getStepLabel(step.config.timeout_next_step_key)}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                                 {/* Actions */}
                                 <div className="flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity shrink-0">
@@ -1041,6 +1065,56 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                   <p className="text-xs text-muted-foreground">
                     A resposta será salva em <code className="bg-muted px-1 rounded">{`{${stepVariableName || 'variavel'}}`}</code> para uso posterior.
                   </p>
+                </div>
+              )}
+
+              {/* Wait response config */}
+              {stepType === 'wait_response' && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-cyan-500/5 rounded-lg border border-cyan-500/20">
+                    <p className="text-xs text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5" />
+                      Aguarda resposta do usuário. Se não responder no tempo definido, segue para o passo de timeout.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="font-medium">Tempo de espera (timeout)</Label>
+                    <Select value={stepTimeout} onValueChange={setStepTimeout}>
+                      <SelectTrigger className="w-56">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="30m">30 minutos</SelectItem>
+                        <SelectItem value="1h">1 hora</SelectItem>
+                        <SelectItem value="2h">2 horas</SelectItem>
+                        <SelectItem value="4h">4 horas</SelectItem>
+                        <SelectItem value="6h">6 horas</SelectItem>
+                        <SelectItem value="8h">8 horas</SelectItem>
+                        <SelectItem value="11h">11 horas</SelectItem>
+                        <SelectItem value="12h">12 horas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Se o usuário não responder neste período, o fluxo avança para o passo de timeout.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="font-medium">Passo se não responder (timeout)</Label>
+                    <Select value={stepTimeoutNextKey || '__none__'} onValueChange={(v) => setStepTimeoutNextKey(v === '__none__' ? '' : v)}>
+                      <SelectTrigger><SelectValue placeholder="Nenhum (encerrar)" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Nenhum (encerrar fluxo)</SelectItem>
+                        {steps.filter(s => s.id !== editingStep?.id).map((s) => (
+                          <SelectItem key={s.step_key} value={s.step_key}>
+                            #{steps.indexOf(s) + 1} {getStepTypeInfo(s.type).label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      O "Próximo passo" normal será usado quando o usuário <strong>responder</strong>. Este campo é para quando <strong>não responder</strong>.
+                    </p>
+                  </div>
                 </div>
               )}
 
