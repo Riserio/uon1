@@ -124,7 +124,7 @@ export default function Dashboard() {
   const [reunioes, setReunioes] = useState<ReuniaoResumo[]>([]);
   const [syncErrorCount, setSyncErrorCount] = useState(0);
   const [calWeek, setCalWeek] = useState(new Date());
-  const [selectedCalDay, setSelectedCalDay] = useState<Date | null>(null);
+  const [selectedCalDay, setSelectedCalDay] = useState<Date | null>(new Date());
   const [atendimentoTab, setAtendimentoTab] = useState("administradora");
   const [fluxos, setFluxos] = useState<{id: string;nome: string;}[]>([]);
   const [assocFluxos, setAssocFluxos] = useState<{id: string;nome: string;corretora_id: string;}[]>([]);
