@@ -31,9 +31,15 @@ serve(async (req) => {
     const nomeAssociacao = corretora?.nome || 'Associação';
 
     // Get current month reference
-    const now = new Date();
-    const mesReferencia = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const dataAtual = now.toLocaleDateString('pt-BR');
+    // Ajustar para UTC-3 (São Paulo)
+    const now = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const mesReferencia = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const dia = String(now.getUTCDate()).padStart(2, '0');
+    const mes = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const ano = now.getUTCFullYear();
+    const hora = String(now.getUTCHours()).padStart(2, '0');
+    const minuto = String(now.getUTCMinutes()).padStart(2, '0');
+    const dataAtual = `${dia}/${mes}/${ano} às ${hora}:${minuto}`;
 
     // Get active import for this corretora
     const { data: importacao } = await supabase
@@ -92,8 +98,8 @@ serve(async (req) => {
 
     // Helper: get next business day (skip weekends)
     const getProximoDiaUtil = (dia: number): number => {
-      const date = new Date(now.getFullYear(), now.getMonth(), dia);
-      const dayOfWeek = date.getDay();
+      const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), dia));
+      const dayOfWeek = date.getUTCDay();
       if (dayOfWeek === 6) return dia + 2; // Sábado → Segunda
       if (dayOfWeek === 0) return dia + 1; // Domingo → Segunda
       return dia;
@@ -120,7 +126,7 @@ serve(async (req) => {
     const boletosPorDia = diasVencimento.map(dia => {
       const gerados = boletos?.filter(b => b.dia_vencimento_veiculo === dia).length || 0;
       const diaUtilRef = getProximoDiaUtil(dia);
-      const diaHoje = now.getDate();
+      const diaHoje = now.getUTCDate();
       // Boletos em aberto cujo dia útil de referência já passou
       const abertos = boletos?.filter(b => 
         b.dia_vencimento_veiculo === dia && 
