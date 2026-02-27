@@ -678,7 +678,7 @@ export default function Agenda() {
             <div className="space-y-3">
               {/* Mini Calendar */}
               <Card className="rounded-2xl border-0 shadow-sm">
-                <CardContent className="p-2 flex justify-center">
+                <CardContent className="p-2 sm:p-3 flex justify-center">
                   <Calendar
                     mode="single"
                     selected={miniCalendarDate}
@@ -695,7 +695,12 @@ export default function Agenda() {
                     modifiersClassNames={{
                       hasEvent: 'bg-primary/20 font-semibold text-primary',
                     }}
-                    className="rounded-xl pointer-events-auto"
+                    classNames={{
+                      head_cell: 'text-muted-foreground rounded-md w-8 font-normal text-[0.7rem] sm:w-9 sm:text-[0.8rem]',
+                      cell: 'h-8 w-8 text-center text-xs p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20 sm:h-9 sm:w-9 sm:text-sm',
+                      day: 'h-8 w-8 p-0 font-normal aria-selected:opacity-100 sm:h-9 sm:w-9',
+                    }}
+                    className="rounded-xl pointer-events-auto w-full max-w-[19rem]"
                   />
                 </CardContent>
               </Card>
