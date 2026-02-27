@@ -110,7 +110,7 @@ serve(async (req) => {
         mensagem: messageContent,
         tipo,
         corretora_id,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
       }),
     });
 

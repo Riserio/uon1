@@ -31,12 +31,14 @@ serve(async (req) => {
     const nomeAssociacao = corretora?.nome || 'Associação';
 
     // Get current month reference - filter by current month only
-    const now = new Date();
-    const mesReferencia = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    // Ajustar para UTC-3 (São Paulo)
+    const now = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    const mesReferencia = `${meses[now.getUTCMonth()]} de ${now.getUTCFullYear()}`;
     
     // Calculate first and last day of current month
-    const primeiroDiaMes = new Date(now.getFullYear(), now.getMonth(), 1);
-    const ultimoDiaMes = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const primeiroDiaMes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const ultimoDiaMes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
     
     const dataInicio = primeiroDiaMes.toISOString().split('T')[0];
     const dataFim = ultimoDiaMes.toISOString().split('T')[0];
