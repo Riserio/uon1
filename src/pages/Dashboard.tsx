@@ -302,15 +302,17 @@ export default function Dashboard() {
   { name: "Baixa", value: atendimentos.filter((a) => a.prioridade === "Baixa").length }],
   [atendimentos]);
 
-  // Associações: group by fluxo
+  // Associações: group by ALL registered fluxos
   const assocFluxoData = useMemo(() => {
     const m = new Map<string, number>();
+    // Initialize all registered fluxos with 0
+    fluxos.forEach((f) => m.set(f.nome, 0));
     assocAtendimentos.forEach((a) => {
       const name = a.fluxoId ? fluxoNames[a.fluxoId] || "Sem fluxo" : "Sem fluxo";
       m.set(name, (m.get(name) || 0) + 1);
     });
-    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
-  }, [assocAtendimentos, fluxoNames]);
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).filter(d => d.value > 0).sort((a, b) => b.value - a.value).slice(0, 5);
+  }, [assocAtendimentos, fluxoNames, fluxos]);
 
   // Associações: group by corretora
   const assocCorretoraData = useMemo(() => {
@@ -647,10 +649,11 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="px-6 pb-5">
               {(() => {
+                // Mostra atividades recentes de TODOS os atendimentos (administradora + associações)
                 const recentes = atendimentos
                   .filter((a) => a.updatedAt)
                   .sort((a, b) => new Date(b.updatedAt!).getTime() - new Date(a.updatedAt!).getTime())
-                  .slice(0, 6);
+                  .slice(0, 8);
 
                 return recentes.length === 0 ? (
                   <div className="text-center py-10">
@@ -672,6 +675,7 @@ export default function Dashboard() {
                           <p className="text-xs font-medium truncate">{a.assunto}</p>
                           <p className="text-[10px] text-muted-foreground">
                             #{a.numero} · {a.status}
+                            {a.corretoraId && corretoraNames[a.corretoraId] ? ` · ${corretoraNames[a.corretoraId]}` : ""}
                           </p>
                         </div>
                         <span className="text-[10px] text-muted-foreground shrink-0">
