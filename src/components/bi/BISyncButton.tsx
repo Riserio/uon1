@@ -598,14 +598,43 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     setHistoryLoading(true);
     setHistoryModule(mod);
     try {
-      const { data, error } = await supabase
-        .from(EXEC_TABLES[mod] as any)
-        .select("id, status, erro, mensagem, created_at, finalizado_at, registros_processados, github_run_url, github_run_id, etapa_atual")
-        .eq("corretora_id", corretoraId)
-        .order("created_at", { ascending: false })
-        .limit(10);
-      if (error) throw error;
-      setHistoryLogs((data as any[]) || []);
+      const fields = "id, status, erro, mensagem, created_at, finalizado_at, registros_processados, github_run_url, github_run_id, etapa_atual";
+      
+      // Fetch last success, last error, and any running — in parallel
+      const [successRes, errorRes, runningRes] = await Promise.all([
+        supabase
+          .from(EXEC_TABLES[mod] as any)
+          .select(fields)
+          .eq("corretora_id", corretoraId)
+          .eq("status", "sucesso")
+          .order("created_at", { ascending: false })
+          .limit(1),
+        supabase
+          .from(EXEC_TABLES[mod] as any)
+          .select(fields)
+          .eq("corretora_id", corretoraId)
+          .eq("status", "erro")
+          .order("created_at", { ascending: false })
+          .limit(1),
+        supabase
+          .from(EXEC_TABLES[mod] as any)
+          .select(fields)
+          .eq("corretora_id", corretoraId)
+          .eq("status", "executando")
+          .order("created_at", { ascending: false })
+          .limit(1),
+      ]);
+
+      const logs: any[] = [
+        ...(runningRes.data || []),
+        ...(errorRes.data || []),
+        ...(successRes.data || []),
+      ];
+      // Deduplicate and sort by date desc
+      const unique = Array.from(new Map(logs.map(l => [l.id, l])).values())
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      setHistoryLogs(unique);
     } catch (e) {
       console.error("Erro ao carregar histórico:", e);
     } finally {
