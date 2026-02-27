@@ -675,10 +675,10 @@ export default function Agenda() {
 
           {/* Side Panel - Mini Calendar + Today's events (list view only) */}
           {activeView === 'list' && (
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
               {/* Mini Calendar */}
               <Card className="rounded-2xl border-0 shadow-sm">
-                <CardContent className="p-2">
+                <CardContent className="p-2 flex justify-center">
                   <Calendar
                     mode="single"
                     selected={miniCalendarDate}
