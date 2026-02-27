@@ -249,7 +249,7 @@ export default function BIAdminAnalytics() {
   mergedLogs.forEach(l => {
     const day = format(new Date(l.created_at), "yyyy-MM-dd");
     const existing = dayMap.get(day) || { visitors: new Set<string>(), views: 0 };
-    existing.visitors.add(l.session_id);
+    existing.visitors.add(l.user_id);
     existing.views++;
     dayMap.set(day, existing);
   });
