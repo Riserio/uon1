@@ -45,8 +45,37 @@ export default function VideoRooms() {
   const [activeTab, setActiveTab] = useState("salas");
   const [rsvpMap, setRsvpMap] = useState<Record<string, { sim: number; nao: number; talvez: number; pendente: number }>>({});
 
+  // Auto-finalize expired rooms then fetch
+  const autoFinalizeExpired = async () => {
+    try {
+      const { data: activeRooms } = await supabase
+        .from("meeting_rooms")
+        .select("id, agendado_para, duracao_minutos, host_id")
+        .eq("status", "ativa");
+
+      if (activeRooms && activeRooms.length > 0) {
+        const now = new Date();
+        for (const room of activeRooms) {
+          if (room.agendado_para && room.duracao_minutos) {
+            const endTime = new Date(new Date(room.agendado_para).getTime() + room.duracao_minutos * 60000);
+            if (now > endTime) {
+              await supabase
+                .from("meeting_rooms")
+                .update({ status: "finalizada", finalizado_em: now.toISOString() })
+                .eq("id", room.id);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao auto-finalizar salas:", e);
+    }
+  };
+
   useEffect(() => {
-    if (user) fetchRooms();
+    if (user) {
+      autoFinalizeExpired().then(() => fetchRooms());
+    }
   }, [user]);
 
   const fetchRooms = async () => {
@@ -345,7 +374,7 @@ export default function VideoRooms() {
             </div>
 
             {/* History */}
-            {finalizadas.length > 0 && (
+            {finalizadas.length > 0 ? (
               <div>
                 <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
                   <Clock className="h-5 w-5" /> Histórico
@@ -378,6 +407,18 @@ export default function VideoRooms() {
                     </Card>
                   ))}
                 </div>
+              </div>
+            ) : (
+              <div>
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Clock className="h-5 w-5" /> Histórico
+                </h2>
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <Clock className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                    <p className="text-muted-foreground text-sm">Nenhuma reunião finalizada ainda</p>
+                  </CardContent>
+                </Card>
               </div>
             )}
           </TabsContent>
