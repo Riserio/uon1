@@ -418,10 +418,10 @@ export default function Dashboard() {
 
           {/* Calendário + Compromissos lado a lado */}
           <Card className="rounded-2xl border-border/40 shadow-sm lg:col-span-3">
-            <CardContent className="p-5">
-              <div className="flex gap-5">
+            <CardContent className="p-5 h-full flex items-center">
+              <div className="flex gap-5 w-full">
                 {/* Mini Calendar - centered */}
-                <div className="shrink-0 w-[240px] flex flex-col items-center">
+                <div className="shrink-0 w-[240px] flex flex-col items-center justify-center">
                   <div className="flex items-center justify-between w-full mb-3">
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" onClick={() => setCalWeek(subWeeks(calWeek, 4))}><ChevronLeft className="h-4 w-4" /></Button>
                     <span className="text-sm font-bold uppercase tracking-wider text-foreground">
@@ -483,7 +483,7 @@ export default function Dashboard() {
                 {/* Divider */}
                 <div className="w-px bg-border/40 self-stretch" />
 
-                {/* Compromissos - filtered by selected day or all week */}
+                {/* Compromissos */}
                 {(() => {
                   const filteredItems = selectedCalDay
                     ? weekCompromissos.filter((c) => isSameDay(parseISO(c.horario_inicio), selectedCalDay))
@@ -493,7 +493,7 @@ export default function Dashboard() {
                     : "Semana";
 
                   return (
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-primary" />
@@ -520,7 +520,7 @@ export default function Dashboard() {
                           </div>
                         ) : (
                           filteredItems.map((item) => (
-                            <div key={item.id} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/40 transition-colors">
+                            <div key={item.id} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/40 transition-colors group">
                               <div className="w-1 h-8 rounded-full shrink-0" style={{ backgroundColor: item.cor }} />
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium truncate">{item.titulo}</p>
@@ -528,6 +528,15 @@ export default function Dashboard() {
                                   {format(parseISO(item.horario_inicio), selectedCalDay ? "HH:mm" : "EEE, dd MMM · HH:mm", { locale: ptBR })}
                                 </p>
                               </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                title="Concluir"
+                                onClick={() => handleConcluir(item)}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
                               <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
                                 {item.tipo === "evento" ? "Evento" : "Follow-up"}
                               </Badge>
