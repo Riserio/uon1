@@ -146,6 +146,29 @@ export default function MeetingRoomPage() {
 
   const handleDisconnect = () => navigate("/video");
 
+  const handleEndRoom = async () => {
+    if (isHost && roomId) {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=endRoom`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${session?.access_token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ roomId }),
+          }
+        );
+        toast.success("Reunião finalizada");
+      } catch {
+        // silently fail, still navigate
+      }
+    }
+    navigate("/video");
+  };
+
   if (loading || !livekitReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -187,24 +210,10 @@ export default function MeetingRoomPage() {
         onDisconnected={handleDisconnect}
         className="flex flex-col flex-1"
       >
-        <RoomHeader room={room} isHost={isHost} roomId={roomId!} onLeave={handleDisconnect} />
+        <RoomHeader room={room} isHost={isHost} roomId={roomId!} onLeave={handleEndRoom} />
         <MeetingTimer room={room} isHost={isHost} roomId={roomId!} onTimeUp={async () => {
-          // Auto-finalize
-          try {
-            await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=endRoom`,
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ roomId }),
-              }
-            );
-            toast.info("Reunião finalizada automaticamente (tempo esgotado)");
-            handleDisconnect();
-          } catch { handleDisconnect(); }
+          toast.info("Reunião finalizada automaticamente (tempo esgotado)");
+          await handleEndRoom();
         }} onExtend={(mins) => {
           setRoom(prev => prev ? { ...prev, duracao_minutos: (prev.duracao_minutos || 60) + mins } : prev);
         }} />
@@ -213,7 +222,7 @@ export default function MeetingRoomPage() {
           {chatOpen && <ChatPanel roomId={roomId!} userId={user?.id || ""} userName={user?.user_metadata?.nome || user?.email || "Eu"} />}
           {isHost && <PendingRequestsPanel roomId={roomId!} />}
         </div>
-        <ControlBar onLeave={handleDisconnect} chatOpen={chatOpen} onToggleChat={() => setChatOpen(!chatOpen)} />
+        <ControlBar onLeave={handleEndRoom} chatOpen={chatOpen} onToggleChat={() => setChatOpen(!chatOpen)} />
       </LiveKitRoom>
     </div>
   );
