@@ -380,33 +380,32 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── Row 1: Comunicados + Mini Calendário Semanal ── */}
-        <div className="grid gap-4 lg:grid-cols-2 auto-rows-fr">
-          {/* Comunicados */}
-          <Card className="rounded-2xl border-border/40 shadow-sm flex flex-col">
-            <CardHeader className="pb-3 pt-5 px-6">
+        {/* ── Row 1: Comunicados + Calendário & Compromissos ── */}
+        <div className="grid gap-4 lg:grid-cols-5 auto-rows-fr">
+          {/* Comunicados - narrower */}
+          <Card className="rounded-2xl border-border/40 shadow-sm flex flex-col lg:col-span-2">
+            <CardHeader className="pb-2 pt-4 px-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Megaphone className="h-5 w-5 text-amber-500" />
-                  <CardTitle className="text-base font-semibold">Comunicados</CardTitle>
+                  <Megaphone className="h-4 w-4 text-amber-500" />
+                  <CardTitle className="text-sm font-semibold">Comunicados</CardTitle>
                 </div>
-                {userRole === "admin" && <Link to="/comunicados"><Button size="sm" variant="outline" className="h-8 text-sm px-3"><Plus className="h-4 w-4 mr-1" />Novo</Button></Link>}
+                {userRole === "admin" && <Link to="/comunicados"><Button size="sm" variant="outline" className="h-7 text-xs px-2.5"><Plus className="h-3.5 w-3.5 mr-1" />Novo</Button></Link>}
               </div>
             </CardHeader>
-            <CardContent className="px-6 pb-5 flex-1">
+            <CardContent className="px-5 pb-4 flex-1">
               {comunicados.length === 0 ?
-              <div className="text-center py-10"><Megaphone className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Nenhum comunicado</p></div> :
-
-              <div className="space-y-3 h-full overflow-y-auto scrollbar-hide">
+              <div className="text-center py-8"><Megaphone className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" /><p className="text-xs text-muted-foreground">Nenhum comunicado</p></div> :
+              <div className="space-y-2 h-full overflow-y-auto scrollbar-hide">
                   {comunicados.map((c) =>
-                <div key={c.id} className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
-                      {c.imagem_url && <img src={c.imagem_url} alt="" className="h-11 w-11 rounded-lg object-cover shrink-0" />}
+                <div key={c.id} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
+                      {c.imagem_url && <img src={c.imagem_url} alt="" className="h-9 w-9 rounded-lg object-cover shrink-0" />}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium line-clamp-1">{c.titulo}</p>
-                        <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">{c.mensagem}</p>
-                        <div className="flex items-center justify-between mt-1.5">
-                          <span className="text-xs text-muted-foreground">{formatDistanceToNow(parseISO(c.created_at), { addSuffix: true, locale: ptBR })}</span>
-                          {c.link && <a href={c.link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-0.5"><ExternalLink className="h-3.5 w-3.5" /></a>}
+                        <p className="text-xs font-medium line-clamp-1">{c.titulo}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{c.mensagem}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[10px] text-muted-foreground">{formatDistanceToNow(parseISO(c.created_at), { addSuffix: true, locale: ptBR })}</span>
+                          {c.link && <a href={c.link} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline flex items-center gap-0.5"><ExternalLink className="h-3 w-3" /></a>}
                         </div>
                       </div>
                     </div>
@@ -416,71 +415,108 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Mini Calendário Mensal */}
-          <Card className="rounded-2xl border-border/40 shadow-sm flex flex-col">
+          {/* Calendário + Compromissos lado a lado */}
+          <Card className="rounded-2xl border-border/40 shadow-sm lg:col-span-3">
             <CardContent className="p-5">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-1.5">
-                  <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground" onClick={() => setCalWeek(subWeeks(calWeek, 4))}><ChevronLeft className="h-3.5 w-3.5" /></Button>
-                  <span className="text-sm font-semibold uppercase tracking-wide text-foreground">
-                    {format(calWeek, "MMMM", { locale: ptBR })}
-                  </span>
-                  <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground" onClick={() => setCalWeek(addWeeks(calWeek, 4))}><ChevronRight className="h-3.5 w-3.5" /></Button>
-                </div>
-                {weekCompromissos.length > 0 && (
-                  <Badge variant="secondary" className="gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full">
-                    <CheckCircle2 className="h-3 w-3" />
-                    {weekCompromissos.length} pendente{weekCompromissos.length !== 1 ? 's' : ''}
-                  </Badge>
-                )}
-              </div>
-
-              {/* Weekday headers */}
-              <div className="grid grid-cols-7 mb-0.5">
-                {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
-                  <div key={i} className="text-center text-[11px] font-medium text-muted-foreground/50 py-1">{d}</div>
-                ))}
-              </div>
-
-              {/* Calendar grid */}
-              {(() => {
-                const monthStart = new Date(calWeek.getFullYear(), calWeek.getMonth(), 1);
-                const monthEnd = new Date(calWeek.getFullYear(), calWeek.getMonth() + 1, 0);
-                const calStart = startOfWeek(monthStart, { locale: ptBR });
-                const calEnd = endOfWeek(monthEnd, { locale: ptBR });
-                const days: Date[] = [];
-                let d = calStart;
-                while (d <= calEnd) { days.push(d); d = addDays(d, 1); }
-
-                return (
-                  <div className="grid grid-cols-7">
-                    {days.map((day) => {
-                      const isToday = isSameDay(day, new Date());
-                      const isCurrentMonth = day.getMonth() === calWeek.getMonth();
-                      const dayItems = weekCompromissos.filter((c) => isSameDay(parseISO(c.horario_inicio), day));
-                      const hasEvents = dayItems.length > 0;
-
-                      return (
-                        <div
-                          key={day.toISOString()}
-                          className={`relative flex items-center justify-center aspect-square text-[13px] cursor-default
-                            ${isToday ? "font-bold" : ""}
-                            ${!isCurrentMonth ? "text-muted-foreground/25" : "text-foreground"}
-                          `}
-                        >
-                          <span className={`flex items-center justify-center w-8 h-8 rounded-full ${isToday ? "bg-primary text-primary-foreground" : ""}`}>
-                            {format(day, "d")}
-                          </span>
-                          {hasEvents && !isToday && isCurrentMonth && (
-                            <span className="absolute bottom-[2px] left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
-                          )}
-                        </div>
-                      );
-                    })}
+              <div className="flex gap-5">
+                {/* Mini Calendar */}
+                <div className="shrink-0 w-[220px]">
+                  <div className="flex items-center justify-between mb-2">
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground" onClick={() => setCalWeek(subWeeks(calWeek, 4))}><ChevronLeft className="h-3.5 w-3.5" /></Button>
+                    <span className="text-sm font-semibold uppercase tracking-wide text-foreground">
+                      {format(calWeek, "MMMM", { locale: ptBR })}
+                    </span>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground" onClick={() => setCalWeek(addWeeks(calWeek, 4))}><ChevronRight className="h-3.5 w-3.5" /></Button>
                   </div>
-                );
-              })()}
+
+                  <div className="grid grid-cols-7">
+                    {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
+                      <div key={i} className="text-center text-[10px] font-semibold text-muted-foreground/50 py-0.5">{d}</div>
+                    ))}
+                  </div>
+
+                  {(() => {
+                    const monthStart = new Date(calWeek.getFullYear(), calWeek.getMonth(), 1);
+                    const monthEnd = new Date(calWeek.getFullYear(), calWeek.getMonth() + 1, 0);
+                    const calStart = startOfWeek(monthStart, { locale: ptBR });
+                    const calEnd = endOfWeek(monthEnd, { locale: ptBR });
+                    const days: Date[] = [];
+                    let d = calStart;
+                    while (d <= calEnd) { days.push(d); d = addDays(d, 1); }
+
+                    return (
+                      <div className="grid grid-cols-7">
+                        {days.map((day) => {
+                          const isToday = isSameDay(day, new Date());
+                          const isCurrentMonth = day.getMonth() === calWeek.getMonth();
+                          const dayItems = weekCompromissos.filter((c) => isSameDay(parseISO(c.horario_inicio), day));
+                          const hasEvents = dayItems.length > 0;
+
+                          return (
+                            <div
+                              key={day.toISOString()}
+                              className={`relative flex items-center justify-center aspect-square text-xs cursor-default
+                                ${isToday ? "font-bold" : ""}
+                                ${!isCurrentMonth ? "text-muted-foreground/20" : "text-foreground"}
+                              `}
+                            >
+                              <span className={`flex items-center justify-center w-7 h-7 rounded-full ${isToday ? "bg-primary text-primary-foreground" : ""}`}>
+                                {format(day, "d")}
+                              </span>
+                              {hasEvents && !isToday && isCurrentMonth && (
+                                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Divider */}
+                <div className="w-px bg-border/40 self-stretch" />
+
+                {/* Compromissos */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold">Compromissos</span>
+                    </div>
+                    {weekCompromissos.length > 0 && (
+                      <Badge variant="secondary" className="gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                        <CheckCircle2 className="h-3 w-3" />
+                        {weekCompromissos.length} pendente{weekCompromissos.length !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 overflow-y-auto max-h-[220px] scrollbar-hide">
+                    {weekCompromissos.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Calendar className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground">Nenhum compromisso esta semana</p>
+                      </div>
+                    ) : (
+                      weekCompromissos.map((item) => (
+                        <div key={item.id} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/40 transition-colors">
+                          <div className="w-1 h-8 rounded-full shrink-0" style={{ backgroundColor: item.cor }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium truncate">{item.titulo}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {format(parseISO(item.horario_inicio), "EEE, dd MMM · HH:mm", { locale: ptBR })}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
+                            {item.tipo === "evento" ? "Evento" : "Follow-up"}
+                          </Badge>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
