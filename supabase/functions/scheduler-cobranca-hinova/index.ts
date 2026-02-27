@@ -143,6 +143,22 @@ serve(async (req) => {
           continue;
         }
 
+        // Verificar flag ativo_cobranca em hinova_credenciais
+        const { data: credRetry } = await supabase
+          .from("hinova_credenciais")
+          .select("ativo_cobranca")
+          .eq("corretora_id", config.corretora_id)
+          .maybeSingle();
+        
+        if (credRetry && credRetry.ativo_cobranca === false) {
+          console.log(`[Scheduler] ${config.corretora?.nome} módulo cobrança desativado, cancelando retry`);
+          await supabase
+            .from("cobranca_automacao_execucoes")
+            .update({ proxima_tentativa_at: null })
+            .eq("id", execFalha.id);
+          continue;
+        }
+
         // Verificar se já há uma execução com sucesso hoje (não precisa retry)
         const hoje = new Date().toISOString().split('T')[0];
         const { data: execucoesHojeSucesso } = await supabase
@@ -293,6 +309,18 @@ serve(async (req) => {
     const erros: string[] = [];
 
     for (const config of configs) {
+      // Verificar flag ativo_cobranca na tabela hinova_credenciais
+      const { data: credenciaisFlag } = await supabase
+        .from("hinova_credenciais")
+        .select("ativo_cobranca")
+        .eq("corretora_id", config.corretora_id)
+        .maybeSingle();
+      
+      if (credenciaisFlag && credenciaisFlag.ativo_cobranca === false) {
+        console.log(`[Scheduler] ${config.corretora?.nome || config.corretora_id} módulo cobrança desativado em hinova_credenciais, pulando`);
+        continue;
+      }
+
       // Verificar se o horário agendado corresponde ao horário atual (apenas se não for modo forçado)
       if (!forceMode) {
         const horaAgendada = config.hora_agendada || "09:00:00";
