@@ -326,6 +326,95 @@ async function processFlowStep(
 ) {
   const flowId = state.flow_id;
 
+  // Handle virtual step: confirm last updated association or pick from list
+  if (state.current_step_key === '__confirm_last_corretora') {
+    const corretoras = JSON.parse(state.variables?._pending_report_corretoras || '[]');
+    const reportType = state.variables?._pending_report_type || 'cobranca';
+    const nextStepKey = state.variables?._pending_report_step_next || null;
+    const lastCorretora = state.variables?._last_updated_corretora ? JSON.parse(state.variables._last_updated_corretora) : null;
+    const trimmed = normalizeText(messageBody);
+
+    if (trimmed === '1' || trimmed === 'sim' || trimmed === 's') {
+      // User confirmed the last updated association
+      if (lastCorretora) {
+        console.log(`[flow-engine] User confirmed last corretora: ${lastCorretora.nome}`);
+        await sendWhatsAppMessage(supabase, contactId, phone, `📊 Gerando relatório de *${lastCorretora.nome}*...`, token, phoneNumberId);
+        await triggerReportGeneration(supabase, reportType, lastCorretora.id, phone, contactId, token, phoneNumberId);
+
+        // Ask if they want another
+        const vars = { ...(state.variables || {}), corretora_selecionada: lastCorretora.nome };
+        const otherCorretoras = corretoras.filter((c: any) => c.id !== lastCorretora.id);
+        if (otherCorretoras.length > 0) {
+          vars._remaining_corretoras = JSON.stringify(otherCorretoras);
+          await supabase.from('whatsapp_contact_flow_state')
+            .update({ current_step_key: '__ask_another_corretora', variables: vars, last_interaction_at: new Date().toISOString() })
+            .eq('id', state.id);
+          await sendWhatsAppMessage(supabase, contactId, phone, '\n🔄 Deseja ver o relatório de outra associação?\n\n1. Sim\n2. Não', token, phoneNumberId);
+        } else {
+          await advanceOrComplete(supabase, state, nextStepKey, flowId, vars, contactId, phone, token, phoneNumberId);
+        }
+        return;
+      }
+    }
+    
+    if (trimmed === '2' || trimmed === 'nao' || trimmed === 'não' || trimmed === 'n' || trimmed === 'outra' || trimmed === 'outras') {
+      // User wants to see the full list — go to selection
+      await supabase.from('whatsapp_contact_flow_state')
+        .update({ current_step_key: '__select_corretora_report', last_interaction_at: new Date().toISOString() })
+        .eq('id', state.id);
+      let listMsg = '📋 Selecione a associação:\n';
+      corretoras.forEach((c: any, i: number) => {
+        const status = c.last_update ? `✅ ${c.last_update}` : '⚠️ sem dados';
+        listMsg += `\n${i + 1}. ${c.nome} (${status})`;
+      });
+      listMsg += '\n\nDigite o número da opção desejada.';
+      await sendWhatsAppMessage(supabase, contactId, phone, listMsg, token, phoneNumberId);
+      return;
+    }
+
+    // Invalid response
+    await sendWhatsAppMessage(supabase, contactId, phone, '❌ Resposta inválida. Digite *1* para Sim ou *2* para ver outras associações.', token, phoneNumberId);
+    return;
+  }
+
+  // Handle virtual step: ask if user wants another association report
+  if (state.current_step_key === '__ask_another_corretora') {
+    const remaining = JSON.parse(state.variables?._remaining_corretoras || '[]');
+    const corretoras = JSON.parse(state.variables?._pending_report_corretoras || '[]');
+    const reportType = state.variables?._pending_report_type || 'cobranca';
+    const nextStepKey = state.variables?._pending_report_step_next || null;
+    const trimmed = normalizeText(messageBody);
+
+    if (trimmed === '1' || trimmed === 'sim' || trimmed === 's') {
+      // Show remaining list
+      await supabase.from('whatsapp_contact_flow_state')
+        .update({ current_step_key: '__select_corretora_report', last_interaction_at: new Date().toISOString() })
+        .eq('id', state.id);
+      let listMsg = '📋 Selecione a associação:\n';
+      corretoras.forEach((c: any, i: number) => {
+        const status = c.last_update ? `✅ ${c.last_update}` : '⚠️ sem dados';
+        listMsg += `\n${i + 1}. ${c.nome} (${status})`;
+      });
+      listMsg += '\n\nDigite o número da opção desejada.';
+      await sendWhatsAppMessage(supabase, contactId, phone, listMsg, token, phoneNumberId);
+      return;
+    }
+
+    if (trimmed === '2' || trimmed === 'nao' || trimmed === 'não' || trimmed === 'n') {
+      const cleanVars = { ...(state.variables || {}) };
+      delete cleanVars._pending_report_corretoras;
+      delete cleanVars._pending_report_type;
+      delete cleanVars._pending_report_step_next;
+      delete cleanVars._last_updated_corretora;
+      delete cleanVars._remaining_corretoras;
+      await advanceOrComplete(supabase, state, nextStepKey, flowId, cleanVars, contactId, phone, token, phoneNumberId);
+      return;
+    }
+
+    await sendWhatsAppMessage(supabase, contactId, phone, '❌ Resposta inválida. Digite *1* para Sim ou *2* para Não.', token, phoneNumberId);
+    return;
+  }
+
   // Handle virtual step: corretora selection for multi-association reports
   if (state.current_step_key === '__select_corretora_report') {
     const corretoras = JSON.parse(state.variables?._pending_report_corretoras || '[]');
@@ -336,7 +425,10 @@ async function processFlowStep(
 
     if (isNaN(optionIndex) || optionIndex < 0 || optionIndex >= corretoras.length) {
       let retryMsg = '❌ Opção inválida. Digite o número da associação:\n';
-      corretoras.forEach((c: any, i: number) => { retryMsg += `\n${i + 1}. ${c.nome}`; });
+      corretoras.forEach((c: any, i: number) => {
+        const status = c.last_update ? `✅ ${c.last_update}` : '⚠️ sem dados';
+        retryMsg += `\n${i + 1}. ${c.nome} (${status})`;
+      });
       await sendWhatsAppMessage(supabase, contactId, phone, retryMsg, token, phoneNumberId);
       return;
     }
@@ -347,76 +439,41 @@ async function processFlowStep(
     await sendWhatsAppMessage(supabase, contactId, phone, `📊 Gerando relatório de *${selected.nome}*...`, token, phoneNumberId);
     await triggerReportGeneration(supabase, reportType, selected.id, phone, contactId, token, phoneNumberId);
 
-    // Clean up variables and advance
-    const cleanVars = { ...(state.variables || {}) };
-    delete cleanVars._pending_report_corretoras;
-    delete cleanVars._pending_report_type;
-    delete cleanVars._pending_report_step_next;
-    cleanVars.corretora_selecionada = selected.nome;
-
-    if (nextStepKey) {
-      const { data: nextStep } = await supabase
-        .from('whatsapp_flow_steps').select('*')
-        .eq('flow_id', flowId).eq('step_key', nextStepKey).single();
-      if (nextStep) {
-        await supabase.from('whatsapp_contact_flow_state')
-          .update({ current_step_key: nextStepKey, variables: cleanVars, last_interaction_at: new Date().toISOString() })
-          .eq('id', state.id);
-        await executeStep(supabase, nextStep, { ...state, variables: cleanVars, current_step_key: nextStepKey }, contactId, phone, token, phoneNumberId);
-      } else {
-        await completeFlow(supabase, state.id);
-      }
+    // Ask if they want another
+    const vars = { ...(state.variables || {}), corretora_selecionada: selected.nome };
+    const otherCorretoras = corretoras.filter((c: any) => c.id !== selected.id);
+    if (otherCorretoras.length > 0) {
+      vars._remaining_corretoras = JSON.stringify(otherCorretoras);
+      await supabase.from('whatsapp_contact_flow_state')
+        .update({ current_step_key: '__ask_another_corretora', variables: vars, last_interaction_at: new Date().toISOString() })
+        .eq('id', state.id);
+      await sendWhatsAppMessage(supabase, contactId, phone, '\n🔄 Deseja ver o relatório de outra associação?\n\n1. Sim\n2. Não', token, phoneNumberId);
     } else {
-      await completeFlow(supabase, state.id);
+      const cleanVars = { ...vars };
+      delete cleanVars._pending_report_corretoras;
+      delete cleanVars._pending_report_type;
+      delete cleanVars._pending_report_step_next;
+      delete cleanVars._last_updated_corretora;
+      delete cleanVars._remaining_corretoras;
+      await advanceOrComplete(supabase, state, nextStepKey, flowId, cleanVars, contactId, phone, token, phoneNumberId);
     }
     return;
   }
 
-  // Also handle case where request_report step has pending corretora selection in variables
-  // (race condition: step_key wasn't updated to __select_corretora_report)
+  // Fallback: redirect pending corretora variables to the correct virtual step handler
   if (state.variables?._pending_report_corretoras) {
-    console.log(`[flow-engine] Detected pending corretora selection in variables, redirecting to selection handler`);
-    const corretoras = JSON.parse(state.variables._pending_report_corretoras);
-    const reportType = state.variables._pending_report_type || 'cobranca';
-    const nextStepKey = state.variables._pending_report_step_next || null;
-    const trimmed = messageBody.trim();
-    const optionIndex = parseInt(trimmed, 10) - 1;
-
-    if (isNaN(optionIndex) || optionIndex < 0 || optionIndex >= corretoras.length) {
-      let retryMsg = '❌ Opção inválida. Digite o número da associação:\n';
-      corretoras.forEach((c: any, i: number) => { retryMsg += `\n${i + 1}. ${c.nome}`; });
-      await sendWhatsAppMessage(supabase, contactId, phone, retryMsg, token, phoneNumberId);
-      return;
+    const currentKey = state.current_step_key;
+    // Determine correct virtual step based on context
+    let redirectKey = '__select_corretora_report';
+    if (state.variables?._last_updated_corretora && currentKey !== '__select_corretora_report' && currentKey !== '__ask_another_corretora') {
+      redirectKey = '__confirm_last_corretora';
     }
-
-    const selected = corretoras[optionIndex];
-    console.log(`[flow-engine] User selected corretora (fallback): ${selected.nome} (${selected.id})`);
-
-    await sendWhatsAppMessage(supabase, contactId, phone, `📊 Gerando relatório de *${selected.nome}*...`, token, phoneNumberId);
-    await triggerReportGeneration(supabase, reportType, selected.id, phone, contactId, token, phoneNumberId);
-
-    const cleanVars = { ...(state.variables || {}) };
-    delete cleanVars._pending_report_corretoras;
-    delete cleanVars._pending_report_type;
-    delete cleanVars._pending_report_step_next;
-    cleanVars.corretora_selecionada = selected.nome;
-
-    if (nextStepKey) {
-      const { data: nextStep } = await supabase
-        .from('whatsapp_flow_steps').select('*')
-        .eq('flow_id', flowId).eq('step_key', nextStepKey).single();
-      if (nextStep) {
-        await supabase.from('whatsapp_contact_flow_state')
-          .update({ current_step_key: nextStepKey, variables: cleanVars, last_interaction_at: new Date().toISOString() })
-          .eq('id', state.id);
-        await executeStep(supabase, nextStep, { ...state, variables: cleanVars, current_step_key: nextStepKey }, contactId, phone, token, phoneNumberId);
-      } else {
-        await completeFlow(supabase, state.id);
-      }
-    } else {
-      await completeFlow(supabase, state.id);
-    }
-    return;
+    console.log(`[flow-engine] Redirecting pending corretora selection to ${redirectKey}`);
+    await supabase.from('whatsapp_contact_flow_state')
+      .update({ current_step_key: redirectKey, last_interaction_at: new Date().toISOString() })
+      .eq('id', state.id);
+    state.current_step_key = redirectKey;
+    return await processFlowStep(supabase, state, messageBody, contactId, phone, token, phoneNumberId);
   }
 
   const { data: currentStep } = await supabase
@@ -692,29 +749,65 @@ async function executeStep(
         await sendWhatsAppMessage(supabase, contactId, phone, confirmMsg, token, phoneNumberId);
         await triggerReportGeneration(supabase, reportType, corretoraId, phone, contactId, token, phoneNumberId);
       } else {
-        // Multiple associations - present selection menu
-        let menuMsg = '📋 Você está vinculado a múltiplas associações. Qual deseja o relatório?\n';
-        matchedCorretoras.forEach((c, i) => {
-          menuMsg += `\n${i + 1}. ${c.nome}`;
-        });
-        menuMsg += '\n\nDigite o número da opção desejada.';
+        // Multiple associations - fetch last update dates for each
+        const importTable = reportType === 'eventos' ? 'sga_importacoes' : reportType === 'mgf' ? 'mgf_importacoes' : 'cobranca_importacoes';
+        const enrichedCorretoras = [];
+        for (const c of matchedCorretoras) {
+          const { data: lastImport } = await supabase
+            .from(importTable)
+            .select('created_at')
+            .eq('corretora_id', c.id)
+            .eq('ativo', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const lastUpdate = lastImport?.created_at
+            ? new Date(lastImport.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : null;
+          enrichedCorretoras.push({ ...c, last_update: lastUpdate });
+        }
 
-        // Save matched corretoras and report type in state variables for selection handling
+        // Sort: most recently updated first
+        enrichedCorretoras.sort((a: any, b: any) => {
+          if (!a.last_update && !b.last_update) return 0;
+          if (!a.last_update) return 1;
+          if (!b.last_update) return -1;
+          return 0; // keep relative order since already sorted by name
+        });
+
+        const mostRecent = enrichedCorretoras.find((c: any) => c.last_update);
+
         const vars = {
           ...(state.variables || {}),
-          _pending_report_corretoras: JSON.stringify(matchedCorretoras),
+          _pending_report_corretoras: JSON.stringify(enrichedCorretoras),
           _pending_report_type: reportType,
           _pending_report_step_next: step.next_step_key || '',
         };
-        await supabase.from('whatsapp_contact_flow_state')
-          .update({
-            variables: vars,
-            current_step_key: '__select_corretora_report',
-            last_interaction_at: new Date().toISOString(),
-          })
-          .eq('id', state.id);
 
-        await sendWhatsAppMessage(supabase, contactId, phone, menuMsg, token, phoneNumberId);
+        if (mostRecent) {
+          // Show the last updated and ask for confirmation
+          vars._last_updated_corretora = JSON.stringify(mostRecent);
+          await supabase.from('whatsapp_contact_flow_state')
+            .update({ variables: vars, current_step_key: '__confirm_last_corretora', last_interaction_at: new Date().toISOString() })
+            .eq('id', state.id);
+
+          const menuMsg = `📋 Você está vinculado a *${enrichedCorretoras.length}* associações.\n\n` +
+            `A última atualização foi de *${mostRecent.nome}* em ${mostRecent.last_update}.\n\n` +
+            `Deseja ver o relatório desta associação?\n\n1. ✅ Sim, gerar de *${mostRecent.nome}*\n2. 📋 Ver todas as associações`;
+          await sendWhatsAppMessage(supabase, contactId, phone, menuMsg, token, phoneNumberId);
+        } else {
+          // No updates found - show full list
+          await supabase.from('whatsapp_contact_flow_state')
+            .update({ variables: vars, current_step_key: '__select_corretora_report', last_interaction_at: new Date().toISOString() })
+            .eq('id', state.id);
+
+          let menuMsg = '📋 Você está vinculado a múltiplas associações. Selecione:\n';
+          enrichedCorretoras.forEach((c: any, i: number) => {
+            menuMsg += `\n${i + 1}. ${c.nome} (⚠️ sem dados)`;
+          });
+          menuMsg += '\n\nDigite o número da opção desejada.';
+          await sendWhatsAppMessage(supabase, contactId, phone, menuMsg, token, phoneNumberId);
+        }
         return; // Wait for user response
       }
 
@@ -879,6 +972,27 @@ function replaceVariables(template: string, variables: Record<string, string>): 
     result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value || '');
   }
   return result;
+}
+
+async function advanceOrComplete(
+  supabase: any, state: any, nextStepKey: string | null, flowId: string,
+  vars: Record<string, any>, contactId: string, phone: string, token: string, phoneNumberId: string
+) {
+  if (nextStepKey) {
+    const { data: nextStep } = await supabase
+      .from('whatsapp_flow_steps').select('*')
+      .eq('flow_id', flowId).eq('step_key', nextStepKey).single();
+    if (nextStep) {
+      await supabase.from('whatsapp_contact_flow_state')
+        .update({ current_step_key: nextStepKey, variables: vars, last_interaction_at: new Date().toISOString() })
+        .eq('id', state.id);
+      await executeStep(supabase, nextStep, { ...state, variables: vars, current_step_key: nextStepKey }, contactId, phone, token, phoneNumberId);
+    } else {
+      await completeFlow(supabase, state.id);
+    }
+  } else {
+    await completeFlow(supabase, state.id);
+  }
 }
 
 async function completeFlow(supabase: any, stateId: string) {
