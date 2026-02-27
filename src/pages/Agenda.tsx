@@ -155,10 +155,35 @@ export default function Agenda() {
       fetchEventos();
       fetchLembretes();
       fetchIntegrations();
-      const interval = setInterval(() => verificarLembretes(), 60000);
-      return () => clearInterval(interval);
+      const lembreteInterval = setInterval(() => verificarLembretes(), 60000);
+
+      // Auto-sync Google Calendar every 5 minutes
+      const syncInterval = setInterval(() => {
+        if (integrations.some(i => i.ativo)) {
+          supabase.functions.invoke('google-calendar-sync').then(({ data }) => {
+            if (data?.imported > 0 || data?.updated > 0) {
+              fetchEventos();
+              fetchIntegrations();
+            }
+          }).catch(() => {});
+        }
+      }, 5 * 60 * 1000);
+
+      // Realtime subscription on eventos table
+      const channel = supabase
+        .channel('eventos-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'eventos', filter: `user_id=eq.${user.id}` }, () => {
+          fetchEventos();
+        })
+        .subscribe();
+
+      return () => {
+        clearInterval(lembreteInterval);
+        clearInterval(syncInterval);
+        supabase.removeChannel(channel);
+      };
     }
-  }, [user, fetchEventos, fetchLembretes, fetchIntegrations]);
+  }, [user, fetchEventos, fetchLembretes, fetchIntegrations, integrations]);
 
   const verificarLembretes = async () => {
     const agora = new Date();
