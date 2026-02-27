@@ -37,6 +37,7 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
+import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/hooks/useAuth';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -681,6 +682,7 @@ export default function Agenda() {
                 <CardContent className="p-4 [&_.rdp]:w-full [&_.rdp-months]:w-full [&_.rdp-month]:w-full [&_.rdp-month]:space-y-2 [&_.rdp-table]:w-full [&_.rdp-caption_label]:text-xs [&_.rdp-head_cell]:w-[calc(100%/7)] [&_.rdp-head_cell]:text-[0.65rem] [&_.rdp-cell]:w-[calc(100%/7)] [&_.rdp-cell]:h-auto [&_.rdp-cell]:text-[0.7rem] [&_.rdp-day]:w-full [&_.rdp-day]:aspect-square [&_.rdp-day]:h-auto [&_.rdp-day]:text-[0.7rem] [&_.rdp-nav_button]:h-6 [&_.rdp-nav_button]:w-6 [&_.rdp-head_row]:flex [&_.rdp-head_row]:w-full [&_.rdp-row]:flex [&_.rdp-row]:w-full [&_.rdp-row]:mt-1">
                   <Calendar
                     mode="single"
+                    locale={ptBR}
                     selected={miniCalendarDate}
                     onSelect={(date) => {
                       setMiniCalendarDate(date);
