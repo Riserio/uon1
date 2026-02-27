@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,14 +8,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  GitBranch, Loader2, RefreshCw, CheckCircle, XCircle, Clock, Play, Square,
-  Activity, TrendingUp, Timer, AlertTriangle, ExternalLink
+  GitBranch, Loader2, RefreshCw, CheckCircle, XCircle, Clock,
+  Activity, TrendingUp, Timer, AlertTriangle, ExternalLink,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
 interface AssociacaoAutomacao {
   id: string;
@@ -42,12 +44,38 @@ interface ExecucaoRecente {
   tipo_disparo: string | null;
 }
 
+const BATCH_SIZE = 1000;
+
+async function fetchAllRows(table: string, select: string, since: string): Promise<any[]> {
+  const rows: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from(table as any)
+      .select(select)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .range(from, from + BATCH_SIZE - 1) as any;
+    if (error) { console.error(`Erro ao buscar ${table}:`, error); break; }
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < BATCH_SIZE) break;
+    from += BATCH_SIZE;
+  }
+  return rows;
+}
+
 export default function BIAdminGitHub() {
   const [associacoes, setAssociacoes] = useState<AssociacaoAutomacao[]>([]);
   const [execucoes, setExecucoes] = useState<ExecucaoRecente[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
   const [subTab, setSubTab] = useState("automacoes");
+  const [periodoConsumo, setPeriodoConsumo] = useState("30");
+
+  // Pagination state
+  const [histPage, setHistPage] = useState(0);
+  const [histPerPage, setHistPerPage] = useState(25);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -74,23 +102,25 @@ export default function BIAdminGitHub() {
         })
       );
 
-      // Load recent executions from all 3 modules
+      // Batch fetch ALL executions (no limit)
       const corretoraMap = new Map((corretoras || []).map(c => [c.id, c.nome]));
-      const since = subDays(new Date(), 30).toISOString();
+      const since = subDays(new Date(), 90).toISOString(); // 90 days for full history
 
-      const [{ data: cobExec }, { data: sgaExec }, { data: mgfExec }] = await Promise.all([
-        supabase.from("cobranca_automacao_execucoes").select("id, corretora_id, status, created_at, finalizado_at, duracao_segundos, erro, github_run_id, github_run_url, tipo_disparo").gte("created_at", since).order("created_at", { ascending: false }).limit(100),
-        supabase.from("sga_automacao_execucoes").select("id, corretora_id, status, created_at, finalizado_at, duracao_segundos, erro, github_run_id, github_run_url, tipo_disparo").gte("created_at", since).order("created_at", { ascending: false }).limit(100),
-        supabase.from("mgf_automacao_execucoes").select("id, corretora_id, status, created_at, finalizado_at, duracao_segundos, erro, github_run_id, github_run_url, tipo_disparo").gte("created_at", since).order("created_at", { ascending: false }).limit(100),
+      const fields = "id, corretora_id, status, created_at, finalizado_at, duracao_segundos, erro, github_run_id, github_run_url, tipo_disparo";
+      const [cobExec, sgaExec, mgfExec] = await Promise.all([
+        fetchAllRows("cobranca_automacao_execucoes", fields, since),
+        fetchAllRows("sga_automacao_execucoes", fields, since),
+        fetchAllRows("mgf_automacao_execucoes", fields, since),
       ]);
 
       const allExec: ExecucaoRecente[] = [
-        ...(cobExec || []).map(e => ({ ...e, modulo: "Cobrança", corretora_nome: corretoraMap.get(e.corretora_id) })),
-        ...(sgaExec || []).map(e => ({ ...e, modulo: "Eventos", corretora_nome: corretoraMap.get(e.corretora_id) })),
-        ...(mgfExec || []).map(e => ({ ...e, modulo: "MGF", corretora_nome: corretoraMap.get(e.corretora_id) })),
+        ...cobExec.map((e: any) => ({ ...e, modulo: "Cobrança", corretora_nome: corretoraMap.get(e.corretora_id) })),
+        ...sgaExec.map((e: any) => ({ ...e, modulo: "Eventos", corretora_nome: corretoraMap.get(e.corretora_id) })),
+        ...mgfExec.map((e: any) => ({ ...e, modulo: "MGF", corretora_nome: corretoraMap.get(e.corretora_id) })),
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setExecucoes(allExec);
+      setHistPage(0);
     } catch (e) {
       console.error("Erro ao carregar dados GitHub:", e);
       toast.error("Erro ao carregar dados");
@@ -120,51 +150,47 @@ export default function BIAdminGitHub() {
     }
   };
 
-  // Calculate stats
-  const totalExecucoes = execucoes.length;
-  const execSucesso = execucoes.filter(e => e.status === "sucesso").length;
-  const execErro = execucoes.filter(e => e.status === "erro").length;
-  const execEmAndamento = execucoes.filter(e => e.status === "executando").length;
-  const totalMinutos = execucoes.reduce((sum, e) => sum + (e.duracao_segundos ? Math.ceil(e.duracao_segundos / 60) : 0), 0);
-  const taxaSucesso = totalExecucoes > 0 ? Math.round((execSucesso / totalExecucoes) * 100) : 0;
+  // Filter executions by selected period for consumption tab
+  const dias = parseInt(periodoConsumo);
+  const sinceDate = subDays(new Date(), dias);
+  const execFiltradas = useMemo(() => execucoes.filter(e => new Date(e.created_at) >= sinceDate), [execucoes, dias]);
 
-  // Chart data: executions per day (last 30 days)
-  const execPorDia = (() => {
+  // Calculate stats from filtered data
+  const totalExecucoes = execFiltradas.length;
+  const execSucesso = execFiltradas.filter(e => e.status === "sucesso").length;
+  const execErro = execFiltradas.filter(e => e.status === "erro").length;
+  const totalMinutos = execFiltradas.reduce((sum, e) => sum + (e.duracao_segundos ? Math.ceil(e.duracao_segundos / 60) : 0), 0);
+  const taxaSucesso = totalExecucoes > 0 ? Math.round((execSucesso / totalExecucoes) * 100) : 0;
+  const custoEstimado = (totalMinutos * 0.008).toFixed(2);
+
+  // Chart data
+  const execPorDia = useMemo(() => {
     const map = new Map<string, { sucesso: number; erro: number; total: number }>();
-    for (let i = 29; i >= 0; i--) {
-      const d = format(subDays(new Date(), i), "dd/MM");
-      map.set(d, { sucesso: 0, erro: 0, total: 0 });
+    for (let i = dias - 1; i >= 0; i--) {
+      map.set(format(subDays(new Date(), i), "dd/MM"), { sucesso: 0, erro: 0, total: 0 });
     }
-    execucoes.forEach(e => {
+    execFiltradas.forEach(e => {
       const d = format(new Date(e.created_at), "dd/MM");
       const entry = map.get(d);
-      if (entry) {
-        entry.total++;
-        if (e.status === "sucesso") entry.sucesso++;
-        if (e.status === "erro") entry.erro++;
-      }
+      if (entry) { entry.total++; if (e.status === "sucesso") entry.sucesso++; if (e.status === "erro") entry.erro++; }
     });
     return Array.from(map.entries()).map(([dia, v]) => ({ dia, ...v }));
-  })();
+  }, [execFiltradas, dias]);
 
-  // Minutes per day chart
-  const minPorDia = (() => {
+  const minPorDia = useMemo(() => {
     const map = new Map<string, number>();
-    for (let i = 29; i >= 0; i--) {
-      map.set(format(subDays(new Date(), i), "dd/MM"), 0);
-    }
-    execucoes.forEach(e => {
+    for (let i = dias - 1; i >= 0; i--) map.set(format(subDays(new Date(), i), "dd/MM"), 0);
+    execFiltradas.forEach(e => {
       if (e.duracao_segundos) {
         const d = format(new Date(e.created_at), "dd/MM");
         map.set(d, (map.get(d) || 0) + Math.ceil(e.duracao_segundos / 60));
       }
     });
     return Array.from(map.entries()).map(([dia, minutos]) => ({ dia, minutos }));
-  })();
+  }, [execFiltradas, dias]);
 
-  // Per-module breakdown
-  const moduloStats = ["Cobrança", "Eventos", "MGF"].map(m => {
-    const modExec = execucoes.filter(e => e.modulo === m);
+  const moduloStats = useMemo(() => ["Cobrança", "Eventos", "MGF"].map(m => {
+    const modExec = execFiltradas.filter(e => e.modulo === m);
     return {
       modulo: m,
       total: modExec.length,
@@ -172,10 +198,12 @@ export default function BIAdminGitHub() {
       erro: modExec.filter(e => e.status === "erro").length,
       minutos: modExec.reduce((s, e) => s + (e.duracao_segundos ? Math.ceil(e.duracao_segundos / 60) : 0), 0),
     };
-  });
+  }), [execFiltradas]);
 
-  // Estimated cost (GitHub Actions Linux: $0.008/min)
-  const custoEstimado = (totalMinutos * 0.008).toFixed(2);
+  // Pagination for history (uses ALL execucoes, not filtered)
+  const histTotal = execucoes.length;
+  const histTotalPages = Math.max(1, Math.ceil(histTotal / histPerPage));
+  const histSlice = execucoes.slice(histPage * histPerPage, (histPage + 1) * histPerPage);
 
   if (loading) {
     return (
@@ -193,7 +221,7 @@ export default function BIAdminGitHub() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-primary/10"><Activity className="h-4 w-4 text-primary" /></div>
-              <div><p className="text-xl font-bold">{totalExecucoes}</p><p className="text-[10px] text-muted-foreground">Execuções (30d)</p></div>
+              <div><p className="text-xl font-bold">{totalExecucoes}</p><p className="text-[10px] text-muted-foreground">Execuções ({dias}d)</p></div>
             </div>
           </CardContent>
         </Card>
@@ -211,7 +239,7 @@ export default function BIAdminGitHub() {
               <div className={`p-2 rounded-lg ${execErro > 0 ? "bg-destructive/10" : "bg-muted"}`}>
                 <AlertTriangle className={`h-4 w-4 ${execErro > 0 ? "text-destructive" : "text-muted-foreground"}`} />
               </div>
-              <div><p className="text-xl font-bold">{execErro}</p><p className="text-[10px] text-muted-foreground">Erros (30d)</p></div>
+              <div><p className="text-xl font-bold">{execErro}</p><p className="text-[10px] text-muted-foreground">Erros ({dias}d)</p></div>
             </div>
           </CardContent>
         </Card>
@@ -245,7 +273,7 @@ export default function BIAdminGitHub() {
           </Button>
         </div>
 
-        {/* Automações - Toggle controls */}
+        {/* Automações */}
         <TabsContent value="automacoes" className="mt-4">
           <Card>
             <CardHeader className="pb-3">
@@ -303,12 +331,28 @@ export default function BIAdminGitHub() {
           </Card>
         </TabsContent>
 
-        {/* Consumo - Charts */}
+        {/* Consumo */}
         <TabsContent value="consumo" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Período de análise</p>
+            <Select value={periodoConsumo} onValueChange={setPeriodoConsumo}>
+              <SelectTrigger className="w-[160px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Últimos 7 dias</SelectItem>
+                <SelectItem value="15">Últimos 15 dias</SelectItem>
+                <SelectItem value="30">Últimos 30 dias</SelectItem>
+                <SelectItem value="60">Últimos 60 dias</SelectItem>
+                <SelectItem value="90">Últimos 90 dias</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Execuções por Dia (30d)</CardTitle>
+                <CardTitle className="text-sm font-medium">Execuções por Dia</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={220}>
@@ -342,17 +386,16 @@ export default function BIAdminGitHub() {
             </Card>
           </div>
 
-          {/* Module breakdown */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Consumo por Módulo (30d)</CardTitle>
+              <CardTitle className="text-sm font-medium">Consumo por Módulo ({dias}d)</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Módulo</TableHead>
-                    <TableHead className="text-center">Total Execuções</TableHead>
+                    <TableHead className="text-center">Total</TableHead>
                     <TableHead className="text-center">Sucesso</TableHead>
                     <TableHead className="text-center">Erros</TableHead>
                     <TableHead className="text-center">Minutos</TableHead>
@@ -368,11 +411,7 @@ export default function BIAdminGitHub() {
                         <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-700">{m.sucesso}</Badge>
                       </TableCell>
                       <TableCell className="text-center">
-                        {m.erro > 0 ? (
-                          <Badge variant="destructive" className="text-[10px]">{m.erro}</Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">0</span>
-                        )}
+                        {m.erro > 0 ? <Badge variant="destructive" className="text-[10px]">{m.erro}</Badge> : <span className="text-xs text-muted-foreground">0</span>}
                       </TableCell>
                       <TableCell className="text-center text-sm">{m.minutos} min</TableCell>
                       <TableCell className="text-right text-sm font-medium">${(m.minutos * 0.008).toFixed(2)}</TableCell>
@@ -392,11 +431,11 @@ export default function BIAdminGitHub() {
           </Card>
         </TabsContent>
 
-        {/* Histórico de execuções */}
-        <TabsContent value="historico" className="mt-4">
+        {/* Histórico com paginação */}
+        <TabsContent value="historico" className="mt-4 space-y-3">
           <Card>
             <CardContent className="p-0">
-              <ScrollArea className="h-[600px]">
+              <ScrollArea className="h-[550px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -410,7 +449,7 @@ export default function BIAdminGitHub() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {execucoes.slice(0, 200).map(e => (
+                    {histSlice.map(e => (
                       <TableRow key={`${e.modulo}-${e.id}`}>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                           {format(new Date(e.created_at), "dd/MM HH:mm", { locale: ptBR })}
@@ -423,12 +462,7 @@ export default function BIAdminGitHub() {
                         </TableCell>
                         <TableCell className="text-center">
                           {e.status === "sucesso" ? (
-                            <TooltipProvider delayDuration={200}>
-                              <Tooltip>
-                                <TooltipTrigger><CheckCircle className="h-4 w-4 text-green-500 mx-auto" /></TooltipTrigger>
-                                <TooltipContent><p className="text-xs">Sucesso</p></TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
                           ) : e.status === "erro" ? (
                             <TooltipProvider delayDuration={200}>
                               <Tooltip>
@@ -453,12 +487,9 @@ export default function BIAdminGitHub() {
                         <TableCell className="text-right">
                           {e.github_run_url ? (
                             <a href={e.github_run_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                              <ExternalLink className="h-3 w-3" />
-                              #{e.github_run_id?.slice(-6)}
+                              <ExternalLink className="h-3 w-3" />#{e.github_run_id?.slice(-6)}
                             </a>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -467,6 +498,39 @@ export default function BIAdminGitHub() {
               </ScrollArea>
             </CardContent>
           </Card>
+
+          {/* Pagination controls */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Exibir</span>
+              <Select value={String(histPerPage)} onValueChange={v => { setHistPerPage(Number(v)); setHistPage(0); }}>
+                <SelectTrigger className="w-[70px] h-7 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">
+                {histTotal > 0 ? `${histPage * histPerPage + 1}–${Math.min((histPage + 1) * histPerPage, histTotal)} de ${histTotal}` : "0 registros"}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" className="h-7 w-7" disabled={histPage === 0} onClick={() => setHistPage(0)}>
+                <ChevronsLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-7 w-7" disabled={histPage === 0} onClick={() => setHistPage(p => p - 1)}>
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <span className="text-xs px-2 text-muted-foreground">{histPage + 1} / {histTotalPages}</span>
+              <Button variant="outline" size="icon" className="h-7 w-7" disabled={histPage >= histTotalPages - 1} onClick={() => setHistPage(p => p + 1)}>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-7 w-7" disabled={histPage >= histTotalPages - 1} onClick={() => setHistPage(histTotalPages - 1)}>
+                <ChevronsRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
