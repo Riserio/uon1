@@ -248,6 +248,29 @@ export default function BIAdminGitHub() {
     };
   }), [execFiltradas]);
 
+  // Daily breakdown from GitHub billing data
+  const dailyBilling = useMemo(() => {
+    if (!ghBilling?.runs?.length) return [];
+    const dayMap = new Map<string, { date: string; minutes: number; gross: number; runs: number }>();
+    ghBilling.runs.forEach((run: any) => {
+      const d = run.created_at?.slice(0, 10);
+      if (!d) return;
+      const entry = dayMap.get(d) || { date: d, minutes: 0, gross: 0, runs: 0 };
+      entry.minutes += run.billable_minutes || 0;
+      entry.gross += (run.billable_minutes || 0) * 0.006;
+      entry.runs++;
+      dayMap.set(d, entry);
+    });
+    return Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [ghBilling]);
+
+  // Calculate free tier usage (GitHub free = 2000 min/month)
+  const FREE_TIER_MINUTES = 2000;
+  const totalGrossMinutes = dailyBilling.reduce((s, d) => s + d.minutes, 0);
+  const totalGrossCost = dailyBilling.reduce((s, d) => s + d.gross, 0);
+  const billedMinutes = Math.max(0, totalGrossMinutes - FREE_TIER_MINUTES);
+  const billedCost = billedMinutes * 0.006;
+
   // Pagination for history (uses ALL execucoes, not filtered)
   const histTotal = execucoes.length;
   const histTotalPages = Math.max(1, Math.ceil(histTotal / histPerPage));
@@ -577,9 +600,64 @@ export default function BIAdminGitHub() {
               </Table>
             </CardContent>
           </Card>
+          {/* Consumo Diário — breakdown real do GitHub */}
+          {dailyBilling.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">
+                    Consumo Diário
+                    <Badge variant="secondary" className="ml-2 text-[10px] gap-1">
+                      <CheckCircle className="h-3 w-3 text-green-500" />GitHub Real
+                    </Badge>
+                  </CardTitle>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-muted-foreground">
+                      Free tier: {FREE_TIER_MINUTES} min/mês
+                    </span>
+                    <Badge variant={billedCost > 0 ? "destructive" : "outline"} className="text-[10px]">
+                      Billed: ${billedCost.toFixed(2)}
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[400px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead className="text-center">Runs</TableHead>
+                        <TableHead className="text-center">Minutos</TableHead>
+                        <TableHead className="text-right">Gross Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dailyBilling.map(d => (
+                        <TableRow key={d.date}>
+                          <TableCell className="text-sm">
+                            {format(new Date(d.date + "T12:00:00"), "dd 'de' MMM. yyyy", { locale: ptBR })}
+                          </TableCell>
+                          <TableCell className="text-center text-sm">{d.runs}</TableCell>
+                          <TableCell className="text-center text-sm">{d.minutes} min</TableCell>
+                          <TableCell className="text-right text-sm font-medium">
+                            {d.gross < 0.01 ? "<$0.01" : `$${d.gross.toFixed(2)}`}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="font-semibold bg-muted/30">
+                        <TableCell>Total</TableCell>
+                        <TableCell className="text-center">{dailyBilling.reduce((s, d) => s + d.runs, 0)}</TableCell>
+                        <TableCell className="text-center">{totalGrossMinutes} min</TableCell>
+                        <TableCell className="text-right">${totalGrossCost.toFixed(2)}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
-
-        {/* Histórico com paginação */}
         <TabsContent value="historico" className="mt-4 space-y-3">
           <Card>
             <CardContent className="p-0">
