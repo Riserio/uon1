@@ -108,6 +108,8 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
   const [stepReportType, setStepReportType] = useState('cobranca');
   const [stepDenyMessage, setStepDenyMessage] = useState('⚠️ Você não tem permissão para solicitar relatórios. Entre em contato com sua associação para liberação.');
   const [stepScheduleTime, setStepScheduleTime] = useState('');
+  const [stepQuietStart, setStepQuietStart] = useState('');
+  const [stepQuietEnd, setStepQuietEnd] = useState('');
 
   useEffect(() => { loadFlows(); }, []);
 
@@ -257,6 +259,8 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
       setStepReportType(step.config?.report_type || 'cobranca');
       setStepDenyMessage(step.config?.deny_message || '⚠️ Você não tem permissão para solicitar relatórios. Entre em contato com sua associação para liberação.');
       setStepScheduleTime(step.config?.schedule_time || '');
+      setStepQuietStart(step.config?.quiet_start || '');
+      setStepQuietEnd(step.config?.quiet_end || '');
     } else {
       setEditingStep(null);
       setStepType('send_text');
@@ -267,6 +271,8 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
       setStepReportType('cobranca');
       setStepDenyMessage('⚠️ Você não tem permissão para solicitar relatórios. Entre em contato com sua associação para liberação.');
       setStepScheduleTime('');
+      setStepQuietStart('');
+      setStepQuietEnd('');
     }
     setShowStepDialog(true);
   };
@@ -280,6 +286,10 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
     }
     if (stepScheduleTime) {
       config.schedule_time = stepScheduleTime;
+    }
+    if (stepQuietStart && stepQuietEnd) {
+      config.quiet_start = stepQuietStart;
+      config.quiet_end = stepQuietEnd;
     }
     if (['ask_input', 'set_variable'].includes(stepType)) {
       config.variable_name = stepVariableName;
@@ -697,7 +707,12 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                                   {step.config?.schedule_time && (
                                     <Badge variant="outline" className="text-[10px] font-normal mt-2 gap-1">
                                       <Clock className="h-3 w-3" />
-                                      Delay: {step.config.schedule_time}
+                                      Delay: {step.config.schedule_time === 'window_end_60m' ? '1h antes da janela' : step.config.schedule_time === 'window_end_10m' ? '10min antes da janela' : step.config.schedule_time}
+                                    </Badge>
+                                  )}
+                                  {step.config?.quiet_start && step.config?.quiet_end && (
+                                    <Badge variant="outline" className="text-[10px] font-normal mt-1 gap-1 border-orange-500/30 text-orange-600">
+                                      🔇 {step.config.quiet_start}–{step.config.quiet_end}
                                     </Badge>
                                   )}
                                 </div>
@@ -1050,12 +1065,40 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                       <SelectItem value="4h">4 horas</SelectItem>
                       <SelectItem value="6h">6 horas</SelectItem>
                       <SelectItem value="12h">12 horas</SelectItem>
+                      <SelectItem value="window_end_60m">1 hora antes da janela 24h</SelectItem>
                       <SelectItem value="window_end_10m">Últimos 10min da janela 24h</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
                     A mensagem será enviada após o tempo definido desde a última mensagem recebida do cliente, respeitando a janela de 24h do WhatsApp.
                   </p>
+
+                  {/* Quiet hours */}
+                  <div className="mt-3 space-y-2">
+                    <Label className="font-medium flex items-center gap-1.5 text-sm">
+                      🔇 Não enviar entre (horário silencioso)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="time"
+                        value={stepQuietStart}
+                        onChange={(e) => setStepQuietStart(e.target.value)}
+                        className="w-32"
+                        placeholder="22:00"
+                      />
+                      <span className="text-sm text-muted-foreground">até</span>
+                      <Input
+                        type="time"
+                        value={stepQuietEnd}
+                        onChange={(e) => setStepQuietEnd(e.target.value)}
+                        className="w-32"
+                        placeholder="08:00"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Ex: 22:00 até 08:00 — a mensagem será adiada para o fim do período silencioso (horário de Brasília).
+                    </p>
+                  </div>
                 </div>
               )}
 
