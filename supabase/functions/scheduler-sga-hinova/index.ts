@@ -144,6 +144,22 @@ serve(async (req) => {
           continue;
         }
 
+        // Verificar flag ativo_eventos em hinova_credenciais
+        const { data: credRetry } = await supabase
+          .from("hinova_credenciais")
+          .select("ativo_eventos")
+          .eq("corretora_id", config.corretora_id)
+          .maybeSingle();
+        
+        if (credRetry && credRetry.ativo_eventos === false) {
+          console.log(`[Scheduler SGA] ${config.corretora?.nome} módulo eventos desativado, cancelando retry`);
+          await supabase
+            .from("sga_automacao_execucoes")
+            .update({ proxima_tentativa_at: null })
+            .eq("id", execFalha.id);
+          continue;
+        }
+
         // Verificar se já há uma execução com sucesso hoje
         const hoje = new Date().toISOString().split('T')[0];
         const { data: execucoesHojeSucesso } = await supabase
@@ -304,6 +320,18 @@ serve(async (req) => {
     const erros: string[] = [];
 
     for (const config of configs) {
+      // Verificar flag ativo_eventos na tabela hinova_credenciais
+      const { data: credenciaisFlag } = await supabase
+        .from("hinova_credenciais")
+        .select("ativo_eventos")
+        .eq("corretora_id", config.corretora_id)
+        .maybeSingle();
+      
+      if (credenciaisFlag && credenciaisFlag.ativo_eventos === false) {
+        console.log(`[Scheduler SGA] ${config.corretora?.nome || config.corretora_id} módulo eventos desativado em hinova_credenciais, pulando`);
+        continue;
+      }
+
       // Verificar se o horário agendado corresponde ao horário atual (apenas se não for modo forçado)
       if (!forceMode) {
         const horaAgendada = config.hora_agendada || "09:00:00";
