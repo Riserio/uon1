@@ -472,95 +472,63 @@ export default function Agenda() {
           </div>
         </div>
 
-        {/* Mini Calendar + Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 items-start">
-          {/* Mini Calendar */}
+        {/* Stats Widgets */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="rounded-2xl border-0 shadow-sm bg-card">
-            <CardContent className="p-2">
-              <Calendar
-                mode="single"
-                selected={miniCalendarDate}
-                onSelect={(date) => {
-                  setMiniCalendarDate(date);
-                  if (date) {
-                    const api = calendarRef.current?.getApi();
-                    if (api) {
-                      api.gotoDate(date);
-                      if (activeView === 'list') {
-                        // no FullCalendar navigation needed for list
-                      }
-                    }
-                  }
-                }}
-                modifiers={{
-                  hasEvent: eventos.map(e => new Date(e.data_inicio)),
-                }}
-                modifiersClassNames={{
-                  hasEvent: 'bg-primary/20 font-semibold text-primary',
-                }}
-                className="rounded-xl"
-              />
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/10">
+                  <Clock className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{eventosProximos.length}</p>
+                  <p className="text-[11px] text-muted-foreground">Próx. 7 dias</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="rounded-2xl border-0 shadow-sm bg-card">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-primary/10">
-                    <CalendarDays className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{eventosHoje.length}</p>
-                    <p className="text-[11px] text-muted-foreground">Hoje</p>
-                  </div>
+          <Card className="rounded-2xl border-0 shadow-sm bg-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/10">
+                  <Bell className="h-4 w-4 text-primary" />
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <p className="text-2xl font-bold">{lembretesAtivos}</p>
+                  <p className="text-[11px] text-muted-foreground">Lembretes</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card className="rounded-2xl border-0 shadow-sm bg-card">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-primary/10">
-                    <Clock className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{eventosProximos.length}</p>
-                    <p className="text-[11px] text-muted-foreground">Próx. 7 dias</p>
-                  </div>
+          <Card className="rounded-2xl border-0 shadow-sm bg-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/10">
+                  <RefreshCw className="h-4 w-4 text-primary" />
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <p className="text-2xl font-bold">{integrations.filter(i => i.ativo).length}</p>
+                  <p className="text-[11px] text-muted-foreground">Contas sync</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card className="rounded-2xl border-0 shadow-sm bg-card">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-primary/10">
-                    <Bell className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{lembretesAtivos}</p>
-                    <p className="text-[11px] text-muted-foreground">Lembretes</p>
-                  </div>
+          <Card className="rounded-2xl border-0 shadow-sm bg-card">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/10">
+                  <CalendarDays className="h-4 w-4 text-primary" />
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border-0 shadow-sm bg-card">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-primary/10">
-                    <RefreshCw className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{integrations.filter(i => i.ativo).length}</p>
-                    <p className="text-[11px] text-muted-foreground">Contas sync</p>
-                  </div>
+                <div>
+                  <p className="text-2xl font-bold">{eventos.length}</p>
+                  <p className="text-[11px] text-muted-foreground">Total</p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Pending Reminders */}
@@ -705,39 +673,73 @@ export default function Agenda() {
             </CardContent>
           </Card>
 
-          {/* Side Panel - Today's events (list view only) */}
+          {/* Side Panel - Mini Calendar + Today's events (list view only) */}
           {activeView === 'list' && (
-            <Card className="rounded-2xl border-0 shadow-sm">
-              <CardContent className="p-4">
-                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                  Hoje
-                </h3>
-                {eventosHoje.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-4 text-center">Sem eventos hoje</p>
-                ) : (
-                  <div className="space-y-2">
-                    {eventosHoje.map(evento => (
-                      <button
-                        key={evento.id}
-                        onClick={() => { setEditingEvento(evento); setFormData(evento); setDialogOpen(true); }}
-                        className="w-full p-2.5 rounded-xl border hover:bg-muted/50 transition-colors text-left"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-1 h-6 rounded-full" style={{ backgroundColor: evento.cor }} />
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium truncate">{evento.titulo}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {new Date(evento.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <div className="space-y-3">
+              {/* Mini Calendar */}
+              <Card className="rounded-2xl border-0 shadow-sm">
+                <CardContent className="p-2">
+                  <Calendar
+                    mode="single"
+                    selected={miniCalendarDate}
+                    onSelect={(date) => {
+                      setMiniCalendarDate(date);
+                      if (date) {
+                        const api = calendarRef.current?.getApi();
+                        if (api) api.gotoDate(date);
+                      }
+                    }}
+                    modifiers={{
+                      hasEvent: eventos.map(e => new Date(e.data_inicio)),
+                    }}
+                    modifiersClassNames={{
+                      hasEvent: 'bg-primary/20 font-semibold text-primary',
+                    }}
+                    className="rounded-xl pointer-events-auto"
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Hoje */}
+              <Card className="rounded-2xl border-0 shadow-sm">
+                <CardContent className="p-4">
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    {miniCalendarDate && miniCalendarDate.toDateString() !== hoje.toDateString()
+                      ? miniCalendarDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+                      : 'Hoje'}
+                  </h3>
+                  {(() => {
+                    const eventosDia = miniCalendarDate && miniCalendarDate.toDateString() !== hoje.toDateString()
+                      ? eventos.filter(e => new Date(e.data_inicio).toDateString() === miniCalendarDate.toDateString())
+                      : eventosHoje;
+                    return eventosDia.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-4 text-center">Sem eventos neste dia</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {eventosDia.map(evento => (
+                          <button
+                            key={evento.id}
+                            onClick={() => { setEditingEvento(evento); setFormData(evento); setDialogOpen(true); }}
+                            className="w-full p-2.5 rounded-xl border hover:bg-muted/50 transition-colors text-left"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-1 h-6 rounded-full" style={{ backgroundColor: evento.cor }} />
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium truncate">{evento.titulo}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {new Date(evento.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </div>
           )}
         </div>
 
