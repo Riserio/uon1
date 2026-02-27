@@ -488,6 +488,52 @@ async function processFlowStep(
     return;
   }
 
+  // Handle wait_response: user responded while in wait state → go to response branch
+  if (currentStep.type === 'wait_response') {
+    console.log(`[flow-engine] wait_response: user responded! Advancing to next_step_key: ${currentStep.next_step_key}`);
+    // Cancel the timeout scheduled message
+    await supabase.from('whatsapp_scheduled_messages')
+      .update({ status: 'expired', error_message: 'Usuário respondeu antes do timeout' })
+      .eq('contact_id', contactId)
+      .eq('flow_id', flowId)
+      .eq('step_key', currentStep.step_key)
+      .eq('status', 'pending');
+    // Clean wait variables
+    const vars = { ...(state.variables || {}) };
+    delete vars._wait_response_until;
+    delete vars._wait_response_step;
+    // Advance to the "response" branch (next_step_key)
+    const nextStepKey = currentStep.next_step_key;
+    if (!nextStepKey) { await completeFlow(supabase, state.id); return; }
+    const { data: nextStep } = await supabase.from('whatsapp_flow_steps').select('*')
+      .eq('flow_id', flowId).eq('step_key', nextStepKey).single();
+    if (!nextStep) { await completeFlow(supabase, state.id); return; }
+    await supabase.from('whatsapp_contact_flow_state')
+      .update({ current_step_key: nextStepKey, variables: vars, last_interaction_at: new Date().toISOString() })
+      .eq('id', state.id);
+    await executeStep(supabase, nextStep, { ...state, variables: vars, current_step_key: nextStepKey }, contactId, phone, token, phoneNumberId);
+    return;
+  }
+
+  // Handle pending scheduled step: user sent a message while waiting for a scheduled message
+  if (state.variables?._pending_scheduled_step) {
+    console.log(`[flow-engine] User sent message while waiting for scheduled step ${state.variables._pending_scheduled_step}, processing as normal interaction`);
+    // Cancel pending scheduled messages for this step
+    await supabase.from('whatsapp_scheduled_messages')
+      .update({ status: 'expired', error_message: 'Usuário interagiu antes do envio agendado' })
+      .eq('contact_id', contactId)
+      .eq('flow_id', flowId)
+      .eq('step_key', state.variables._pending_scheduled_step)
+      .eq('status', 'pending');
+    const vars = { ...(state.variables || {}) };
+    delete vars._pending_scheduled_step;
+    await supabase.from('whatsapp_contact_flow_state')
+      .update({ variables: vars, last_interaction_at: new Date().toISOString() })
+      .eq('id', state.id);
+    state.variables = vars;
+    // Fall through to normal processing — the flow will be re-evaluated with new triggers
+  }
+
   // Handle ask_input: save response and advance
   if (currentStep.type === 'ask_input') {
     const varName = currentStep.config?.variable_name || 'response';
@@ -614,35 +660,13 @@ async function executeStep(
     const quietEnd = step.config?.quiet_end || null;
     const scheduled = await scheduleMessage(supabase, contactId, phone, text, scheduleTime, state.flow_id, step.step_key, quietStart, quietEnd);
     if (scheduled) {
-      console.log(`[flow-engine] Message scheduled for ${scheduleTime}`);
-      // Advance to next step without sending
-      if (step.next_step_key) {
-        const { data: nextStep } = await supabase
-          .from('whatsapp_flow_steps').select('*')
-          .eq('flow_id', state.flow_id).eq('step_key', step.next_step_key).single();
-        if (nextStep) {
-          await supabase.from('whatsapp_contact_flow_state')
-            .update({ current_step_key: step.next_step_key }).eq('id', state.id);
-          if (!['ask_input', 'ask_options'].includes(nextStep.type)) {
-            await executeStep(supabase, nextStep, { ...state, current_step_key: step.next_step_key }, contactId, phone, token, phoneNumberId);
-          } else if (nextStep.type === 'ask_input') {
-            const question = replaceVariables(nextStep.config?.message || '', state.variables || {});
-            await sendWhatsAppMessage(supabase, contactId, phone, question, token, phoneNumberId);
-          } else if (nextStep.type === 'ask_options') {
-            let optionsMsg = replaceVariables(nextStep.config?.message || '', state.variables || {});
-            const options = nextStep.config?.options || [];
-            if (options.length > 0) {
-              optionsMsg += '\n';
-              options.forEach((o: any, i: number) => { optionsMsg += `\n${i + 1}. ${o.label}`; });
-            }
-            await sendWhatsAppMessage(supabase, contactId, phone, optionsMsg, token, phoneNumberId);
-          }
-        } else {
-          await completeFlow(supabase, state.id);
-        }
-      } else {
-        await completeFlow(supabase, state.id);
-      }
+      console.log(`[flow-engine] Message scheduled for ${scheduleTime} — flow state stays on step ${step.step_key}, scheduled-sender will advance after delivery`);
+      // DON'T advance — keep flow state pointing to this step
+      // The whatsapp-scheduled-sender will advance the flow after actually sending
+      const vars = { ...(state.variables || {}), _pending_scheduled_step: step.step_key };
+      await supabase.from('whatsapp_contact_flow_state')
+        .update({ variables: vars, last_interaction_at: new Date().toISOString() })
+        .eq('id', state.id);
       return;
     }
   }
@@ -660,7 +684,7 @@ async function executeStep(
           .eq('step_key', step.next_step_key)
           .single();
 
-        if (nextStep && !['ask_input', 'ask_options', 'wait'].includes(nextStep.type)) {
+        if (nextStep && !['ask_input', 'ask_options', 'wait_response'].includes(nextStep.type)) {
           await supabase.from('whatsapp_contact_flow_state')
             .update({ current_step_key: step.next_step_key })
             .eq('id', state.id);
@@ -890,6 +914,32 @@ async function executeStep(
       break;
     }
 
+    case 'wait_response': {
+      // Schedule a timeout check — store when wait started and the timeout duration
+      const timeoutMs = parseDelayMs(step.config?.timeout || '11h');
+      const waitUntil = new Date(Date.now() + timeoutMs).toISOString();
+      const vars = { ...(state.variables || {}), _wait_response_until: waitUntil, _wait_response_step: step.step_key };
+      await supabase.from('whatsapp_contact_flow_state')
+        .update({ variables: vars, last_interaction_at: new Date().toISOString() })
+        .eq('id', state.id);
+      console.log(`[flow-engine] wait_response: waiting until ${waitUntil} for response, timeout_next: ${step.config?.timeout_next_step_key}`);
+      // If step has a message, send it
+      if (step.config?.message) {
+        const text = replaceVariables(step.config.message, state.variables || {});
+        await sendWhatsAppMessage(supabase, contactId, phone, text, token, phoneNumberId);
+      }
+      // Schedule a timeout check message so the scheduled-sender can trigger timeout branch
+      await supabase.from('whatsapp_scheduled_messages').insert({
+        contact_id: contactId,
+        phone,
+        message: '__WAIT_RESPONSE_TIMEOUT__',
+        scheduled_for: waitUntil,
+        flow_id: state.flow_id,
+        step_key: step.step_key,
+      });
+      break;
+    }
+
     case 'end': {
       if (step.config?.message) {
         const text = replaceVariables(step.config.message, state.variables || {});
@@ -974,6 +1024,14 @@ function replaceVariables(template: string, variables: Record<string, string>): 
     result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value || '');
   }
   return result;
+}
+
+function parseDelayMs(delay: string): number {
+  const match = delay.match(/^(\d+)(m|h)$/);
+  if (!match) return 11 * 60 * 60 * 1000; // default 11h
+  const value = parseInt(match[1]);
+  const unit = match[2];
+  return unit === 'h' ? value * 60 * 60 * 1000 : value * 60 * 1000;
 }
 
 async function advanceOrComplete(
