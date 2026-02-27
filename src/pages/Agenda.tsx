@@ -678,7 +678,7 @@ export default function Agenda() {
             <div className="space-y-3">
               {/* Mini Calendar */}
               <Card className="rounded-2xl border-0 shadow-sm overflow-hidden">
-                <CardContent className="p-2 [&_.rdp]:w-full [&_.rdp-months]:w-full [&_.rdp-month]:w-full [&_.rdp-table]:w-full [&_.rdp-head_cell]:w-[calc(100%/7)] [&_.rdp-cell]:w-[calc(100%/7)] [&_.rdp-cell]:h-auto [&_.rdp-day]:w-full [&_.rdp-day]:aspect-square [&_.rdp-day]:h-auto [&_.rdp-head_row]:flex [&_.rdp-head_row]:w-full [&_.rdp-row]:flex [&_.rdp-row]:w-full">
+                <CardContent className="p-4 [&_.rdp]:w-full [&_.rdp-months]:w-full [&_.rdp-month]:w-full [&_.rdp-table]:w-full [&_.rdp-head_cell]:w-[calc(100%/7)] [&_.rdp-cell]:w-[calc(100%/7)] [&_.rdp-cell]:h-auto [&_.rdp-day]:w-full [&_.rdp-day]:aspect-square [&_.rdp-day]:h-auto [&_.rdp-head_row]:flex [&_.rdp-head_row]:w-full [&_.rdp-row]:flex [&_.rdp-row]:w-full">
                   <Calendar
                     mode="single"
                     selected={miniCalendarDate}
