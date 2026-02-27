@@ -15,7 +15,7 @@ import { ptBR } from "date-fns/locale";
 import {
   GitBranch, Loader2, RefreshCw, CheckCircle, XCircle, Clock,
   Activity, TrendingUp, Timer, AlertTriangle, ExternalLink,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CloudDownload
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
@@ -42,6 +42,14 @@ interface ExecucaoRecente {
   github_run_id: string | null;
   github_run_url: string | null;
   tipo_disparo: string | null;
+}
+
+interface GitHubBillingData {
+  total_runs: number;
+  total_billable_minutes: number;
+  total_run_duration_minutes: number;
+  per_workflow: Record<string, { runs: number; billable_minutes: number; run_duration_minutes: number; errors: number }>;
+  runs: any[];
 }
 
 const BATCH_SIZE = 1000;
@@ -72,6 +80,11 @@ export default function BIAdminGitHub() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [subTab, setSubTab] = useState("automacoes");
   const [periodoConsumo, setPeriodoConsumo] = useState("30");
+
+  // GitHub billing data
+  const [ghBilling, setGhBilling] = useState<GitHubBillingData | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
 
   // Pagination state
   const [histPage, setHistPage] = useState(0);
@@ -130,6 +143,41 @@ export default function BIAdminGitHub() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Fetch GitHub billing data
+  const fetchGitHubBilling = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("github-billing", {
+        body: { action: "billing" },
+      });
+      if (error) throw error;
+      setGhBilling(data as GitHubBillingData);
+    } catch (e) {
+      console.error("Erro ao buscar billing GitHub:", e);
+    }
+  }, []);
+
+  // Sync GitHub timing to local records
+  const syncGitHubTiming = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("github-billing", {
+        body: { action: "sync" },
+      });
+      if (error) throw error;
+      toast.success(data?.message || "Tempos sincronizados com GitHub");
+      setLastSyncAt(new Date().toISOString());
+      // Reload data to reflect updated durations
+      await loadData();
+      await fetchGitHubBilling();
+    } catch (e: any) {
+      toast.error("Erro ao sincronizar: " + (e.message || "erro desconhecido"));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  useEffect(() => { fetchGitHubBilling(); }, [fetchGitHubBilling]);
 
   const handleToggle = async (corretoraId: string, credId: string, field: "ativo_cobranca" | "ativo_eventos" | "ativo_mgf", newValue: boolean) => {
     const key = `${corretoraId}-${field}`;
@@ -213,15 +261,55 @@ export default function BIAdminGitHub() {
     );
   }
 
+  // GitHub real billing data
+  const ghTotalRuns = ghBilling?.total_runs || totalExecucoes;
+  const ghBillableMin = ghBilling?.total_billable_minutes || totalMinutos;
+  const ghRunDurationMin = ghBilling?.total_run_duration_minutes || totalMinutos;
+  const ghCusto = (ghBillableMin * 0.008).toFixed(2);
+
+  const workflowLabels: Record<string, string> = {
+    "cobranca-hinova": "Cobrança",
+    "eventos-hinova": "Eventos",
+    "mgf-hinova": "MGF",
+  };
+
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
+      {/* Sync bar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="gap-1.5 text-xs">
+            <GitBranch className="h-3 w-3" />
+            GitHub Actions
+          </Badge>
+          {lastSyncAt && (
+            <span className="text-[10px] text-muted-foreground">
+              Sincronizado: {format(new Date(lastSyncAt), "dd/MM HH:mm")}
+            </span>
+          )}
+          {ghBilling && (
+            <Badge variant="secondary" className="text-[10px] gap-1">
+              <CheckCircle className="h-3 w-3 text-green-500" />
+              Dados reais do GitHub
+            </Badge>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={syncGitHubTiming} disabled={syncing} className="gap-1.5">
+          {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudDownload className="h-3.5 w-3.5" />}
+          {syncing ? "Sincronizando..." : "Sincronizar com GitHub"}
+        </Button>
+      </div>
+
+      {/* KPI Cards - GitHub real data */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card>
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-primary/10"><Activity className="h-4 w-4 text-primary" /></div>
-              <div><p className="text-xl font-bold">{totalExecucoes}</p><p className="text-[10px] text-muted-foreground">Execuções ({dias}d)</p></div>
+              <div>
+                <p className="text-xl font-bold">{ghTotalRuns}</p>
+                <p className="text-[10px] text-muted-foreground">Execuções (90d)</p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -229,17 +317,10 @@ export default function BIAdminGitHub() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-green-500/10"><CheckCircle className="h-4 w-4 text-green-600" /></div>
-              <div><p className="text-xl font-bold">{taxaSucesso}%</p><p className="text-[10px] text-muted-foreground">Taxa de sucesso</p></div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${execErro > 0 ? "bg-destructive/10" : "bg-muted"}`}>
-                <AlertTriangle className={`h-4 w-4 ${execErro > 0 ? "text-destructive" : "text-muted-foreground"}`} />
+              <div>
+                <p className="text-xl font-bold">{taxaSucesso}%</p>
+                <p className="text-[10px] text-muted-foreground">Taxa de sucesso</p>
               </div>
-              <div><p className="text-xl font-bold">{execErro}</p><p className="text-[10px] text-muted-foreground">Erros ({dias}d)</p></div>
             </div>
           </CardContent>
         </Card>
@@ -247,7 +328,21 @@ export default function BIAdminGitHub() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-500/10"><Timer className="h-4 w-4 text-blue-600" /></div>
-              <div><p className="text-xl font-bold">{totalMinutos}</p><p className="text-[10px] text-muted-foreground">Minutos usados</p></div>
+              <div>
+                <p className="text-xl font-bold">{ghBillableMin}</p>
+                <p className="text-[10px] text-muted-foreground">Min. faturáveis (GitHub)</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/10"><Clock className="h-4 w-4 text-purple-600" /></div>
+              <div>
+                <p className="text-xl font-bold">{ghRunDurationMin}</p>
+                <p className="text-[10px] text-muted-foreground">Min. execução total</p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -255,11 +350,59 @@ export default function BIAdminGitHub() {
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/10"><TrendingUp className="h-4 w-4 text-amber-600" /></div>
-              <div><p className="text-xl font-bold">${custoEstimado}</p><p className="text-[10px] text-muted-foreground">Custo estimado</p></div>
+              <div>
+                <p className="text-xl font-bold">${ghCusto}</p>
+                <p className="text-[10px] text-muted-foreground">Custo estimado</p>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* GitHub per-workflow breakdown */}
+      {ghBilling?.per_workflow && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Consumo por Workflow (GitHub Real - 90d)</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Workflow</TableHead>
+                  <TableHead className="text-center">Runs</TableHead>
+                  <TableHead className="text-center">Erros</TableHead>
+                  <TableHead className="text-center">Min. Faturáveis</TableHead>
+                  <TableHead className="text-center">Min. Execução</TableHead>
+                  <TableHead className="text-right">Custo Est.</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Object.entries(ghBilling.per_workflow).map(([wf, stats]) => (
+                  <TableRow key={wf}>
+                    <TableCell className="font-medium text-sm">{workflowLabels[wf] || wf}</TableCell>
+                    <TableCell className="text-center">{stats.runs}</TableCell>
+                    <TableCell className="text-center">
+                      {stats.errors > 0 ? <Badge variant="destructive" className="text-[10px]">{stats.errors}</Badge> : <span className="text-xs text-muted-foreground">0</span>}
+                    </TableCell>
+                    <TableCell className="text-center text-sm">{stats.billable_minutes} min</TableCell>
+                    <TableCell className="text-center text-sm">{stats.run_duration_minutes} min</TableCell>
+                    <TableCell className="text-right text-sm font-medium">${(stats.billable_minutes * 0.008).toFixed(2)}</TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="font-semibold bg-muted/30">
+                  <TableCell>Total</TableCell>
+                  <TableCell className="text-center">{ghBilling.total_runs}</TableCell>
+                  <TableCell className="text-center">{Object.values(ghBilling.per_workflow).reduce((s, v) => s + v.errors, 0)}</TableCell>
+                  <TableCell className="text-center">{ghBilling.total_billable_minutes} min</TableCell>
+                  <TableCell className="text-center">{ghBilling.total_run_duration_minutes} min</TableCell>
+                  <TableCell className="text-right">${ghCusto}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={subTab} onValueChange={setSubTab}>
         <div className="flex items-center justify-between">
