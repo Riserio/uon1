@@ -355,6 +355,18 @@ export default function Agenda() {
     return new Date(evento.data_inicio) > hoje ? total + evento.lembrete_minutos.length : total;
   }, 0);
 
+  const handleConcluirEvento = async (eventoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const { error } = await supabase.from('eventos').delete().eq('id', eventoId);
+      if (error) throw error;
+      toast.success('Evento concluído!');
+      fetchEventos();
+    } catch {
+      toast.error('Erro ao concluir evento');
+    }
+  };
+
   const viewButtons: { value: CalendarView; icon: React.ReactNode; label: string }[] = [
     { value: 'list', icon: <List className="h-4 w-4" />, label: 'Lista' },
     { value: 'month', icon: <LayoutGrid className="h-4 w-4" />, label: 'Mês' },
@@ -641,24 +653,39 @@ export default function Agenda() {
                       const d = new Date(evento.data_inicio);
                       const isPast = d < hoje;
                       return (
-                        <button
+                        <div
                           key={evento.id}
-                          onClick={() => { setEditingEvento(evento); setFormData(evento); setDialogOpen(true); }}
                           className={`w-full flex items-center gap-3 p-3 rounded-xl border hover:bg-muted/50 transition-colors text-left ${isPast ? 'opacity-50' : ''}`}
                         >
-                          <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: evento.cor }} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{evento.titulo}</p>
-                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
-                              <span>{d.toLocaleDateString('pt-BR')} • {d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                              {evento.local && <span className="flex items-center gap-0.5"><MapPin className="h-2.5 w-2.5" />{evento.local}</span>}
+                          <button
+                            onClick={() => { setEditingEvento(evento); setFormData(evento); setDialogOpen(true); }}
+                            className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                          >
+                            <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: evento.cor }} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{evento.titulo}</p>
+                              <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                                <span>{d.toLocaleDateString('pt-BR')} • {d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                {evento.local && <span className="flex items-center gap-0.5"><MapPin className="h-2.5 w-2.5" />{evento.local}</span>}
+                              </div>
                             </div>
-                          </div>
+                          </button>
                           <Badge variant="outline" className="text-[10px] shrink-0">
                             {tiposEvento.find(t => t.value === evento.tipo)?.icon} {tiposEvento.find(t => t.value === evento.tipo)?.label}
                           </Badge>
+                          {(evento.tipo === 'reuniao' || evento.tipo === 'compromisso' || evento.tipo === 'tarefa') && !isPast && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              title="Concluir"
+                              onClick={(e) => handleConcluirEvento(evento.id, e)}
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </Button>
+                          )}
                           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                        </button>
+                        </div>
                       );
                     })}
                     </div>
@@ -857,7 +884,7 @@ export default function Agenda() {
                 <div className="grid gap-2">
                   <Label className="flex items-center gap-2 text-xs"><Bell className="h-3.5 w-3.5" /> Lembretes</Label>
                   <div className="flex flex-wrap gap-1.5">
-                    {[5, 15, 30, 60].map(minutos => (
+                    {[5, 10, 15, 30, 60, 120, 1440, 2880, 10080].map(minutos => (
                       <Badge
                         key={minutos}
                         variant={formData.lembrete_minutos?.includes(minutos) ? "default" : "outline"}
@@ -867,7 +894,7 @@ export default function Agenda() {
                           setFormData({ ...formData, lembrete_minutos: l.includes(minutos) ? l.filter(m => m !== minutos) : [...l, minutos] });
                         }}
                       >
-                        {minutos}min
+                        {minutos < 60 ? `${minutos}min` : minutos < 1440 ? `${minutos / 60}h` : minutos === 1440 ? '1 dia' : minutos === 2880 ? '2 dias' : '1 sem'}
                       </Badge>
                     ))}
                   </div>
