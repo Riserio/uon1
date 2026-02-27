@@ -248,13 +248,19 @@ export default function BIAdminGitHub() {
     };
   }), [execFiltradas]);
 
-  // Daily breakdown from GitHub billing data
+  // Current month boundaries
+  const currentMonthStart = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  }, []);
+
+  // Daily breakdown from GitHub billing data — current month only
   const dailyBilling = useMemo(() => {
     if (!ghBilling?.runs?.length) return [];
     const dayMap = new Map<string, { date: string; minutes: number; gross: number; runs: number }>();
     ghBilling.runs.forEach((run: any) => {
       const d = run.created_at?.slice(0, 10);
-      if (!d) return;
+      if (!d || d < currentMonthStart) return;
       const entry = dayMap.get(d) || { date: d, minutes: 0, gross: 0, runs: 0 };
       entry.minutes += run.billable_minutes || 0;
       entry.gross += (run.billable_minutes || 0) * 0.006;
@@ -262,14 +268,35 @@ export default function BIAdminGitHub() {
       dayMap.set(d, entry);
     });
     return Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [ghBilling]);
+  }, [ghBilling, currentMonthStart]);
+
+  // Workflow stats — current month only
+  const ghWorkflowCurrentMonth = useMemo(() => {
+    if (!ghBilling?.runs?.length) return null;
+    const perWf: Record<string, { runs: number; billable_minutes: number; run_duration_minutes: number; errors: number }> = {};
+    let totalRuns = 0, totalBillableMin = 0, totalRunDurationMin = 0;
+    ghBilling.runs.forEach((run: any) => {
+      const d = run.created_at?.slice(0, 10);
+      if (!d || d < currentMonthStart) return;
+      const wf = run.workflow || "unknown";
+      if (!perWf[wf]) perWf[wf] = { runs: 0, billable_minutes: 0, run_duration_minutes: 0, errors: 0 };
+      perWf[wf].runs++;
+      perWf[wf].billable_minutes += run.billable_minutes || 0;
+      perWf[wf].run_duration_minutes += run.run_duration_minutes || 0;
+      if (run.conclusion === "failure") perWf[wf].errors++;
+      totalRuns++;
+      totalBillableMin += run.billable_minutes || 0;
+      totalRunDurationMin += run.run_duration_minutes || 0;
+    });
+    return { per_workflow: perWf, total_runs: totalRuns, total_billable_minutes: parseFloat(totalBillableMin.toFixed(2)), total_run_duration_minutes: parseFloat(totalRunDurationMin.toFixed(2)) };
+  }, [ghBilling, currentMonthStart]);
 
   // Calculate free tier usage (GitHub free = 2000 min/month)
   const FREE_TIER_MINUTES = 2000;
-  const totalGrossMinutes = dailyBilling.reduce((s, d) => s + d.minutes, 0);
-  const totalGrossCost = dailyBilling.reduce((s, d) => s + d.gross, 0);
+  const totalGrossMinutes = parseFloat(dailyBilling.reduce((s, d) => s + d.minutes, 0).toFixed(2));
+  const totalGrossCost = parseFloat(dailyBilling.reduce((s, d) => s + d.gross, 0).toFixed(2));
   const billedMinutes = Math.max(0, totalGrossMinutes - FREE_TIER_MINUTES);
-  const billedCost = billedMinutes * 0.006;
+  const billedCost = parseFloat((billedMinutes * 0.006).toFixed(2));
 
   // Pagination for history (uses ALL execucoes, not filtered)
   const histTotal = execucoes.length;
@@ -510,15 +537,15 @@ export default function BIAdminGitHub() {
             </Card>
           </div>
 
-          {/* Consumo por Workflow — dados reais do GitHub + local */}
+          {/* Consumo por Workflow — mês atual */}
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">
                   Consumo por Workflow
-                  {ghBilling ? (
+                  {ghWorkflowCurrentMonth ? (
                     <Badge variant="secondary" className="ml-2 text-[10px] gap-1">
-                      <CheckCircle className="h-3 w-3 text-green-500" />GitHub Real (90d)
+                      <CheckCircle className="h-3 w-3 text-green-500" />GitHub Real (mês atual)
                     </Badge>
                   ) : (
                     <Badge variant="secondary" className="ml-2 text-[10px]">Local ({dias}d)</Badge>
@@ -541,9 +568,9 @@ export default function BIAdminGitHub() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ghBilling?.per_workflow ? (
+                  {ghWorkflowCurrentMonth ? (
                     <>
-                      {Object.entries(ghBilling.per_workflow).map(([wf, stats]) => (
+                      {Object.entries(ghWorkflowCurrentMonth.per_workflow).map(([wf, stats]) => (
                         <TableRow key={wf}>
                           <TableCell className="font-medium text-sm">{workflowLabels[wf] || wf}</TableCell>
                           <TableCell className="text-center">{stats.runs}</TableCell>
@@ -560,12 +587,12 @@ export default function BIAdminGitHub() {
                       ))}
                       <TableRow className="font-semibold bg-muted/30">
                         <TableCell>Total</TableCell>
-                        <TableCell className="text-center">{ghBilling.total_runs}</TableCell>
-                        <TableCell className="text-center">{ghBilling.total_runs - Object.values(ghBilling.per_workflow).reduce((s, v) => s + v.errors, 0)}</TableCell>
-                        <TableCell className="text-center">{Object.values(ghBilling.per_workflow).reduce((s, v) => s + v.errors, 0)}</TableCell>
-                        <TableCell className="text-center">{ghBilling.total_billable_minutes} min</TableCell>
-                        <TableCell className="text-center">{ghBilling.total_run_duration_minutes} min</TableCell>
-                        <TableCell className="text-right">${ghCusto}</TableCell>
+                        <TableCell className="text-center">{ghWorkflowCurrentMonth.total_runs}</TableCell>
+                        <TableCell className="text-center">{ghWorkflowCurrentMonth.total_runs - Object.values(ghWorkflowCurrentMonth.per_workflow).reduce((s, v) => s + v.errors, 0)}</TableCell>
+                        <TableCell className="text-center">{Object.values(ghWorkflowCurrentMonth.per_workflow).reduce((s, v) => s + v.errors, 0)}</TableCell>
+                        <TableCell className="text-center">{ghWorkflowCurrentMonth.total_billable_minutes} min</TableCell>
+                        <TableCell className="text-center">{ghWorkflowCurrentMonth.total_run_duration_minutes} min</TableCell>
+                        <TableCell className="text-right">${(ghWorkflowCurrentMonth.total_billable_minutes * 0.006).toFixed(2)}</TableCell>
                       </TableRow>
                     </>
                   ) : (
