@@ -73,13 +73,12 @@ serve(async (req) => {
         }
       }
 
-      // Get timing for recent runs (batch — last 200 max to avoid rate limits)
-      const recentRuns = workflowRuns.slice(0, 200);
+      // Get timing for ALL runs to avoid missing data
       const timings: Record<number, any> = {};
 
       // Process in batches of 20 to avoid rate limits
-      for (let i = 0; i < recentRuns.length; i += 20) {
-        const batch = recentRuns.slice(i, i + 20);
+      for (let i = 0; i < workflowRuns.length; i += 20) {
+        const batch = workflowRuns.slice(i, i + 20);
         const results = await Promise.allSettled(
           batch.map(async (run: any) => {
             const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs/${run.id}/timing`;
@@ -96,14 +95,13 @@ serve(async (req) => {
         });
       }
 
-      // Merge timing into runs
+      // Merge timing into runs (keep raw ms, don't round per-run)
       const runsWithTiming = workflowRuns.map((run) => {
         const timing = timings[run.id];
         let billable_ms = 0;
         let run_duration_ms = 0;
         if (timing) {
           run_duration_ms = timing.run_duration_ms || 0;
-          // Sum billable time across all OS
           if (timing.billable) {
             for (const os of Object.values(timing.billable) as any[]) {
               billable_ms += (os.total_ms || 0);
@@ -114,25 +112,33 @@ serve(async (req) => {
           ...run,
           run_duration_ms,
           billable_ms,
-          billable_minutes: Math.ceil(billable_ms / 60000),
-          run_duration_minutes: Math.ceil(run_duration_ms / 60000),
+          // Keep fractional minutes for accurate daily aggregation
+          billable_minutes: parseFloat((billable_ms / 60000).toFixed(2)),
+          run_duration_minutes: parseFloat((run_duration_ms / 60000).toFixed(2)),
         };
       });
 
-      // Summary
-      const totalBillableMinutes = runsWithTiming.reduce((s, r) => s + r.billable_minutes, 0);
-      const totalRunDurationMinutes = runsWithTiming.reduce((s, r) => s + r.run_duration_minutes, 0);
+      // Summary — round only at totals
+      const totalBillableMs = runsWithTiming.reduce((s, r) => s + r.billable_ms, 0);
+      const totalRunDurationMs = runsWithTiming.reduce((s, r) => s + r.run_duration_ms, 0);
+      const totalBillableMinutes = parseFloat((totalBillableMs / 60000).toFixed(2));
+      const totalRunDurationMinutes = parseFloat((totalRunDurationMs / 60000).toFixed(2));
       const totalRuns = runsWithTiming.length;
 
-      // Per workflow summary
-      const perWorkflow: Record<string, { runs: number; billable_minutes: number; run_duration_minutes: number; errors: number }> = {};
+      // Per workflow summary (aggregate ms first, then convert)
+      const perWorkflow: Record<string, { runs: number; billable_minutes: number; run_duration_minutes: number; errors: number; billable_ms: number; run_duration_ms: number }> = {};
       runsWithTiming.forEach((r) => {
-        if (!perWorkflow[r.workflow]) perWorkflow[r.workflow] = { runs: 0, billable_minutes: 0, run_duration_minutes: 0, errors: 0 };
+        if (!perWorkflow[r.workflow]) perWorkflow[r.workflow] = { runs: 0, billable_minutes: 0, run_duration_minutes: 0, errors: 0, billable_ms: 0, run_duration_ms: 0 };
         perWorkflow[r.workflow].runs++;
-        perWorkflow[r.workflow].billable_minutes += r.billable_minutes;
-        perWorkflow[r.workflow].run_duration_minutes += r.run_duration_minutes;
+        perWorkflow[r.workflow].billable_ms += r.billable_ms;
+        perWorkflow[r.workflow].run_duration_ms += r.run_duration_ms;
         if (r.conclusion === "failure") perWorkflow[r.workflow].errors++;
       });
+      // Convert ms to minutes at the end
+      for (const wf of Object.values(perWorkflow)) {
+        wf.billable_minutes = parseFloat((wf.billable_ms / 60000).toFixed(2));
+        wf.run_duration_minutes = parseFloat((wf.run_duration_ms / 60000).toFixed(2));
+      }
 
       return new Response(
         JSON.stringify({
