@@ -610,7 +610,9 @@ async function executeStep(
   const scheduleTime = step.config?.schedule_time;
   if (scheduleTime && ['send_text', 'request_report'].includes(step.type)) {
     const text = replaceVariables(step.config?.message || '', state.variables || {});
-    const scheduled = await scheduleMessage(supabase, contactId, phone, text, scheduleTime, state.flow_id, step.step_key);
+    const quietStart = step.config?.quiet_start || null;
+    const quietEnd = step.config?.quiet_end || null;
+    const scheduled = await scheduleMessage(supabase, contactId, phone, text, scheduleTime, state.flow_id, step.step_key, quietStart, quietEnd);
     if (scheduled) {
       console.log(`[flow-engine] Message scheduled for ${scheduleTime}`);
       // Advance to next step without sending
@@ -1015,10 +1017,11 @@ async function completeFlow(supabase: any, stateId: string) {
 
 async function scheduleMessage(
   supabase: any, contactId: string, phone: string,
-  message: string, scheduleTime: string, flowId: string, stepKey: string
+  message: string, scheduleTime: string, flowId: string, stepKey: string,
+  quietStart: string | null = null, quietEnd: string | null = null
 ): Promise<boolean> {
   try {
-    // Parse delay format: "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "window_end_10m"
+    // Parse delay format: "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "window_end_10m", "window_end_60m"
     // Also support legacy HH:MM format for backwards compatibility
 
     // First, get last incoming message (needed for all modes)
@@ -1040,11 +1043,11 @@ async function scheduleMessage(
     const windowEnd = lastMsgTime + 24 * 60 * 60 * 1000;
     let scheduledTime: Date;
 
-    if (scheduleTime === 'window_end_10m') {
-      // Schedule for 10 minutes before the 24h window closes
-      scheduledTime = new Date(windowEnd - 10 * 60 * 1000);
+    if (scheduleTime === 'window_end_10m' || scheduleTime === 'window_end_60m') {
+      const minutesBefore = scheduleTime === 'window_end_60m' ? 60 : 10;
+      scheduledTime = new Date(windowEnd - minutesBefore * 60 * 1000);
       if (scheduledTime <= new Date()) {
-        console.log(`[flow-engine] Window end -10min already passed, sending immediately`);
+        console.log(`[flow-engine] Window end -${minutesBefore}min already passed, sending immediately`);
         return false;
       }
     } else {
@@ -1080,6 +1083,48 @@ async function scheduleMessage(
       if (scheduledTime.getTime() > windowEnd) {
         console.log(`[flow-engine] Delay ${scheduleTime} would exceed 24h window, sending immediately`);
         return false;
+      }
+    }
+
+    // Apply quiet hours: if scheduledTime falls in quiet window, push to quiet_end
+    if (quietStart && quietEnd) {
+      const spOffset = -3 * 60 * 60 * 1000; // Brasília UTC-3
+      const spTime = new Date(scheduledTime.getTime() + spOffset);
+      const spHour = spTime.getUTCHours();
+      const spMin = spTime.getUTCMinutes();
+      const spMins = spHour * 60 + spMin;
+
+      const [qsH, qsM] = quietStart.split(':').map(Number);
+      const [qeH, qeM] = quietEnd.split(':').map(Number);
+      const qsMins = qsH * 60 + qsM;
+      const qeMins = qeH * 60 + qeM;
+
+      let inQuiet = false;
+      if (qsMins > qeMins) {
+        // Overnight: e.g. 22:00 - 08:00
+        inQuiet = spMins >= qsMins || spMins < qeMins;
+      } else {
+        inQuiet = spMins >= qsMins && spMins < qeMins;
+      }
+
+      if (inQuiet) {
+        // Push to quiet_end on the same day (or next day if overnight)
+        const pushed = new Date(scheduledTime);
+        const pushedSp = new Date(pushed.getTime() + spOffset);
+        pushedSp.setUTCHours(qeH, qeM, 0, 0);
+        // If quiet end is earlier than current SP time, it means next day
+        if (pushedSp.getTime() <= spTime.getTime()) {
+          pushedSp.setUTCDate(pushedSp.getUTCDate() + 1);
+        }
+        // Convert back from SP to UTC
+        scheduledTime = new Date(pushedSp.getTime() - spOffset);
+        console.log(`[flow-engine] Quiet hours ${quietStart}-${quietEnd}, pushed to ${scheduledTime.toISOString()}`);
+
+        // Verify still within 24h window
+        if (scheduledTime.getTime() > windowEnd) {
+          console.log(`[flow-engine] Pushed time exceeds 24h window, sending immediately`);
+          return false;
+        }
       }
     }
 
