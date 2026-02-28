@@ -284,13 +284,13 @@ const Landing = () => {
             <span className="text-[#5a4fcf]/60">© {new Date().getFullYear()} Uon1. Todos os direitos reservados.</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-[#5a4fcf]/60">
-            <a href="#" className="hover:text-[#362c89] transition-colors">
+            <a href="/termos-de-servico" className="hover:text-[#362c89] transition-colors">
               Termos de Uso
             </a>
-            <a href="#" className="hover:text-[#362c89] transition-colors">
+            <a href="/politica-de-privacidade" className="hover:text-[#362c89] transition-colors">
               Privacidade
             </a>
-            <a href="#" className="hover:text-[#362c89] transition-colors">
+            <a href="mailto:contato@uon1.com.br" className="hover:text-[#362c89] transition-colors">
               Contato
             </a>
           </div>
