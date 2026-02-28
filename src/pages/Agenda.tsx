@@ -157,8 +157,8 @@ export default function Agenda() {
       fetchIntegrations();
       const lembreteInterval = setInterval(() => verificarLembretes(), 60000);
 
-      // Auto-sync Google Calendar every 5 minutes
-      const syncInterval = setInterval(() => {
+      // Auto-sync Google Calendar: immediate + every 3 minutes
+      const doAutoSync = () => {
         if (integrations.some(i => i.ativo)) {
           supabase.functions.invoke('google-calendar-sync').then(({ data }) => {
             if (data?.imported > 0 || data?.updated > 0) {
@@ -167,7 +167,9 @@ export default function Agenda() {
             }
           }).catch(() => {});
         }
-      }, 5 * 60 * 1000);
+      };
+      doAutoSync(); // sync immediately on load
+      const syncInterval = setInterval(doAutoSync, 3 * 60 * 1000);
 
       // Realtime subscription on eventos table
       const channel = supabase
