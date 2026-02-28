@@ -64,6 +64,8 @@ const EstudoBaseInsights = lazy(() => import("./pages/EstudoBaseInsights"));
 const AcompanhamentoEventos = lazy(() => import("./pages/AcompanhamentoEventos"));
 const BILayout = lazy(() => import("./components/bi/BILayout"));
 const Landing = lazy(() => import("./pages/Landing"));
+const PoliticaPrivacidade = lazy(() => import("./pages/PoliticaPrivacidade"));
+const TermosServico = lazy(() => import("./pages/TermosServico"));
 const Gestao = lazy(() => import("./pages/Gestao"));
 const Uon1Sign = lazy(() => import("./pages/Uon1Sign"));
 const ContratoAssinatura = lazy(() => import("./pages/ContratoAssinatura"));
@@ -235,6 +237,8 @@ const App = () => (
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
               <Route path="/contrato/:token" element={<ContratoAssinatura />} />
               <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
+              <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
+              <Route path="/termos-de-servico" element={<TermosServico />} />
               <Route path="/" element={<DomainBasedRoute />} />
               
               {/* All protected routes share sidebar via AppLayout */}
