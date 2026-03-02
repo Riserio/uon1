@@ -1826,8 +1826,7 @@ async function aguardarDownloadHibrido(context, page, downloadDir, semanticName,
 // ============================================
 function getDateRange() {
   const hoje = new Date();
-  const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-  const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+  const diaAtual = hoje.getDate();
   
   const formatDate = (d) => {
     const day = String(d.getDate()).padStart(2, '0');
@@ -1836,10 +1835,35 @@ function getDateRange() {
     return `${day}/${month}/${year}`;
   };
   
-  return {
+  const formatMesReferencia = (d) => {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+  
+  const periodos = [];
+  
+  // Se estamos nos primeiros 5 dias do mês, atualizar relatório do mês anterior
+  if (diaAtual <= 5) {
+    const primeiroDiaMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    const ultimoDiaMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+    periodos.push({
+      inicio: formatDate(primeiroDiaMesAnterior),
+      fim: formatDate(ultimoDiaMesAnterior),
+      mesReferencia: formatMesReferencia(primeiroDiaMesAnterior),
+      modo: 'atualizar_anterior',
+    });
+  }
+  
+  // Mês atual (sempre)
+  const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+  periodos.push({
     inicio: formatDate(primeiroDia),
     fim: formatDate(ultimoDia),
-  };
+    mesReferencia: formatMesReferencia(primeiroDia),
+    modo: 'substituir',
+  });
+  
+  return periodos;
 }
 
 // ============================================
@@ -2718,10 +2742,11 @@ function processarExcel(filePath) {
   return dados;
 }
 
-async function enviarWebhook(dados, nomeArquivo) {
+async function enviarWebhook(dados, nomeArquivo, opcoes = {}) {
   setStep('IMPORTACAO');
 
-  const mesReferencia = new Date().toISOString().slice(0, 7);
+  const mesReferencia = opcoes.mesReferencia || new Date().toISOString().slice(0, 7);
+  const modo = opcoes.modo || 'substituir';
   const headers = { 'Content-Type': 'application/json' };
   if (CONFIG.WEBHOOK_SECRET) headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
 
@@ -2736,10 +2761,11 @@ async function enviarWebhook(dados, nomeArquivo) {
 
   log('', LOG_LEVELS.INFO);
   log('═'.repeat(50), LOG_LEVELS.INFO);
-  log('📤 INICIANDO IMPORTAÇÃO PARA O SERVIDOR', LOG_LEVELS.INFO);
+  log(`📤 INICIANDO IMPORTAÇÃO PARA O SERVIDOR (modo: ${modo})`, LOG_LEVELS.INFO);
   log('═'.repeat(50), LOG_LEVELS.INFO);
   log(`   Total de registros: ${total.toLocaleString()}`, LOG_LEVELS.INFO);
   log(`   Lotes: ${totalChunks} (${BATCH_SIZE} registros cada)`, LOG_LEVELS.INFO);
+  log(`   Mês referência: ${mesReferencia}`, LOG_LEVELS.INFO);
   log('', LOG_LEVELS.INFO);
 
   const startTime = Date.now();
@@ -2757,6 +2783,7 @@ async function enviarWebhook(dados, nomeArquivo) {
       dados: batch,
       nome_arquivo: nomeArquivo,
       mes_referencia: mesReferencia,
+      modo: modo,
       total_registros: total,
       chunk_index: chunkIndex,
       chunk_total: totalChunks,
@@ -2797,7 +2824,7 @@ async function enviarWebhook(dados, nomeArquivo) {
   const totalTime = Math.floor((Date.now() - startTime) / 1000);
   log('', LOG_LEVELS.INFO);
   log('═'.repeat(50), LOG_LEVELS.INFO);
-  log(`✅ IMPORTAÇÃO CONCLUÍDA COM SUCESSO!`, LOG_LEVELS.SUCCESS);
+  log(`✅ IMPORTAÇÃO CONCLUÍDA COM SUCESSO! (modo: ${modo})`, LOG_LEVELS.SUCCESS);
   log(`   Tempo total: ${totalTime}s`, LOG_LEVELS.SUCCESS);
   log(`   Registros importados: ${enviados.toLocaleString()}`, LOG_LEVELS.SUCCESS);
   log(`   ID da importação: ${importacaoId || 'N/A'}`, LOG_LEVELS.SUCCESS);
@@ -2869,8 +2896,13 @@ async function rodarRobo() {
     CONFIG.EXECUCAO_ID = execucaoId;
   }
   
-  const { inicio, fim } = getDateRange();
-  log(`Período: ${inicio} até ${fim}`);
+  const periodos = getDateRange();
+  const periodoPrincipal = periodos.find(p => p.modo === 'substituir') || periodos[0];
+  const { inicio, fim } = periodoPrincipal;
+  log(`Períodos a processar: ${periodos.length}`);
+  for (const p of periodos) {
+    log(`  → ${p.inicio} até ${p.fim} (modo: ${p.modo}, ref: ${p.mesReferencia})`);
+  }
   
   let browser = null;
   let context = null;
@@ -4771,10 +4803,13 @@ async function rodarRobo() {
     }
     
     // ============================================
-    // ETAPA: ENVIO PARA WEBHOOK
+    // ETAPA: ENVIO PARA WEBHOOK (mês atual)
     // ============================================
     await notificarProgresso({ etapa_atual: 'ENVIANDO' });
-    const sucesso = await enviarWebhook(dados, nomeArquivoFinal);
+    const sucesso = await enviarWebhook(dados, nomeArquivoFinal, {
+      mesReferencia: periodoPrincipal.mesReferencia,
+      modo: periodoPrincipal.modo,
+    });
     
     // ============================================
     // LIMPEZA: REMOVER ARQUIVO TEMPORÁRIO APÓS USO
@@ -4787,6 +4822,156 @@ async function rodarRobo() {
       }
     } catch (cleanupError) {
       log(`Aviso: não foi possível remover arquivo temporário: ${cleanupError.message}`, LOG_LEVELS.WARN);
+    }
+    
+    // ============================================
+    // ETAPA: ATUALIZAR MÊS ANTERIOR (se dia <= 5)
+    // ============================================
+    const periodoAnterior = periodos.find(p => p.modo === 'atualizar_anterior');
+    if (periodoAnterior && sucesso) {
+      log('', LOG_LEVELS.INFO);
+      log('═'.repeat(60), LOG_LEVELS.INFO);
+      log('📅 ATUALIZANDO RELATÓRIO DO MÊS ANTERIOR', LOG_LEVELS.INFO);
+      log(`   Período: ${periodoAnterior.inicio} até ${periodoAnterior.fim}`, LOG_LEVELS.INFO);
+      log(`   Mês referência: ${periodoAnterior.mesReferencia}`, LOG_LEVELS.INFO);
+      log('═'.repeat(60), LOG_LEVELS.INFO);
+      
+      try {
+        setStep('MES_ANTERIOR_NAVEGACAO');
+        await notificarProgresso({ etapa_atual: 'ATUALIZANDO_MES_ANTERIOR' });
+        
+        // Navegar de volta para a página de relatório
+        await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
+          waitUntil: 'domcontentloaded',
+          timeout: TIMEOUTS.PAGE_LOAD
+        });
+        await fecharPopups(page);
+        await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+        await fecharPopups(page);
+        
+        // Preencher filtros com datas do mês anterior
+        setStep('MES_ANTERIOR_FILTROS');
+        log(`Preenchendo Data Vencimento Original: ${periodoAnterior.inicio} até ${periodoAnterior.fim}`);
+        
+        const preencheuDatasAnterior = await page.evaluate(({ inicio, fim }) => {
+          const resultado = { sucesso: false };
+          const todosElementos = document.querySelectorAll('td, th, label, span, div');
+          
+          for (const elemento of todosElementos) {
+            const texto = elemento.textContent?.trim() || '';
+            if (texto === 'Data Vencimento Original:' || texto === 'Data Vencimento Original') {
+              const linha = elemento.closest('tr');
+              if (linha) {
+                const inputs = linha.querySelectorAll('input[type="text"], input:not([type])');
+                if (inputs.length >= 2) {
+                  inputs[0].value = inicio;
+                  inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+                  inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+                  inputs[1].value = fim;
+                  inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+                  inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+                  resultado.sucesso = true;
+                  return resultado;
+                }
+              }
+              const container = elemento.parentElement;
+              const inputs = container?.querySelectorAll('input[type="text"], input:not([type])');
+              if (inputs && inputs.length >= 2) {
+                inputs[0].value = inicio;
+                inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+                inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+                inputs[1].value = fim;
+                inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+                inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+                resultado.sucesso = true;
+                return resultado;
+              }
+            }
+          }
+          return resultado;
+        }, { inicio: periodoAnterior.inicio, fim: periodoAnterior.fim });
+        
+        if (!preencheuDatasAnterior.sucesso) {
+          log('❌ Não foi possível preencher datas do mês anterior - pulando', LOG_LEVELS.WARN);
+        } else {
+          log(`✅ Datas do mês anterior preenchidas: ${periodoAnterior.inicio} até ${periodoAnterior.fim}`, LOG_LEVELS.SUCCESS);
+          
+          // Re-configurar filtros (situação, layout, etc.)
+          await configurarCheckboxesSituacaoBoleto(page);
+          await page.waitForTimeout(1000);
+          
+          // Gerar relatório e baixar (reutilizar lógica de download existente)
+          setStep('MES_ANTERIOR_DOWNLOAD');
+          
+          // Clicar em Gerar/Excel
+          let downloadAnteriorSucesso = false;
+          let dadosAnterior = [];
+          
+          // Tentar gerar o relatório - mesma lógica simplificada
+          try {
+            const btnGerar = await page.$('input[value*="Gerar"], button:has-text("Gerar"), input[type="submit"][value*="Gerar"]');
+            if (btnGerar) {
+              // Timeout longo para download
+              page.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
+              context.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
+              
+              const [download] = await Promise.all([
+                page.waitForEvent('download', { timeout: TIMEOUTS.DOWNLOAD_EVENT }).catch(() => null),
+                btnGerar.click({ force: true }),
+              ]);
+              
+              if (download) {
+                const nomeArquivoAnterior = `Hinova_MesAnterior_${periodoAnterior.mesReferencia}.xls`;
+                const downloadDirAnterior = path.resolve(CONFIG.DOWNLOAD_BASE_DIR, `anterior_${Date.now()}`);
+                if (!fs.existsSync(downloadDirAnterior)) fs.mkdirSync(downloadDirAnterior, { recursive: true });
+                const filePathAnterior = path.join(downloadDirAnterior, nomeArquivoAnterior);
+                
+                await download.saveAs(filePathAnterior);
+                
+                if (fs.existsSync(filePathAnterior) && fs.statSync(filePathAnterior).size > LIMITS.MIN_FILE_SIZE_BYTES) {
+                  log(`Download mês anterior: ${formatBytes(fs.statSync(filePathAnterior).size)}`, LOG_LEVELS.SUCCESS);
+                  
+                  // Parse Excel
+                  const workbook = XLSX.readFile(filePathAnterior, { type: 'file', cellDates: true });
+                  const sheetName = workbook.SheetNames[0];
+                  dadosAnterior = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: null });
+                  
+                  downloadAnteriorSucesso = dadosAnterior.length > 0;
+                  log(`Mês anterior: ${dadosAnterior.length} registros encontrados`, LOG_LEVELS.SUCCESS);
+                  
+                  // Limpar arquivo temporário
+                  try { fs.unlinkSync(filePathAnterior); } catch {}
+                  try { fs.rmdirSync(downloadDirAnterior); } catch {}
+                }
+              }
+              
+              // Restaurar timeouts
+              page.setDefaultTimeout(30000);
+              context.setDefaultTimeout(30000);
+            }
+          } catch (downloadErr) {
+            log(`Erro ao baixar mês anterior: ${downloadErr.message}`, LOG_LEVELS.WARN);
+            page.setDefaultTimeout(30000);
+            context.setDefaultTimeout(30000);
+          }
+          
+          // Enviar dados do mês anterior
+          if (downloadAnteriorSucesso && dadosAnterior.length > 0) {
+            setStep('MES_ANTERIOR_ENVIO');
+            const nomeArquivoAnterior = `Hinova_Boletos_${periodoAnterior.mesReferencia}.json`;
+            await enviarWebhook(dadosAnterior, nomeArquivoAnterior, {
+              mesReferencia: periodoAnterior.mesReferencia,
+              modo: 'atualizar_anterior',
+            });
+            log('✅ Mês anterior atualizado com sucesso!', LOG_LEVELS.SUCCESS);
+          } else {
+            log('⚠️ Não foi possível atualizar mês anterior (sem dados ou download falhou)', LOG_LEVELS.WARN);
+          }
+        }
+      } catch (anteriorError) {
+        log(`Erro ao atualizar mês anterior: ${anteriorError.message}`, LOG_LEVELS.WARN);
+        // Não falhar a execução por causa do mês anterior
+      }
     }
     
     return sucesso;
