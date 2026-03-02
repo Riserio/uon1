@@ -16,7 +16,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { corretora_id } = await req.json();
+    const { corretora_id, mes_referencia: mesReferenciaParam } = await req.json();
 
     if (!corretora_id) {
       throw new Error('corretora_id é obrigatório');
@@ -30,10 +30,30 @@ serve(async (req) => {
       .single();
     const nomeAssociacao = corretora?.nome || 'Associação';
 
-    // Get current month reference
+    // Determine which month to report
     // Ajustar para UTC-3 (São Paulo)
     const now = new Date(Date.now() - 3 * 60 * 60 * 1000);
-    const mesReferencia = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const diaAtual = now.getUTCDate();
+    
+    // Se mes_referencia foi passado explicitamente, usar ele
+    // Caso contrário, até dia 6 usar mês anterior, a partir do dia 7 usar mês atual
+    let mesReferencia: string;
+    let usandoMesAnterior = false;
+    
+    if (mesReferenciaParam) {
+      mesReferencia = mesReferenciaParam;
+      // Verificar se é mês anterior
+      const mesAtual = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+      usandoMesAnterior = mesReferencia !== mesAtual;
+    } else if (diaAtual <= 6) {
+      // Até dia 6: relatório do mês anterior
+      const mesAnterior = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+      mesReferencia = `${mesAnterior.getUTCFullYear()}-${String(mesAnterior.getUTCMonth() + 1).padStart(2, '0')}`;
+      usandoMesAnterior = true;
+    } else {
+      mesReferencia = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    }
+    
     const dia = String(now.getUTCDate()).padStart(2, '0');
     const mes = String(now.getUTCMonth() + 1).padStart(2, '0');
     const ano = now.getUTCFullYear();
@@ -41,13 +61,46 @@ serve(async (req) => {
     const minuto = String(now.getUTCMinutes()).padStart(2, '0');
     const dataAtual = `${dia}/${mes}/${ano} às ${hora}:${minuto}`;
 
-    // Get active import for this corretora
-    const { data: importacao } = await supabase
-      .from('cobranca_importacoes')
-      .select('id')
-      .eq('corretora_id', corretora_id)
-      .eq('ativo', true)
-      .single();
+    // Get import for this corretora
+    // If reporting current month, use ativo=true
+    // If reporting previous month, find by mes_referencia in nome_arquivo or most recent inactive
+    let importacao: any = null;
+    
+    if (!usandoMesAnterior) {
+      // Mês atual: usar importação ativa
+      const { data } = await supabase
+        .from('cobranca_importacoes')
+        .select('id')
+        .eq('corretora_id', corretora_id)
+        .eq('ativo', true)
+        .single();
+      importacao = data;
+    } else {
+      // Mês anterior: buscar por nome_arquivo contendo o mes_referencia
+      const { data: byName } = await supabase
+        .from('cobranca_importacoes')
+        .select('id')
+        .eq('corretora_id', corretora_id)
+        .like('nome_arquivo', `%${mesReferencia}%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (byName) {
+        importacao = byName;
+      } else {
+        // Fallback: buscar a importação inativa mais recente
+        const { data: inactive } = await supabase
+          .from('cobranca_importacoes')
+          .select('id')
+          .eq('corretora_id', corretora_id)
+          .eq('ativo', false)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        importacao = inactive;
+      }
+    }
 
     if (!importacao) {
       throw new Error('Nenhuma importação ativa encontrada');
@@ -169,14 +222,20 @@ serve(async (req) => {
     const formatCurrency = (value: number) => 
       new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
+    // Format month reference for display
+    const [refAno, refMes] = mesReferencia.split('-');
+    const mesesNomes = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const mesReferenciaLabel = `${mesesNomes[parseInt(refMes)]}/${refAno}`;
+    const labelPeriodo = usandoMesAnterior ? ` (Ref: ${mesReferenciaLabel})` : '';
+
     // Build message with standard header including association name
     const resumo = `*Resumo VANGARD da sua operação - ${nomeAssociacao}*
 
-O BI de indicadores de resultados da sua associação foi atualizado.
+O BI de indicadores de resultados da sua associação foi atualizado.${usandoMesAnterior ? `\n\n📌 *Relatório referente a ${mesReferenciaLabel}*` : ''}
 
 Seguem abaixo informações importantes para sua gestão:
 
-📊 *RESUMO DE COBRANÇA*
+📊 *RESUMO DE COBRANÇA${labelPeriodo}*
 
 📅 *${dataAtual}*
 
