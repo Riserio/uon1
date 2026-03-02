@@ -62,8 +62,6 @@ serve(async (req) => {
     const dataAtual = `${dia}/${mes}/${ano} às ${hora}:${minuto}`;
 
     // Get import for this corretora
-    // If reporting current month, use ativo=true
-    // If reporting previous month, find by mes_referencia in nome_arquivo or most recent inactive
     let importacao: any = null;
     
     if (!usandoMesAnterior) {
@@ -89,16 +87,35 @@ serve(async (req) => {
       if (byName) {
         importacao = byName;
       } else {
-        // Fallback: buscar a importação inativa mais recente
-        const { data: inactive } = await supabase
+        // Fallback: buscar por created_at dentro do mês de referência
+        const [refY, refM] = mesReferencia.split('-').map(Number);
+        const inicioMes = new Date(Date.UTC(refY, refM - 1, 1)).toISOString();
+        const fimMes = new Date(Date.UTC(refY, refM, 1)).toISOString(); // primeiro dia do mês seguinte
+        
+        const { data: byDate } = await supabase
           .from('cobranca_importacoes')
           .select('id')
           .eq('corretora_id', corretora_id)
-          .eq('ativo', false)
+          .gte('created_at', inicioMes)
+          .lt('created_at', fimMes)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        importacao = inactive;
+        
+        if (byDate) {
+          importacao = byDate;
+        } else {
+          // Último fallback: importação inativa mais recente
+          const { data: inactive } = await supabase
+            .from('cobranca_importacoes')
+            .select('id')
+            .eq('corretora_id', corretora_id)
+            .eq('ativo', false)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          importacao = inactive;
+        }
       }
     }
 
@@ -178,14 +195,25 @@ serve(async (req) => {
     const diasVencimento = [5, 10, 15, 20];
     const boletosPorDia = diasVencimento.map(dia => {
       const gerados = boletos?.filter(b => b.dia_vencimento_veiculo === dia).length || 0;
-      const diaUtilRef = getProximoDiaUtil(dia);
-      const diaHoje = now.getUTCDate();
-      // Boletos em aberto cujo dia útil de referência já passou
-      const abertos = boletos?.filter(b => 
-        b.dia_vencimento_veiculo === dia && 
-        isAberto(b.situacao) && 
-        diaUtilRef <= diaHoje
-      ).length || 0;
+      let abertos: number;
+      
+      if (usandoMesAnterior) {
+        // Mês anterior: todos os vencimentos já passaram, contar todos em aberto
+        abertos = boletos?.filter(b => 
+          b.dia_vencimento_veiculo === dia && 
+          isAberto(b.situacao)
+        ).length || 0;
+      } else {
+        // Mês atual: só contar em aberto se o dia útil de referência já passou
+        const diaUtilRef = getProximoDiaUtil(dia);
+        const diaHoje = now.getUTCDate();
+        abertos = boletos?.filter(b => 
+          b.dia_vencimento_veiculo === dia && 
+          isAberto(b.situacao) && 
+          diaUtilRef <= diaHoje
+        ).length || 0;
+      }
+      
       return `${dia} – Total Gerado (${gerados}) – Total em aberto (${abertos})`;
     }).join('\n');
 
