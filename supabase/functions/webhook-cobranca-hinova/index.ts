@@ -270,6 +270,7 @@ serve(async (req) => {
       dados,
       nome_arquivo,
       mes_referencia,
+      modo,
       // Suporte a importação em lotes (chunks)
       importacao_id,
       total_registros,
@@ -768,8 +769,90 @@ serve(async (req) => {
           .update({ total_registros })
           .eq("id", importacao.id);
       }
+    } else if (modo === 'atualizar_anterior' && mes_referencia && corretoraId) {
+      // Modo atualizar_anterior: buscar importação existente do mês anterior e atualizar seus boletos
+      console.log(`[Webhook] Modo atualizar_anterior para mês ${mes_referencia}`);
+      
+      // Buscar importação existente desse mês de referência
+      const { data: existingImports } = await supabase
+        .from("cobranca_importacoes")
+        .select("*")
+        .eq("corretora_id", corretoraId)
+        .like("nome_arquivo", `%${mes_referencia}%`)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      
+      // Também buscar por nome_arquivo do mês
+      let targetImport = existingImports?.[0] || null;
+      
+      if (!targetImport) {
+        // Fallback: buscar qualquer importação inativa mais recente que não seja a ativa
+        const { data: inactiveImports } = await supabase
+          .from("cobranca_importacoes")
+          .select("*")
+          .eq("corretora_id", corretoraId)
+          .eq("ativo", false)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        targetImport = inactiveImports?.[0] || null;
+      }
+      
+      if (targetImport) {
+        // Deletar boletos existentes dessa importação
+        const { error: deleteError } = await supabase
+          .from("cobranca_boletos")
+          .delete()
+          .eq("importacao_id", targetImport.id);
+        
+        if (deleteError) {
+          console.error("[Webhook] Erro ao deletar boletos antigos:", deleteError);
+        } else {
+          console.log(`[Webhook] Boletos antigos deletados da importação ${targetImport.id}`);
+        }
+        
+        // Atualizar metadados da importação
+        await supabase
+          .from("cobranca_importacoes")
+          .update({
+            nome_arquivo: nomeArquivo,
+            total_registros: dados.length,
+            ativo: false, // Manter inativa (a do mês atual é a ativa)
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", targetImport.id);
+        
+        importacao = targetImport;
+        console.log(`[Webhook] Reutilizando importação ${targetImport.id} para atualização do mês anterior`);
+      } else {
+        // Não existe importação anterior, criar uma nova inativa
+        const totalReg = (typeof total_registros === 'number' && total_registros > 0)
+          ? total_registros
+          : dados.length;
+
+        const { data: created, error: importError } = await supabase
+          .from("cobranca_importacoes")
+          .insert({
+            corretora_id: corretoraId,
+            nome_arquivo: nomeArquivo,
+            ativo: false, // Inativa - é o mês anterior
+            total_registros: totalReg,
+          })
+          .select()
+          .single();
+
+        if (importError) {
+          console.error("Erro ao criar importação (mês anterior):", importError);
+          return new Response(
+            JSON.stringify({ success: false, message: "Erro ao criar importação", error: importError.message }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        importacao = created;
+        console.log("[Webhook] Importação criada para mês anterior:", importacao.id);
+      }
     } else {
-      // Modo tradicional: desativar importações anteriores e criar uma nova
+      // Modo tradicional (substituir): desativar importações anteriores e criar uma nova
       await supabase
         .from("cobranca_importacoes")
         .update({ ativo: false })
@@ -1058,10 +1141,11 @@ serve(async (req) => {
     }
 
     // Registrar log de auditoria
+    const modoDescricao = modo === 'atualizar_anterior' ? ' (atualização mês anterior)' : '';
     await supabase.from("bi_audit_logs").insert({
       modulo: "cobranca",
-      acao: "importacao_automatica",
-      descricao: `Importação automática via webhook: ${nomeArquivo} - ${processados} registros`,
+      acao: modo === 'atualizar_anterior' ? "atualizacao_mes_anterior" : "importacao_automatica",
+      descricao: `Importação automática via webhook${modoDescricao}: ${nomeArquivo} - ${processados} registros`,
       corretora_id: corretoraId,
         user_id: SYSTEM_USER_ID,
       user_nome: "Sistema (Webhook)",
@@ -1071,6 +1155,7 @@ serve(async (req) => {
         processados,
         erros,
         mes_referencia,
+        modo: modo || 'substituir',
       },
     });
 
@@ -1078,7 +1163,7 @@ serve(async (req) => {
     // Auto-send WhatsApp report after successful import
     // ============================================
     const isLastChunkFinal = !chunk_total || !chunk_index || chunk_index >= chunk_total;
-    if (isLastChunkFinal) {
+    if (isLastChunkFinal && modo !== 'atualizar_anterior') {
       try {
         const { data: waConfig } = await supabase
           .from("whatsapp_config")
