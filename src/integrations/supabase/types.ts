@@ -494,11 +494,11 @@ export type Database = {
           created_at: string
           data: string
           funcionario_id: string
-          horas_esperadas: unknown
-          horas_trabalhadas: unknown
+          horas_esperadas: string | null
+          horas_trabalhadas: string | null
           id: string
           observacao: string | null
-          saldo: unknown
+          saldo: string | null
           tipo: string | null
           updated_at: string
         }
@@ -506,11 +506,11 @@ export type Database = {
           created_at?: string
           data: string
           funcionario_id: string
-          horas_esperadas?: unknown
-          horas_trabalhadas?: unknown
+          horas_esperadas?: string | null
+          horas_trabalhadas?: string | null
           id?: string
           observacao?: string | null
-          saldo?: unknown
+          saldo?: string | null
           tipo?: string | null
           updated_at?: string
         }
@@ -518,11 +518,11 @@ export type Database = {
           created_at?: string
           data?: string
           funcionario_id?: string
-          horas_esperadas?: unknown
-          horas_trabalhadas?: unknown
+          horas_esperadas?: string | null
+          horas_trabalhadas?: string | null
           id?: string
           observacao?: string | null
-          saldo?: unknown
+          saldo?: string | null
           tipo?: string | null
           updated_at?: string
         }
