@@ -16,6 +16,7 @@ import {
   FileX,
   TrendingUp,
   DollarSign,
+  MessageSquareWarning,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -312,6 +313,16 @@ export default function MenuNav() {
             <Link to="/pid" className="cursor-pointer">
               <TrendingUp className="mr-2 h-4 w-4" />
               <span>BI - Indicadores</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        {/* Ouvidoria */}
+        {canView("ouvidoria") && (
+          <DropdownMenuItem asChild>
+            <Link to="/ouvidoria-backoffice" className="cursor-pointer">
+              <MessageSquareWarning className="mr-2 h-4 w-4" />
+              <span>Ouvidoria</span>
             </Link>
           </DropdownMenuItem>
         )}

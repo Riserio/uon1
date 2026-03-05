@@ -3675,6 +3675,198 @@ export type Database = {
           },
         ]
       }
+      ouvidoria_config: {
+        Row: {
+          ativo: boolean | null
+          cor_botao: string | null
+          cor_botao_texto: string | null
+          cor_primaria: string | null
+          cor_secundaria: string | null
+          corretora_id: string
+          created_at: string
+          dominios_permitidos: string[] | null
+          embed_token: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          cor_botao?: string | null
+          cor_botao_texto?: string | null
+          cor_primaria?: string | null
+          cor_secundaria?: string | null
+          corretora_id: string
+          created_at?: string
+          dominios_permitidos?: string[] | null
+          embed_token?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          cor_botao?: string | null
+          cor_botao_texto?: string | null
+          cor_primaria?: string | null
+          cor_secundaria?: string | null
+          corretora_id?: string
+          created_at?: string
+          dominios_permitidos?: string[] | null
+          embed_token?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ouvidoria_config_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ouvidoria_historico: {
+        Row: {
+          created_at: string
+          id: string
+          observacao: string | null
+          registro_id: string
+          status_anterior: string | null
+          status_novo: string
+          user_id: string | null
+          user_nome: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          observacao?: string | null
+          registro_id: string
+          status_anterior?: string | null
+          status_novo: string
+          user_id?: string | null
+          user_nome?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          observacao?: string | null
+          registro_id?: string
+          status_anterior?: string | null
+          status_novo?: string
+          user_id?: string | null
+          user_nome?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ouvidoria_historico_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "ouvidoria_registros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ouvidoria_rate_limit: {
+        Row: {
+          corretora_id: string
+          created_at: string
+          id: string
+          ip: string
+        }
+        Insert: {
+          corretora_id: string
+          created_at?: string
+          id?: string
+          ip: string
+        }
+        Update: {
+          corretora_id?: string
+          created_at?: string
+          id?: string
+          ip?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ouvidoria_rate_limit_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ouvidoria_registros: {
+        Row: {
+          corretora_id: string
+          cpf: string | null
+          created_at: string
+          descricao: string
+          email: string
+          id: string
+          ip_origem: string | null
+          nome: string
+          observacoes_internas: string | null
+          placa_veiculo: string | null
+          protocolo: string
+          responsavel_id: string | null
+          status: string
+          telefone: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          corretora_id: string
+          cpf?: string | null
+          created_at?: string
+          descricao: string
+          email: string
+          id?: string
+          ip_origem?: string | null
+          nome: string
+          observacoes_internas?: string | null
+          placa_veiculo?: string | null
+          protocolo: string
+          responsavel_id?: string | null
+          status?: string
+          telefone?: string | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          corretora_id?: string
+          cpf?: string | null
+          created_at?: string
+          descricao?: string
+          email?: string
+          id?: string
+          ip_origem?: string | null
+          nome?: string
+          observacoes_internas?: string | null
+          placa_veiculo?: string | null
+          protocolo?: string
+          responsavel_id?: string | null
+          status?: string
+          telefone?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ouvidoria_registros_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ouvidoria_registros_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       performance_alertas: {
         Row: {
           created_at: string

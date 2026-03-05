@@ -78,6 +78,9 @@ const PortalGestaoAssociacao = lazy(() => import("./pages/portal/PortalGestaoAss
 const PortalLayout = lazy(() => import("./components/portal/PortalLayout"));
 const PortalAcompanhamentoEventos = lazy(() => import("./pages/portal/PortalAcompanhamentoEventos"));
 const MeetingRsvp = lazy(() => import("./pages/MeetingRsvp"));
+const OuvidoriaPublica = lazy(() => import("./pages/OuvidoriaPublica"));
+const OuvidoriaBackoffice = lazy(() => import("./pages/OuvidoriaBackoffice"));
+const OuvidoriaEmbed = lazy(() => import("./pages/OuvidoriaEmbed"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -239,6 +242,8 @@ const App = () => (
               <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
               <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
               <Route path="/termos-de-servico" element={<TermosServico />} />
+              <Route path="/ouvidoria/:slug" element={<OuvidoriaPublica />} />
+              <Route path="/embed/ouvidoria/:slug" element={<OuvidoriaEmbed />} />
               <Route path="/" element={<DomainBasedRoute />} />
               
               {/* All protected routes share sidebar via AppLayout */}
@@ -286,6 +291,7 @@ const App = () => (
                 <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
                 <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
                 <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
+                <Route path="/ouvidoria-backoffice" element={<ProtectedRoute><OuvidoriaBackoffice /></ProtectedRoute>} />
                 <Route path="/talk" element={<Navigate to="/video" replace />} />
               </Route>
               

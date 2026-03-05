@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Palette, Briefcase, Headset, Video } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Palette, Briefcase, Headset, Video, MessageSquareWarning } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -330,6 +330,16 @@ export function AppSidebar() {
                       <NavLink to="/gestao" activeClassName="bg-primary text-primary-foreground">
                         <Briefcase className="h-4 w-4" />
                         {!collapsed && <span>Gestão</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>}
+
+                {/* Ouvidoria */}
+                {canView("ouvidoria") && <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/ouvidoria-backoffice" activeClassName="bg-primary text-primary-foreground">
+                        <MessageSquareWarning className="h-4 w-4" />
+                        {!collapsed && <span>Ouvidoria</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
