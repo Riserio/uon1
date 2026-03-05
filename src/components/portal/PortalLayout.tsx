@@ -8,7 +8,7 @@ import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
 
-type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos';
+type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'ouvidoria';
 
 const moduleMap: Record<string, PortalModule> = {
   '/portal': 'indicadores',
@@ -17,6 +17,7 @@ const moduleMap: Record<string, PortalModule> = {
   '/portal/cobranca-insights': 'cobranca',
   '/portal/estudo-base-insights': 'estudo-base',
   '/portal/acompanhamento-eventos': 'acompanhamento-eventos',
+  '/portal/ouvidoria': 'ouvidoria',
 };
 
 export default function PortalLayout() {
@@ -131,10 +132,12 @@ export default function PortalLayout() {
     ...(corretora.modulos_bi.includes('cobranca') ? ['cobranca'] as const : []),
     ...(corretora.modulos_bi.includes('estudo-base') ? ['estudo-base'] as const : []),
     ...(corretora.modulos_bi.includes('acompanhamento-eventos') ? ['acompanhamento-eventos'] as const : []),
+    ...(corretora.modulos_bi.includes('ouvidoria') ? ['ouvidoria'] as const : []),
   ];
 
   // Check if user has "acompanhamento-eventos" module
   const hasAcompanhamento = corretora.modulos_bi.includes('acompanhamento-eventos');
+  const hasOuvidoria = corretora.modulos_bi.includes('ouvidoria');
 
   return (
     <PortalCarouselProvider
@@ -151,6 +154,7 @@ export default function PortalLayout() {
           currentModule={currentModule}
           showCarouselControls={true}
           hasAcompanhamento={hasAcompanhamento}
+          hasOuvidoria={hasOuvidoria}
         />
 
         <PortalPageWrapper>

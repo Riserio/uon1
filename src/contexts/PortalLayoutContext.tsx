@@ -8,6 +8,7 @@ type CorretoraComModulos = {
   nome: string;
   logo_url?: string | null;
   modulos_bi: string[];
+  acesso_ouvidoria?: boolean;
 };
 
 interface PortalLayoutContextType {
@@ -51,7 +52,7 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase
           .from("corretora_usuarios")
-          .select("corretora_id, modulos_bi, corretoras(id, nome, logo_url)")
+          .select("corretora_id, modulos_bi, acesso_ouvidoria, corretoras(id, nome, logo_url)")
           .eq("profile_id", user.id)
           .eq("ativo", true);
 
@@ -63,10 +64,15 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
 
         const validas: CorretoraComModulos[] = data
           .filter(item => item.corretoras)
-          .map(item => ({
-            ...(item.corretoras as any),
-            modulos_bi: item.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']
-          }));
+          .map(item => {
+            const baseModulos = item.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'];
+            const modulos = item.acesso_ouvidoria ? [...baseModulos, 'ouvidoria'] : baseModulos;
+            return {
+              ...(item.corretoras as any),
+              modulos_bi: modulos,
+              acesso_ouvidoria: item.acesso_ouvidoria || false,
+            };
+          });
 
         if (validas.length === 0) {
           setNotLinked(true);

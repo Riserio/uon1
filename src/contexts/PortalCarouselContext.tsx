@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos';
+type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'ouvidoria';
 
 type CarouselConfig = {
   enabled: boolean;
@@ -93,6 +93,8 @@ export function PortalCarouselProvider({
         return `/portal/estudo-base-insights?associacao=${corretoraId}`;
       case 'acompanhamento-eventos':
         return `/portal/acompanhamento-eventos?associacao=${corretoraId}`;
+      case 'ouvidoria':
+        return `/portal/ouvidoria?associacao=${corretoraId}`;
     }
   }, [corretoraId]);
 
