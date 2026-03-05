@@ -77,6 +77,7 @@ const InviteEntry = lazy(() => import("./pages/InviteEntry"));
 const PortalGestaoAssociacao = lazy(() => import("./pages/portal/PortalGestaoAssociacao"));
 const PortalLayout = lazy(() => import("./components/portal/PortalLayout"));
 const PortalAcompanhamentoEventos = lazy(() => import("./pages/portal/PortalAcompanhamentoEventos"));
+const PortalOuvidoria = lazy(() => import("./pages/portal/PortalOuvidoria"));
 const MeetingRsvp = lazy(() => import("./pages/MeetingRsvp"));
 const OuvidoriaPublica = lazy(() => import("./pages/OuvidoriaPublica"));
 const OuvidoriaBackoffice = lazy(() => import("./pages/OuvidoriaBackoffice"));
@@ -306,6 +307,7 @@ const App = () => (
                 <Route path="estudo-base-insights" element={<EstudoBaseInsights />} />
                 <Route path="gestao-associacao" element={<PortalGestaoAssociacao />} />
                 <Route path="acompanhamento-eventos" element={<PortalAcompanhamentoEventos />} />
+                <Route path="ouvidoria" element={<PortalOuvidoria />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

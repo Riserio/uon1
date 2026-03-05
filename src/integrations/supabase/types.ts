@@ -1310,6 +1310,7 @@ export type Database = {
       corretora_usuarios: {
         Row: {
           acesso_exclusivo_pid: boolean | null
+          acesso_ouvidoria: boolean | null
           ativo: boolean | null
           corretora_id: string
           created_at: string | null
@@ -1325,6 +1326,7 @@ export type Database = {
         }
         Insert: {
           acesso_exclusivo_pid?: boolean | null
+          acesso_ouvidoria?: boolean | null
           ativo?: boolean | null
           corretora_id: string
           created_at?: string | null
@@ -1340,6 +1342,7 @@ export type Database = {
         }
         Update: {
           acesso_exclusivo_pid?: boolean | null
+          acesso_ouvidoria?: boolean | null
           ativo?: boolean | null
           corretora_id?: string
           created_at?: string | null
@@ -3675,6 +3678,50 @@ export type Database = {
           },
         ]
       }
+      ouvidoria_checkpoints: {
+        Row: {
+          checkpoint_index: number
+          checkpoint_label: string
+          concluido: boolean | null
+          concluido_em: string | null
+          created_at: string | null
+          etapa: string
+          id: string
+          registro_id: string
+          user_id: string | null
+        }
+        Insert: {
+          checkpoint_index: number
+          checkpoint_label: string
+          concluido?: boolean | null
+          concluido_em?: string | null
+          created_at?: string | null
+          etapa: string
+          id?: string
+          registro_id: string
+          user_id?: string | null
+        }
+        Update: {
+          checkpoint_index?: number
+          checkpoint_label?: string
+          concluido?: boolean | null
+          concluido_em?: string | null
+          created_at?: string | null
+          etapa?: string
+          id?: string
+          registro_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ouvidoria_checkpoints_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "ouvidoria_registros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ouvidoria_config: {
         Row: {
           ativo: boolean | null
@@ -3797,6 +3844,7 @@ export type Database = {
       }
       ouvidoria_registros: {
         Row: {
+          analista_id: string | null
           corretora_id: string
           cpf: string | null
           created_at: string
@@ -3806,15 +3854,22 @@ export type Database = {
           ip_origem: string | null
           nome: string
           observacoes_internas: string | null
+          origem_reclamacao: string | null
           placa_veiculo: string | null
+          possivel_motivo: string | null
           protocolo: string
           responsavel_id: string | null
+          satisfacao_nota: number | null
+          setor_responsavel: string | null
           status: string
+          status_changed_at: string | null
           telefone: string | null
           tipo: string
           updated_at: string
+          urgencia: string | null
         }
         Insert: {
+          analista_id?: string | null
           corretora_id: string
           cpf?: string | null
           created_at?: string
@@ -3824,15 +3879,22 @@ export type Database = {
           ip_origem?: string | null
           nome: string
           observacoes_internas?: string | null
+          origem_reclamacao?: string | null
           placa_veiculo?: string | null
+          possivel_motivo?: string | null
           protocolo: string
           responsavel_id?: string | null
+          satisfacao_nota?: number | null
+          setor_responsavel?: string | null
           status?: string
+          status_changed_at?: string | null
           telefone?: string | null
           tipo: string
           updated_at?: string
+          urgencia?: string | null
         }
         Update: {
+          analista_id?: string | null
           corretora_id?: string
           cpf?: string | null
           created_at?: string
@@ -3842,13 +3904,19 @@ export type Database = {
           ip_origem?: string | null
           nome?: string
           observacoes_internas?: string | null
+          origem_reclamacao?: string | null
           placa_veiculo?: string | null
+          possivel_motivo?: string | null
           protocolo?: string
           responsavel_id?: string | null
+          satisfacao_nota?: number | null
+          setor_responsavel?: string | null
           status?: string
+          status_changed_at?: string | null
           telefone?: string | null
           tipo?: string
           updated_at?: string
+          urgencia?: string | null
         }
         Relationships: [
           {

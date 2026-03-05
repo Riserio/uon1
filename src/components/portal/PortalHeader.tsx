@@ -1,4 +1,4 @@
-import { Building2, LogOut, ArrowLeftRight, TrendingUp, Activity, DollarSign, Car, KanbanSquare } from "lucide-react";
+import { Building2, LogOut, ArrowLeftRight, TrendingUp, Activity, DollarSign, Car, KanbanSquare, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import PortalCarouselControls from "./PortalCarouselControls";
@@ -17,9 +17,10 @@ type PortalHeaderProps = {
   showChangeButton?: boolean;
   onChangeCorretora?: () => void;
   onLogout: () => void;
-  currentModule?: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos';
+  currentModule?: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'ouvidoria';
   showCarouselControls?: boolean;
   hasAcompanhamento?: boolean;
+  hasOuvidoria?: boolean;
 };
 
 export default function PortalHeader({
@@ -29,7 +30,8 @@ export default function PortalHeader({
   onLogout,
   currentModule,
   showCarouselControls = false,
-  hasAcompanhamento = false
+  hasAcompanhamento = false,
+  hasOuvidoria = false
 }: PortalHeaderProps) {
   const carousel = usePortalCarouselOptional();
   const navigate = useNavigate();
@@ -43,13 +45,14 @@ export default function PortalHeader({
   const hasEstudoBase = hasModulo('estudo-base');
 
   // Lista de módulos disponíveis para o carrossel
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos')[] = [
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'ouvidoria')[] = [
     ...(hasIndicadores ? ['indicadores'] as const : []),
     ...(hasEventos ? ['eventos'] as const : []),
     ...(hasMGF ? ['mgf'] as const : []),
     ...(hasCobranca ? ['cobranca'] as const : []),
     ...(hasEstudoBase ? ['estudo-base'] as const : []),
     ...(hasAcompanhamento ? ['acompanhamento-eventos'] as const : []),
+    ...(hasOuvidoria ? ['ouvidoria'] as const : []),
   ];
 
   // Contagem de módulos disponíveis para decidir layout
@@ -57,7 +60,7 @@ export default function PortalHeader({
 
   // For prefetch, use only prefetch-compatible module
   const prefetchModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' = 
-    currentModule === 'acompanhamento-eventos' ? 'indicadores' : (currentModule || 'indicadores');
+    (currentModule === 'acompanhamento-eventos' || currentModule === 'ouvidoria') ? 'indicadores' : (currentModule || 'indicadores');
 
   // Pré-carregar dados dos outros módulos em segundo plano
   usePortalDataPrefetch(corretora.id, prefetchModule, availableModules);
@@ -252,6 +255,23 @@ export default function PortalHeader({
                 >
                   <KanbanSquare className="h-4 w-4" />
                   <span>Acompanhamento</span>
+                </Button>
+              )}
+              {hasOuvidoria && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigate(`/portal/ouvidoria?associacao=${corretora.id}`);
+                  }}
+                  className={`gap-2 shrink-0 transition-all duration-300 ${
+                    currentModule === 'ouvidoria' 
+                      ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
+                      : 'hover:bg-muted'
+                  }`}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Ouvidoria</span>
                 </Button>
               )}
             </nav>
