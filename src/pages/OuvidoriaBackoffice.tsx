@@ -188,7 +188,7 @@ function KanbanColumn({ status, children, count, slaLabel }: { status: string; c
 }
 
 // Draggable card - modern style
-function DraggableCard({ registro, onClick, checkpoints, slaHours }: { registro: Registro; onClick: () => void; checkpoints: CheckpointRow[]; slaHours: Record<string, number | null> }) {
+function DraggableCard({ registro, onClick, checkpoints, slaHours, corretoraName }: { registro: Registro; onClick: () => void; checkpoints: CheckpointRow[]; slaHours: Record<string, number | null>; corretoraName?: string }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: registro.id,
     data: { type: "card", registro },
@@ -229,6 +229,7 @@ function DraggableCard({ registro, onClick, checkpoints, slaHours }: { registro:
         <div className="flex items-center gap-1.5 flex-wrap">
           <Badge variant="outline" className="text-[10px] px-1.5 py-0">{TIPO_LABELS[registro.tipo] || registro.tipo}</Badge>
           {registro.placa_veiculo && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">🚗 {registro.placa_veiculo}</Badge>}
+          {corretoraName && <Badge className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border-primary/20" variant="outline">🏢 {corretoraName}</Badge>}
         </div>
         {total > 0 && (
           <div className="space-y-1">
@@ -400,6 +401,8 @@ export default function OuvidoriaBackoffice() {
   // Report data
   const tipoCounts = Object.keys(TIPO_LABELS).map(t => ({ name: TIPO_LABELS[t], value: filtered.filter(r => r.tipo === t).length }));
   const statusCounts = STATUSES.map(s => ({ name: s, count: filtered.filter(r => r.status === s).length }));
+  const corretoraColors = ["#6366f1", "#ec4899", "#14b8a6", "#f59e0b", "#8b5cf6", "#06b6d4", "#ef4444", "#22c55e"];
+  const corretoraCountsData = corretoras.map(c => ({ name: c.nome, value: filtered.filter(r => r.corretora_id === c.id).length })).filter(c => c.value > 0);
 
   const draggedRegistro = activeId ? registros.find(r => r.id === activeId) : null;
 
@@ -463,7 +466,7 @@ export default function OuvidoriaBackoffice() {
               return (
                 <KanbanColumn key={status} status={status} count={cards.length} slaLabel={slaLabel}>
                   {cards.slice(0, 10).map(r => (
-                    <DraggableCard key={r.id} registro={r} checkpoints={checkpoints.filter(c => c.registro_id === r.id)} onClick={() => openDetail(r)} slaHours={slaHours} />
+                    <DraggableCard key={r.id} registro={r} checkpoints={checkpoints.filter(c => c.registro_id === r.id)} onClick={() => openDetail(r)} slaHours={slaHours} corretoraName={corretoras.find(c => c.id === r.corretora_id)?.nome} />
                   ))}
                   {cards.length > 10 && <p className="text-xs text-center text-muted-foreground py-1">+{cards.length - 10} registros</p>}
                 </KanbanColumn>
@@ -490,6 +493,7 @@ export default function OuvidoriaBackoffice() {
               <TableRow>
                 <TableHead>Protocolo</TableHead>
                 <TableHead>Nome</TableHead>
+                <TableHead>Associação</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Urgência</TableHead>
                 <TableHead>Status</TableHead>
@@ -504,6 +508,7 @@ export default function OuvidoriaBackoffice() {
                 <TableRow key={r.id}>
                   <TableCell className="font-mono text-sm">{r.protocolo}</TableCell>
                   <TableCell>{r.nome}</TableCell>
+                  <TableCell><Badge variant="outline" className="text-xs">{corretoras.find(c => c.id === r.corretora_id)?.nome || "—"}</Badge></TableCell>
                   <TableCell><Badge variant="outline">{TIPO_LABELS[r.tipo]}</Badge></TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
@@ -570,6 +575,24 @@ export default function OuvidoriaBackoffice() {
                   <p className="text-xs text-muted-foreground">Em Andamento</p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="font-semibold mb-4">Manifestações por Associação</h3>
+              {corretoraCountsData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie data={corretoraCountsData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                      {corretoraCountsData.map((_, i) => <Cell key={i} fill={corretoraColors[i % corretoraColors.length]} />)}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">Nenhum dado</p>
+              )}
             </CardContent>
           </Card>
           <Card>
