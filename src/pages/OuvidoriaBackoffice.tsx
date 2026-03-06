@@ -593,133 +593,202 @@ export default function OuvidoriaBackoffice() {
 
       {/* Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <DialogTitle>{selectedRegistro?.protocolo}</DialogTitle>
-              {selectedRegistro && (
-                <>
-                  <Badge className={STATUS_COLORS[selectedRegistro.status]}>{selectedRegistro.status}</Badge>
-                  {selectedRegistro.urgencia && (
-                    <Badge variant="outline" className="capitalize gap-1">
-                      <div className={`w-2 h-2 rounded-full ${URGENCIA_COLORS[selectedRegistro.urgencia]}`} />
-                      {selectedRegistro.urgencia}
-                    </Badge>
-                  )}
-                </>
-              )}
-            </div>
-          </DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0">
           {selectedRegistro && (
-            <Tabs defaultValue="dados">
-              <TabsList className="w-full">
-                <TabsTrigger value="dados" className="flex-1">Dados</TabsTrigger>
-                <TabsTrigger value="checkpoints" className="flex-1">Checkpoints</TabsTrigger>
-                <TabsTrigger value="historico" className="flex-1">Histórico</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="dados" className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-muted-foreground">Nome:</span> {selectedRegistro.nome}</div>
-                  <div><span className="text-muted-foreground">CPF:</span> {selectedRegistro.cpf || "-"}</div>
-                  <div><span className="text-muted-foreground">E-mail:</span> {selectedRegistro.email}</div>
-                  <div><span className="text-muted-foreground">Telefone:</span> {selectedRegistro.telefone || "-"}</div>
-                  <div><span className="text-muted-foreground">Tipo:</span> {TIPO_LABELS[selectedRegistro.tipo]}</div>
-                  <div><span className="text-muted-foreground">Placa:</span> {selectedRegistro.placa_veiculo || "-"}</div>
-                  <div className="col-span-2"><span className="text-muted-foreground">Data:</span> {format(new Date(selectedRegistro.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</div>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Descrição</Label>
-                  <p className="text-sm bg-muted/50 rounded p-3 mt-1">{selectedRegistro.descricao}</p>
-                </div>
-
-                {/* Editable fields */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Urgência</Label>
-                    <Select value={selectedRegistro.urgencia || "media"} onValueChange={v => updateField(selectedRegistro.id, "urgencia", v)}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="baixa">Baixa</SelectItem>
-                        <SelectItem value="media">Média</SelectItem>
-                        <SelectItem value="alta">Alta</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Setor Responsável</Label>
-                    <Input className="h-8" value={selectedRegistro.setor_responsavel || ""} onChange={e => updateField(selectedRegistro.id, "setor_responsavel", e.target.value)} placeholder="Ex: Financeiro" />
-                  </div>
-                  <div className="space-y-1 col-span-2">
-                    <Label className="text-xs">Possível Motivo</Label>
-                    <Input className="h-8" value={selectedRegistro.possivel_motivo || ""} onChange={e => updateField(selectedRegistro.id, "possivel_motivo", e.target.value)} />
+            <div className="flex flex-col h-full max-h-[90vh]">
+              {/* Header compacto */}
+              <div className="px-6 pt-6 pb-4 border-b bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-bold font-mono">{selectedRegistro.protocolo}</h2>
+                    <Badge className={STATUS_COLORS[selectedRegistro.status]}>{selectedRegistro.status}</Badge>
+                    {selectedRegistro.urgencia && (
+                      <Badge variant="outline" className="capitalize gap-1.5">
+                        <div className={`w-2 h-2 rounded-full ${URGENCIA_COLORS[selectedRegistro.urgencia]}`} />
+                        {selectedRegistro.urgencia}
+                      </Badge>
+                    )}
                   </div>
                 </div>
+                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                  <span>{selectedRegistro.nome}</span>
+                  <span>·</span>
+                  <span>{TIPO_LABELS[selectedRegistro.tipo]}</span>
+                  <span>·</span>
+                  <span>{format(new Date(selectedRegistro.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                </div>
+              </div>
 
-                {/* Status selector */}
-                <div className="space-y-2">
-                  <Label className="text-xs">Alterar Etapa</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {STATUSES.map(s => (
-                      <Button key={s} variant={selectedRegistro.status === s ? "default" : "outline"} size="sm" className="text-xs h-7"
-                        onClick={() => { if (s !== selectedRegistro.status) { updateStatus(selectedRegistro, s); setSelectedRegistro({ ...selectedRegistro, status: s }); } }}>
-                        {s}
-                      </Button>
-                    ))}
-                  </div>
+              {/* Tabs */}
+              <Tabs defaultValue="dados" className="flex-1 flex flex-col overflow-hidden">
+                <div className="px-6 pt-3">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="dados" className="flex-1">Dados</TabsTrigger>
+                    <TabsTrigger value="checkpoints" className="flex-1">Checkpoints</TabsTrigger>
+                    <TabsTrigger value="historico" className="flex-1">Histórico</TabsTrigger>
+                  </TabsList>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => { updateStatus(selectedRegistro, "Resolvido"); setSelectedRegistro({ ...selectedRegistro, status: "Resolvido" }); }}>
-                    <CheckCircle2 className="h-4 w-4 mr-1" /> Resolvido
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => { updateStatus(selectedRegistro, "Sem Resolução"); setSelectedRegistro({ ...selectedRegistro, status: "Sem Resolução" }); }}>
-                    <XCircle className="h-4 w-4 mr-1" /> Sem Resolução
-                  </Button>
-                </div>
+                <div className="flex-1 overflow-y-auto px-6 pb-6">
+                  <TabsContent value="dados" className="space-y-5 mt-4">
+                    {/* Info grid */}
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                      {[
+                        { label: "Nome", value: selectedRegistro.nome },
+                        { label: "CPF", value: selectedRegistro.cpf || "—" },
+                        { label: "E-mail", value: selectedRegistro.email },
+                        { label: "Telefone", value: selectedRegistro.telefone || "—" },
+                        { label: "Tipo", value: TIPO_LABELS[selectedRegistro.tipo] },
+                        { label: "Placa", value: selectedRegistro.placa_veiculo || "—" },
+                      ].map(item => (
+                        <div key={item.label} className="flex flex-col">
+                          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{item.label}</span>
+                          <span className="text-sm font-medium mt-0.5">{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
 
-                <div className="space-y-2">
-                  <Label>Observações Internas</Label>
-                  <Textarea defaultValue={selectedRegistro.observacoes_internas || ""} onBlur={e => updateField(selectedRegistro.id, "observacoes_internas", e.target.value)} placeholder="Notas internas..." rows={3} />
-                </div>
-              </TabsContent>
+                    {/* Descrição */}
+                    <div className="rounded-xl bg-muted/40 border p-4">
+                      <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Descrição</span>
+                      <p className="text-sm mt-1.5 leading-relaxed">{selectedRegistro.descricao}</p>
+                    </div>
 
-              <TabsContent value="checkpoints" className="space-y-4 mt-4">
-                {STATUSES.map(etapa => {
-                  const cps = checkpoints.filter(c => c.registro_id === selectedRegistro.id && c.etapa === etapa);
-                  if (cps.length === 0) return null;
-                  const done = cps.filter(c => c.concluido).length;
-                  return (
-                    <div key={etapa} className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={`text-xs ${etapa === selectedRegistro.status ? 'border-primary' : ''}`}>{etapa}</Badge>
-                        <span className="text-xs text-muted-foreground">{done}/{cps.length}</span>
+                    {/* Editable fields */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Urgência</Label>
+                        <Select value={selectedRegistro.urgencia || "media"} onValueChange={v => updateField(selectedRegistro.id, "urgencia", v)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="baixa">Baixa</SelectItem>
+                            <SelectItem value="media">Média</SelectItem>
+                            <SelectItem value="alta">Alta</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="space-y-1 pl-2">
-                        {cps.sort((a, b) => a.checkpoint_index - b.checkpoint_index).map(cp => (
-                          <div key={cp.id} className="flex items-center gap-2 text-sm">
-                            <Checkbox checked={cp.concluido} onCheckedChange={() => toggleCheckpoint(cp)} />
-                            <span className={cp.concluido ? "line-through text-muted-foreground" : ""}>{cp.checkpoint_label}</span>
-                          </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Setor Responsável</Label>
+                        <Input value={selectedRegistro.setor_responsavel || ""} onChange={e => updateField(selectedRegistro.id, "setor_responsavel", e.target.value)} placeholder="Ex: Financeiro" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Possível Motivo</Label>
+                        <Input value={selectedRegistro.possivel_motivo || ""} onChange={e => updateField(selectedRegistro.id, "possivel_motivo", e.target.value)} />
+                      </div>
+                    </div>
+
+                    {/* Status + actions */}
+                    <div className="rounded-xl border p-4 space-y-3">
+                      <Label className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Alterar Etapa</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {STATUSES.map(s => (
+                          <Button key={s} variant={selectedRegistro.status === s ? "default" : "outline"} size="sm" className="text-xs h-7 rounded-full"
+                            onClick={() => { if (s !== selectedRegistro.status) { updateStatus(selectedRegistro, s); setSelectedRegistro({ ...selectedRegistro, status: s }); } }}>
+                            {s}
+                          </Button>
                         ))}
                       </div>
+                      <div className="flex gap-2 pt-1">
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white rounded-full" onClick={() => { updateStatus(selectedRegistro, "Resolvido"); setSelectedRegistro({ ...selectedRegistro, status: "Resolvido" }); }}>
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Resolvido
+                        </Button>
+                        <Button size="sm" variant="destructive" className="rounded-full" onClick={() => { updateStatus(selectedRegistro, "Sem Resolução"); setSelectedRegistro({ ...selectedRegistro, status: "Sem Resolução" }); }}>
+                          <XCircle className="h-3.5 w-3.5 mr-1" /> Sem Resolução
+                        </Button>
+                      </div>
                     </div>
-                  );
-                })}
-              </TabsContent>
 
-              <TabsContent value="historico" className="space-y-3 mt-4">
-                {historico.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nenhum histórico</p>}
-                {historico.map(h => (
-                  <div key={h.id} className="flex items-start gap-3 text-sm border-l-2 border-primary/20 pl-3 py-1">
-                    <div className="flex-1">
-                      <p><Badge variant="outline" className="mr-1 text-xs">{h.status_anterior}</Badge> → <Badge className={`text-xs ${STATUS_COLORS[h.status_novo]}`}>{h.status_novo}</Badge></p>
-                      <p className="text-xs text-muted-foreground mt-1">{h.user_nome} · {format(new Date(h.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
+                    {/* Observações */}
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Observações Internas</Label>
+                      <Textarea defaultValue={selectedRegistro.observacoes_internas || ""} onBlur={e => updateField(selectedRegistro.id, "observacoes_internas", e.target.value)} placeholder="Notas internas..." rows={3} />
                     </div>
-                  </div>
-                ))}
-              </TabsContent>
-            </Tabs>
+                  </TabsContent>
+
+                  <TabsContent value="checkpoints" className="mt-4 space-y-1">
+                    {(() => {
+                      const allEtapas = STATUSES.map((etapa, idx) => {
+                        const cps = checkpoints.filter(c => c.registro_id === selectedRegistro.id && c.etapa === etapa);
+                        const done = cps.filter(c => c.concluido).length;
+                        const isCurrent = etapa === selectedRegistro.status;
+                        const currentIdx = STATUSES.indexOf(selectedRegistro.status);
+                        const isPast = idx < currentIdx;
+                        const isFuture = idx > currentIdx;
+                        return { etapa, cps, done, isCurrent, isPast, isFuture, idx };
+                      });
+                      return (
+                        <div className="relative">
+                          {/* Vertical timeline line */}
+                          <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-border" />
+                          <div className="space-y-1">
+                            {allEtapas.map(({ etapa, cps, done, isCurrent, isPast, isFuture }) => (
+                              <div key={etapa} className={`relative pl-10 py-3 rounded-xl transition-colors ${isCurrent ? 'bg-primary/5 border border-primary/20' : ''}`}>
+                                {/* Timeline dot */}
+                                <div className={`absolute left-2 top-4 w-[14px] h-[14px] rounded-full border-2 z-10 ${
+                                  isPast ? 'bg-green-500 border-green-500' : isCurrent ? 'bg-primary border-primary animate-pulse' : 'bg-background border-muted-foreground/30'
+                                }`}>
+                                  {isPast && <CheckCircle2 className="h-2.5 w-2.5 text-white absolute top-0 left-0.5" />}
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-sm font-semibold ${isFuture ? 'text-muted-foreground/50' : ''}`}>{etapa}</span>
+                                    {isCurrent && <Badge variant="default" className="text-[10px] px-1.5 h-4">Atual</Badge>}
+                                  </div>
+                                  {cps.length > 0 && (
+                                    <span className="text-xs text-muted-foreground">{done}/{cps.length}</span>
+                                  )}
+                                </div>
+                                {cps.length > 0 && (
+                                  <div className="mt-2 space-y-1.5">
+                                    {cps.sort((a, b) => a.checkpoint_index - b.checkpoint_index).map(cp => (
+                                      <label key={cp.id} htmlFor={cp.id} className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer transition-colors ${cp.concluido ? 'bg-green-500/5' : 'hover:bg-muted/50'}`}>
+                                        <Checkbox id={cp.id} checked={cp.concluido} onCheckedChange={() => toggleCheckpoint(cp)} />
+                                        <span className={`text-sm ${cp.concluido ? 'line-through text-muted-foreground' : ''}`}>{cp.checkpoint_label}</span>
+                                        {cp.concluido && cp.concluido_em && (
+                                          <span className="text-[10px] text-muted-foreground ml-auto">{format(new Date(cp.concluido_em), "dd/MM HH:mm")}</span>
+                                        )}
+                                      </label>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </TabsContent>
+
+                  <TabsContent value="historico" className="mt-4">
+                    {historico.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Nenhuma movimentação registrada</p>}
+                    {historico.length > 0 && (
+                      <div className="relative">
+                        <div className="absolute left-[15px] top-3 bottom-3 w-0.5 bg-border" />
+                        <div className="space-y-0">
+                          {historico.map((h, i) => (
+                            <div key={h.id} className="relative pl-10 py-3">
+                              {/* Dot */}
+                              <div className="absolute left-[9px] top-[18px] w-3 h-3 rounded-full border-2 bg-background z-10" style={{ borderColor: STATUS_ACCENT_COLORS[h.status_novo] || '#6b7280' }} />
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Badge variant="outline" className="text-[10px] h-5">{h.status_anterior}</Badge>
+                                    <span className="text-muted-foreground text-xs">→</span>
+                                    <Badge className={`text-[10px] h-5 ${STATUS_COLORS[h.status_novo]}`}>{h.status_novo}</Badge>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1.5">{h.user_nome}</p>
+                                </div>
+                                <span className="text-[11px] text-muted-foreground whitespace-nowrap">{format(new Date(h.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+                </div>
+              </Tabs>
+            </div>
           )}
         </DialogContent>
       </Dialog>
