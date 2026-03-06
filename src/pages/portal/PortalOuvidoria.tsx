@@ -98,6 +98,7 @@ export default function PortalOuvidoria() {
   const [historico, setHistorico] = useState<HistoricoRow[]>([]);
   const [detailDefaultTab, setDetailDefaultTab] = useState("dados");
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
 
   // Check edit permission
   useEffect(() => {
@@ -322,7 +323,20 @@ export default function PortalOuvidoria() {
                         <span className="bg-background text-muted-foreground px-2 py-0.5 rounded-md text-xs font-medium border">{cards.length}</span>
                       </div>
                     </div>
-                    <div className="flex-1 p-3 space-y-2.5 overflow-y-auto min-h-[200px] max-h-[calc(100vh-400px)]">
+                    <div
+                      className={`flex-1 p-3 space-y-2.5 overflow-y-auto min-h-[200px] max-h-[calc(100vh-400px)] transition-colors ${draggedId ? 'ring-2 ring-primary/20 ring-inset' : ''}`}
+                      onDragOver={canEdit ? (e) => e.preventDefault() : undefined}
+                      onDrop={canEdit ? (e) => {
+                        e.preventDefault();
+                        if (draggedId) {
+                          const registro = registros.find(r => r.id === draggedId);
+                          if (registro && registro.status !== status) {
+                            tryUpdateStatus(registro, status);
+                          }
+                          setDraggedId(null);
+                        }
+                      } : undefined}
+                    >
                       {cards.slice(0, 8).map(r => {
                         const regCps = checkpoints.filter(c => c.registro_id === r.id && c.etapa === r.status);
                         const done = regCps.filter(c => c.concluido).length;
@@ -331,7 +345,14 @@ export default function PortalOuvidoria() {
                         const changedAt = r.status_changed_at || r.created_at;
                         const hoursInStatus = differenceInHours(new Date(), new Date(changedAt));
                         return (
-                          <Card key={r.id} className="cursor-pointer hover:shadow-md transition-shadow rounded-xl" onClick={() => openDetail(r)}>
+                          <Card
+                            key={r.id}
+                            className={`cursor-pointer hover:shadow-md transition-shadow rounded-xl ${draggedId === r.id ? 'opacity-50' : ''}`}
+                            draggable={canEdit}
+                            onDragStart={canEdit ? () => setDraggedId(r.id) : undefined}
+                            onDragEnd={() => setDraggedId(null)}
+                            onClick={() => openDetail(r)}
+                          >
                             <CardContent className="p-3.5 space-y-2" style={{ borderLeft: `3px solid ${accentColor}`, borderRadius: '0.75rem' }}>
                               <div className="flex items-center justify-between">
                                 <p className="text-xs font-mono text-muted-foreground">{r.protocolo}</p>
