@@ -99,21 +99,38 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }
   const saveSlug = async () => {
     const slug = slugValue.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!slug) { toast.error("Slug inválido"); return; }
-    const { error, data } = await supabase.from("corretoras").update({ slug }).eq("id", selectedCorretora).select();
+    
+    // Verify auth session first
+    const { data: session } = await supabase.auth.getSession();
+    if (!session?.session) {
+      toast.error("Sessão expirada. Faça login novamente.");
+      return;
+    }
+
+    const { error, data, count } = await supabase
+      .from("corretoras")
+      .update({ slug })
+      .eq("id", selectedCorretora)
+      .select();
+    
+    console.log("saveSlug result:", { error, data, count, selectedCorretora, slug });
+    
     if (error) { 
       console.error("Erro ao salvar slug:", error);
-      toast.error(error.code === "23505" ? "Este slug já está em uso" : "Erro ao salvar slug"); 
+      toast.error(error.code === "23505" ? "Este slug já está em uso" : `Erro: ${error.message}`); 
       return; 
     }
     if (!data || data.length === 0) {
-      toast.error("Sem permissão para atualizar. Verifique seu perfil.");
+      console.error("Update retornou vazio - possível bloqueio RLS", { selectedCorretora });
+      toast.error("Não foi possível salvar. Sem permissão ou registro não encontrado.");
       return;
     }
-    // Force corretoras prop update
+    // Update local state
     const idx = corretoras.findIndex(c => c.id === selectedCorretora);
     if (idx >= 0) (corretoras[idx] as any).slug = slug;
     setEditingSlug(false);
-    toast.success("Slug salvo!");
+    setSlugValue(slug);
+    toast.success("Slug salvo: " + slug);
   };
 
   const selectedCorretoraData = corretoras.find((c) => c.id === selectedCorretora);
