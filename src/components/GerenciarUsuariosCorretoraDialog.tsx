@@ -37,10 +37,12 @@ export function GerenciarUsuariosCorretoraDialog({
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingModulos, setEditingModulos] = useState<string[]>([]);
+  const [editingOuvidoriaEditar, setEditingOuvidoriaEditar] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     senha: '',
     modulos_bi: ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'] as string[],
+    ouvidoria_pode_editar: false,
   });
 
   useEffect(() => {
@@ -99,7 +101,6 @@ export function GerenciarUsuariosCorretoraDialog({
       const modulosSemOuvidoria = formData.modulos_bi.filter(m => m !== 'ouvidoria');
       const acessoOuvidoria = formData.modulos_bi.includes('ouvidoria');
       
-      // Chamar edge function para criar usuário parceiro
       const { data, error } = await supabase.functions.invoke('criar-usuario-parceiro', {
         body: {
           email: formData.email,
@@ -108,6 +109,7 @@ export function GerenciarUsuariosCorretoraDialog({
           corretoraId: corretoraId,
           modulos_bi: modulosSemOuvidoria,
           acesso_ouvidoria: acessoOuvidoria,
+          ouvidoria_pode_editar: formData.ouvidoria_pode_editar,
         }
       });
 
@@ -115,7 +117,7 @@ export function GerenciarUsuariosCorretoraDialog({
       if (data.error) throw new Error(data.error);
 
       toast.success('Usuário parceiro criado com sucesso!');
-      setFormData({ email: '', senha: '', modulos_bi: ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'] });
+      setFormData({ email: '', senha: '', modulos_bi: ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'], ouvidoria_pode_editar: false });
       fetchUsuarios();
     } catch (error: any) {
       console.error('Erro ao criar usuário:', error);
@@ -166,11 +168,13 @@ export function GerenciarUsuariosCorretoraDialog({
     const baseModulos = usuario.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'];
     const modulos = usuario.acesso_ouvidoria ? [...baseModulos, 'ouvidoria'] : baseModulos;
     setEditingModulos(modulos);
+    setEditingOuvidoriaEditar(usuario.ouvidoria_pode_editar || false);
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditingModulos([]);
+    setEditingOuvidoriaEditar(false);
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -185,7 +189,7 @@ export function GerenciarUsuariosCorretoraDialog({
       
       const { error } = await supabase
         .from('corretora_usuarios')
-        .update({ modulos_bi: modulosSemOuvidoria, acesso_ouvidoria: acessoOuvidoria } as any)
+        .update({ modulos_bi: modulosSemOuvidoria, acesso_ouvidoria: acessoOuvidoria, ouvidoria_pode_editar: acessoOuvidoria ? editingOuvidoriaEditar : false } as any)
         .eq('id', id);
 
       if (error) throw error;
@@ -193,6 +197,7 @@ export function GerenciarUsuariosCorretoraDialog({
       toast.success('Permissões atualizadas');
       setEditingId(null);
       setEditingModulos([]);
+      setEditingOuvidoriaEditar(false);
       fetchUsuarios();
     } catch (error: any) {
       console.error('Erro ao atualizar permissões:', error);
