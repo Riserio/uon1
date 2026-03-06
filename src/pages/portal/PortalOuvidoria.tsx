@@ -188,9 +188,13 @@ export default function PortalOuvidoria() {
     await ensureCheckpoints(registro.id, novoStatus);
     toast.success(`Status alterado para ${novoStatus}`);
     setPendingStatusChange(null);
-    loadRegistros();
+    // Update local state without full reload (preserves current tab/view)
+    setRegistros(prev => prev.map(r => r.id === registro.id ? { ...r, status: novoStatus, status_changed_at: new Date().toISOString() } : r));
+    // Reload checkpoints for the moved registro
+    const { data: cp } = await supabase.from("ouvidoria_checkpoints").select("*").eq("registro_id", registro.id);
+    if (cp) setCheckpoints(prev => [...prev.filter(c => c.registro_id !== registro.id), ...(cp as any)]);
     if (selectedRegistro?.id === registro.id) {
-      setSelectedRegistro({ ...registro, status: novoStatus });
+      setSelectedRegistro({ ...registro, status: novoStatus, status_changed_at: new Date().toISOString() });
       loadHistorico(registro.id);
     }
   };
@@ -237,6 +241,26 @@ export default function PortalOuvidoria() {
   const semResolucao = filtered.filter(r => r.status === "Sem Resolução").length;
   const tipoCounts = Object.keys(TIPO_LABELS).map(t => ({ name: TIPO_LABELS[t], value: filtered.filter(r => r.tipo === t).length }));
   const statusCounts = STATUSES.map(s => ({ name: s, count: filtered.filter(r => r.status === s).length }));
+
+  // Taxa de resolução
+  const totalFinalizados = resolvidos + semResolucao;
+  const taxaResolucao = totalFinalizados > 0 ? Math.round((resolvidos / totalFinalizados) * 100) : 0;
+  const taxaSemResolucao = totalFinalizados > 0 ? 100 - taxaResolucao : 0;
+  const resolucaoData = [
+    { name: "Resolvidos", value: resolvidos },
+    { name: "Sem Resolução", value: semResolucao },
+  ];
+
+  // Vencidos por etapa (SLA 48h por padrão)
+  const SLA_HORAS = 48;
+  const vencidosPorEtapa = STATUSES.filter(s => !["Resolvido", "Sem Resolução"].includes(s)).map(status => {
+    const cards = filtered.filter(r => r.status === status);
+    const vencidos = cards.filter(r => {
+      const changedAt = r.status_changed_at || r.created_at;
+      return differenceInHours(new Date(), new Date(changedAt)) > SLA_HORAS;
+    }).length;
+    return { name: status, total: cards.length, vencidos, noPrazo: cards.length - vencidos };
+  });
 
   if (loading) return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
@@ -406,6 +430,49 @@ export default function PortalOuvidoria() {
                   <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-20} textAnchor="end" height={50} />
                   <YAxis /><Tooltip />
                   <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent></Card>
+
+            {/* Taxa de Resolução */}
+            <Card className="rounded-2xl"><CardContent className="p-6">
+              <h3 className="font-semibold mb-2">Taxa de Resolução</h3>
+              <p className="text-xs text-muted-foreground mb-4">Proporção entre resolvidos e sem resolução</p>
+              <div className="flex items-center gap-6">
+                <ResponsiveContainer width="60%" height={180}>
+                  <PieChart>
+                    <Pie data={resolucaoData.filter(d => d.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={70} label>
+                      <Cell fill="#22c55e" />
+                      <Cell fill="#ef4444" />
+                    </Pie>
+                    <Tooltip /><Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-3xl font-bold">{taxaResolucao}%</p>
+                    <p className="text-xs text-muted-foreground">Resolvidos</p>
+                  </div>
+                  <div className="text-sm space-y-1">
+                    <p className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> {resolvidos} resolvidos</p>
+                    <p className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> {semResolucao} sem resolução</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent></Card>
+
+            {/* Vencidos por Etapa */}
+            <Card className="rounded-2xl"><CardContent className="p-6">
+              <h3 className="font-semibold mb-2">Vencidos por Etapa</h3>
+              <p className="text-xs text-muted-foreground mb-4">Manifestações que ultrapassaram {SLA_HORAS}h na etapa</p>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={vencidosPorEtapa}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-20} textAnchor="end" height={50} />
+                  <YAxis /><Tooltip />
+                  <Bar dataKey="noPrazo" stackId="a" fill="hsl(var(--primary))" name="No prazo" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="vencidos" stackId="a" fill="#ef4444" name="Vencidos" radius={[4, 4, 0, 0]} />
+                  <Legend />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent></Card>
