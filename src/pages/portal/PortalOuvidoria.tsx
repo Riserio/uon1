@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { Search, LayoutGrid, List, Eye, CheckCircle2, XCircle, Clock, AlertTriangle } from "lucide-react";
 import { format, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+
 
 const STATUSES = ["Recebimento", "Levantamento", "Acionamento Setor", "Contato Associado", "Monitoramento", "Resolvido", "Sem Resolução"];
 
@@ -61,7 +61,7 @@ const CHECKPOINTS_PER_ETAPA: Record<string, string[]> = {
   "Sem Resolução": ["Registrar justificativa"],
 };
 
-const PIE_COLORS = ["#ef4444", "#f59e0b", "#10b981", "#8b5cf6"];
+
 
 type Registro = {
   id: string; protocolo: string; nome: string; cpf: string | null; email: string;
@@ -411,70 +411,74 @@ export default function PortalOuvidoria() {
 
         <TabsContent value="graficos">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+            {/* Por Tipo */}
             <Card className="rounded-2xl"><CardContent className="p-6">
               <h3 className="font-semibold mb-4">Por Tipo</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={tipoCounts.filter(t => t.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
-                    {tipoCounts.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip /><Legend />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="space-y-3">
+                {Object.entries(TIPO_LABELS).map(([key, label]) => {
+                  const count = filtered.filter(r => r.tipo === key).length;
+                  return (
+                    <div key={key} className="flex items-center justify-between">
+                      <span className="text-sm">{label}</span>
+                      <span className="bg-muted rounded-full px-3 py-1 text-sm font-semibold min-w-[36px] text-center">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent></Card>
+
+            {/* Por Etapa */}
             <Card className="rounded-2xl"><CardContent className="p-6">
               <h3 className="font-semibold mb-4">Por Etapa</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={statusCounts}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-20} textAnchor="end" height={50} />
-                  <YAxis /><Tooltip />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="space-y-3">
+                {STATUSES.map(status => {
+                  const count = filtered.filter(r => r.status === status).length;
+                  const accentColor = STATUS_ACCENT_COLORS[status];
+                  return (
+                    <div key={status} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: accentColor }} />
+                        <span className="text-sm">{status}</span>
+                      </div>
+                      <span className="bg-muted rounded-full px-3 py-1 text-sm font-semibold min-w-[36px] text-center">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent></Card>
 
             {/* Taxa de Resolução */}
             <Card className="rounded-2xl"><CardContent className="p-6">
-              <h3 className="font-semibold mb-2">Taxa de Resolução</h3>
-              <p className="text-xs text-muted-foreground mb-4">Proporção entre resolvidos e sem resolução</p>
-              <div className="flex items-center gap-6">
-                <ResponsiveContainer width="60%" height={180}>
-                  <PieChart>
-                    <Pie data={resolucaoData.filter(d => d.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={70} label>
-                      <Cell fill="#22c55e" />
-                      <Cell fill="#ef4444" />
-                    </Pie>
-                    <Tooltip /><Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-3xl font-bold">{taxaResolucao}%</p>
-                    <p className="text-xs text-muted-foreground">Resolvidos</p>
-                  </div>
-                  <div className="text-sm space-y-1">
-                    <p className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> {resolvidos} resolvidos</p>
-                    <p className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> {semResolucao} sem resolução</p>
-                  </div>
+              <h3 className="font-semibold mb-6">Taxa de Resolução</h3>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-3xl font-bold text-green-600">{resolvidos}</p>
+                  <p className="text-sm text-muted-foreground mt-1">Resolvidos</p>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-red-600">{semResolucao}</p>
+                  <p className="text-sm text-muted-foreground mt-1">Sem Resolução</p>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-foreground">{totalAbertos}</p>
+                  <p className="text-sm text-muted-foreground mt-1">Em Andamento</p>
                 </div>
               </div>
             </CardContent></Card>
 
-            {/* Vencidos por Etapa */}
+            {/* SLAs Vencidos por Etapa */}
             <Card className="rounded-2xl"><CardContent className="p-6">
-              <h3 className="font-semibold mb-2">Vencidos por Etapa</h3>
-              <p className="text-xs text-muted-foreground mb-4">Manifestações que ultrapassaram {SLA_HORAS}h na etapa</p>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={vencidosPorEtapa}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-20} textAnchor="end" height={50} />
-                  <YAxis /><Tooltip />
-                  <Bar dataKey="noPrazo" stackId="a" fill="hsl(var(--primary))" name="No prazo" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="vencidos" stackId="a" fill="#ef4444" name="Vencidos" radius={[4, 4, 0, 0]} />
-                  <Legend />
-                </BarChart>
-              </ResponsiveContainer>
+              <h3 className="font-semibold mb-4">SLAs Vencidos por Etapa</h3>
+              <div className="space-y-3">
+                {vencidosPorEtapa.map(item => (
+                  <div key={item.name} className="flex items-center justify-between">
+                    <span className="text-sm">{item.name}</span>
+                    <span className={`rounded-full px-3 py-1 text-sm font-semibold min-w-[36px] text-center ${item.vencidos > 0 ? 'bg-red-100 text-red-700' : 'bg-muted'}`}>
+                      {item.vencidos}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </CardContent></Card>
           </div>
         </TabsContent>
