@@ -18,6 +18,7 @@ import { Search, Eye, LayoutGrid, List, Settings2, BarChart3, AlertTriangle, Clo
 import { format, differenceInMinutes, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import OuvidoriaConfigDialog from "@/components/ouvidoria/OuvidoriaConfigDialog";
+import { OuvidoriaWidgets } from "@/components/ouvidoria/OuvidoriaWidgets";
 import {
   DndContext,
   DragOverlay,
@@ -31,7 +32,7 @@ import {
 import { useSortable } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+
 
 const STATUSES = [
   "Recebimento",
@@ -96,7 +97,7 @@ const URGENCIA_COLORS: Record<string, string> = {
   baixa: "bg-green-500",
 };
 
-const PIE_COLORS = ["#ef4444", "#f59e0b", "#10b981", "#8b5cf6"];
+
 
 type Registro = {
   id: string;
@@ -435,8 +436,6 @@ export default function OuvidoriaBackoffice() {
   // Report data
   const tipoCounts = Object.keys(TIPO_LABELS).map(t => ({ name: TIPO_LABELS[t], value: filtered.filter(r => r.tipo === t).length }));
   const statusCounts = STATUSES.map(s => ({ name: s, count: filtered.filter(r => r.status === s).length }));
-  const corretoraColors = ["#6366f1", "#ec4899", "#14b8a6", "#f59e0b", "#8b5cf6", "#06b6d4", "#ef4444", "#22c55e"];
-  const corretoraCountsData = corretoras.map(c => ({ name: c.nome, value: filtered.filter(r => r.corretora_id === c.id).length })).filter(c => c.value > 0);
 
   const draggedRegistro = activeId ? registros.find(r => r.id === activeId) : null;
 
@@ -563,89 +562,13 @@ export default function OuvidoriaBackoffice() {
       )}
 
       {viewMode === "relatorios" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold mb-4">Distribuição por Tipo</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie data={tipoCounts.filter(t => t.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                    {tipoCounts.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold mb-4">Manifestações por Etapa</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={statusCounts}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={60} />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold mb-4">Taxa de Resolução</h3>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-3xl font-bold text-green-600">{filtered.filter(r => r.status === "Resolvido").length}</p>
-                  <p className="text-xs text-muted-foreground">Resolvidos</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-red-600">{filtered.filter(r => r.status === "Sem Resolução").length}</p>
-                  <p className="text-xs text-muted-foreground">Sem Resolução</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-bold">{totalAbertos}</p>
-                  <p className="text-xs text-muted-foreground">Em Andamento</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold mb-4">Manifestações por Associação</h3>
-              {corretoraCountsData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie data={corretoraCountsData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                      {corretoraCountsData.map((_, i) => <Cell key={i} fill={corretoraColors[i % corretoraColors.length]} />)}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">Nenhum dado</p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold mb-4">SLAs Vencidos por Etapa</h3>
-              <div className="space-y-2">
-                {STATUSES.filter(s => slaHours[s] !== null && slaHours[s] !== undefined).map(s => {
-                  const venc = filtered.filter(r => r.status === s && getSlaStatus(r, slaHours) === "red").length;
-                  return (
-                    <div key={s} className="flex items-center justify-between text-sm">
-                      <span>{s}</span>
-                      <Badge variant={venc > 0 ? "destructive" : "secondary"}>{venc}</Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <OuvidoriaWidgets
+          registros={filtered}
+          statuses={STATUSES}
+          slaHours={slaHours}
+          corretoras={corretoras}
+          showAssociacoes={true}
+        />
       )}
 
       {/* Detail Modal */}
