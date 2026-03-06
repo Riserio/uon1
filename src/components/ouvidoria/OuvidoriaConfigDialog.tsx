@@ -72,8 +72,8 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }
     saveConfig({ dominios_permitidos: domains });
   };
 
-  const slug = corretoras.find((c) => c.id === selectedCorretora);
-  const publicUrl = slug ? `${window.location.origin}/ouvidoria/${selectedCorretora}` : "";
+  const selectedCorretoraData = corretoras.find((c) => c.id === selectedCorretora);
+  const publicUrl = selectedCorretoraData ? `${window.location.origin}/ouvidoria/${selectedCorretora}` : "";
   const embedUrl = config ? `${window.location.origin}/embed/ouvidoria/${selectedCorretora}?token=${config.embed_token}` : "";
 
   return (
