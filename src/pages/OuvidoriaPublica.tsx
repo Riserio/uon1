@@ -131,6 +131,16 @@ export default function OuvidoriaPublica() {
 
       if (error) throw error;
       setProtocolo(data.protocolo);
+
+      // Send confirmation email via edge function (fire and forget)
+      const tipoLabel = TIPOS.find(t => t.value === form.tipo)?.label || form.tipo;
+      supabase.functions.invoke("enviar-email-smtp", {
+        body: {
+          to: form.email.trim(),
+          subject: `Sua manifestação foi recebida - Protocolo ${data.protocolo}`,
+          html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.1)"><div style="background:${corPrimaria};padding:30px;text-align:center"><h1 style="color:#fff;margin:0;font-size:24px">Ouvidoria</h1><p style="color:rgba(255,255,255,0.85);margin:5px 0 0">${corretora.nome}</p></div><div style="padding:30px"><h2 style="color:#333;margin:0 0 15px">Olá, ${form.nome.trim()}!</h2><p style="color:#555;line-height:1.6">Sua manifestação foi recebida com sucesso. Abaixo estão os detalhes:</p><div style="background:#f8f9fa;border-radius:8px;padding:20px;margin:20px 0"><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 0;color:#888;width:120px">Protocolo:</td><td style="padding:8px 0;color:#333;font-weight:bold;font-size:18px">${data.protocolo}</td></tr><tr><td style="padding:8px 0;color:#888">Tipo:</td><td style="padding:8px 0;color:#333">${tipoLabel}</td></tr><tr><td style="padding:8px 0;color:#888">Data:</td><td style="padding:8px 0;color:#333">${new Date().toLocaleDateString("pt-BR")}</td></tr></table></div><p style="color:#555;line-height:1.6">Guarde o número do protocolo para acompanhamento futuro. Nossa equipe analisará sua manifestação e, se necessário, entraremos em contato.</p><div style="background:#e8f5e9;border-left:4px solid #4caf50;padding:15px;border-radius:0 8px 8px 0;margin:20px 0"><p style="color:#2e7d32;margin:0;font-size:14px">⏱ Prazo de resposta: até 10 dias úteis</p></div></div><div style="background:#f8f9fa;padding:20px;text-align:center;border-top:1px solid #eee"><p style="color:#999;font-size:12px;margin:0">Este é um e-mail automático. Por favor, não responda.</p></div></div></body></html>`,
+        },
+      }).catch(() => {}); // fire and forget
     } catch (err: any) {
       console.error(err);
       toast.error("Erro ao enviar. Tente novamente.");
