@@ -33,7 +33,7 @@ const SLA_LABELS: Record<string, string> = {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  corretoras: { id: string; nome: string }[];
+  corretoras: { id: string; nome: string; slug?: string | null }[];
 }
 
 export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }: Props) {
@@ -94,12 +94,13 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }
   };
 
   const selectedCorretoraData = corretoras.find((c) => c.id === selectedCorretora);
-  const publicUrl = selectedCorretoraData ? `${window.location.origin}/ouvidoria/${selectedCorretora}` : "";
-  const embedUrl = config ? `${window.location.origin}/embed/ouvidoria/${selectedCorretora}?token=${config.embed_token}` : "";
+  const slugOrId = selectedCorretoraData?.slug || selectedCorretora;
+  const publicUrl = selectedCorretoraData ? `${window.location.origin}/ouvidoria/${slugOrId}` : "";
+  const embedUrl = config ? `${window.location.origin}/embed/ouvidoria/${slugOrId}?token=${config.embed_token}` : "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Configuração da Ouvidoria</DialogTitle>
         </DialogHeader>
