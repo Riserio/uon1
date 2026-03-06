@@ -3734,6 +3734,7 @@ export type Database = {
           dominios_permitidos: string[] | null
           embed_token: string | null
           id: string
+          sla_horas: Json | null
           updated_at: string
         }
         Insert: {
@@ -3747,6 +3748,7 @@ export type Database = {
           dominios_permitidos?: string[] | null
           embed_token?: string | null
           id?: string
+          sla_horas?: Json | null
           updated_at?: string
         }
         Update: {
@@ -3760,6 +3762,7 @@ export type Database = {
           dominios_permitidos?: string[] | null
           embed_token?: string | null
           id?: string
+          sla_horas?: Json | null
           updated_at?: string
         }
         Relationships: [
