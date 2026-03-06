@@ -290,6 +290,23 @@ export function GerenciarUsuariosCorretoraDialog({
                   );
                 })}
               </div>
+
+              {/* Sub-checkbox: Ouvidoria pode editar */}
+              {formData.modulos_bi.includes('ouvidoria') && (
+                <div className="ml-4 mt-2 p-3 border border-dashed border-primary/30 rounded-lg bg-primary/5">
+                  <label htmlFor="ouvidoria-pode-editar" className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      id="ouvidoria-pode-editar"
+                      checked={formData.ouvidoria_pode_editar}
+                      onCheckedChange={(checked) => setFormData({ ...formData, ouvidoria_pode_editar: !!checked })}
+                    />
+                    <div>
+                      <span className="text-sm font-medium">Pode editar</span>
+                      <p className="text-xs text-muted-foreground">Permite alterar status, checkpoints e campos na ouvidoria. Sem esta flag, o usuário só visualiza.</p>
+                    </div>
+                  </label>
+                </div>
+              )}
             </div>
 
             <Button type="submit" disabled={loading}>
@@ -322,27 +339,39 @@ export function GerenciarUsuariosCorretoraDialog({
                       <TableCell className="font-medium">{usuario.email}</TableCell>
                       <TableCell>
                         {editingId === usuario.id ? (
-                          <div className="flex flex-wrap gap-2">
-                            {MODULOS_BI.map((modulo) => {
-                              const isChecked = editingModulos.includes(modulo.id);
-                              return (
-                                <label
-                                  key={modulo.id}
-                                  className={`flex items-center gap-1 px-2 py-1 border rounded cursor-pointer text-xs ${
-                                    isChecked
-                                      ? 'border-primary bg-primary/10'
-                                      : 'border-border'
-                                  }`}
-                                >
-                                  <Checkbox
-                                    checked={isChecked}
-                                    onCheckedChange={(checked) => handleEditModuloChange(modulo.id, !!checked)}
-                                    className="h-3 w-3"
-                                  />
-                                  <span>{modulo.label}</span>
-                                </label>
-                              );
-                            })}
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap gap-2">
+                              {MODULOS_BI.map((modulo) => {
+                                const isChecked = editingModulos.includes(modulo.id);
+                                return (
+                                  <label
+                                    key={modulo.id}
+                                    className={`flex items-center gap-1 px-2 py-1 border rounded cursor-pointer text-xs ${
+                                      isChecked
+                                        ? 'border-primary bg-primary/10'
+                                        : 'border-border'
+                                    }`}
+                                  >
+                                    <Checkbox
+                                      checked={isChecked}
+                                      onCheckedChange={(checked) => handleEditModuloChange(modulo.id, !!checked)}
+                                      className="h-3 w-3"
+                                    />
+                                    <span>{modulo.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {editingModulos.includes('ouvidoria') && (
+                              <label className="flex items-center gap-2 ml-2 text-xs cursor-pointer p-1.5 border border-dashed border-primary/30 rounded bg-primary/5 w-fit">
+                                <Checkbox
+                                  checked={editingOuvidoriaEditar}
+                                  onCheckedChange={(checked) => setEditingOuvidoriaEditar(!!checked)}
+                                  className="h-3 w-3"
+                                />
+                                <span className="font-medium">Pode editar ouvidoria</span>
+                              </label>
+                            )}
                           </div>
                         ) : (
                           <div className="flex flex-wrap gap-1">
