@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Copy, Plus, X, Clock } from "lucide-react";
+import { Copy, Plus, X, Clock, ExternalLink, Code } from "lucide-react";
 
 const STATUSES = [
   "Recebimento",
@@ -95,8 +95,10 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }
 
   const selectedCorretoraData = corretoras.find((c) => c.id === selectedCorretora);
   const slugOrId = selectedCorretoraData?.slug || selectedCorretora;
+  const hasSlug = !!selectedCorretoraData?.slug;
   const publicUrl = selectedCorretoraData ? `${window.location.origin}/ouvidoria/${slugOrId}` : "";
   const embedUrl = config ? `${window.location.origin}/embed/ouvidoria/${slugOrId}?token=${config.embed_token}` : "";
+  const iframeSnippet = embedUrl ? `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0"></iframe>` : "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -164,25 +166,63 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }
                   </div>
                 </div>
 
-                {/* URLs */}
-                <div className="space-y-2">
-                  <Label className="text-xs">Link Público do Formulário</Label>
+                {/* Link Público */}
+                <div className="p-4 rounded-xl border bg-muted/20 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                      <ExternalLink className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold">Formulário Público</p>
+                        {hasSlug ? (
+                          <Badge variant="secondary" className="bg-green-500/15 text-green-700 border-0 text-[10px]">slug: {selectedCorretoraData?.slug}</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="bg-yellow-500/15 text-yellow-700 border-0 text-[10px]">usando ID — configure um slug</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">Link direto para o associado abrir ou responder uma manifestação. Compartilhe por e-mail, WhatsApp ou site.</p>
+                    </div>
+                  </div>
                   <div className="flex gap-2">
-                    <Input value={publicUrl} readOnly className="text-xs" />
-                    <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success("Copiado!"); }}>
+                    <Input value={publicUrl} readOnly className="text-xs font-mono bg-background" />
+                    <Button variant="outline" size="icon" className="shrink-0" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success("Copiado!"); }}>
                       <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="shrink-0" onClick={() => window.open(publicUrl, "_blank")}>
+                      <ExternalLink className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs">Link Embed (Portal)</Label>
+                {/* Link Embed */}
+                <div className="p-4 rounded-xl border bg-muted/20 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                      <Code className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold">Embed para Portal</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Use este link para incorporar o formulário via iframe no portal do parceiro. Requer token de autenticação.</p>
+                    </div>
+                  </div>
                   <div className="flex gap-2">
-                    <Input value={embedUrl} readOnly className="text-xs" />
-                    <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(embedUrl); toast.success("Copiado!"); }}>
+                    <Input value={embedUrl} readOnly className="text-xs font-mono bg-background" />
+                    <Button variant="outline" size="icon" className="shrink-0" onClick={() => { navigator.clipboard.writeText(embedUrl); toast.success("Copiado!"); }}>
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
+                  {iframeSnippet && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Snippet iframe</Label>
+                      <div className="flex gap-2">
+                        <Input value={iframeSnippet} readOnly className="text-[10px] font-mono bg-background" />
+                        <Button variant="outline" size="icon" className="shrink-0" onClick={() => { navigator.clipboard.writeText(iframeSnippet); toast.success("Snippet copiado!"); }}>
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Domínios permitidos */}
