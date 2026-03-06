@@ -116,12 +116,12 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Configuração da Ouvidoria</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 -mr-4 pr-4">
+        <ScrollArea className="flex-1 overflow-auto -mr-4 pr-4" style={{ maxHeight: "calc(90vh - 100px)" }}>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Associação</Label>
