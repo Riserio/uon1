@@ -53,7 +53,17 @@ const STATUS_COLORS: Record<string, string> = {
   "Sem Resolução": "bg-red-100 text-red-800 border-red-300",
 };
 
-const SLA_HOURS: Record<string, number | null> = {
+const STATUS_ACCENT_COLORS: Record<string, string> = {
+  "Recebimento": "#3b82f6",
+  "Levantamento": "#eab308",
+  "Acionamento Setor": "#f97316",
+  "Contato Associado": "#a855f7",
+  "Monitoramento": "#06b6d4",
+  "Resolvido": "#22c55e",
+  "Sem Resolução": "#ef4444",
+};
+
+const DEFAULT_SLA_HOURS: Record<string, number | null> = {
   "Recebimento": 1,
   "Levantamento": 6,
   "Acionamento Setor": 12,
@@ -131,12 +141,12 @@ type HistoricoRow = {
   created_at: string;
 };
 
-function getSlaStatus(registro: Registro): "green" | "yellow" | "red" | null {
-  const slaHours = SLA_HOURS[registro.status];
-  if (!slaHours) return null;
+function getSlaStatus(registro: Registro, slaHours: Record<string, number | null>): "green" | "yellow" | "red" | null {
+  const slaH = slaHours[registro.status] ?? DEFAULT_SLA_HOURS[registro.status];
+  if (!slaH) return null;
   const changedAt = registro.status_changed_at || registro.created_at;
   const mins = differenceInMinutes(new Date(), new Date(changedAt));
-  const totalMins = slaHours * 60;
+  const totalMins = slaH * 60;
   const pct = (mins / totalMins) * 100;
   if (pct < 70) return "green";
   if (pct <= 100) return "yellow";
@@ -146,27 +156,39 @@ function getSlaStatus(registro: Registro): "green" | "yellow" | "red" | null {
 function SlaIndicator({ status }: { status: "green" | "yellow" | "red" | null }) {
   if (!status) return null;
   const colors = { green: "bg-green-500", yellow: "bg-yellow-500", red: "bg-red-500" };
-  return <div className={`w-2.5 h-2.5 rounded-full ${colors[status]} shrink-0`} title={`SLA: ${status}`} />;
+  return <div className={`w-2.5 h-2.5 rounded-full ${colors[status]} shrink-0 animate-pulse`} title={`SLA: ${status}`} />;
 }
 
-// Droppable column
-function KanbanColumn({ status, children }: { status: string; children: React.ReactNode }) {
+// Droppable column - modern widget style
+function KanbanColumn({ status, children, count, slaLabel }: { status: string; children: React.ReactNode; count: number; slaLabel?: string }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
-  const cards = Array.isArray(children) ? children : [];
+  const accentColor = STATUS_ACCENT_COLORS[status] || "#6b7280";
   return (
-    <div ref={setNodeRef} className="min-w-[260px] w-[260px] flex-shrink-0">
-      <div className={`rounded-t-lg px-3 py-2 text-sm font-semibold border ${STATUS_COLORS[status]}`}>
-        {status}
-      </div>
-      <div className={`bg-muted/30 rounded-b-lg p-2 space-y-2 min-h-[200px] border border-t-0 transition-colors ${isOver ? 'bg-primary/5' : ''}`}>
-        {children}
+    <div ref={setNodeRef} className="min-w-[280px] w-[280px] flex-shrink-0">
+      <div className="bg-card rounded-2xl border border-border/50 shadow-sm overflow-hidden h-full flex flex-col">
+        <div 
+          className="px-4 py-3 flex items-center justify-between bg-muted/30"
+          style={{ borderTop: `3px solid ${accentColor}` }}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
+            <h3 className="font-semibold text-sm text-foreground">{status}</h3>
+            <span className="bg-background text-muted-foreground px-2 py-0.5 rounded-md text-xs font-medium border">{count}</span>
+          </div>
+          {slaLabel && (
+            <span className="text-[10px] text-muted-foreground font-medium">{slaLabel}</span>
+          )}
+        </div>
+        <div className={`flex-1 p-3 space-y-2.5 overflow-y-auto min-h-[200px] max-h-[calc(100vh-340px)] transition-colors ${isOver ? 'bg-primary/5 ring-2 ring-primary/20 ring-inset' : ''}`}>
+          {children}
+        </div>
       </div>
     </div>
   );
 }
 
-// Draggable card
-function DraggableCard({ registro, onClick, checkpoints }: { registro: Registro; onClick: () => void; checkpoints: CheckpointRow[] }) {
+// Draggable card - modern style
+function DraggableCard({ registro, onClick, checkpoints, slaHours }: { registro: Registro; onClick: () => void; checkpoints: CheckpointRow[]; slaHours: Record<string, number | null> }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: registro.id,
     data: { type: "card", registro },
@@ -174,37 +196,54 @@ function DraggableCard({ registro, onClick, checkpoints }: { registro: Registro;
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.4 : 1,
   };
 
-  const sla = getSlaStatus(registro);
+  const sla = getSlaStatus(registro, slaHours);
   const etapaCheckpoints = checkpoints.filter(c => c.etapa === registro.status);
   const done = etapaCheckpoints.filter(c => c.concluido).length;
   const total = etapaCheckpoints.length;
   const progress = total > 0 ? (done / total) * 100 : 0;
+  const accentColor = STATUS_ACCENT_COLORS[registro.status] || "#6b7280";
+  const changedAt = registro.status_changed_at || registro.created_at;
+  const hoursInStatus = differenceInHours(new Date(), new Date(changedAt));
 
   return (
-    <Card ref={setNodeRef} style={style} className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow" onClick={onClick} {...attributes} {...listeners}>
-      <CardContent className="p-3 space-y-1.5">
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      className="cursor-grab active:cursor-grabbing rounded-xl border bg-card hover:shadow-md transition-all duration-200 hover:-translate-y-0.5" 
+      onClick={onClick} 
+      {...attributes} 
+      {...listeners}
+    >
+      <div className="p-3.5 space-y-2" style={{ borderLeft: `3px solid ${accentColor}`, borderRadius: '0.75rem' }}>
         <div className="flex items-center justify-between gap-1">
           <p className="text-xs font-mono text-muted-foreground">{registro.protocolo}</p>
-          <div className="flex items-center gap-1">
-            {registro.urgencia && <div className={`w-2.5 h-2.5 rounded-full ${URGENCIA_COLORS[registro.urgencia] || URGENCIA_COLORS.media}`} title={`Urgência: ${registro.urgencia}`} />}
+          <div className="flex items-center gap-1.5">
+            {registro.urgencia && <div className={`w-2 h-2 rounded-full ${URGENCIA_COLORS[registro.urgencia] || URGENCIA_COLORS.media}`} title={`Urgência: ${registro.urgencia}`} />}
             <SlaIndicator status={sla} />
           </div>
         </div>
-        <p className="text-sm font-medium truncate">{registro.nome}</p>
-        <Badge variant="outline" className="text-xs">{TIPO_LABELS[registro.tipo] || registro.tipo}</Badge>
-        {registro.placa_veiculo && <p className="text-xs text-muted-foreground">🚗 {registro.placa_veiculo}</p>}
+        <p className="text-sm font-semibold truncate text-foreground">{registro.nome}</p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{TIPO_LABELS[registro.tipo] || registro.tipo}</Badge>
+          {registro.placa_veiculo && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">🚗 {registro.placa_veiculo}</Badge>}
+        </div>
         {total > 0 && (
           <div className="space-y-1">
-            <Progress value={progress} className="h-1.5" />
+            <Progress value={progress} className="h-1" />
             <p className="text-[10px] text-muted-foreground">{done}/{total} checkpoints</p>
           </div>
         )}
-        <p className="text-xs text-muted-foreground">{format(new Date(registro.created_at), "dd/MM/yyyy", { locale: ptBR })}</p>
-      </CardContent>
-    </Card>
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] text-muted-foreground">{format(new Date(registro.created_at), "dd/MM/yyyy", { locale: ptBR })}</p>
+          <p className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+            <Clock className="h-2.5 w-2.5" /> {hoursInStatus}h na etapa
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -223,11 +262,12 @@ export default function OuvidoriaBackoffice() {
   const [checkpoints, setCheckpoints] = useState<CheckpointRow[]>([]);
   const [historico, setHistorico] = useState<HistoricoRow[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [slaHours, setSlaHours] = useState<Record<string, number | null>>(DEFAULT_SLA_HOURS);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   useEffect(() => { loadCorretoras(); }, []);
-  useEffect(() => { loadRegistros(); }, [selectedCorretora]);
+  useEffect(() => { loadRegistros(); loadSlaConfig(); }, [selectedCorretora]);
 
   const loadCorretoras = async () => {
     const { data } = await supabase.from("corretoras").select("id, nome").order("nome");
@@ -248,6 +288,23 @@ export default function OuvidoriaBackoffice() {
       setCheckpoints((cp as any) || []);
     }
     setLoading(false);
+  };
+
+  const loadSlaConfig = async () => {
+    if (selectedCorretora === "all") {
+      setSlaHours(DEFAULT_SLA_HOURS);
+      return;
+    }
+    const { data } = await supabase
+      .from("ouvidoria_config")
+      .select("sla_horas")
+      .eq("corretora_id", selectedCorretora)
+      .maybeSingle();
+    if (data?.sla_horas && typeof data.sla_horas === 'object') {
+      setSlaHours({ ...DEFAULT_SLA_HOURS, ...(data.sla_horas as Record<string, number | null>) });
+    } else {
+      setSlaHours(DEFAULT_SLA_HOURS);
+    }
   };
 
   const loadHistorico = async (registroId: string) => {
@@ -336,8 +393,8 @@ export default function OuvidoriaBackoffice() {
   // Stats
   const totalAbertos = filtered.filter(r => !["Resolvido", "Sem Resolução"].includes(r.status)).length;
   const urgenciaAlta = filtered.filter(r => r.urgencia === "alta" && !["Resolvido", "Sem Resolução"].includes(r.status)).length;
-  const noPrazo = filtered.filter(r => { const s = getSlaStatus(r); return s === "green" || s === "yellow"; }).length;
-  const vencidos = filtered.filter(r => getSlaStatus(r) === "red").length;
+  const noPrazo = filtered.filter(r => { const s = getSlaStatus(r, slaHours); return s === "green" || s === "yellow"; }).length;
+  const vencidos = filtered.filter(r => getSlaStatus(r, slaHours) === "red").length;
   const resolvidosHoje = filtered.filter(r => r.status === "Resolvido" && format(new Date(r.updated_at), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")).length;
 
   // Report data
@@ -387,12 +444,12 @@ export default function OuvidoriaBackoffice() {
       </div>
 
       {/* Stats Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{totalAbertos}</p><p className="text-xs text-muted-foreground">Abertos</p></CardContent></Card>
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-red-600">{urgenciaAlta}</p><p className="text-xs text-muted-foreground">Urgência Alta</p></CardContent></Card>
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-green-600">{noPrazo}</p><p className="text-xs text-muted-foreground">No Prazo</p></CardContent></Card>
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-red-500">{vencidos}</p><p className="text-xs text-muted-foreground">SLA Vencido</p></CardContent></Card>
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-green-500">{resolvidosHoje}</p><p className="text-xs text-muted-foreground">Resolvidos Hoje</p></CardContent></Card>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <Card className="rounded-2xl border-border/50"><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-foreground">{totalAbertos}</p><p className="text-xs text-muted-foreground">Abertos</p></CardContent></Card>
+        <Card className="rounded-2xl border-border/50"><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-destructive">{urgenciaAlta}</p><p className="text-xs text-muted-foreground">Urgência Alta</p></CardContent></Card>
+        <Card className="rounded-2xl border-border/50"><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-primary">{noPrazo}</p><p className="text-xs text-muted-foreground">No Prazo</p></CardContent></Card>
+        <Card className="rounded-2xl border-border/50"><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-destructive">{vencidos}</p><p className="text-xs text-muted-foreground">SLA Vencido</p></CardContent></Card>
+        <Card className="rounded-2xl border-border/50"><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-primary">{resolvidosHoje}</p><p className="text-xs text-muted-foreground">Resolvidos Hoje</p></CardContent></Card>
       </div>
 
       {/* Content */}
@@ -401,12 +458,14 @@ export default function OuvidoriaBackoffice() {
           <div className="flex gap-3 overflow-x-auto pb-4">
             {STATUSES.map(status => {
               const cards = filtered.filter(r => r.status === status);
+              const slaH = slaHours[status];
+              const slaLabel = slaH ? `${slaH}h` : status === "Monitoramento" ? "Agendado" : status === "Resolvido" ? "Finalizado" : status === "Sem Resolução" ? "Encerrado" : undefined;
               return (
-                <KanbanColumn key={status} status={status}>
+                <KanbanColumn key={status} status={status} count={cards.length} slaLabel={slaLabel}>
                   {cards.slice(0, 10).map(r => (
-                    <DraggableCard key={r.id} registro={r} checkpoints={checkpoints.filter(c => c.registro_id === r.id)} onClick={() => openDetail(r)} />
+                    <DraggableCard key={r.id} registro={r} checkpoints={checkpoints.filter(c => c.registro_id === r.id)} onClick={() => openDetail(r)} slaHours={slaHours} />
                   ))}
-                  {cards.length > 10 && <p className="text-xs text-center text-muted-foreground">+{cards.length - 10} registros</p>}
+                  {cards.length > 10 && <p className="text-xs text-center text-muted-foreground py-1">+{cards.length - 10} registros</p>}
                 </KanbanColumn>
               );
             })}
@@ -453,7 +512,7 @@ export default function OuvidoriaBackoffice() {
                     </div>
                   </TableCell>
                   <TableCell><Badge className={STATUS_COLORS[r.status]}>{r.status}</Badge></TableCell>
-                  <TableCell><SlaIndicator status={getSlaStatus(r)} /></TableCell>
+                  <TableCell><SlaIndicator status={getSlaStatus(r, slaHours)} /></TableCell>
                   <TableCell>{r.placa_veiculo || "-"}</TableCell>
                   <TableCell>{format(new Date(r.created_at), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
                   <TableCell><Button variant="ghost" size="sm" onClick={() => openDetail(r)}><Eye className="h-4 w-4" /></Button></TableCell>
@@ -517,8 +576,8 @@ export default function OuvidoriaBackoffice() {
             <CardContent className="p-6">
               <h3 className="font-semibold mb-4">SLAs Vencidos por Etapa</h3>
               <div className="space-y-2">
-                {STATUSES.filter(s => SLA_HOURS[s] !== null).map(s => {
-                  const venc = filtered.filter(r => r.status === s && getSlaStatus(r) === "red").length;
+                {STATUSES.filter(s => slaHours[s] !== null && slaHours[s] !== undefined).map(s => {
+                  const venc = filtered.filter(r => r.status === s && getSlaStatus(r, slaHours) === "red").length;
                   return (
                     <div key={s} className="flex items-center justify-between text-sm">
                       <span>{s}</span>

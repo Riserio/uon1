@@ -1,0 +1,1 @@
+ALTER TABLE public.ouvidoria_config ADD COLUMN IF NOT EXISTS sla_horas JSONB DEFAULT '{"Recebimento":1,"Levantamento":6,"Acionamento Setor":12,"Contato Associado":6,"Monitoramento":null,"Resolvido":null,"Sem Resolução":null}'::jsonb;
