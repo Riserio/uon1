@@ -102,11 +102,14 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }
     const { error, data } = await supabase.from("corretoras").update({ slug }).eq("id", selectedCorretora).select();
     if (error) { 
       console.error("Erro ao salvar slug:", error);
-      toast.error("Erro ao salvar slug (pode já estar em uso)"); 
+      toast.error(error.code === "23505" ? "Este slug já está em uso" : "Erro ao salvar slug"); 
       return; 
     }
-    console.log("Slug salvo com sucesso:", data);
-    // Force corretoras prop update by mutating the reference
+    if (!data || data.length === 0) {
+      toast.error("Sem permissão para atualizar. Verifique seu perfil.");
+      return;
+    }
+    // Force corretoras prop update
     const idx = corretoras.findIndex(c => c.id === selectedCorretora);
     if (idx >= 0) (corretoras[idx] as any).slug = slug;
     setEditingSlug(false);
