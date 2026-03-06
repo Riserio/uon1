@@ -42,11 +42,26 @@ export default function OuvidoriaPublica() {
 
   const loadCorretora = async () => {
     if (!slug) return;
-    const { data: corr } = await supabase
+    
+    // Try lookup by slug first, then by ID
+    let corr = null;
+    const { data: bySlug } = await supabase
       .from("corretoras")
       .select("id, nome, logo_url")
       .eq("slug", slug)
       .maybeSingle();
+    
+    if (bySlug) {
+      corr = bySlug;
+    } else {
+      // Fallback: try by ID
+      const { data: byId } = await supabase
+        .from("corretoras")
+        .select("id, nome, logo_url")
+        .eq("id", slug)
+        .maybeSingle();
+      corr = byId;
+    }
 
     if (!corr) {
       setLoading(false);

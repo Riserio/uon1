@@ -148,7 +148,6 @@ export default function Usuarios() {
     { id: 'cobranca', label: 'Cobrança', description: 'Módulo de cobrança/inadimplência' },
     { id: 'estudo-base', label: 'Estudo de Base', description: 'Análise detalhada da base de veículos' },
     { id: 'acompanhamento-eventos', label: 'Acompanhamento de Eventos', description: 'Kanban de acompanhamento de eventos' },
-    { id: 'ouvidoria', label: 'Ouvidoria', description: 'Módulo de ouvidoria/manifestações' },
   ];
   const filteredProfiles = useMemo(() => {
     if (!searchTerm) return profiles;
@@ -1288,23 +1287,29 @@ export default function Usuarios() {
                           </div>
                         )}
 
-                        {/* Acesso Ouvidoria - para parceiro */}
+                        {/* Módulo Ouvidoria - para parceiro */}
                         {selectedRole === 'parceiro' && (
-                          <div className="flex items-center gap-3 p-3 bg-violet-50 dark:bg-violet-950/20 rounded-lg border border-violet-200 dark:border-violet-800">
-                            <input
-                              type="checkbox"
-                              id="acesso_ouvidoria_new"
-                              checked={acessoOuvidoria}
-                              onChange={(e) => setAcessoOuvidoria(e.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300"
-                            />
-                            <div className="flex-1">
-                              <Label htmlFor="acesso_ouvidoria_new" className="text-sm font-medium cursor-pointer">
-                                Acesso Ouvidoria
-                              </Label>
-                              <p className="text-xs text-muted-foreground">
-                                Permite acesso ao módulo de ouvidoria no portal
-                              </p>
+                          <div className="space-y-3">
+                            <Label className="text-sm font-medium">Módulo Ouvidoria</Label>
+                            <div
+                              className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                                acessoOuvidoria
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-border hover:border-primary/50'
+                              }`}
+                              onClick={() => setAcessoOuvidoria(!acessoOuvidoria)}
+                            >
+                              <input
+                                type="checkbox"
+                                id="acesso_ouvidoria_new"
+                                checked={acessoOuvidoria}
+                                onChange={(e) => setAcessoOuvidoria(e.target.checked)}
+                                className="h-4 w-4 mt-0.5 rounded border-gray-300"
+                              />
+                              <div className="space-y-1">
+                                <span className="text-sm font-medium">Ouvidoria</span>
+                                <p className="text-xs text-muted-foreground">Módulo de ouvidoria/manifestações</p>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1398,23 +1403,29 @@ export default function Usuarios() {
                           </div>
                         )}
 
-                        {/* Acesso Ouvidoria - para parceiro */}
+                        {/* Módulo Ouvidoria - para parceiro */}
                         {editingRole === 'parceiro' && (
-                          <div className="flex items-center gap-3 p-3 bg-violet-50 dark:bg-violet-950/20 rounded-lg border border-violet-200 dark:border-violet-800">
-                            <input
-                              type="checkbox"
-                              id="acesso_ouvidoria_edit"
-                              checked={acessoOuvidoria}
-                              onChange={(e) => setAcessoOuvidoria(e.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300"
-                            />
-                            <div className="flex-1">
-                              <Label htmlFor="acesso_ouvidoria_edit" className="text-sm font-medium cursor-pointer">
-                                Acesso Ouvidoria
-                              </Label>
-                              <p className="text-xs text-muted-foreground">
-                                {acessoOuvidoria ? "Acesso à ouvidoria habilitado" : "Permite acesso ao módulo de ouvidoria no portal"}
-                              </p>
+                          <div className="space-y-3">
+                            <Label className="text-sm font-medium">Módulo Ouvidoria</Label>
+                            <div
+                              className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                                acessoOuvidoria
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-border hover:border-primary/50'
+                              }`}
+                              onClick={() => setAcessoOuvidoria(!acessoOuvidoria)}
+                            >
+                              <input
+                                type="checkbox"
+                                id="acesso_ouvidoria_edit"
+                                checked={acessoOuvidoria}
+                                onChange={(e) => setAcessoOuvidoria(e.target.checked)}
+                                className="h-4 w-4 mt-0.5 rounded border-gray-300"
+                              />
+                              <div className="space-y-1">
+                                <span className="text-sm font-medium">Ouvidoria</span>
+                                <p className="text-xs text-muted-foreground">Módulo de ouvidoria/manifestações</p>
+                              </div>
                             </div>
                           </div>
                         )}
