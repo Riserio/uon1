@@ -278,6 +278,16 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
 
+                {/* Ouvidoria */}
+                {canView("ouvidoria") && <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/ouvidoria-backoffice" activeClassName="bg-primary text-primary-foreground">
+                        <MessageSquareWarning className="h-4 w-4" />
+                        {!collapsed && <span>Ouvidoria</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>}
+
                 {/* Uon1Sign - visibilidade controlada pela tabela role_menu_permissions */}
                 {canView("contratos") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
@@ -334,15 +344,6 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
 
-                {/* Ouvidoria */}
-                {canView("ouvidoria") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/ouvidoria-backoffice" activeClassName="bg-primary text-primary-foreground">
-                        <MessageSquareWarning className="h-4 w-4" />
-                        {!collapsed && <span>Ouvidoria</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
 
                 {/* Configurações */}
                 {canView("configuracoes") && <SidebarMenuItem>
