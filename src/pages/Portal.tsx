@@ -91,7 +91,7 @@ export default function Portal() {
           .filter(item => item.corretoras)
           .map(item => ({
             ...(item.corretoras as Corretora),
-            modulos_bi: item.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']
+            modulos_bi: item.modulos_bi || []
           }));
 
         if (corretorasValidas.length === 0) {
@@ -148,6 +148,10 @@ export default function Portal() {
       navigate(`/portal/cobranca-insights?associacao=${corretoraData.id}`, { replace: true });
     } else if (modulos.includes('estudo-base')) {
       navigate(`/portal/estudo-base-insights?associacao=${corretoraData.id}`, { replace: true });
+    } else if (modulos.includes('acompanhamento-eventos')) {
+      navigate(`/portal/acompanhamento-eventos?associacao=${corretoraData.id}`, { replace: true });
+    } else if (modulos.includes('ouvidoria')) {
+      navigate(`/portal/ouvidoria?associacao=${corretoraData.id}`, { replace: true });
     }
   };
 
