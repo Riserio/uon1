@@ -35,9 +35,10 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   corretoras: { id: string; nome: string; slug?: string | null }[];
+  onRefresh?: () => void;
 }
 
-export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }: Props) {
+export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras, onRefresh }: Props) {
   const [selectedCorretora, setSelectedCorretora] = useState("");
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -125,12 +126,10 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }
       toast.error("Não foi possível salvar. Sem permissão ou registro não encontrado.");
       return;
     }
-    // Update local state
-    const idx = corretoras.findIndex(c => c.id === selectedCorretora);
-    if (idx >= 0) (corretoras[idx] as any).slug = slug;
     setEditingSlug(false);
     setSlugValue(slug);
     toast.success("Slug salvo: " + slug);
+    onRefresh?.();
   };
 
   const selectedCorretoraData = corretoras.find((c) => c.id === selectedCorretora);

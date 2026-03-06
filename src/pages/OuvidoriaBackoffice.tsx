@@ -856,7 +856,7 @@ export default function OuvidoriaBackoffice() {
         </DialogContent>
       </Dialog>
 
-      <OuvidoriaConfigDialog open={configOpen} onOpenChange={setConfigOpen} corretoras={corretoras} />
+      <OuvidoriaConfigDialog open={configOpen} onOpenChange={setConfigOpen} corretoras={corretoras} onRefresh={loadCorretoras} />
     </div>
   );
 }
