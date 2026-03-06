@@ -186,7 +186,7 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }
                     <div className="flex items-center justify-between">
                       <div>
                         <Label className="text-xs font-semibold">Slug da URL</Label>
-                        <p className="text-[11px] text-muted-foreground">Identificador amigável usado nos links (ex: <span className="font-mono">vide</span>)</p>
+                        <p className="text-[11px] text-muted-foreground">Identificador amigável usado nos links (ex: <span className="font-mono">associacao</span>)</p>
                       </div>
                       {!editingSlug ? (
                         <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => { setSlugValue(selectedCorretoraData?.slug || ""); setEditingSlug(true); }}>
@@ -199,7 +199,7 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras }
                         <Input
                           value={slugValue}
                           onChange={(e) => setSlugValue(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                          placeholder="ex: vide"
+                          placeholder="ex: associacao"
                           className="text-sm font-mono h-8"
                           onKeyDown={(e) => e.key === "Enter" && saveSlug()}
                         />
