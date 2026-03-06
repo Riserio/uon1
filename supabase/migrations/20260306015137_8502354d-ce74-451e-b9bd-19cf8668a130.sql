@@ -1,0 +1,1 @@
+ALTER TABLE public.corretora_usuarios ADD COLUMN IF NOT EXISTS ouvidoria_pode_editar boolean DEFAULT false;

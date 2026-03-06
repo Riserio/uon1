@@ -1317,6 +1317,7 @@ export type Database = {
           email: string
           id: string
           modulos_bi: string[] | null
+          ouvidoria_pode_editar: boolean | null
           profile_id: string | null
           senha_hash: string
           totp_configurado: boolean | null
@@ -1333,6 +1334,7 @@ export type Database = {
           email: string
           id?: string
           modulos_bi?: string[] | null
+          ouvidoria_pode_editar?: boolean | null
           profile_id?: string | null
           senha_hash: string
           totp_configurado?: boolean | null
@@ -1349,6 +1351,7 @@ export type Database = {
           email?: string
           id?: string
           modulos_bi?: string[] | null
+          ouvidoria_pode_editar?: boolean | null
           profile_id?: string | null
           senha_hash?: string
           totp_configurado?: boolean | null

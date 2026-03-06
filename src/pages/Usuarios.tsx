@@ -140,6 +140,7 @@ export default function Usuarios() {
   const [funcionarioFormData, setFuncionarioFormData] = useState<FuncionarioFormData>(defaultFuncionarioFormData);
   const [selectedModulosBI, setSelectedModulosBI] = useState<string[]>(['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
   const [acessoOuvidoria, setAcessoOuvidoria] = useState(false);
+  const [ouvidoriaPodeEditar, setOuvidoriaPodeEditar] = useState(false);
 
   const MODULOS_BI = [
     { id: 'indicadores', label: 'BI Indicadores', description: 'Dashboard principal com KPIs' },
@@ -533,7 +534,7 @@ export default function Usuarios() {
     if (editingRole === 'parceiro') {
       const { error: modulosError } = await supabase
         .from("corretora_usuarios")
-        .update({ modulos_bi: selectedModulosBI, acesso_ouvidoria: acessoOuvidoria } as any)
+        .update({ modulos_bi: selectedModulosBI, acesso_ouvidoria: acessoOuvidoria, ouvidoria_pode_editar: ouvidoriaPodeEditar } as any)
         .eq("profile_id", editingItem.id);
       
       if (modulosError) {
@@ -767,15 +768,17 @@ export default function Usuarios() {
       if (role === 'parceiro') {
         const { data: usuarioBI } = await supabase
           .from("corretora_usuarios")
-          .select("modulos_bi, acesso_ouvidoria")
+          .select("modulos_bi, acesso_ouvidoria, ouvidoria_pode_editar")
           .eq("profile_id", item.id)
           .maybeSingle();
         
         setSelectedModulosBI(usuarioBI?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
         setAcessoOuvidoria(usuarioBI?.acesso_ouvidoria || false);
+        setOuvidoriaPodeEditar((usuarioBI as any)?.ouvidoria_pode_editar || false);
       } else {
         setSelectedModulosBI(['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
         setAcessoOuvidoria(false);
+        setOuvidoriaPodeEditar(false);
       }
       
       // Verificar se já é funcionário e carregar dados completos
@@ -828,6 +831,7 @@ export default function Usuarios() {
       setFuncionarioFormData(defaultFuncionarioFormData);
       setSelectedModulosBI(['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
       setAcessoOuvidoria(false);
+      setOuvidoriaPodeEditar(false);
     }
     setDialogOpen(true);
   };
@@ -1297,13 +1301,13 @@ export default function Usuarios() {
                                   ? 'border-primary bg-primary/5'
                                   : 'border-border hover:border-primary/50'
                               }`}
-                              onClick={() => setAcessoOuvidoria(!acessoOuvidoria)}
+                              onClick={() => { setAcessoOuvidoria(!acessoOuvidoria); if (acessoOuvidoria) setOuvidoriaPodeEditar(false); }}
                             >
                               <input
                                 type="checkbox"
                                 id="acesso_ouvidoria_new"
                                 checked={acessoOuvidoria}
-                                onChange={(e) => setAcessoOuvidoria(e.target.checked)}
+                                onChange={(e) => { setAcessoOuvidoria(e.target.checked); if (!e.target.checked) setOuvidoriaPodeEditar(false); }}
                                 className="h-4 w-4 mt-0.5 rounded border-gray-300"
                               />
                               <div className="space-y-1">
@@ -1311,6 +1315,27 @@ export default function Usuarios() {
                                 <p className="text-xs text-muted-foreground">Módulo de ouvidoria/manifestações</p>
                               </div>
                             </div>
+                            {acessoOuvidoria && (
+                              <div
+                                className={`flex items-start gap-3 p-3 ml-6 border rounded-lg cursor-pointer transition-all ${
+                                  ouvidoriaPodeEditar
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-border hover:border-primary/50'
+                                }`}
+                                onClick={() => setOuvidoriaPodeEditar(!ouvidoriaPodeEditar)}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={ouvidoriaPodeEditar}
+                                  onChange={(e) => setOuvidoriaPodeEditar(e.target.checked)}
+                                  className="h-4 w-4 mt-0.5 rounded border-gray-300"
+                                />
+                                <div className="space-y-1">
+                                  <span className="text-sm font-medium">Pode editar</span>
+                                  <p className="text-xs text-muted-foreground">Permite alterar status, checkpoints e campos</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                         
@@ -1413,13 +1438,13 @@ export default function Usuarios() {
                                   ? 'border-primary bg-primary/5'
                                   : 'border-border hover:border-primary/50'
                               }`}
-                              onClick={() => setAcessoOuvidoria(!acessoOuvidoria)}
+                              onClick={() => { setAcessoOuvidoria(!acessoOuvidoria); if (acessoOuvidoria) setOuvidoriaPodeEditar(false); }}
                             >
                               <input
                                 type="checkbox"
                                 id="acesso_ouvidoria_edit"
                                 checked={acessoOuvidoria}
-                                onChange={(e) => setAcessoOuvidoria(e.target.checked)}
+                                onChange={(e) => { setAcessoOuvidoria(e.target.checked); if (!e.target.checked) setOuvidoriaPodeEditar(false); }}
                                 className="h-4 w-4 mt-0.5 rounded border-gray-300"
                               />
                               <div className="space-y-1">
@@ -1427,6 +1452,27 @@ export default function Usuarios() {
                                 <p className="text-xs text-muted-foreground">Módulo de ouvidoria/manifestações</p>
                               </div>
                             </div>
+                            {acessoOuvidoria && (
+                              <div
+                                className={`flex items-start gap-3 p-3 ml-6 border rounded-lg cursor-pointer transition-all ${
+                                  ouvidoriaPodeEditar
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-border hover:border-primary/50'
+                                }`}
+                                onClick={() => setOuvidoriaPodeEditar(!ouvidoriaPodeEditar)}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={ouvidoriaPodeEditar}
+                                  onChange={(e) => setOuvidoriaPodeEditar(e.target.checked)}
+                                  className="h-4 w-4 mt-0.5 rounded border-gray-300"
+                                />
+                                <div className="space-y-1">
+                                  <span className="text-sm font-medium">Pode editar</span>
+                                  <p className="text-xs text-muted-foreground">Permite alterar status, checkpoints e campos</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                         
