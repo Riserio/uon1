@@ -264,6 +264,8 @@ export default function OuvidoriaBackoffice() {
   const [historico, setHistorico] = useState<HistoricoRow[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [slaHours, setSlaHours] = useState<Record<string, number | null>>(DEFAULT_SLA_HOURS);
+  const [detailDefaultTab, setDetailDefaultTab] = useState<string>("dados");
+  const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -313,6 +315,32 @@ export default function OuvidoriaBackoffice() {
     setHistorico((data as any) || []);
   };
 
+  const areCheckpointsComplete = (registroId: string, etapa: string): boolean => {
+    const etapaCps = checkpoints.filter(c => c.registro_id === registroId && c.etapa === etapa);
+    if (etapaCps.length === 0) return true; // No checkpoints = ok
+    return etapaCps.every(c => c.concluido);
+  };
+
+  const tryUpdateStatus = async (registro: Registro, novoStatus: string, forceOpen = false) => {
+    // Check if current status checkpoints are complete
+    if (!areCheckpointsComplete(registro.id, registro.status)) {
+      // Ensure checkpoints exist
+      await ensureCheckpoints(registro.id, registro.status);
+      const { data: cp } = await supabase.from("ouvidoria_checkpoints").select("*").eq("registro_id", registro.id);
+      if (cp) setCheckpoints(prev => [...prev.filter(c => c.registro_id !== registro.id), ...(cp as any)]);
+      
+      // Open detail with checkpoints tab
+      setSelectedRegistro(registro);
+      setDetailDefaultTab("checkpoints");
+      setPendingStatusChange(novoStatus);
+      setDetailOpen(true);
+      loadHistorico(registro.id);
+      toast.error(`Complete os checkpoints de "${registro.status}" antes de avançar`);
+      return;
+    }
+    await updateStatus(registro, novoStatus);
+  };
+
   const updateStatus = async (registro: Registro, novoStatus: string) => {
     const statusAnterior = registro.status;
     const { error } = await supabase.from("ouvidoria_registros").update({ status: novoStatus } as any).eq("id", registro.id);
@@ -323,8 +351,12 @@ export default function OuvidoriaBackoffice() {
     await ensureCheckpoints(registro.id, novoStatus);
     
     toast.success(`Status alterado para ${novoStatus}`);
+    setPendingStatusChange(null);
     loadRegistros();
-    if (selectedRegistro?.id === registro.id) loadHistorico(registro.id);
+    if (selectedRegistro?.id === registro.id) {
+      setSelectedRegistro({ ...registro, status: novoStatus });
+      loadHistorico(registro.id);
+    }
   };
 
   const ensureCheckpoints = async (registroId: string, etapa: string) => {
@@ -372,7 +404,7 @@ export default function OuvidoriaBackoffice() {
     if (!STATUSES.includes(newStatus)) return;
     const registro = registros.find(r => r.id === registroId);
     if (!registro || registro.status === newStatus) return;
-    updateStatus(registro, newStatus);
+    tryUpdateStatus(registro, newStatus);
   };
 
   const filtered = registros.filter((r) => {
@@ -381,8 +413,10 @@ export default function OuvidoriaBackoffice() {
     return matchSearch && matchTipo;
   });
 
-  const openDetail = async (r: Registro) => {
+  const openDetail = async (r: Registro, tab = "dados") => {
     setSelectedRegistro(r);
+    setDetailDefaultTab(tab);
+    setPendingStatusChange(null);
     setDetailOpen(true);
     loadHistorico(r.id);
     await ensureCheckpoints(r.id, r.status);
@@ -643,7 +677,7 @@ export default function OuvidoriaBackoffice() {
               </div>
 
               {/* Tabs */}
-              <Tabs defaultValue="dados" className="flex-1 flex flex-col overflow-hidden">
+              <Tabs defaultValue={detailDefaultTab} key={selectedRegistro.id + detailDefaultTab} className="flex-1 flex flex-col overflow-hidden">
                 <div className="px-6 pt-3">
                   <TabsList className="w-full">
                     <TabsTrigger value="dados" className="flex-1">Dados</TabsTrigger>
@@ -706,16 +740,22 @@ export default function OuvidoriaBackoffice() {
                       <div className="flex flex-wrap gap-1.5">
                         {STATUSES.map(s => (
                           <Button key={s} variant={selectedRegistro.status === s ? "default" : "outline"} size="sm" className="text-xs h-7 rounded-full"
-                            onClick={() => { if (s !== selectedRegistro.status) { updateStatus(selectedRegistro, s); setSelectedRegistro({ ...selectedRegistro, status: s }); } }}>
+                            onClick={() => { if (s !== selectedRegistro.status) tryUpdateStatus(selectedRegistro, s, true); }}>
                             {s}
                           </Button>
                         ))}
                       </div>
+                      {pendingStatusChange && (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+                          <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                          <p className="text-xs text-destructive">Complete os checkpoints de "<strong>{selectedRegistro.status}</strong>" para avançar para "<strong>{pendingStatusChange}</strong>"</p>
+                        </div>
+                      )}
                       <div className="flex gap-2 pt-1">
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white rounded-full" onClick={() => { updateStatus(selectedRegistro, "Resolvido"); setSelectedRegistro({ ...selectedRegistro, status: "Resolvido" }); }}>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white rounded-full" onClick={() => tryUpdateStatus(selectedRegistro, "Resolvido", true)}>
                           <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Resolvido
                         </Button>
-                        <Button size="sm" variant="destructive" className="rounded-full" onClick={() => { updateStatus(selectedRegistro, "Sem Resolução"); setSelectedRegistro({ ...selectedRegistro, status: "Sem Resolução" }); }}>
+                        <Button size="sm" variant="destructive" className="rounded-full" onClick={() => tryUpdateStatus(selectedRegistro, "Sem Resolução", true)}>
                           <XCircle className="h-3.5 w-3.5 mr-1" /> Sem Resolução
                         </Button>
                       </div>
