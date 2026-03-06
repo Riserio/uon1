@@ -18,10 +18,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { email, password, nome, corretoraId, modulos_bi } = await req.json();
+    const { email, password, nome, corretoraId, modulos_bi, acesso_ouvidoria } = await req.json();
 
     // Módulos padrão se não informados
     const modulosBi = modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'];
+    const ouvidoriaAccess = acesso_ouvidoria || false;
 
     console.log('Creating/linking partner user:', { email, corretoraId, modulosBi });
 
@@ -197,6 +198,7 @@ serve(async (req) => {
         ativo: true,
         acesso_exclusivo_pid: true,
         modulos_bi: modulosBi,
+        acesso_ouvidoria: ouvidoriaAccess,
       });
 
     if (corretoraError) {

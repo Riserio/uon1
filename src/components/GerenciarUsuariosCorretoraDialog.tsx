@@ -24,6 +24,7 @@ const MODULOS_BI = [
   { id: 'cobranca', label: 'Cobrança', description: 'Módulo de cobrança/inadimplência' },
   { id: 'estudo-base', label: 'Estudo de Base', description: 'Análise detalhada da base de veículos' },
   { id: 'acompanhamento-eventos', label: 'Acompanhamento de Eventos', description: 'Kanban de acompanhamento de eventos' },
+  { id: 'ouvidoria', label: 'Ouvidoria', description: 'Painel de manifestações e reclamações' },
 ];
 
 export function GerenciarUsuariosCorretoraDialog({
@@ -95,6 +96,9 @@ export function GerenciarUsuariosCorretoraDialog({
 
     setLoading(true);
     try {
+      const modulosSemOuvidoria = formData.modulos_bi.filter(m => m !== 'ouvidoria');
+      const acessoOuvidoria = formData.modulos_bi.includes('ouvidoria');
+      
       // Chamar edge function para criar usuário parceiro
       const { data, error } = await supabase.functions.invoke('criar-usuario-parceiro', {
         body: {
@@ -102,7 +106,8 @@ export function GerenciarUsuariosCorretoraDialog({
           password: formData.senha,
           nome: formData.email.split('@')[0],
           corretoraId: corretoraId,
-          modulos_bi: formData.modulos_bi,
+          modulos_bi: modulosSemOuvidoria,
+          acesso_ouvidoria: acessoOuvidoria,
         }
       });
 
@@ -158,7 +163,9 @@ export function GerenciarUsuariosCorretoraDialog({
 
   const handleStartEdit = (usuario: any) => {
     setEditingId(usuario.id);
-    setEditingModulos(usuario.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
+    const baseModulos = usuario.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'];
+    const modulos = usuario.acesso_ouvidoria ? [...baseModulos, 'ouvidoria'] : baseModulos;
+    setEditingModulos(modulos);
   };
 
   const handleCancelEdit = () => {
@@ -173,9 +180,12 @@ export function GerenciarUsuariosCorretoraDialog({
     }
 
     try {
+      const modulosSemOuvidoria = editingModulos.filter(m => m !== 'ouvidoria');
+      const acessoOuvidoria = editingModulos.includes('ouvidoria');
+      
       const { error } = await supabase
         .from('corretora_usuarios')
-        .update({ modulos_bi: editingModulos })
+        .update({ modulos_bi: modulosSemOuvidoria, acesso_ouvidoria: acessoOuvidoria } as any)
         .eq('id', id);
 
       if (error) throw error;
@@ -190,9 +200,10 @@ export function GerenciarUsuariosCorretoraDialog({
     }
   };
 
-  const getModulosBadges = (modulos: string[] | null) => {
-    const modulosAtivos = modulos || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'];
-    return MODULOS_BI.filter(m => modulosAtivos.includes(m.id));
+  const getModulosBadges = (usuario: any) => {
+    const modulosAtivos = usuario.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'];
+    const all = usuario.acesso_ouvidoria ? [...modulosAtivos, 'ouvidoria'] : modulosAtivos;
+    return MODULOS_BI.filter(m => all.includes(m.id));
   };
 
   return (
@@ -330,7 +341,7 @@ export function GerenciarUsuariosCorretoraDialog({
                           </div>
                         ) : (
                           <div className="flex flex-wrap gap-1">
-                            {getModulosBadges(usuario.modulos_bi).map((modulo) => (
+                            {getModulosBadges(usuario).map((modulo) => (
                               <Badge key={modulo.id} variant="outline" className="text-xs">
                                 {modulo.label}
                               </Badge>
