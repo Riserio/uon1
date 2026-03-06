@@ -179,7 +179,7 @@ function KanbanColumn({ status, children, count, slaLabel }: { status: string; c
             <span className="text-[10px] text-muted-foreground font-medium">{slaLabel}</span>
           )}
         </div>
-        <div className={`flex-1 p-3 space-y-2.5 overflow-y-auto min-h-[200px] max-h-[calc(100vh-340px)] transition-colors ${isOver ? 'bg-primary/5 ring-2 ring-primary/20 ring-inset' : ''}`}>
+        <div className={`flex-1 p-3 space-y-2.5 overflow-y-auto min-h-[200px] max-h-[calc(100vh-340px)] transition-colors duration-75 ${isOver ? 'bg-primary/5 ring-2 ring-primary/20 ring-inset' : ''}`}>
           {children}
         </div>
       </div>
@@ -212,7 +212,7 @@ function DraggableCard({ registro, onClick, checkpoints, slaHours }: { registro:
     <div 
       ref={setNodeRef} 
       style={style} 
-      className="cursor-grab active:cursor-grabbing rounded-xl border bg-card hover:shadow-md transition-all duration-200 hover:-translate-y-0.5" 
+      className="cursor-grab active:cursor-grabbing rounded-xl border bg-card hover:shadow-md transition-shadow duration-75 hover:-translate-y-0.5" 
       onClick={onClick} 
       {...attributes} 
       {...listeners}
@@ -270,7 +270,7 @@ export default function OuvidoriaBackoffice() {
   useEffect(() => { loadRegistros(); loadSlaConfig(); }, [selectedCorretora]);
 
   const loadCorretoras = async () => {
-    const { data } = await supabase.from("corretoras").select("id, nome").order("nome");
+    const { data } = await supabase.from("corretoras").select("id, nome, slug").order("nome");
     setCorretoras(data || []);
   };
 
