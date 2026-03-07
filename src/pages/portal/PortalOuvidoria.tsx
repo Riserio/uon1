@@ -494,10 +494,30 @@ export default function PortalOuvidoria() {
                       </div>
                     )}
 
-                    {/* Responder ao associado */}
+                    {/* Resposta ao Associado */}
                     {!selectedRegistro.anonimo && (selectedRegistro.email || selectedRegistro.telefone) && (
                       <div className="rounded-xl border p-4 space-y-3 bg-muted/20">
                         <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Responder ao Associado</span>
+                        
+                        {/* Campo de resposta */}
+                        {canEdit && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">Resposta (será enviada ao associado ao finalizar)</Label>
+                            <Textarea
+                              defaultValue={selectedRegistro.resposta_final || ""}
+                              onBlur={e => updateField(selectedRegistro.id, "resposta_final", e.target.value)}
+                              placeholder="Digite a resposta que será enviada ao associado quando a manifestação for finalizada..."
+                              rows={4}
+                            />
+                          </div>
+                        )}
+                        {!canEdit && selectedRegistro.resposta_final && (
+                          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                            <p className="text-xs font-medium text-blue-700 mb-1">Resposta:</p>
+                            <p className="text-sm text-blue-900 whitespace-pre-wrap">{selectedRegistro.resposta_final}</p>
+                          </div>
+                        )}
+
                         <div className="flex flex-wrap gap-2">
                           {selectedRegistro.email && (
                             <Button
@@ -506,7 +526,8 @@ export default function PortalOuvidoria() {
                               className="gap-2 rounded-full border-blue-400 text-blue-600 hover:bg-blue-50 hover:border-blue-500"
                               onClick={() => {
                                 const subject = encodeURIComponent(`Ouvidoria - ${selectedRegistro.protocolo}`);
-                                const body = encodeURIComponent(`Olá ${selectedRegistro.nome},\n\nReferente à sua manifestação ${selectedRegistro.protocolo}:\n\n`);
+                                const resposta = selectedRegistro.resposta_final || "";
+                                const body = encodeURIComponent(`Olá ${selectedRegistro.nome},\n\nReferente à sua manifestação ${selectedRegistro.protocolo}:\n\n${resposta}`);
                                 window.open(`mailto:${selectedRegistro.email}?subject=${subject}&body=${body}`, "_blank");
                               }}
                             >
@@ -520,10 +541,11 @@ export default function PortalOuvidoria() {
                                 size="sm"
                                 className="gap-2 rounded-full border-green-400 text-green-600 hover:bg-green-50 hover:border-green-500"
                                 onClick={() => {
-                                  openWhatsApp({
-                                    phone: selectedRegistro.telefone!,
-                                    message: `Olá ${selectedRegistro.nome}, tudo bem? Entramos em contato referente à sua manifestação na Ouvidoria (Protocolo: ${selectedRegistro.protocolo}).`,
-                                  });
+                                  const resposta = selectedRegistro.resposta_final || "";
+                                  const msg = resposta
+                                    ? `Olá ${selectedRegistro.nome}, tudo bem? Referente à sua manifestação na Ouvidoria (Protocolo: ${selectedRegistro.protocolo}):\n\n${resposta}`
+                                    : `Olá ${selectedRegistro.nome}, tudo bem? Entramos em contato referente à sua manifestação na Ouvidoria (Protocolo: ${selectedRegistro.protocolo}).`;
+                                  openWhatsApp({ phone: selectedRegistro.telefone!, message: msg });
                                 }}
                               >
                                 <MessageCircle className="h-4 w-4" /> WhatsApp
