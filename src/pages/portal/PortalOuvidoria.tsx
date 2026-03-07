@@ -205,13 +205,13 @@ export default function PortalOuvidoria() {
       const tipoLabel = TIPO_LABELS[registro.tipo] || registro.tipo;
       const statusFinal = novoStatus === "Resolvido" ? "Resolvida" : "Encerrada sem resolução";
       const logoHtml = corretora.logo_url ? `<img src="${corretora.logo_url}" alt="${corretora.nome}" style="max-height:60px;margin:0 auto 10px;display:block" />` : "";
-      supabase.functions.invoke("enviar-email-smtp", {
+      supabase.functions.invoke("enviar-email-ouvidoria", {
         body: {
           to: registro.email,
           subject: `Sua manifestação foi finalizada - Protocolo ${registro.protocolo}`,
           html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.1)"><div style="background:#1e40af;padding:30px;text-align:center">${logoHtml}<h1 style="color:#fff;margin:0;font-size:24px">Ouvidoria</h1><p style="color:rgba(255,255,255,0.85);margin:5px 0 0">${corretora.nome}</p></div><div style="padding:30px"><h2 style="color:#333;margin:0 0 15px">Olá, ${registro.nome}!</h2><p style="color:#555;line-height:1.6">Sua manifestação foi <strong>${statusFinal}</strong>.</p><div style="background:#f8f9fa;border-radius:8px;padding:20px;margin:20px 0"><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 0;color:#888;width:120px">Protocolo:</td><td style="padding:8px 0;color:#333;font-weight:bold;font-size:18px">${registro.protocolo}</td></tr><tr><td style="padding:8px 0;color:#888">Tipo:</td><td style="padding:8px 0;color:#333">${tipoLabel}</td></tr><tr><td style="padding:8px 0;color:#888">Status:</td><td style="padding:8px 0;color:#333;font-weight:bold">${novoStatus}</td></tr></table></div>${resposta ? `<div style="background:#e3f2fd;border-left:4px solid #1e88e5;padding:15px;border-radius:0 8px 8px 0;margin:20px 0"><p style="color:#1565c0;margin:0 0 8px;font-weight:bold;font-size:14px">📝 Resposta da Ouvidoria:</p><p style="color:#333;margin:0;line-height:1.6;font-size:14px">${resposta.replace(/\n/g, '<br>')}</p></div>` : ''}<p style="color:#555;line-height:1.6">Em breve entraremos em contato pelo canal de sua preferência.</p></div></div></body></html>`,
         },
-      }).catch(() => {});
+      }).catch((err: any) => console.error("[Ouvidoria] Erro ao enviar email de finalização:", err));
       toast.info("E-mail de finalização enviado ao associado");
     }
 
