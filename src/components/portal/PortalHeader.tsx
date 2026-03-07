@@ -8,6 +8,7 @@ import { usePortalCarouselOptional } from "@/contexts/PortalCarouselContext";
 type Corretora = {
   id: string;
   nome: string;
+  slug?: string | null;
   logo_url?: string | null;
   modulos_bi: string[];
 };
