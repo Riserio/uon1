@@ -561,7 +561,7 @@ export default function OuvidoriaBackoffice() {
               const slaH = slaHours[status];
               const slaLabel = slaH ? `${slaH}h` : status === "Monitoramento" ? "Agendado" : status === "Resolvido" ? "Finalizado" : status === "Sem Resolução" ? "Encerrado" : undefined;
               return (
-                <KanbanColumn key={status} status={status} count={cards.length} slaLabel={slaLabel}>
+                <KanbanColumn key={status} status={status} count={cards.length} slaLabel={slaLabel} isActiveDropZone={dragOverStatus === status}>
                   {cards.slice(0, 10).map(r => (
                     <DraggableCard key={r.id} registro={r} checkpoints={checkpoints.filter(c => c.registro_id === r.id)} onClick={() => openDetail(r)} slaHours={slaHours} corretoraName={corretoras.find(c => c.id === r.corretora_id)?.nome} />
                   ))}
