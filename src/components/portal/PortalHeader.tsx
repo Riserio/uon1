@@ -164,7 +164,7 @@ export default function PortalHeader({
                     if (carousel) {
                       carousel.goToModule('eventos');
                     } else {
-                      navigate(`/portal/sga-insights?associacao=${corretora.id}`);
+                      navigate(`/portal/sga-insights?associacao=${assocKey}`);
                     }
                   }}
                   disabled={carousel?.config.enabled}
