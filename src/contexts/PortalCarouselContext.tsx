@@ -82,23 +82,24 @@ export function PortalCarouselProvider({
   const activeModules = config.visibleModules.filter(m => availableModules.includes(m));
 
   const getModuleUrl = useCallback((module: PortalModule) => {
+    const key = corretoraSlug || corretoraId;
     switch (module) {
       case 'indicadores':
-        return `/portal?associacao=${corretoraId}`;
+        return `/portal?associacao=${key}`;
       case 'eventos':
-        return `/portal/sga-insights?associacao=${corretoraId}`;
+        return `/portal/sga-insights?associacao=${key}`;
       case 'mgf':
-        return `/portal/mgf-insights?associacao=${corretoraId}`;
+        return `/portal/mgf-insights?associacao=${key}`;
       case 'cobranca':
-        return `/portal/cobranca-insights?associacao=${corretoraId}`;
+        return `/portal/cobranca-insights?associacao=${key}`;
       case 'estudo-base':
-        return `/portal/estudo-base-insights?associacao=${corretoraId}`;
+        return `/portal/estudo-base-insights?associacao=${key}`;
       case 'acompanhamento-eventos':
-        return `/portal/acompanhamento-eventos?associacao=${corretoraId}`;
+        return `/portal/acompanhamento-eventos?associacao=${key}`;
       case 'ouvidoria':
-        return `/portal/ouvidoria?associacao=${corretoraId}`;
+        return `/portal/ouvidoria?associacao=${key}`;
     }
-  }, [corretoraId]);
+  }, [corretoraId, corretoraSlug]);
 
   const navigateWithTransition = useCallback((targetModule: PortalModule, direction: 'left' | 'right') => {
     setTransitionDirection(direction);
