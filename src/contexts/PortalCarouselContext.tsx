@@ -33,12 +33,14 @@ const STORAGE_KEY = 'portal-carousel-config';
 
 export function PortalCarouselProvider({ 
   children, 
-  corretoraId, 
+  corretoraId,
+  corretoraSlug,
   availableModules,
   currentModule 
 }: { 
   children: ReactNode;
   corretoraId: string;
+  corretoraSlug?: string | null;
   availableModules: PortalModule[];
   currentModule: PortalModule;
 }) {
