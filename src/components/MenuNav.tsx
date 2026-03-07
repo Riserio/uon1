@@ -194,7 +194,7 @@ export default function MenuNav() {
                   <span>Usuários</span>
                 </div>
                 {pendingUsers > 0 && (
-                  <Badge variant="destructive" className="ml-auto">
+                  <Badge className="bg-orange-500 text-white ml-auto h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
                     {pendingUsers}
                   </Badge>
                 )}
@@ -281,7 +281,7 @@ export default function MenuNav() {
                 <span>Mensagens</span>
               </div>
               {unreadMessages > 0 && (
-                <Badge variant="destructive" className="ml-auto">
+                <Badge className="bg-orange-500 text-white ml-auto h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
                   {unreadMessages}
                 </Badge>
               )}

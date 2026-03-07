@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Copy, Plus, X, Clock, ExternalLink, Code, Pencil, Check } from "lucide-react";
+import { Copy, Plus, X, Clock, ExternalLink, Code, Pencil, Check, Mail } from "lucide-react";
 
 const STATUSES = [
   "Recebimento",
@@ -45,6 +45,7 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras, 
   const [newDomain, setNewDomain] = useState("");
   const [editingSlug, setEditingSlug] = useState(false);
   const [slugValue, setSlugValue] = useState("");
+  const [newAlertEmail, setNewAlertEmail] = useState("");
 
   useEffect(() => {
     if (selectedCorretora) loadConfig();
@@ -97,11 +98,32 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras, 
     saveConfig({ dominios_permitidos: domains });
   };
 
+  const addAlertEmail = () => {
+    const email = newAlertEmail.trim().toLowerCase();
+    if (!email) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error("E-mail inválido");
+      return;
+    }
+    const currentEmails: string[] = config?.emails_alerta || [];
+    if (currentEmails.includes(email)) {
+      toast.error("E-mail já adicionado");
+      return;
+    }
+    saveConfig({ emails_alerta: [...currentEmails, email] });
+    setNewAlertEmail("");
+  };
+
+  const removeAlertEmail = (email: string) => {
+    const emails = (config?.emails_alerta || []).filter((e: string) => e !== email);
+    saveConfig({ emails_alerta: emails });
+  };
+
   const saveSlug = async () => {
     const slug = slugValue.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!slug) { toast.error("Slug inválido"); return; }
     
-    // Verify auth session first
     const { data: session } = await supabase.auth.getSession();
     if (!session?.session) {
       toast.error("Sessão expirada. Faça login novamente.");
@@ -114,15 +136,11 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras, 
       .eq("id", selectedCorretora)
       .select();
     
-    console.log("saveSlug result:", { error, data, count, selectedCorretora, slug });
-    
     if (error) { 
-      console.error("Erro ao salvar slug:", error);
       toast.error(error.code === "23505" ? "Este slug já está em uso" : `Erro: ${error.message}`); 
       return; 
     }
     if (!data || data.length === 0) {
-      console.error("Update retornou vazio - possível bloqueio RLS", { selectedCorretora });
       toast.error("Não foi possível salvar. Sem permissão ou registro não encontrado.");
       return;
     }
@@ -164,8 +182,9 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras, 
 
             {config && (
               <Tabs defaultValue="geral" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="geral">Geral</TabsTrigger>
+                  <TabsTrigger value="alertas"><Mail className="h-3.5 w-3.5 mr-1" /> Alertas E-mail</TabsTrigger>
                   <TabsTrigger value="sla"><Clock className="h-3.5 w-3.5 mr-1" /> SLA por Etapa</TabsTrigger>
                 </TabsList>
 
@@ -315,6 +334,51 @@ export default function OuvidoriaConfigDialog({ open, onOpenChange, corretoras, 
                       />
                       <Button variant="outline" size="sm" onClick={addDomain}>
                         <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="alertas" className="space-y-4 mt-0">
+                  <div className="p-4 rounded-xl border bg-muted/20 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-orange-100 text-orange-600">
+                        <Mail className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold">E-mails de Alerta</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Quando uma nova manifestação for registrada, um e-mail de alerta será enviado para os endereços cadastrados abaixo.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Destinatários do alerta</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {(config.emails_alerta || []).map((email: string) => (
+                        <Badge key={email} variant="secondary" className="gap-1.5 py-1 px-2.5 text-xs">
+                          <Mail className="h-3 w-3" />
+                          {email}
+                          <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => removeAlertEmail(email)} />
+                        </Badge>
+                      ))}
+                      {(config.emails_alerta || []).length === 0 && (
+                        <p className="text-xs text-muted-foreground italic">Nenhum e-mail cadastrado. Alertas desativados.</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        value={newAlertEmail}
+                        onChange={(e) => setNewAlertEmail(e.target.value)}
+                        placeholder="email@associacao.com.br"
+                        className="text-sm"
+                        onKeyDown={(e) => e.key === "Enter" && addAlertEmail()}
+                      />
+                      <Button variant="outline" size="sm" onClick={addAlertEmail} className="gap-1">
+                        <Plus className="h-4 w-4" /> Adicionar
                       </Button>
                     </div>
                   </div>
