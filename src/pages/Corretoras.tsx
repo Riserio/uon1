@@ -23,6 +23,7 @@ import { useCepLookup } from '@/hooks/useCepLookup';
 interface Corretora {
   id: string;
   nome: string;
+  slug?: string | null;
   cnpj?: string;
   susep?: string;
   telefone?: string;
