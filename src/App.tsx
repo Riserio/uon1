@@ -108,7 +108,7 @@ if (typeof window !== 'undefined') {
 
 function MainContent({ children }: { children: React.ReactNode }) {
   return (
-    <main id="main-content" className="min-h-screen overflow-x-hidden transition-[margin-left] duration-300 ease-in-out" style={{ marginLeft: "3.5rem" }}>
+    <main id="main-content" className="min-h-screen overflow-x-hidden transition-[margin-left] duration-300 ease-in-out md:ml-[3.5rem] ml-0">
       {children}
     </main>
   );
