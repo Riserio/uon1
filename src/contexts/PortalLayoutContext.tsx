@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 type CorretoraComModulos = {
   id: string;
   nome: string;
+  slug?: string | null;
   logo_url?: string | null;
   modulos_bi: string[];
   acesso_ouvidoria?: boolean;
