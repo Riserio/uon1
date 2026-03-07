@@ -142,6 +142,7 @@ export default function PortalLayout() {
   return (
     <PortalCarouselProvider
       corretoraId={corretora.id}
+      corretoraSlug={corretora.slug}
       availableModules={availableModules}
       currentModule={currentModule}
     >
