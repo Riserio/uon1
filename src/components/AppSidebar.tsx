@@ -7,6 +7,7 @@ import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useSignedContracts } from "@/hooks/useSignedContracts";
+import { useOuvidoriaPendentes } from "@/hooks/useOuvidoriaPendentes";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar, SidebarSeparator, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
 import { supabase } from "@/integrations/supabase/client";
 
