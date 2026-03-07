@@ -269,6 +269,7 @@ export default function OuvidoriaBackoffice() {
   const [slaHours, setSlaHours] = useState<Record<string, number | null>>(DEFAULT_SLA_HOURS);
   const [detailDefaultTab, setDetailDefaultTab] = useState<string>("dados");
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
+  const [checkpointPopup, setCheckpointPopup] = useState<{ registro: Registro; targetStatus: string } | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
