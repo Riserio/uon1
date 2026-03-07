@@ -266,7 +266,7 @@ export default function PortalHeader({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    navigate(`/portal/ouvidoria?associacao=${corretora.id}`);
+                    navigate(`/portal/ouvidoria?associacao=${assocKey}`);
                   }}
                   className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'ouvidoria' 
