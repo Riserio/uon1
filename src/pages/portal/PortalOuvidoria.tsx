@@ -16,6 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Search, LayoutGrid, List, Eye, CheckCircle2, XCircle, Clock, AlertTriangle } from "lucide-react";
 import { OuvidoriaWidgets } from "@/components/ouvidoria/OuvidoriaWidgets";
+import { OuvidoriaShareLinks } from "@/components/ouvidoria/OuvidoriaShareLinks";
 import { format, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -72,6 +73,8 @@ type Registro = {
   origem_reclamacao: string | null; setor_responsavel: string | null;
   possivel_motivo: string | null; analista_id: string | null;
   satisfacao_nota: number | null; status_changed_at: string | null;
+  anonimo: boolean | null; prioridade: string | null; canal_retorno: string | null;
+  anexos_urls: string[] | null;
 };
 
 type CheckpointRow = {
@@ -245,12 +248,15 @@ export default function PortalOuvidoria() {
 
   return (
     <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-      <div>
-        <h2 className="text-xl font-bold">Ouvidoria</h2>
-        <p className="text-sm text-muted-foreground">
-          Acompanhe as manifestações da associação
-          {canEdit && <Badge variant="outline" className="ml-2 text-[10px]">Edição habilitada</Badge>}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold">Ouvidoria</h2>
+          <p className="text-sm text-muted-foreground">
+            Acompanhe as manifestações da associação
+            {canEdit && <Badge variant="outline" className="ml-2 text-[10px]">Edição habilitada</Badge>}
+          </p>
+        </div>
+        <OuvidoriaShareLinks corretoraId={corretora.id} />
       </div>
 
       {/* Stats */}
@@ -438,12 +444,14 @@ export default function PortalOuvidoria() {
                     {/* Info grid */}
                     <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                       {[
-                        { label: "Nome", value: selectedRegistro.nome },
-                        { label: "CPF", value: selectedRegistro.cpf || "—" },
+                        { label: "Nome", value: selectedRegistro.anonimo ? "🔒 Anônimo" : selectedRegistro.nome },
+                        { label: "CPF", value: selectedRegistro.anonimo ? "—" : (selectedRegistro.cpf || "—") },
                         { label: "E-mail", value: selectedRegistro.email },
                         { label: "Telefone", value: selectedRegistro.telefone || "—" },
                         { label: "Tipo", value: TIPO_LABELS[selectedRegistro.tipo] },
                         { label: "Placa", value: selectedRegistro.placa_veiculo || "—" },
+                        { label: "Prioridade", value: selectedRegistro.prioridade ? ({ baixa: "🟢 Baixa", media: "🟡 Média", alta: "🔴 Alta" }[selectedRegistro.prioridade] || selectedRegistro.prioridade) : "—" },
+                        { label: "Canal de Retorno", value: selectedRegistro.canal_retorno ? ({ email: "📧 E-mail", whatsapp: "💬 WhatsApp", ligacao: "📞 Ligação" }[selectedRegistro.canal_retorno] || selectedRegistro.canal_retorno) : "—" },
                       ].map(item => (
                         <div key={item.label} className="flex flex-col">
                           <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{item.label}</span>
@@ -451,6 +459,23 @@ export default function PortalOuvidoria() {
                         </div>
                       ))}
                     </div>
+
+                    {/* Anexos */}
+                    {selectedRegistro.anexos_urls && selectedRegistro.anexos_urls.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Anexos</span>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedRegistro.anexos_urls.map((url, i) => {
+                            const name = url.split('/').pop() || `Anexo ${i + 1}`;
+                            return (
+                              <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors">
+                                📎 {name.length > 25 ? name.slice(0, 25) + '…' : name}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Descrição */}
                     <div className="rounded-xl bg-muted/40 border p-4">

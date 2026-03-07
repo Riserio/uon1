@@ -3851,6 +3851,9 @@ export type Database = {
       ouvidoria_registros: {
         Row: {
           analista_id: string | null
+          anexos_urls: string[] | null
+          anonimo: boolean | null
+          canal_retorno: string | null
           corretora_id: string
           cpf: string | null
           created_at: string
@@ -3863,6 +3866,7 @@ export type Database = {
           origem_reclamacao: string | null
           placa_veiculo: string | null
           possivel_motivo: string | null
+          prioridade: string | null
           protocolo: string
           responsavel_id: string | null
           satisfacao_nota: number | null
@@ -3876,6 +3880,9 @@ export type Database = {
         }
         Insert: {
           analista_id?: string | null
+          anexos_urls?: string[] | null
+          anonimo?: boolean | null
+          canal_retorno?: string | null
           corretora_id: string
           cpf?: string | null
           created_at?: string
@@ -3888,6 +3895,7 @@ export type Database = {
           origem_reclamacao?: string | null
           placa_veiculo?: string | null
           possivel_motivo?: string | null
+          prioridade?: string | null
           protocolo: string
           responsavel_id?: string | null
           satisfacao_nota?: number | null
@@ -3901,6 +3909,9 @@ export type Database = {
         }
         Update: {
           analista_id?: string | null
+          anexos_urls?: string[] | null
+          anonimo?: boolean | null
+          canal_retorno?: string | null
           corretora_id?: string
           cpf?: string | null
           created_at?: string
@@ -3913,6 +3924,7 @@ export type Database = {
           origem_reclamacao?: string | null
           placa_veiculo?: string | null
           possivel_motivo?: string | null
+          prioridade?: string | null
           protocolo?: string
           responsavel_id?: string | null
           satisfacao_nota?: number | null
