@@ -145,9 +145,9 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
           <Select value={ano} onValueChange={setAno}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-24 sm:w-32">
               <SelectValue placeholder="Ano" />
             </SelectTrigger>
             <SelectContent>
@@ -160,7 +160,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
           </Select>
 
           <Select value={mes} onValueChange={setMes}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-28 sm:w-40">
               <SelectValue placeholder="Mês" />
             </SelectTrigger>
             <SelectContent>
