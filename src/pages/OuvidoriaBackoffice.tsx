@@ -635,6 +635,18 @@ export default function OuvidoriaBackoffice() {
                       <p className="text-sm mt-1.5 leading-relaxed">{selectedRegistro.descricao}</p>
                     </div>
 
+                    {/* Resposta ao Associado */}
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Resposta ao Associado</Label>
+                      <Textarea
+                        defaultValue={selectedRegistro.resposta_final || ""}
+                        onBlur={e => updateField(selectedRegistro.id, "resposta_final", e.target.value)}
+                        placeholder="Digite a resposta que será enviada ao associado quando a manifestação for finalizada..."
+                        rows={4}
+                      />
+                      <p className="text-[10px] text-muted-foreground">Esta resposta será enviada automaticamente por e-mail e carregada no WhatsApp ao finalizar.</p>
+                    </div>
+
                     {/* Editable fields */}
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1.5">
