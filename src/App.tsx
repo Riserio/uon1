@@ -108,7 +108,7 @@ if (typeof window !== 'undefined') {
 
 function MainContent({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex-1 overflow-auto w-full">
+    <main id="main-content" className="flex-1 overflow-auto w-full transition-[margin-left] duration-300 ease-in-out">
       {children}
     </main>
   );
