@@ -434,9 +434,26 @@ export default function OuvidoriaBackoffice() {
   };
 
   const handleDragStart = (event: DragStartEvent) => setActiveId(event.active.id as string);
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    if (!over) {
+      setDragOverStatus(null);
+      return;
+    }
+
+    let overStatus = over.id as string;
+    if (!STATUSES.includes(overStatus)) {
+      const overCard = registros.find(r => r.id === overStatus);
+      overStatus = overCard?.status || "";
+    }
+
+    setDragOverStatus(STATUSES.includes(overStatus) ? overStatus : null);
+  };
   
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
+    setDragOverStatus(null);
     const { active, over } = event;
     if (!over) return;
 
