@@ -230,7 +230,7 @@ export default function PortalHeader({
                     if (carousel) {
                       carousel.goToModule('estudo-base');
                     } else {
-                      navigate(`/portal/estudo-base-insights?associacao=${corretora.id}`);
+                      navigate(`/portal/estudo-base-insights?associacao=${assocKey}`);
                     }
                   }}
                   disabled={carousel?.config.enabled}
