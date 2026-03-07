@@ -352,6 +352,23 @@ export default function Corretoras() {
                       onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                     />
                   </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="slug">
+                      Slug do Portal
+                      <span className="text-xs text-muted-foreground ml-2">
+                        (usado na URL: ?associacao={formData.slug || 'id'})
+                      </span>
+                    </Label>
+                    <Input
+                      id="slug"
+                      value={formData.slug || ''}
+                      onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                      placeholder="ex: valecar"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Apenas letras minúsculas, números e hífens (3-63 caracteres). Deixe vazio para usar o ID.
+                    </p>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="cnpj">CNPJ *</Label>
