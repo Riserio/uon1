@@ -73,6 +73,8 @@ type Registro = {
   origem_reclamacao: string | null; setor_responsavel: string | null;
   possivel_motivo: string | null; analista_id: string | null;
   satisfacao_nota: number | null; status_changed_at: string | null;
+  anonimo: boolean | null; prioridade: string | null; canal_retorno: string | null;
+  anexos_urls: string[] | null;
 };
 
 type CheckpointRow = {
