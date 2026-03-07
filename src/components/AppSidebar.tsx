@@ -262,7 +262,7 @@ export function AppSidebar() {
                             <MessageCircle className="h-4 w-4" />
                             {!collapsed && <span>Mensagens</span>}
                           </div>
-                          {!collapsed && unreadMessages > 0 && <Badge variant="destructive" className="ml-auto">
+                          {!collapsed && unreadMessages > 0 && <Badge className="bg-orange-500 text-white ml-auto h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
                               {unreadMessages}
                             </Badge>}
                         </div>
