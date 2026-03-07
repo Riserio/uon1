@@ -187,21 +187,27 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
 
 export function AppSidebar() {
   const isMobile = useIsMobile();
-  const [pinned, setPinned] = useState(false); // estado definitivo via botão
-  const [hovered, setHovered] = useState(false); // hover temporário
+  // Persistir estado no localStorage
+  const [expanded, setExpanded] = useState(() => {
+    const saved = localStorage.getItem("sidebar-expanded");
+    return saved === "true";
+  });
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
-  const expanded = pinned || hovered;
+  // Salvar no localStorage
+  useEffect(() => {
+    localStorage.setItem("sidebar-expanded", String(expanded));
+  }, [expanded]);
 
-  // Sincronizar margin-left do conteúdo principal (só respeita o pinned, não o hover)
+  // Sincronizar margin-left do conteúdo principal
   useEffect(() => {
     if (isMobile) return;
     const el = document.getElementById("main-content");
     if (el) {
-      el.style.marginLeft = pinned ? "15rem" : "3.5rem";
+      el.style.marginLeft = expanded ? "15.5rem" : "4rem";
     }
-  }, [pinned, isMobile]);
+  }, [expanded, isMobile]);
 
   // Fechar mobile sidebar ao navegar
   useEffect(() => {
@@ -247,35 +253,28 @@ export function AppSidebar() {
 
   // Desktop: sidebar flutuante com bordas arredondadas
   return (
-    <>
-      <div
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        className={cn(
-          "fixed top-2 bottom-2 left-2 z-[60] flex flex-col bg-card/95 backdrop-blur-md border border-border shadow-xl transition-all duration-300 ease-in-out rounded-2xl",
-          expanded ? "w-60" : "w-[3.5rem]"
-        )}
-      >
-        <div className="flex-1 overflow-hidden rounded-2xl">
-          <SidebarMenuContent collapsed={!expanded} />
-        </div>
-      </div>
-
-      {/* Toggle button — fora do container para não ser cortado */}
+    <div
+      className={cn(
+        "fixed top-2 bottom-2 left-2 z-[60] flex flex-col bg-card/95 backdrop-blur-md border border-border shadow-xl transition-all duration-300 ease-in-out rounded-2xl",
+        expanded ? "w-60" : "w-[3.5rem]"
+      )}
+    >
+      {/* Toggle button — posicionado na borda direita, meio a meio */}
       <button
-        onClick={() => setPinned((v) => !v)}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        className="fixed top-7 z-[70] h-6 w-6 rounded-full bg-card border border-border flex items-center justify-center hover:bg-accent transition-all duration-300 ease-in-out shadow-sm"
-        style={{ left: expanded ? "calc(15rem + 0.5rem - 0.25rem)" : "calc(3.5rem + 0.5rem - 0.25rem)" }}
-        aria-label="Fixar sidebar"
+        onClick={() => setExpanded((v) => !v)}
+        className="absolute -right-3 top-7 z-[70] h-6 w-6 rounded-full bg-card border border-border flex items-center justify-center hover:bg-accent transition-colors shadow-md"
+        aria-label="Alternar sidebar"
       >
-        {pinned ? (
-          <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />
+        {expanded ? (
+          <PanelLeftClose className="h-3 w-3 text-muted-foreground" />
         ) : (
-          <PanelLeftOpen className="h-3.5 w-3.5 text-muted-foreground" />
+          <PanelLeftOpen className="h-3 w-3 text-muted-foreground" />
         )}
       </button>
-    </>
+
+      <div className="flex-1 overflow-hidden rounded-2xl">
+        <SidebarMenuContent collapsed={!expanded} />
+      </div>
+    </div>
   );
 }
