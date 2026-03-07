@@ -273,6 +273,7 @@ export default function OuvidoriaBackoffice() {
   const [detailDefaultTab, setDetailDefaultTab] = useState<string>("dados");
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
   const [checkpointPopup, setCheckpointPopup] = useState<{ registro: Registro; targetStatus: string } | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
