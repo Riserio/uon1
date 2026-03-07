@@ -198,7 +198,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(kpis.faturamento)}</div>
+                <div className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(kpis.faturamento)}</div>
                 <p className="text-xs text-muted-foreground">Prêmio total do período</p>
               </CardContent>
             </Card>
