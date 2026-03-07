@@ -444,12 +444,14 @@ export default function PortalOuvidoria() {
                     {/* Info grid */}
                     <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                       {[
-                        { label: "Nome", value: selectedRegistro.nome },
-                        { label: "CPF", value: selectedRegistro.cpf || "—" },
+                        { label: "Nome", value: selectedRegistro.anonimo ? "🔒 Anônimo" : selectedRegistro.nome },
+                        { label: "CPF", value: selectedRegistro.anonimo ? "—" : (selectedRegistro.cpf || "—") },
                         { label: "E-mail", value: selectedRegistro.email },
                         { label: "Telefone", value: selectedRegistro.telefone || "—" },
                         { label: "Tipo", value: TIPO_LABELS[selectedRegistro.tipo] },
                         { label: "Placa", value: selectedRegistro.placa_veiculo || "—" },
+                        { label: "Prioridade", value: selectedRegistro.prioridade ? ({ baixa: "🟢 Baixa", media: "🟡 Média", alta: "🔴 Alta" }[selectedRegistro.prioridade] || selectedRegistro.prioridade) : "—" },
+                        { label: "Canal de Retorno", value: selectedRegistro.canal_retorno ? ({ email: "📧 E-mail", whatsapp: "💬 WhatsApp", ligacao: "📞 Ligação" }[selectedRegistro.canal_retorno] || selectedRegistro.canal_retorno) : "—" },
                       ].map(item => (
                         <div key={item.label} className="flex flex-col">
                           <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{item.label}</span>
@@ -457,6 +459,23 @@ export default function PortalOuvidoria() {
                         </div>
                       ))}
                     </div>
+
+                    {/* Anexos */}
+                    {selectedRegistro.anexos_urls && selectedRegistro.anexos_urls.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Anexos</span>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedRegistro.anexos_urls.map((url, i) => {
+                            const name = url.split('/').pop() || `Anexo ${i + 1}`;
+                            return (
+                              <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors">
+                                📎 {name.length > 25 ? name.slice(0, 25) + '…' : name}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Descrição */}
                     <div className="rounded-xl bg-muted/40 border p-4">
