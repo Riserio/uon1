@@ -185,7 +185,41 @@ export default function OuvidoriaPublica() {
       const alertEmails: string[] = config?.emails_alerta || [];
       if (alertEmails.length > 0) {
         const nomeManifestante = form.anonimo ? "Anônimo" : form.nome.trim();
-        const alertHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.1)"><div style="background:#f97316;padding:30px;text-align:center">${logoHtml}<h1 style="color:#fff;margin:0;font-size:24px">🔔 Nova Manifestação</h1><p style="color:rgba(255,255,255,0.85);margin:5px 0 0">Ouvidoria - ${corretora.nome}</p></div><div style="padding:30px"><h2 style="color:#333;margin:0 0 15px">Nova manifestação recebida!</h2><p style="color:#555;line-height:1.6">Uma nova manifestação foi registrada na ouvidoria e requer atenção.</p><div style="background:#fff7ed;border-left:4px solid #f97316;padding:20px;border-radius:0 8px 8px 0;margin:20px 0"><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 0;color:#888;width:130px">Protocolo:</td><td style="padding:8px 0;color:#333;font-weight:bold;font-size:16px">${data.protocolo}</td></tr><tr><td style="padding:8px 0;color:#888">Manifestante:</td><td style="padding:8px 0;color:#333">${nomeManifestante}</td></tr><tr><td style="padding:8px 0;color:#888">Tipo:</td><td style="padding:8px 0;color:#333">${tipoLabel}</td></tr><tr><td style="padding:8px 0;color:#888">Prioridade:</td><td style="padding:8px 0;color:#333">${form.prioridade || "Normal"}</td></tr><tr><td style="padding:8px 0;color:#888">Data:</td><td style="padding:8px 0;color:#333">${new Date().toLocaleDateString("pt-BR")} ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</td></tr></table></div><div style="background:#f8f9fa;border-radius:8px;padding:15px;margin:20px 0"><p style="color:#888;margin:0 0 5px;font-size:12px;text-transform:uppercase">Descrição:</p><p style="color:#333;margin:0;line-height:1.6">${form.descricao.trim().substring(0, 500)}${form.descricao.length > 500 ? "..." : ""}</p></div><p style="color:#888;font-size:12px;text-align:center;margin-top:30px">Acesse o backoffice da ouvidoria para dar andamento.</p></div></div></body></html>`;
+        const dataFormatada = new Date().toLocaleDateString("pt-BR");
+        const horaFormatada = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        const descricaoResumida = form.descricao.trim().substring(0, 500) + (form.descricao.length > 500 ? "..." : "");
+
+        // Try to fetch custom template from DB
+        let alertHtml = "";
+        try {
+          const { data: tmplData } = await supabase
+            .from("email_templates")
+            .select("corpo, assunto")
+            .eq("tipo", "ouvidoria_alerta")
+            .eq("ativo", true)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          if (tmplData && tmplData.length > 0) {
+            alertHtml = tmplData[0].corpo
+              .replace(/\{protocolo\}/g, data.protocolo)
+              .replace(/\{nome_manifestante\}/g, nomeManifestante)
+              .replace(/\{nome_associacao\}/g, corretora.nome)
+              .replace(/\{logo_url\}/g, corretora.logo_url || "")
+              .replace(/\{tipo\}/g, tipoLabel)
+              .replace(/\{prioridade\}/g, form.prioridade || "Normal")
+              .replace(/\{descricao\}/g, descricaoResumida)
+              .replace(/\{data\}/g, dataFormatada)
+              .replace(/\{hora\}/g, horaFormatada);
+          }
+        } catch (e) {
+          console.error("[Ouvidoria] Erro ao buscar template:", e);
+        }
+
+        // Fallback to hardcoded template
+        if (!alertHtml) {
+          alertHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.1)"><div style="background:#f97316;padding:30px;text-align:center">${logoHtml}<h1 style="color:#fff;margin:0;font-size:24px">🔔 Nova Manifestação</h1><p style="color:rgba(255,255,255,0.85);margin:5px 0 0">Ouvidoria - ${corretora.nome}</p></div><div style="padding:30px"><h2 style="color:#333;margin:0 0 15px">Nova manifestação recebida!</h2><p style="color:#555;line-height:1.6">Uma nova manifestação foi registrada na ouvidoria e requer atenção.</p><div style="background:#fff7ed;border-left:4px solid #f97316;padding:20px;border-radius:0 8px 8px 0;margin:20px 0"><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 0;color:#888;width:130px">Protocolo:</td><td style="padding:8px 0;color:#333;font-weight:bold;font-size:16px">${data.protocolo}</td></tr><tr><td style="padding:8px 0;color:#888">Manifestante:</td><td style="padding:8px 0;color:#333">${nomeManifestante}</td></tr><tr><td style="padding:8px 0;color:#888">Tipo:</td><td style="padding:8px 0;color:#333">${tipoLabel}</td></tr><tr><td style="padding:8px 0;color:#888">Prioridade:</td><td style="padding:8px 0;color:#333">${form.prioridade || "Normal"}</td></tr><tr><td style="padding:8px 0;color:#888">Data:</td><td style="padding:8px 0;color:#333">${dataFormatada} ${horaFormatada}</td></tr></table></div><div style="background:#f8f9fa;border-radius:8px;padding:15px;margin:20px 0"><p style="color:#888;margin:0 0 5px;font-size:12px;text-transform:uppercase">Descrição:</p><p style="color:#333;margin:0;line-height:1.6">${descricaoResumida}</p></div><p style="color:#888;font-size:12px;text-align:center;margin-top:30px">Acesse o backoffice da ouvidoria para dar andamento.</p></div></div></body></html>`;
+        }
 
         alertEmails.forEach((alertEmail) => {
           supabase.functions.invoke("enviar-email-ouvidoria", {
