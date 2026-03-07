@@ -324,7 +324,14 @@ export default function MenuNav() {
           <DropdownMenuItem asChild>
             <Link to="/ouvidoria-backoffice" className="cursor-pointer">
               <MessageSquareWarning className="mr-2 h-4 w-4" />
-              <span>Ouvidoria</span>
+              <div className="flex items-center justify-between w-full">
+                <span>Ouvidoria</span>
+                {ouvidoriaPendentes > 0 && (
+                  <Badge className="bg-orange-500 text-white ml-auto">
+                    {ouvidoriaPendentes}
+                  </Badge>
+                )}
+              </div>
             </Link>
           </DropdownMenuItem>
         )}
