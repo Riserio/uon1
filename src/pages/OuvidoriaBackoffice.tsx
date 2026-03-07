@@ -760,14 +760,6 @@ export default function OuvidoriaBackoffice() {
                           <p className="text-xs text-destructive">Complete os checkpoints de "<strong>{selectedRegistro.status}</strong>" para avançar para "<strong>{pendingStatusChange}</strong>"</p>
                         </div>
                       )}
-                      <div className="flex gap-2 pt-1">
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white rounded-full" onClick={() => tryUpdateStatus(selectedRegistro, "Resolvido", true)}>
-                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Resolvido
-                        </Button>
-                        <Button size="sm" variant="destructive" className="rounded-full" onClick={() => tryUpdateStatus(selectedRegistro, "Sem Resolução", true)}>
-                          <XCircle className="h-3.5 w-3.5 mr-1" /> Sem Resolução
-                        </Button>
-                      </div>
                     </div>
 
                     {/* Observações */}
