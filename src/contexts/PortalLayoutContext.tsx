@@ -68,8 +68,9 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
           .map(item => {
             const baseModulos = item.modulos_bi || [];
             const modulos = item.acesso_ouvidoria ? [...baseModulos, 'ouvidoria'] : baseModulos;
+            const c = item.corretoras as any;
             return {
-              ...(item.corretoras as any),
+              ...c,
               modulos_bi: modulos,
               acesso_ouvidoria: item.acesso_ouvidoria || false,
             };
