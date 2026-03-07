@@ -121,6 +121,7 @@ type Registro = {
   analista_id: string | null;
   satisfacao_nota: number | null;
   status_changed_at: string | null;
+  resposta_final: string | null;
 };
 
 type CheckpointRow = {
