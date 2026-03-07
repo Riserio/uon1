@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 type CorretoraComModulos = {
   id: string;
   nome: string;
+  slug?: string | null;
   logo_url?: string | null;
   modulos_bi: string[];
   acesso_ouvidoria?: boolean;
@@ -52,7 +53,7 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase
           .from("corretora_usuarios")
-          .select("corretora_id, modulos_bi, acesso_ouvidoria, corretoras(id, nome, logo_url)")
+          .select("corretora_id, modulos_bi, acesso_ouvidoria, corretoras(id, nome, slug, logo_url)")
           .eq("profile_id", user.id)
           .eq("ativo", true);
 
@@ -67,8 +68,9 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
           .map(item => {
             const baseModulos = item.modulos_bi || [];
             const modulos = item.acesso_ouvidoria ? [...baseModulos, 'ouvidoria'] : baseModulos;
+            const c = item.corretoras as any;
             return {
-              ...(item.corretoras as any),
+              ...c,
               modulos_bi: modulos,
               acesso_ouvidoria: item.acesso_ouvidoria || false,
             };
@@ -83,19 +85,20 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
         setCorretorasDisponiveis(validas);
 
         const redirectToFirstModule = (c: CorretoraComModulos) => {
+          const key = c.slug || c.id;
           const m = c.modulos_bi;
           if (m.includes('indicadores')) return; // stays on /portal
-          if (m.includes('eventos')) { navigate(`/portal/sga-insights?associacao=${c.id}`, { replace: true }); return; }
-          if (m.includes('mgf')) { navigate(`/portal/mgf-insights?associacao=${c.id}`, { replace: true }); return; }
-          if (m.includes('cobranca')) { navigate(`/portal/cobranca-insights?associacao=${c.id}`, { replace: true }); return; }
-          if (m.includes('estudo-base')) { navigate(`/portal/estudo-base-insights?associacao=${c.id}`, { replace: true }); return; }
-          if (m.includes('acompanhamento-eventos')) { navigate(`/portal/acompanhamento-eventos?associacao=${c.id}`, { replace: true }); return; }
-          if (m.includes('ouvidoria')) { navigate(`/portal/ouvidoria?associacao=${c.id}`, { replace: true }); return; }
+          if (m.includes('eventos')) { navigate(`/portal/sga-insights?associacao=${key}`, { replace: true }); return; }
+          if (m.includes('mgf')) { navigate(`/portal/mgf-insights?associacao=${key}`, { replace: true }); return; }
+          if (m.includes('cobranca')) { navigate(`/portal/cobranca-insights?associacao=${key}`, { replace: true }); return; }
+          if (m.includes('estudo-base')) { navigate(`/portal/estudo-base-insights?associacao=${key}`, { replace: true }); return; }
+          if (m.includes('acompanhamento-eventos')) { navigate(`/portal/acompanhamento-eventos?associacao=${key}`, { replace: true }); return; }
+          if (m.includes('ouvidoria')) { navigate(`/portal/ouvidoria?associacao=${key}`, { replace: true }); return; }
         };
 
         const associacaoParam = searchParams.get("associacao");
         if (associacaoParam) {
-          const found = validas.find(c => c.id === associacaoParam);
+          const found = validas.find(c => c.id === associacaoParam || c.slug === associacaoParam);
           if (found) {
             setCorretora(found);
             if (!found.modulos_bi.includes('indicadores')) {
@@ -132,13 +135,14 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
     setShowSelection(false);
     // Redirect if no indicadores access
     if (!selected.modulos_bi.includes('indicadores')) {
+      const key = selected.slug || selected.id;
       const m = selected.modulos_bi;
-      if (m.includes('eventos')) { navigate(`/portal/sga-insights?associacao=${selected.id}`, { replace: true }); return; }
-      if (m.includes('mgf')) { navigate(`/portal/mgf-insights?associacao=${selected.id}`, { replace: true }); return; }
-      if (m.includes('cobranca')) { navigate(`/portal/cobranca-insights?associacao=${selected.id}`, { replace: true }); return; }
-      if (m.includes('estudo-base')) { navigate(`/portal/estudo-base-insights?associacao=${selected.id}`, { replace: true }); return; }
-      if (m.includes('acompanhamento-eventos')) { navigate(`/portal/acompanhamento-eventos?associacao=${selected.id}`, { replace: true }); return; }
-      if (m.includes('ouvidoria')) { navigate(`/portal/ouvidoria?associacao=${selected.id}`, { replace: true }); return; }
+      if (m.includes('eventos')) { navigate(`/portal/sga-insights?associacao=${key}`, { replace: true }); return; }
+      if (m.includes('mgf')) { navigate(`/portal/mgf-insights?associacao=${key}`, { replace: true }); return; }
+      if (m.includes('cobranca')) { navigate(`/portal/cobranca-insights?associacao=${key}`, { replace: true }); return; }
+      if (m.includes('estudo-base')) { navigate(`/portal/estudo-base-insights?associacao=${key}`, { replace: true }); return; }
+      if (m.includes('acompanhamento-eventos')) { navigate(`/portal/acompanhamento-eventos?associacao=${key}`, { replace: true }); return; }
+      if (m.includes('ouvidoria')) { navigate(`/portal/ouvidoria?associacao=${key}`, { replace: true }); return; }
     }
   };
 

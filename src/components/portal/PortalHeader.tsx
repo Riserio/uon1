@@ -8,6 +8,7 @@ import { usePortalCarouselOptional } from "@/contexts/PortalCarouselContext";
 type Corretora = {
   id: string;
   nome: string;
+  slug?: string | null;
   logo_url?: string | null;
   modulos_bi: string[];
 };
@@ -35,6 +36,9 @@ export default function PortalHeader({
 }: PortalHeaderProps) {
   const carousel = usePortalCarouselOptional();
   const navigate = useNavigate();
+  
+  // Identificador para URLs (slug ou id)
+  const assocKey = corretora.slug || corretora.id;
   
   // Verificar permissões de módulos
   const hasModulo = (modulo: string) => corretora.modulos_bi.includes(modulo);
@@ -138,7 +142,7 @@ export default function PortalHeader({
                     if (carousel) {
                       carousel.goToModule('indicadores');
                     } else {
-                      navigate(`/portal?associacao=${corretora.id}`);
+                      navigate(`/portal?associacao=${assocKey}`);
                     }
                   }}
                   disabled={carousel?.config.enabled}
@@ -160,7 +164,7 @@ export default function PortalHeader({
                     if (carousel) {
                       carousel.goToModule('eventos');
                     } else {
-                      navigate(`/portal/sga-insights?associacao=${corretora.id}`);
+                      navigate(`/portal/sga-insights?associacao=${assocKey}`);
                     }
                   }}
                   disabled={carousel?.config.enabled}
@@ -182,7 +186,7 @@ export default function PortalHeader({
                     if (carousel) {
                       carousel.goToModule('mgf');
                     } else {
-                      navigate(`/portal/mgf-insights?associacao=${corretora.id}`);
+                      navigate(`/portal/mgf-insights?associacao=${assocKey}`);
                     }
                   }}
                   disabled={carousel?.config.enabled}
@@ -204,7 +208,7 @@ export default function PortalHeader({
                     if (carousel) {
                       carousel.goToModule('cobranca');
                     } else {
-                      navigate(`/portal/cobranca-insights?associacao=${corretora.id}`);
+                      navigate(`/portal/cobranca-insights?associacao=${assocKey}`);
                     }
                   }}
                   disabled={carousel?.config.enabled}
@@ -226,7 +230,7 @@ export default function PortalHeader({
                     if (carousel) {
                       carousel.goToModule('estudo-base');
                     } else {
-                      navigate(`/portal/estudo-base-insights?associacao=${corretora.id}`);
+                      navigate(`/portal/estudo-base-insights?associacao=${assocKey}`);
                     }
                   }}
                   disabled={carousel?.config.enabled}
@@ -245,7 +249,7 @@ export default function PortalHeader({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    navigate(`/portal/acompanhamento-eventos?associacao=${corretora.id}`);
+                    navigate(`/portal/acompanhamento-eventos?associacao=${assocKey}`);
                   }}
                   className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'acompanhamento-eventos' 
@@ -262,7 +266,7 @@ export default function PortalHeader({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    navigate(`/portal/ouvidoria?associacao=${corretora.id}`);
+                    navigate(`/portal/ouvidoria?associacao=${assocKey}`);
                   }}
                   className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'ouvidoria' 
