@@ -166,7 +166,7 @@ function SlaIndicator({ status }: { status: "green" | "yellow" | "red" | null })
 }
 
 // Droppable column - modern widget style
-function KanbanColumn({ status, children, count, slaLabel }: { status: string; children: React.ReactNode; count: number; slaLabel?: string }) {
+function KanbanColumn({ status, children, count, slaLabel, isActiveDropZone }: { status: string; children: React.ReactNode; count: number; slaLabel?: string; isActiveDropZone?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const accentColor = STATUS_ACCENT_COLORS[status] || "#6b7280";
   return (
