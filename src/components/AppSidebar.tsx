@@ -247,17 +247,27 @@ export function AppSidebar() {
 
   // Desktop: sidebar flutuante com bordas arredondadas
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className={cn(
-        "fixed top-2 bottom-2 left-2 z-[60] flex flex-col bg-card/95 backdrop-blur-md border border-border shadow-xl transition-all duration-300 ease-in-out rounded-2xl overflow-hidden",
-        expanded ? "w-60" : "w-[3.5rem]"
-      )}
-    >
+    <>
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className={cn(
+          "fixed top-2 bottom-2 left-2 z-[60] flex flex-col bg-card/95 backdrop-blur-md border border-border shadow-xl transition-all duration-300 ease-in-out rounded-2xl",
+          expanded ? "w-60" : "w-[3.5rem]"
+        )}
+      >
+        <div className="flex-1 overflow-hidden rounded-2xl">
+          <SidebarMenuContent collapsed={!expanded} />
+        </div>
+      </div>
+
+      {/* Toggle button — fora do container para não ser cortado */}
       <button
         onClick={() => setPinned((v) => !v)}
-        className="absolute -right-3 top-6 z-[70] h-6 w-6 rounded-full bg-card border border-border flex items-center justify-center hover:bg-accent transition-colors shadow-sm"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className="fixed top-7 z-[70] h-6 w-6 rounded-full bg-card border border-border flex items-center justify-center hover:bg-accent transition-all duration-300 ease-in-out shadow-sm"
+        style={{ left: expanded ? "calc(15rem + 0.5rem - 0.25rem)" : "calc(3.5rem + 0.5rem - 0.25rem)" }}
         aria-label="Fixar sidebar"
       >
         {pinned ? (
@@ -266,8 +276,6 @@ export function AppSidebar() {
           <PanelLeftOpen className="h-3.5 w-3.5 text-muted-foreground" />
         )}
       </button>
-
-      <SidebarMenuContent collapsed={!expanded} />
-    </div>
+    </>
   );
 }
