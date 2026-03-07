@@ -23,12 +23,15 @@ import { OuvidoriaWidgets } from "@/components/ouvidoria/OuvidoriaWidgets";
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
   PointerSensor,
   useSensor,
   useSensors,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
