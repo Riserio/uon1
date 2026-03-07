@@ -208,7 +208,7 @@ export default function PortalHeader({
                     if (carousel) {
                       carousel.goToModule('cobranca');
                     } else {
-                      navigate(`/portal/cobranca-insights?associacao=${corretora.id}`);
+                      navigate(`/portal/cobranca-insights?associacao=${assocKey}`);
                     }
                   }}
                   disabled={carousel?.config.enabled}
