@@ -554,7 +554,7 @@ export default function OuvidoriaBackoffice() {
 
       {/* Content */}
       {viewMode === "kanban" && (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
+        <DndContext sensors={sensors} collisionDetection={collisionDetectionStrategy} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} onDragCancel={() => { setActiveId(null); setDragOverStatus(null); }}>
           <div className="flex gap-3 overflow-x-auto pb-4">
             {STATUSES.map(status => {
               const cards = filtered.filter(r => r.status === status);
