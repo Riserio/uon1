@@ -425,11 +425,19 @@ export default function OuvidoriaBackoffice() {
     setActiveId(null);
     const { active, over } = event;
     if (!over) return;
+
     const registroId = active.id as string;
-    const newStatus = over.id as string;
-    if (!STATUSES.includes(newStatus)) return;
     const registro = registros.find(r => r.id === registroId);
-    if (!registro || registro.status === newStatus) return;
+    if (!registro) return;
+
+    // Accept drop both on column and on top of another card
+    let newStatus = over.id as string;
+    if (!STATUSES.includes(newStatus)) {
+      const overCard = registros.find(r => r.id === newStatus);
+      newStatus = overCard?.status || "";
+    }
+
+    if (!STATUSES.includes(newStatus) || registro.status === newStatus) return;
     tryUpdateStatus(registro, newStatus);
   };
 
