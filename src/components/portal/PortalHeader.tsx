@@ -142,7 +142,7 @@ export default function PortalHeader({
                     if (carousel) {
                       carousel.goToModule('indicadores');
                     } else {
-                      navigate(`/portal?associacao=${corretora.id}`);
+                      navigate(`/portal?associacao=${assocKey}`);
                     }
                   }}
                   disabled={carousel?.config.enabled}
