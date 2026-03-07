@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { usePontoAlertas } from "@/hooks/usePontoAlertas";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
-import { SidebarProvider } from "@/components/ui/sidebar";
+// sidebar is now self-contained in AppSidebar
 import { AppSidebar } from "@/components/AppSidebar";
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
 import { PortalLayoutProvider } from "./contexts/PortalLayoutContext";
@@ -108,7 +108,7 @@ if (typeof window !== 'undefined') {
 
 function MainContent({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex-1 overflow-auto w-full">
+    <main id="main-content" className="flex-1 overflow-auto w-full transition-[margin-left] duration-300 ease-in-out">
       {children}
     </main>
   );
