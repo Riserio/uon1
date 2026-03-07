@@ -220,7 +220,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(kpis.repassePrevisto)}</div>
+                <div className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(kpis.repassePrevisto)}</div>
                 <p className="text-xs text-muted-foreground">A receber no período</p>
               </CardContent>
             </Card>
