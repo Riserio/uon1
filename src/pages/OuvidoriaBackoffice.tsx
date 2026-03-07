@@ -271,7 +271,7 @@ export default function OuvidoriaBackoffice() {
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
   const [checkpointPopup, setCheckpointPopup] = useState<{ registro: Registro; targetStatus: string } | null>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   useEffect(() => { loadCorretoras(); }, []);
   useEffect(() => { loadRegistros(); loadSlaConfig(); }, [selectedCorretora]);
@@ -349,8 +349,18 @@ export default function OuvidoriaBackoffice() {
 
   const updateStatus = async (registro: Registro, novoStatus: string) => {
     const statusAnterior = registro.status;
+
+    // Optimistic UI for smoother drag experience
+    setRegistros(prev => prev.map(r => r.id === registro.id ? { ...r, status: novoStatus, status_changed_at: new Date().toISOString() } : r));
+
     const { error } = await supabase.from("ouvidoria_registros").update({ status: novoStatus } as any).eq("id", registro.id);
-    if (error) { toast.error("Erro ao atualizar status"); return; }
+    if (error) {
+      // rollback
+      setRegistros(prev => prev.map(r => r.id === registro.id ? { ...r, status: statusAnterior } : r));
+      toast.error("Erro ao atualizar status");
+      return;
+    }
+
     await supabase.from("ouvidoria_historico").insert({ registro_id: registro.id, status_anterior: statusAnterior, status_novo: novoStatus, user_id: user?.id, user_nome: user?.email || "Sistema" });
     
     // Initialize checkpoints for new stage if none exist
@@ -425,11 +435,19 @@ export default function OuvidoriaBackoffice() {
     setActiveId(null);
     const { active, over } = event;
     if (!over) return;
+
     const registroId = active.id as string;
-    const newStatus = over.id as string;
-    if (!STATUSES.includes(newStatus)) return;
     const registro = registros.find(r => r.id === registroId);
-    if (!registro || registro.status === newStatus) return;
+    if (!registro) return;
+
+    // Accept drop both on column and on top of another card
+    let newStatus = over.id as string;
+    if (!STATUSES.includes(newStatus)) {
+      const overCard = registros.find(r => r.id === newStatus);
+      newStatus = overCard?.status || "";
+    }
+
+    if (!STATUSES.includes(newStatus) || registro.status === newStatus) return;
     tryUpdateStatus(registro, newStatus);
   };
 
@@ -515,7 +533,7 @@ export default function OuvidoriaBackoffice() {
 
       {/* Content */}
       {viewMode === "kanban" && (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
           <div className="flex gap-3 overflow-x-auto pb-4">
             {STATUSES.map(status => {
               const cards = filtered.filter(r => r.status === status);
