@@ -275,7 +275,7 @@ export default function OuvidoriaBackoffice() {
   useEffect(() => { loadRegistros(); loadSlaConfig(); }, [selectedCorretora]);
 
   const loadCorretoras = async () => {
-    const { data } = await supabase.from("corretoras").select("id, nome, slug").order("nome");
+    const { data } = await supabase.from("corretoras").select("id, nome, slug, logo_url").order("nome");
     setCorretoras(data || []);
   };
 
