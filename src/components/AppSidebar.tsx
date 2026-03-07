@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Palette, Briefcase, Headset, Video, MessageSquareWarning } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +8,10 @@ import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useSignedContracts } from "@/hooks/useSignedContracts";
 import { useOuvidoriaPendentes } from "@/hooks/useOuvidoriaPendentes";
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar, SidebarSeparator, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+import { useLocation } from "react-router-dom";
 
 // ---------------- PERMISSÕES DE MENU POR ROLE ----------------
 
@@ -19,374 +21,256 @@ type MenuPermission = {
 };
 type MenuPermissionMap = Record<string, MenuPermission>;
 type RoleType = "admin" | "administrativo" | "comercial" | "lider" | "superintendente";
+
 function useMenuPermissionsForRole(userRole: string | null) {
   const [permissions, setPermissions] = useState<MenuPermissionMap>({});
   useEffect(() => {
     const loadPermissions = async () => {
-      if (!userRole) {
-        setPermissions({});
-        return;
-      }
+      if (!userRole) { setPermissions({}); return; }
       const normalizedRole = userRole.toLowerCase() as RoleType;
       const validRoles: RoleType[] = ["admin", "administrativo", "comercial", "lider", "superintendente"];
-      if (!validRoles.includes(normalizedRole)) {
-        console.warn("Role inválido ou não mapeado em permissões:", userRole);
-        setPermissions({});
-        return;
-      }
+      if (!validRoles.includes(normalizedRole)) { setPermissions({}); return; }
       try {
-        const {
-          data,
-          error
-        } = await supabase.from("role_menu_permissions").select("menu_item, pode_visualizar, pode_editar").eq("role", normalizedRole);
-        if (error) {
-          console.error("Erro ao carregar permissões de menu:", error);
-          setPermissions({});
-          return;
-        }
+        const { data, error } = await supabase
+          .from("role_menu_permissions")
+          .select("menu_item, pode_visualizar, pode_editar")
+          .eq("role", normalizedRole);
+        if (error) { setPermissions({}); return; }
         const map: MenuPermissionMap = {};
         (data || []).forEach((p) => {
-          map[p.menu_item] = {
-            pode_visualizar: p.pode_visualizar,
-            pode_editar: p.pode_editar
-          };
+          map[p.menu_item] = { pode_visualizar: p.pode_visualizar, pode_editar: p.pode_editar };
         });
         setPermissions(map);
-      } catch (err) {
-        console.error("Erro inesperado ao carregar permissões de menu:", err);
-        setPermissions({});
-      }
+      } catch { setPermissions({}); }
     };
     loadPermissions();
   }, [userRole]);
   const canView = (menuId: string) => {
     const perm = permissions[menuId];
-    if (!perm) return true; // sem registro = liberado
+    if (!perm) return true;
     return perm.pode_visualizar;
   };
-  const canEdit = (menuId: string) => {
-    const perm = permissions[menuId];
-    if (!perm) return true;
-    return perm.pode_editar;
-  };
-  return {
-    canView,
-    canEdit
-  };
+  return { canView };
 }
 
-// ---------------- SIDEBAR ----------------
+// ---------------- MENU ITEMS ----------------
 
-export function AppSidebar() {
-  const {
-    signOut,
-    userRole
-  } = useAuth();
-  const {
-    state,
-    toggleSidebar
-  } = useSidebar();
-  const {
-    config
-  } = useAppConfig();
+interface MenuItem {
+  id: string;
+  label: string;
+  to: string;
+  icon: React.ElementType;
+  end?: boolean;
+  badge?: number;
+  group: "nav" | "cadastros" | "ferramentas";
+}
+
+function useMenuItems() {
   const unreadMessages = useUnreadMessages();
   const whatsAppUnread = useWhatsAppUnread();
   const signedContracts = useSignedContracts();
   const ouvidoriaPendentes = useOuvidoriaPendentes();
-  const collapsed = state === "collapsed";
-  const {
-    canView
-  } = useMenuPermissionsForRole(userRole);
-  return <div className="relative">
-      {/* Botão de toggle - fora do sidebar para não ser cortado */}
-      <button onClick={toggleSidebar} aria-label="Alternar sidebar" className="fixed top-6 z-[80] h-6 w-6 rounded-full bg-background border border-border items-center justify-center hover:bg-accent transition-all shadow-sm flex" style={{ left: collapsed ? 'calc(var(--sidebar-width-icon) - 12px)' : 'calc(14rem - 12px)' }}>
-        {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5 text-muted-foreground" /> : <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />}
-      </button>
 
-      <Sidebar collapsible="icon" className="border-r fixed top-0 left-0 h-screen z-[60] overflow-hidden">
-        <SidebarHeader className="border-b p-4">
-          <div className="flex items-center justify-center">
-            {collapsed ? <img src="/images/logo-collapsed.png" alt="Logo" className="h-8 w-8 object-contain" /> : <img src="/images/logo-full.png" alt="Logo" className="h-10 w-auto max-w-[150px] object-contain" />}
-          </div>
-        </SidebarHeader>
+  const items: MenuItem[] = [
+    // Navegação
+    { id: "dashboard", label: "Painel", to: "/", icon: LayoutDashboard, end: true, group: "nav" },
+    { id: "atendimentos", label: "Atendimentos", to: "/atendimentos", icon: ClipboardList, group: "nav" },
+    // Cadastros
+    { id: "corretoras", label: "Associações", to: "/corretoras", icon: Building2, group: "cadastros" },
+    { id: "termos", label: "Termos de Aceite", to: "/termos", icon: FileText, group: "cadastros" },
+    { id: "contatos", label: "Contatos", to: "/contatos", icon: Users, group: "cadastros" },
+    // Ferramentas
+    { id: "sinistros", label: "Sinistros", to: "/sinistros", icon: AlertTriangle, group: "ferramentas" },
+    { id: "lancamentos_financeiros", label: "Financeiro", to: "/financeiro", icon: DollarSign, group: "ferramentas" },
+    { id: "agenda", label: "Agenda", to: "/agenda", icon: Calendar, group: "ferramentas" },
+    { id: "documentos", label: "Documentos", to: "/documentos", icon: FileText, group: "ferramentas" },
+    { id: "emails", label: "Central de Atendimento", to: "/central-atendimento", icon: Headset, badge: whatsAppUnread, group: "ferramentas" },
+    { id: "mensagens", label: "Mensagens", to: "/mensagens", icon: MessageCircle, badge: unreadMessages, group: "ferramentas" },
+    { id: "pid", label: "BI - Indicadores", to: "/pid", icon: TrendingUp, group: "ferramentas" },
+    { id: "ouvidoria", label: "Ouvidoria", to: "/ouvidoria-backoffice", icon: MessageSquareWarning, badge: ouvidoriaPendentes, group: "ferramentas" },
+    { id: "contratos", label: "Uon1 Sign", to: "/uon1sign", icon: FileSignature, badge: signedContracts.count, group: "ferramentas" },
+    { id: "talka", label: "Uon1 Talk", to: "/video", icon: Video, group: "ferramentas" },
+    { id: "comunicados", label: "Comunicados", to: "/comunicados", icon: Megaphone, group: "ferramentas" },
+    { id: "gestao", label: "Gestão", to: "/gestao", icon: Briefcase, group: "ferramentas" },
+    { id: "configuracoes", label: "Configurações", to: "/configuracoes", icon: Settings, group: "ferramentas" },
+  ];
 
-        <SidebarContent>
-          {/* NAVIGAÇÃO */}
-          <SidebarGroup>
-            <SidebarGroupLabel>Navegação</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {/* Dashboard */}
-                {canView("dashboard") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/" end activeClassName="bg-primary text-primary-foreground">
-                        <LayoutDashboard className="h-4 w-4" />
-                        {!collapsed && <span>Painel</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+  return items;
+}
 
-                {/* Atendimentos */}
-                {canView("atendimentos") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/atendimentos" activeClassName="bg-primary text-primary-foreground">
-                        <ClipboardList className="h-4 w-4" />
-                        {!collapsed && <span>Atendimentos</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+// ---------------- SIDEBAR CONTENT ----------------
 
-          <SidebarSeparator />
+function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const { signOut, userRole } = useAuth();
+  const { canView } = useMenuPermissionsForRole(userRole);
+  const items = useMenuItems();
 
-          {/* CADASTROS */}
-          <SidebarGroup>
-            <SidebarGroupLabel>Cadastros</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {/* Associações */}
-                {canView("corretoras") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/corretoras" activeClassName="bg-primary text-primary-foreground">
-                        <Building2 className="h-4 w-4" />
-                        {!collapsed && <span>Associações</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+  const groups = [
+    { key: "nav", label: "Navegação" },
+    { key: "cadastros", label: "Cadastros" },
+    { key: "ferramentas", label: "Ferramentas" },
+  ];
 
-                {/* Termos de Aceite */}
-                {canView("termos") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/termos" activeClassName="bg-primary text-primary-foreground">
-                        <FileText className="h-4 w-4" />
-                        {!collapsed && <span>Termos de Aceite</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+  return (
+    <div className="flex flex-col h-full">
+      {/* Logo */}
+      <div className="border-b border-sidebar-border p-4 flex items-center justify-center">
+        {collapsed ? (
+          <img src="/images/logo-collapsed.png" alt="Logo" className="h-8 w-8 object-contain" />
+        ) : (
+          <img src="/images/logo-full.png" alt="Logo" className="h-10 w-auto max-w-[150px] object-contain" />
+        )}
+      </div>
 
-                {/* Contatos */}
-                {canView("contatos") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/contatos" activeClassName="bg-primary text-primary-foreground">
-                        <Users className="h-4 w-4" />
-                        {!collapsed && <span>Contatos</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+      {/* Menu */}
+      <div className="flex-1 overflow-y-auto py-2 scrollbar-hide">
+        {groups.map((group, gi) => {
+          const groupItems = items.filter((i) => i.group === group.key && canView(i.id));
+          if (groupItems.length === 0) return null;
+          return (
+            <div key={group.key}>
+              {gi > 0 && <div className="mx-3 my-2 border-t border-sidebar-border" />}
+              {!collapsed && (
+                <div className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  {group.label}
+                </div>
+              )}
+              <div className="space-y-0.5 px-2">
+                {groupItems.map((item) => (
+                  <NavLink
+                    key={item.id}
+                    to={item.to}
+                    end={item.end}
+                    onClick={onNavigate}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    activeClassName="bg-primary/10 text-primary font-medium"
+                  >
+                    <div className="relative flex-shrink-0">
+                      <item.icon className="h-4 w-4" />
+                      {collapsed && item.badge && item.badge > 0 ? (
+                        <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white h-4 min-w-4 flex items-center justify-center text-[9px] rounded-full px-0.5 font-bold shadow-sm border border-sidebar-background">
+                          {item.badge > 99 ? "99+" : item.badge}
+                        </span>
+                      ) : null}
+                    </div>
+                    {!collapsed && (
+                      <span className="flex-1 truncate">{item.label}</span>
+                    )}
+                    {!collapsed && item.badge && item.badge > 0 ? (
+                      <Badge className="bg-orange-500 text-white h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5 shadow-sm ml-auto">
+                        {item.badge}
+                      </Badge>
+                    ) : null}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+      {/* Footer */}
+      <div className="border-t border-sidebar-border p-2">
+        <button
+          onClick={() => { signOut(); onNavigate?.(); }}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <LogOut className="h-4 w-4 flex-shrink-0" />
+          {!collapsed && <span>Sair</span>}
+        </button>
+      </div>
+    </div>
+  );
+}
 
-          <SidebarSeparator />
+// ---------------- SIDEBAR PRINCIPAL ----------------
 
-          {/* FERRAMENTAS */}
-          <SidebarGroup>
-            <SidebarGroupLabel>Ferramentas</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {/* Sinistros */}
-                {canView("sinistros") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/sinistros" activeClassName="bg-primary text-primary-foreground">
-                        <AlertTriangle className="h-4 w-4" />
-                        {!collapsed && <span>Sinistros</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+export function AppSidebar() {
+  const isMobile = useIsMobile();
+  const [expanded, setExpanded] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const location = useLocation();
 
-                {/* Financeiro */}
-                {canView("lancamentos_financeiros") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/financeiro" activeClassName="bg-primary text-primary-foreground">
-                        <DollarSign className="h-4 w-4" />
-                        {!collapsed && <span>Financeiro</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+  // Fechar mobile sidebar ao navegar
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
-                {/* Agenda */}
-                {canView("agenda") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/agenda" activeClassName="bg-primary text-primary-foreground">
-                        <Calendar className="h-4 w-4" />
-                        {!collapsed && <span>Agenda</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+  if (isMobile) {
+    return (
+      <>
+        {/* Botão hamburger flutuante no header */}
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="fixed top-3 left-3 z-[100] h-10 w-10 rounded-xl bg-card border border-border shadow-md flex items-center justify-center hover:bg-accent transition-colors"
+          aria-label="Abrir menu"
+        >
+          <Menu className="h-5 w-5 text-foreground" />
+        </button>
 
-                {/* Documentos */}
-                {canView("documentos") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/documentos" activeClassName="bg-primary text-primary-foreground">
-                        <FileText className="h-4 w-4" />
-                        {!collapsed && <span>Documentos</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+        {/* Overlay */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
 
-                {/* Central de Atendimento */}
-                {canView("emails") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/central-atendimento" activeClassName="bg-primary text-primary-foreground">
-                        <div className="relative flex items-center justify-between w-full">
-                          <div className="flex items-center gap-2">
-                            <div className="relative">
-                              <Headset className="h-4 w-4" />
-                              {collapsed && whatsAppUnread > 0 &&
-                          <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white h-4 min-w-4 flex items-center justify-center text-[9px] rounded-full px-1 font-bold shadow-sm border border-background">
-                                  {whatsAppUnread > 99 ? '99+' : whatsAppUnread}
-                                </span>
-                          }
-                            </div>
-                            {!collapsed && <span>Central de Atendimento</span>}
-                          </div>
-                          {!collapsed && whatsAppUnread > 0 &&
-                      <Badge className="bg-orange-500 text-white h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5 shadow-sm">
-                              {whatsAppUnread}
-                            </Badge>
-                      }
-                        </div>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+        {/* Sidebar mobile overlay */}
+        <div
+          className={cn(
+            "fixed inset-y-0 left-0 z-[120] w-72 bg-card border-r border-border shadow-2xl transition-transform duration-300 ease-out",
+            mobileOpen ? "translate-x-0" : "-translate-x-full"
+          )}
+        >
+          {/* Botão fechar */}
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="absolute top-3 right-3 h-8 w-8 rounded-lg flex items-center justify-center hover:bg-accent transition-colors"
+            aria-label="Fechar menu"
+          >
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <SidebarMenuContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
+        </div>
+      </>
+    );
+  }
 
-                {/* Mensagens */}
-                {canView("mensagens") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/mensagens" activeClassName="bg-primary text-primary-foreground">
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center gap-2">
-                            <MessageCircle className="h-4 w-4" />
-                            {!collapsed && <span>Mensagens</span>}
-                          </div>
-                          {!collapsed && unreadMessages > 0 && <Badge className="bg-orange-500 text-white ml-auto h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
-                              {unreadMessages}
-                            </Badge>}
-                        </div>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+  // Desktop: sidebar flutuante
+  return (
+    <>
+      {/* Sidebar flutuante desktop */}
+      <div
+        onMouseEnter={() => setExpanded(true)}
+        onMouseLeave={() => setExpanded(false)}
+        className={cn(
+          "fixed inset-y-0 left-0 z-[60] flex flex-col bg-card/95 backdrop-blur-md border-r border-border shadow-lg transition-all duration-300 ease-in-out",
+          expanded ? "w-60" : "w-[3.5rem]"
+        )}
+        style={{ borderRadius: expanded ? "0 1rem 1rem 0" : undefined }}
+      >
+        {/* Toggle button */}
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="absolute -right-3 top-6 z-[70] h-6 w-6 rounded-full bg-card border border-border flex items-center justify-center hover:bg-accent transition-colors shadow-sm"
+          aria-label="Alternar sidebar"
+        >
+          {expanded ? (
+            <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />
+          ) : (
+            <PanelLeftOpen className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+        </button>
 
-                {/* BI - Indicadores */}
-                {canView("pid") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/pid" activeClassName="bg-primary text-primary-foreground">
-                        <TrendingUp className="h-4 w-4" />
-                        {!collapsed && <span>BI - Indicadores</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
+        <SidebarMenuContent collapsed={!expanded} />
+      </div>
 
-                {/* Ouvidoria */}
-                {canView("ouvidoria") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/ouvidoria-backoffice" activeClassName="bg-primary text-primary-foreground">
-                        <div className="relative flex items-center justify-between w-full">
-                          <div className="flex items-center gap-2">
-                            <div className="relative">
-                              <MessageSquareWarning className="h-4 w-4" />
-                              {collapsed && ouvidoriaPendentes > 0 &&
-                          <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white h-4 min-w-4 flex items-center justify-center text-[9px] rounded-full px-1 font-bold">
-                                  {ouvidoriaPendentes > 99 ? '99+' : ouvidoriaPendentes}
-                                </span>
-                          }
-                            </div>
-                            {!collapsed && <span>Ouvidoria</span>}
-                          </div>
-                          {!collapsed && ouvidoriaPendentes > 0 &&
-                      <Badge className="bg-orange-500 text-white h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
-                              {ouvidoriaPendentes}
-                            </Badge>
-                      }
-                        </div>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
-
-                {/* Uon1Sign - visibilidade controlada pela tabela role_menu_permissions */}
-                {canView("contratos") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/uon1sign" activeClassName="bg-primary text-primary-foreground">
-                        <div className="relative flex items-center justify-between w-full">
-                          <div className="flex items-center gap-2">
-                            <div className="relative">
-                              <FileSignature className="h-4 w-4" />
-                              {collapsed && signedContracts.count > 0 &&
-                          <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white h-4 min-w-4 flex items-center justify-center text-[9px] rounded-full px-1 font-bold">
-                                  {signedContracts.count > 99 ? '99+' : signedContracts.count}
-                                </span>
-                          }
-                            </div>
-                            {!collapsed && <span>Uon1 Sign</span>}
-                          </div>
-                          {!collapsed && signedContracts.count > 0 &&
-                      <Badge className="bg-orange-500 text-white h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
-                              {signedContracts.count}
-                            </Badge>
-                      }
-                        </div>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
-
-                {/* UON1 Talk */}
-                {canView("talka") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/video" activeClassName="bg-primary text-primary-foreground">
-                        <Video className="h-4 w-4" />
-                        {!collapsed && <span>Uon1 Talk</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
-
-                {/* Comunicados - visibilidade controlada pela tabela role_menu_permissions */}
-                {canView("comunicados") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/comunicados" activeClassName="bg-primary text-primary-foreground">
-                        <Megaphone className="h-4 w-4" />
-                        {!collapsed && <span>Comunicados</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
-
-                {/* Gestão */}
-                {canView("gestao") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/gestao" activeClassName="bg-primary text-primary-foreground">
-                        <Briefcase className="h-4 w-4" />
-                        {!collapsed && <span>Gestão</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
-
-
-                {/* Configurações */}
-                {canView("configuracoes") && <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/configuracoes" activeClassName="bg-primary text-primary-foreground">
-                        <Settings className="h-4 w-4" />
-                        {!collapsed && <span>Configurações</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-
-        <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton onClick={signOut} className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                <LogOut className="h-4 w-4" />
-                {!collapsed && <span>Sair</span>}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-    </div>;
+      {/* Spacer para empurrar conteúdo */}
+      <div
+        className="flex-shrink-0 transition-all duration-300 ease-in-out"
+        style={{ width: expanded ? "15rem" : "3.5rem" }}
+      />
+    </>
+  );
 }

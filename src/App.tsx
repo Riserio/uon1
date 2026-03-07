@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { usePontoAlertas } from "@/hooks/usePontoAlertas";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
-import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
 import { PortalLayoutProvider } from "./contexts/PortalLayoutContext";
@@ -107,14 +107,8 @@ if (typeof window !== 'undefined') {
 }
 
 function MainContent({ children }: { children: React.ReactNode }) {
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
-  
   return (
-    <main 
-      className="flex-1 overflow-auto transition-[margin] duration-200 ease-linear"
-      style={{ marginLeft: isCollapsed ? '3.5rem' : '16rem' }}
-    >
+    <main className="flex-1 overflow-auto w-full">
       {children}
     </main>
   );
@@ -144,14 +138,12 @@ function AppLayout() {
   useVisitorTracking();
   
   return (
-    <SidebarProvider defaultOpen={false}>
-      <div className="min-h-screen w-full flex">
-        <AppSidebar />
-        <MainContent>
-          <Outlet />
-        </MainContent>
-      </div>
-    </SidebarProvider>
+    <div className="min-h-screen w-full">
+      <AppSidebar />
+      <MainContent>
+        <Outlet />
+      </MainContent>
+    </div>
   );
 }
 
