@@ -277,6 +277,18 @@ export default function OuvidoriaBackoffice() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
+  const collisionDetectionStrategy: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args);
+    const pointerColumns = pointerCollisions.filter((c) => STATUSES.includes(String(c.id)));
+    if (pointerColumns.length > 0) return pointerColumns;
+
+    const rectCollisions = rectIntersection(args);
+    const rectColumns = rectCollisions.filter((c) => STATUSES.includes(String(c.id)));
+    if (rectColumns.length > 0) return rectColumns;
+
+    return pointerCollisions.length > 0 ? pointerCollisions : rectCollisions;
+  };
+
   useEffect(() => { loadCorretoras(); }, []);
   useEffect(() => { loadRegistros(); loadSlaConfig(); }, [selectedCorretora]);
 
