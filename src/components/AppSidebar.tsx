@@ -237,18 +237,15 @@ export function AppSidebar() {
     );
   }
 
-  // Desktop: sidebar flutuante
+  // Desktop: sidebar flutuante fixa
   return (
     <>
       {/* Sidebar flutuante desktop */}
       <div
-        onMouseEnter={() => setExpanded(true)}
-        onMouseLeave={() => setExpanded(false)}
         className={cn(
           "fixed inset-y-0 left-0 z-[60] flex flex-col bg-card/95 backdrop-blur-md border-r border-border shadow-lg transition-all duration-300 ease-in-out",
           expanded ? "w-60" : "w-[3.5rem]"
         )}
-        style={{ borderRadius: expanded ? "0 1rem 1rem 0" : undefined }}
       >
         {/* Toggle button */}
         <button
@@ -265,12 +262,6 @@ export function AppSidebar() {
 
         <SidebarMenuContent collapsed={!expanded} />
       </div>
-
-      {/* Spacer para empurrar conteúdo */}
-      <div
-        className="flex-shrink-0 transition-all duration-300 ease-in-out"
-        style={{ width: expanded ? "15rem" : "3.5rem" }}
-      />
     </>
   );
 }
