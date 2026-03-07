@@ -1,0 +1,2 @@
+ALTER TABLE public.email_templates DROP CONSTRAINT IF EXISTS email_templates_tipo_check;
+ALTER TABLE public.email_templates ADD CONSTRAINT email_templates_tipo_check CHECK (tipo IN ('atendimento', 'alerta_performance', 'recuperacao', 'boas_vindas', 'relatorio', 'convite_reuniao', 'ouvidoria', 'ouvidoria_alerta', 'ouvidoria_finalizado'));
