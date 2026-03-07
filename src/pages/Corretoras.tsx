@@ -349,7 +349,16 @@ export default function Corretoras() {
                     <Input
                       id="nome"
                       value={formData.nome || ''}
-                      onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                      onChange={(e) => {
+                        const nome = e.target.value;
+                        const autoSlug = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                        const updates: Partial<Corretora> = { ...formData, nome };
+                        // Auto-preencher slug se ainda não foi editado manualmente
+                        if (!formData.slug || formData.slug === (formData.nome || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')) {
+                          updates.slug = autoSlug;
+                        }
+                        setFormData(updates);
+                      }}
                     />
                   </div>
                   <div className="grid gap-2">
