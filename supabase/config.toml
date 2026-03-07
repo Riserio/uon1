@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.whatsapp-scheduled-sender]
 verify_jwt = false
+
+[functions.enviar-email-ouvidoria]
+verify_jwt = false
