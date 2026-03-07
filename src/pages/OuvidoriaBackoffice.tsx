@@ -349,8 +349,18 @@ export default function OuvidoriaBackoffice() {
 
   const updateStatus = async (registro: Registro, novoStatus: string) => {
     const statusAnterior = registro.status;
+
+    // Optimistic UI for smoother drag experience
+    setRegistros(prev => prev.map(r => r.id === registro.id ? { ...r, status: novoStatus, status_changed_at: new Date().toISOString() } : r));
+
     const { error } = await supabase.from("ouvidoria_registros").update({ status: novoStatus } as any).eq("id", registro.id);
-    if (error) { toast.error("Erro ao atualizar status"); return; }
+    if (error) {
+      // rollback
+      setRegistros(prev => prev.map(r => r.id === registro.id ? { ...r, status: statusAnterior } : r));
+      toast.error("Erro ao atualizar status");
+      return;
+    }
+
     await supabase.from("ouvidoria_historico").insert({ registro_id: registro.id, status_anterior: statusAnterior, status_novo: novoStatus, user_id: user?.id, user_nome: user?.email || "Sistema" });
     
     // Initialize checkpoints for new stage if none exist
