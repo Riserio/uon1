@@ -59,7 +59,7 @@ interface SMTPConfig {
   from_name: string;
 }
 
-type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao";
+type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_finalizado";
 type TemplateFrequencia = "manual" | "diario" | "semanal" | "mensal";
 
 interface EmailTemplate {
