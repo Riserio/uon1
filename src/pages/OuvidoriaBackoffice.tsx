@@ -185,7 +185,7 @@ function KanbanColumn({ status, children, count, slaLabel, isActiveDropZone }: {
             <span className="text-[10px] text-muted-foreground font-medium">{slaLabel}</span>
           )}
         </div>
-        <div className={`flex-1 p-3 space-y-2.5 overflow-y-auto min-h-[200px] max-h-[calc(100vh-340px)] transition-colors duration-75 ${isOver ? 'bg-primary/5 ring-2 ring-primary/20 ring-inset' : ''}`}>
+        <div className={`flex-1 p-3 space-y-2.5 overflow-y-auto min-h-[200px] max-h-[calc(100vh-340px)] transition-colors duration-75 ${(isOver || isActiveDropZone) ? 'bg-primary/5 ring-2 ring-primary/20 ring-inset' : ''}`}>
           {children}
         </div>
       </div>
