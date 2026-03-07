@@ -53,7 +53,7 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase
           .from("corretora_usuarios")
-          .select("corretora_id, modulos_bi, acesso_ouvidoria, corretoras(id, nome, logo_url)")
+          .select("corretora_id, modulos_bi, acesso_ouvidoria, corretoras(id, nome, slug, logo_url)")
           .eq("profile_id", user.id)
           .eq("ativo", true);
 
