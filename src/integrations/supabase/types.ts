@@ -3869,6 +3869,7 @@ export type Database = {
           prioridade: string | null
           protocolo: string
           responsavel_id: string | null
+          resposta_final: string | null
           satisfacao_nota: number | null
           setor_responsavel: string | null
           status: string
@@ -3898,6 +3899,7 @@ export type Database = {
           prioridade?: string | null
           protocolo: string
           responsavel_id?: string | null
+          resposta_final?: string | null
           satisfacao_nota?: number | null
           setor_responsavel?: string | null
           status?: string
@@ -3927,6 +3929,7 @@ export type Database = {
           prioridade?: string | null
           protocolo?: string
           responsavel_id?: string | null
+          resposta_final?: string | null
           satisfacao_nota?: number | null
           setor_responsavel?: string | null
           status?: string

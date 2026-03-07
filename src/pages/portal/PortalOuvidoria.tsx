@@ -75,7 +75,7 @@ type Registro = {
   possivel_motivo: string | null; analista_id: string | null;
   satisfacao_nota: number | null; status_changed_at: string | null;
   anonimo: boolean | null; prioridade: string | null; canal_retorno: string | null;
-  anexos_urls: string[] | null;
+  anexos_urls: string[] | null; resposta_final: string | null;
 };
 
 type CheckpointRow = {
@@ -193,6 +193,22 @@ export default function PortalOuvidoria() {
     await ensureCheckpoints(registro.id, novoStatus);
     toast.success(`Status alterado para ${novoStatus}`);
     setPendingStatusChange(null);
+
+    // Auto-send finalization email when resolved or no resolution
+    if (["Resolvido", "Sem Resolução"].includes(novoStatus) && registro.email && !registro.anonimo) {
+      const resposta = registro.resposta_final || "";
+      const tipoLabel = TIPO_LABELS[registro.tipo] || registro.tipo;
+      const statusFinal = novoStatus === "Resolvido" ? "Resolvida" : "Encerrada sem resolução";
+      supabase.functions.invoke("enviar-email-smtp", {
+        body: {
+          to: registro.email,
+          subject: `Sua manifestação foi finalizada - Protocolo ${registro.protocolo}`,
+          html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.1)"><div style="background:#1e40af;padding:30px;text-align:center"><h1 style="color:#fff;margin:0;font-size:24px">Ouvidoria</h1><p style="color:rgba(255,255,255,0.85);margin:5px 0 0">${corretora.nome}</p></div><div style="padding:30px"><h2 style="color:#333;margin:0 0 15px">Olá, ${registro.nome}!</h2><p style="color:#555;line-height:1.6">Sua manifestação foi <strong>${statusFinal}</strong>.</p><div style="background:#f8f9fa;border-radius:8px;padding:20px;margin:20px 0"><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 0;color:#888;width:120px">Protocolo:</td><td style="padding:8px 0;color:#333;font-weight:bold;font-size:18px">${registro.protocolo}</td></tr><tr><td style="padding:8px 0;color:#888">Tipo:</td><td style="padding:8px 0;color:#333">${tipoLabel}</td></tr><tr><td style="padding:8px 0;color:#888">Status:</td><td style="padding:8px 0;color:#333;font-weight:bold">${novoStatus}</td></tr></table></div>${resposta ? `<div style="background:#e3f2fd;border-left:4px solid #1e88e5;padding:15px;border-radius:0 8px 8px 0;margin:20px 0"><p style="color:#1565c0;margin:0 0 8px;font-weight:bold;font-size:14px">📝 Resposta da Ouvidoria:</p><p style="color:#333;margin:0;line-height:1.6;font-size:14px">${resposta.replace(/\n/g, '<br>')}</p></div>` : ''}<p style="color:#555;line-height:1.6">Em breve entraremos em contato pelo canal de sua preferência.</p></div></div></body></html>`,
+        },
+      }).catch(() => {});
+      toast.info("E-mail de finalização enviado ao associado");
+    }
+
     // Update local state without full reload (preserves current tab/view)
     setRegistros(prev => prev.map(r => r.id === registro.id ? { ...r, status: novoStatus, status_changed_at: new Date().toISOString() } : r));
     // Reload checkpoints for the moved registro
@@ -478,10 +494,30 @@ export default function PortalOuvidoria() {
                       </div>
                     )}
 
-                    {/* Responder ao associado */}
+                    {/* Resposta ao Associado */}
                     {!selectedRegistro.anonimo && (selectedRegistro.email || selectedRegistro.telefone) && (
                       <div className="rounded-xl border p-4 space-y-3 bg-muted/20">
                         <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Responder ao Associado</span>
+                        
+                        {/* Campo de resposta */}
+                        {canEdit && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">Resposta (será enviada ao associado ao finalizar)</Label>
+                            <Textarea
+                              defaultValue={selectedRegistro.resposta_final || ""}
+                              onBlur={e => updateField(selectedRegistro.id, "resposta_final", e.target.value)}
+                              placeholder="Digite a resposta que será enviada ao associado quando a manifestação for finalizada..."
+                              rows={4}
+                            />
+                          </div>
+                        )}
+                        {!canEdit && selectedRegistro.resposta_final && (
+                          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                            <p className="text-xs font-medium text-blue-700 mb-1">Resposta:</p>
+                            <p className="text-sm text-blue-900 whitespace-pre-wrap">{selectedRegistro.resposta_final}</p>
+                          </div>
+                        )}
+
                         <div className="flex flex-wrap gap-2">
                           {selectedRegistro.email && (
                             <Button
@@ -490,7 +526,8 @@ export default function PortalOuvidoria() {
                               className="gap-2 rounded-full border-blue-400 text-blue-600 hover:bg-blue-50 hover:border-blue-500"
                               onClick={() => {
                                 const subject = encodeURIComponent(`Ouvidoria - ${selectedRegistro.protocolo}`);
-                                const body = encodeURIComponent(`Olá ${selectedRegistro.nome},\n\nReferente à sua manifestação ${selectedRegistro.protocolo}:\n\n`);
+                                const resposta = selectedRegistro.resposta_final || "";
+                                const body = encodeURIComponent(`Olá ${selectedRegistro.nome},\n\nReferente à sua manifestação ${selectedRegistro.protocolo}:\n\n${resposta}`);
                                 window.open(`mailto:${selectedRegistro.email}?subject=${subject}&body=${body}`, "_blank");
                               }}
                             >
@@ -504,10 +541,11 @@ export default function PortalOuvidoria() {
                                 size="sm"
                                 className="gap-2 rounded-full border-green-400 text-green-600 hover:bg-green-50 hover:border-green-500"
                                 onClick={() => {
-                                  openWhatsApp({
-                                    phone: selectedRegistro.telefone!,
-                                    message: `Olá ${selectedRegistro.nome}, tudo bem? Entramos em contato referente à sua manifestação na Ouvidoria (Protocolo: ${selectedRegistro.protocolo}).`,
-                                  });
+                                  const resposta = selectedRegistro.resposta_final || "";
+                                  const msg = resposta
+                                    ? `Olá ${selectedRegistro.nome}, tudo bem? Referente à sua manifestação na Ouvidoria (Protocolo: ${selectedRegistro.protocolo}):\n\n${resposta}`
+                                    : `Olá ${selectedRegistro.nome}, tudo bem? Entramos em contato referente à sua manifestação na Ouvidoria (Protocolo: ${selectedRegistro.protocolo}).`;
+                                  openWhatsApp({ phone: selectedRegistro.telefone!, message: msg });
                                 }}
                               >
                                 <MessageCircle className="h-4 w-4" /> WhatsApp

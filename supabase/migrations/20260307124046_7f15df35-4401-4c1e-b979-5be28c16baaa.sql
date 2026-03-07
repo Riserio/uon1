@@ -1,0 +1,1 @@
+ALTER TABLE public.ouvidoria_registros ADD COLUMN IF NOT EXISTS resposta_final text;

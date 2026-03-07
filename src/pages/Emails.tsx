@@ -59,7 +59,7 @@ interface SMTPConfig {
   from_name: string;
 }
 
-type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao";
+type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_finalizado";
 type TemplateFrequencia = "manual" | "diario" | "semanal" | "mensal";
 
 interface EmailTemplate {
@@ -1250,6 +1250,8 @@ export default function Emails() {
                           <option value="convite_reuniao">Convite de Reunião</option>
                           <option value="alerta_performance">Alerta de Performance</option>
                           <option value="recuperacao">Recuperação de Senha</option>
+                          <option value="ouvidoria">Ouvidoria - Recebimento</option>
+                          <option value="ouvidoria_finalizado">Ouvidoria - Finalizado</option>
                         </select>
                       </div>
 
@@ -1313,6 +1315,8 @@ export default function Emails() {
                         {novoTemplate.tipo === "convite_reuniao" && " {nome_convidado}, {nome_reuniao}, {data_reuniao}, {link_reuniao}, {organizador}, {descricao}, {duracao}, {rsvp_sim}, {rsvp_talvez}, {rsvp_nao}, {google_calendar_url}"}
                         {novoTemplate.tipo === "alerta_performance" && " {nome_responsavel}, {tipo_alerta}, {valor_atual}, {meta}"}
                         {novoTemplate.tipo === "recuperacao" && " {link_recuperacao}, {nome_usuario}"}
+                        {novoTemplate.tipo === "ouvidoria" && " {protocolo}, {nome_cliente}, {nome_associacao}, {tipo}, {data}, {cor_primaria}"}
+                        {novoTemplate.tipo === "ouvidoria_finalizado" && " {protocolo}, {nome_cliente}, {nome_associacao}, {tipo}, {status}, {resposta}, {data}, {cor_primaria}"}
                       </p>
                     </div>
 
