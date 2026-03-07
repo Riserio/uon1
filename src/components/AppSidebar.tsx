@@ -323,7 +323,7 @@ export function AppSidebar() {
                             {!collapsed && <span>Uon1 Sign</span>}
                           </div>
                           {!collapsed && signedContracts.count > 0 &&
-                      <Badge className="bg-emerald-500 text-white h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
+                      <Badge className="bg-orange-500 text-white h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
                               {signedContracts.count}
                             </Badge>
                       }
