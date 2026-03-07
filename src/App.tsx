@@ -139,7 +139,7 @@ function AppLayout() {
   
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="min-h-screen w-full flex">
+      <div className="min-h-screen w-full">
         <AppSidebar />
         <MainContent>
           <Outlet />
