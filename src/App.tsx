@@ -138,14 +138,12 @@ function AppLayout() {
   useVisitorTracking();
   
   return (
-    <SidebarProvider defaultOpen={false}>
-      <div className="min-h-screen w-full">
-        <AppSidebar />
-        <MainContent>
-          <Outlet />
-        </MainContent>
-      </div>
-    </SidebarProvider>
+    <div className="min-h-screen w-full">
+      <AppSidebar />
+      <MainContent>
+        <Outlet />
+      </MainContent>
+    </div>
   );
 }
 
