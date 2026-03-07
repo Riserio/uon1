@@ -98,7 +98,7 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
 
         const associacaoParam = searchParams.get("associacao");
         if (associacaoParam) {
-          const found = validas.find(c => c.id === associacaoParam);
+          const found = validas.find(c => c.id === associacaoParam || c.slug === associacaoParam);
           if (found) {
             setCorretora(found);
             if (!found.modulos_bi.includes('indicadores')) {
