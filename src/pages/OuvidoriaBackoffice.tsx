@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Search, Eye, LayoutGrid, List, Settings2, BarChart3, AlertTriangle, Clock, CheckCircle2, XCircle, GripVertical, MessageCircle, Phone, Mail } from "lucide-react";
+import { Search, Eye, LayoutGrid, List, Settings2, BarChart3, AlertTriangle, Clock, CheckCircle2, XCircle, GripVertical, MessageCircle, Phone, Mail, MessageSquareWarning } from "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import { format, differenceInMinutes, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -519,9 +519,14 @@ export default function OuvidoriaBackoffice() {
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Ouvidoria</h1>
-          <p className="text-muted-foreground">Gestão de manifestações</p>
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+            <MessageSquareWarning className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Ouvidoria</h1>
+            <p className="text-muted-foreground">Gestão de manifestações</p>
+          </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
           <Settings2 className="h-4 w-4 mr-1" /> Configurar
