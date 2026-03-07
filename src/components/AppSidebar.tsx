@@ -284,8 +284,24 @@ export function AppSidebar() {
                 {canView("ouvidoria") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink to="/ouvidoria-backoffice" activeClassName="bg-primary text-primary-foreground">
-                        <MessageSquareWarning className="h-4 w-4" />
-                        {!collapsed && <span>Ouvidoria</span>}
+                        <div className="relative flex items-center justify-between w-full">
+                          <div className="flex items-center gap-2">
+                            <div className="relative">
+                              <MessageSquareWarning className="h-4 w-4" />
+                              {collapsed && ouvidoriaPendentes > 0 &&
+                          <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white h-4 min-w-4 flex items-center justify-center text-[9px] rounded-full px-1 font-bold">
+                                  {ouvidoriaPendentes > 99 ? '99+' : ouvidoriaPendentes}
+                                </span>
+                          }
+                            </div>
+                            {!collapsed && <span>Ouvidoria</span>}
+                          </div>
+                          {!collapsed && ouvidoriaPendentes > 0 &&
+                      <Badge className="bg-orange-500 text-white h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
+                              {ouvidoriaPendentes}
+                            </Badge>
+                      }
+                        </div>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
