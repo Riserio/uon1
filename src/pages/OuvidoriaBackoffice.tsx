@@ -14,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Search, Eye, LayoutGrid, List, Settings2, BarChart3, AlertTriangle, Clock, CheckCircle2, XCircle, GripVertical } from "lucide-react";
+import { Search, Eye, LayoutGrid, List, Settings2, BarChart3, AlertTriangle, Clock, CheckCircle2, XCircle, GripVertical, MessageCircle, Phone, Mail } from "lucide-react";
+import { openWhatsApp } from "@/utils/whatsapp";
 import { format, differenceInMinutes, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import OuvidoriaConfigDialog from "@/components/ouvidoria/OuvidoriaConfigDialog";
@@ -656,15 +657,52 @@ export default function OuvidoriaBackoffice() {
                     </div>
 
                     {/* Resposta ao Associado */}
-                    <div className="space-y-1.5">
-                      <Label className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Resposta ao Associado</Label>
-                      <Textarea
-                        defaultValue={selectedRegistro.resposta_final || ""}
-                        onBlur={e => updateField(selectedRegistro.id, "resposta_final", e.target.value)}
-                        placeholder="Digite a resposta que será enviada ao associado quando a manifestação for finalizada..."
-                        rows={4}
-                      />
-                      <p className="text-[10px] text-muted-foreground">Esta resposta será enviada automaticamente por e-mail e carregada no WhatsApp ao finalizar.</p>
+                    <div className="rounded-xl border p-4 space-y-3 bg-muted/20">
+                      <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Responder ao Associado</span>
+                      <div className="space-y-1.5">
+                        <Textarea
+                          defaultValue={selectedRegistro.resposta_final || ""}
+                          onBlur={e => updateField(selectedRegistro.id, "resposta_final", e.target.value)}
+                          placeholder="Digite a resposta que será enviada ao associado quando a manifestação for finalizada..."
+                          rows={4}
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {selectedRegistro.telefone && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2 rounded-full border-green-400 text-green-600 hover:bg-green-50 hover:border-green-500"
+                              onClick={() => {
+                                const resposta = selectedRegistro.resposta_final || "";
+                                const msg = resposta
+                                  ? `Olá ${selectedRegistro.nome}, tudo bem? Referente à sua manifestação na Ouvidoria (Protocolo: ${selectedRegistro.protocolo}):\n\n${resposta}`
+                                  : `Olá ${selectedRegistro.nome}, tudo bem? Entramos em contato referente à sua manifestação na Ouvidoria (Protocolo: ${selectedRegistro.protocolo}).`;
+                                openWhatsApp({ phone: selectedRegistro.telefone!, message: msg });
+                              }}
+                            >
+                              <MessageCircle className="h-4 w-4" /> WhatsApp
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2 rounded-full border-orange-400 text-orange-600 hover:bg-orange-50 hover:border-orange-500"
+                              asChild
+                            >
+                              <a href={`tel:${selectedRegistro.telefone.replace(/\D/g, "")}`}>
+                                <Phone className="h-4 w-4" /> Ligar
+                              </a>
+                            </Button>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Mail className="h-3.5 w-3.5 text-blue-500" />
+                        <span>O e-mail será enviado <strong>automaticamente</strong> ao finalizar a manifestação (Resolvido / Sem Resolução).</span>
+                      </div>
                     </div>
 
                     {/* Editable fields */}

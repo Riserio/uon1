@@ -520,21 +520,6 @@ export default function PortalOuvidoria() {
                         )}
 
                         <div className="flex flex-wrap gap-2">
-                          {selectedRegistro.email && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-2 rounded-full border-blue-400 text-blue-600 hover:bg-blue-50 hover:border-blue-500"
-                              onClick={() => {
-                                const subject = encodeURIComponent(`Ouvidoria - ${selectedRegistro.protocolo}`);
-                                const resposta = selectedRegistro.resposta_final || "";
-                                const body = encodeURIComponent(`Olá ${selectedRegistro.nome},\n\nReferente à sua manifestação ${selectedRegistro.protocolo}:\n\n${resposta}`);
-                                window.open(`mailto:${selectedRegistro.email}?subject=${subject}&body=${body}`, "_blank");
-                              }}
-                            >
-                              <Mail className="h-4 w-4" /> E-mail
-                            </Button>
-                          )}
                           {selectedRegistro.telefone && (
                             <>
                               <Button
@@ -564,6 +549,12 @@ export default function PortalOuvidoria() {
                             </>
                           )}
                         </div>
+
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <Mail className="h-3.5 w-3.5 text-blue-500" />
+                          <span>O e-mail será enviado <strong>automaticamente</strong> ao finalizar a manifestação (Resolvido / Sem Resolução).</span>
+                        </div>
+
                         {selectedRegistro.canal_retorno && (
                           <p className="text-[11px] text-muted-foreground">
                             Canal preferido pelo associado: <strong>{({ email: "E-mail", whatsapp: "WhatsApp", ligacao: "Ligação" } as Record<string, string>)[selectedRegistro.canal_retorno] || selectedRegistro.canal_retorno}</strong>
