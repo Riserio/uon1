@@ -478,6 +478,61 @@ export default function PortalOuvidoria() {
                       </div>
                     )}
 
+                    {/* Responder ao associado */}
+                    {!selectedRegistro.anonimo && (selectedRegistro.email || selectedRegistro.telefone) && (
+                      <div className="rounded-xl border p-4 space-y-3 bg-muted/20">
+                        <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Responder ao Associado</span>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedRegistro.email && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2 rounded-full"
+                              onClick={() => {
+                                const subject = encodeURIComponent(`Ouvidoria - ${selectedRegistro.protocolo}`);
+                                const body = encodeURIComponent(`Olá ${selectedRegistro.nome},\n\nReferente à sua manifestação ${selectedRegistro.protocolo}:\n\n`);
+                                window.open(`mailto:${selectedRegistro.email}?subject=${subject}&body=${body}`, "_blank");
+                              }}
+                            >
+                              <Mail className="h-4 w-4" /> E-mail
+                            </Button>
+                          )}
+                          {selectedRegistro.telefone && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-2 rounded-full"
+                                onClick={() => {
+                                  openWhatsApp({
+                                    phone: selectedRegistro.telefone!,
+                                    message: `Olá ${selectedRegistro.nome}, tudo bem? Entramos em contato referente à sua manifestação na Ouvidoria (Protocolo: ${selectedRegistro.protocolo}).`,
+                                  });
+                                }}
+                              >
+                                <MessageCircle className="h-4 w-4" /> WhatsApp
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-2 rounded-full"
+                                asChild
+                              >
+                                <a href={`tel:${selectedRegistro.telefone.replace(/\D/g, "")}`}>
+                                  <Phone className="h-4 w-4" /> Ligar
+                                </a>
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                        {selectedRegistro.canal_retorno && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Canal preferido pelo associado: <strong>{({ email: "E-mail", whatsapp: "WhatsApp", ligacao: "Ligação" } as Record<string, string>)[selectedRegistro.canal_retorno] || selectedRegistro.canal_retorno}</strong>
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Descrição */}
                     <div className="rounded-xl bg-muted/40 border p-4">
                       <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Descrição</span>
