@@ -231,7 +231,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(kpis.repassePago)}</div>
+                <div className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(kpis.repassePago)}</div>
                 <p className="text-xs text-muted-foreground">Pendente: {formatCurrency(kpis.repassePendente)}</p>
               </CardContent>
             </Card>

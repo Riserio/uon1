@@ -219,7 +219,7 @@ export function AppSidebar() {
       <>
         <button
           onClick={() => setMobileOpen(true)}
-          className="fixed top-3 left-3 z-[100] h-10 w-10 rounded-xl bg-card border border-border shadow-md flex items-center justify-center hover:bg-accent transition-colors"
+          className="fixed top-3 right-3 z-[100] h-10 w-10 rounded-xl bg-card border border-border shadow-md flex items-center justify-center hover:bg-accent transition-colors"
           aria-label="Abrir menu"
         >
           <Menu className="h-5 w-5 text-foreground" />
@@ -234,13 +234,13 @@ export function AppSidebar() {
 
         <div
           className={cn(
-            "fixed inset-y-0 left-0 z-[120] w-72 bg-card border-r border-border shadow-2xl transition-transform duration-300 ease-out rounded-r-2xl",
-            mobileOpen ? "translate-x-0" : "-translate-x-full"
+            "fixed inset-y-0 right-0 z-[120] w-72 bg-card border-l border-border shadow-2xl transition-transform duration-300 ease-out rounded-l-2xl",
+            mobileOpen ? "translate-x-0" : "translate-x-full"
           )}
         >
           <button
             onClick={() => setMobileOpen(false)}
-            className="absolute top-3 right-3 h-8 w-8 rounded-lg flex items-center justify-center hover:bg-accent transition-colors"
+            className="absolute top-3 left-3 h-8 w-8 rounded-lg flex items-center justify-center hover:bg-accent transition-colors"
             aria-label="Fechar menu"
           >
             <X className="h-4 w-4 text-muted-foreground" />
