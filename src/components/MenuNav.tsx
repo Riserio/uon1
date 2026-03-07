@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { usePendingUsers } from "@/hooks/usePendingUsers";
+import { useOuvidoriaPendentes } from "@/hooks/useOuvidoriaPendentes";
 import {
   DropdownMenu,
   DropdownMenuContent,
