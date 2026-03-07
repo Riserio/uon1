@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 
@@ -21,8 +21,8 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const { to, resetLink, fromEmail, fromName }: RecuperacaoEmailRequest = await req.json();
@@ -129,23 +129,19 @@ Este é um e-mail automático, por favor não responda.
     `.trim();
 
     let emailSent = false;
-    let method = '';
-    let errorMessage = '';
+    let method = "";
+    let errorMessage = "";
 
     const { data: adminUsers } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .or('role.eq.admin,role.eq.superintendente')
+      .from("user_roles")
+      .select("user_id")
+      .or("role.eq.admin,role.eq.superintendente")
       .limit(1);
 
     let smtpConfig = null;
     if (adminUsers && adminUsers.length > 0) {
-      const { data } = await supabase
-        .from('email_config')
-        .select('*')
-        .eq('user_id', adminUsers[0].user_id)
-        .single();
-      
+      const { data } = await supabase.from("email_config").select("*").eq("user_id", adminUsers[0].user_id).single();
+
       smtpConfig = data;
     }
 
@@ -164,9 +160,8 @@ Este é um e-mail automático, por favor não responda.
           },
         });
 
-        const fromAddress = fromEmail && fromName 
-          ? `${fromName} <${fromEmail}>` 
-          : `${smtpConfig.from_name} <${smtpConfig.from_email}>`;
+        const fromAddress =
+          fromEmail && fromName ? `${fromName} <${fromEmail}>` : `${smtpConfig.from_name} <${smtpConfig.from_email}>`;
 
         await client.send({
           from: fromAddress,
@@ -175,18 +170,18 @@ Este é um e-mail automático, por favor não responda.
           content: emailText,
           html: emailHtml,
           headers: {
-            'X-Priority': '1',
-            'X-MSMail-Priority': 'High',
-            'Importance': 'high',
-            'X-Mailer': 'ATCD Sistema',
-            'Reply-To': smtpConfig.from_email,
+            "X-Priority": "1",
+            "X-MSMail-Priority": "High",
+            Importance: "high",
+            "X-Mailer": "ATCD Sistema",
+            "Reply-To": smtpConfig.from_email,
           },
         });
 
         await client.close();
-        
+
         emailSent = true;
-        method = 'SMTP';
+        method = "SMTP";
         console.log(`Password recovery email sent via SMTP to ${to}`);
       } catch (smtpError: any) {
         console.error(`SMTP failed for ${to}:`, smtpError.message);
@@ -197,13 +192,13 @@ Este é um e-mail automático, por favor não responda.
     if (!emailSent) {
       try {
         console.log(`Trying Resend for password recovery to ${to}...`);
-        
-        let resendFromEmail = "ATCD Sistema <onboarding@resend.dev>";
+
+        let resendFromEmail = "ATCD Sistema <vangard@uon1.com.br>";
         if (adminUsers && adminUsers.length > 0) {
           const { data: resendConfig } = await supabase
-            .from('resend_config')
-            .select('*')
-            .eq('user_id', adminUsers[0].user_id)
+            .from("resend_config")
+            .select("*")
+            .eq("user_id", adminUsers[0].user_id)
             .single();
 
           if (resendConfig) {
@@ -223,8 +218,8 @@ Este é um e-mail automático, por favor não responda.
           html: emailHtml,
           text: emailText,
           headers: {
-            'X-Priority': '1',
-            'X-Entity-Ref-ID': `pwd-reset-${Date.now()}`,
+            "X-Priority": "1",
+            "X-Entity-Ref-ID": `pwd-reset-${Date.now()}`,
           },
         });
 
@@ -233,7 +228,7 @@ Este é um e-mail automático, por favor não responda.
         }
 
         emailSent = true;
-        method = 'Resend';
+        method = "Resend";
         console.log(`Password recovery email sent via Resend to ${to}`);
       } catch (resendError: any) {
         console.error(`Resend failed for ${to}:`, resendError.message);
@@ -244,39 +239,36 @@ Este é um e-mail automático, por favor não responda.
     if (!emailSent) {
       console.error(`Failed to send password recovery email to ${to}: ${errorMessage}`);
       return new Response(
-        JSON.stringify({ 
-          error: 'Falha ao enviar email de recuperação',
-          details: errorMessage 
+        JSON.stringify({
+          error: "Falha ao enviar email de recuperação",
+          details: errorMessage,
         }),
         {
           status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
     console.log(`Password recovery email sent successfully via ${method} to ${to}`);
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         method: method,
-        message: 'Email de recuperação enviado com sucesso' 
+        message: "Email de recuperação enviado com sucesso",
       }),
       {
         status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   } catch (error: any) {
     console.error("Error in enviar-email-recuperacao:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 };
 

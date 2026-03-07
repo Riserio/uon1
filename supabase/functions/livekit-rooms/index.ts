@@ -21,7 +21,7 @@ async function createLiveKitToken(
   identity: string,
   roomName: string,
   grants: Record<string, unknown>,
-  ttlSeconds = 3600
+  ttlSeconds = 3600,
 ): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -29,7 +29,7 @@ async function createLiveKitToken(
     encoder.encode(apiSecret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
 
   const header = { alg: "HS256", typ: "JWT" };
@@ -74,7 +74,10 @@ Deno.serve(async (req) => {
 
     // helper: get authed user
     const getUser = async () => {
-      const { data: { user }, error } = await supabaseAnon.auth.getUser();
+      const {
+        data: { user },
+        error,
+      } = await supabaseAnon.auth.getUser();
       if (error || !user) throw new Error("Não autenticado");
       return user;
     };
@@ -85,17 +88,21 @@ Deno.serve(async (req) => {
       const body = await req.json();
       const roomName = `uon1-${crypto.randomUUID().substring(0, 12)}`;
 
-      const { data, error } = await supabaseAdmin.from("meeting_rooms").insert({
-        nome: body.nome,
-        descricao: body.descricao || null,
-        tipo: body.tipo || "privada",
-        host_id: user.id,
-        livekit_room_name: roomName,
-        max_participantes: body.max_participantes || 50,
-        agendado_para: body.agendado_para || null,
-        duracao_minutos: body.duracao_minutos || 60,
-        convidados: body.convidados || [],
-      }).select().single();
+      const { data, error } = await supabaseAdmin
+        .from("meeting_rooms")
+        .insert({
+          nome: body.nome,
+          descricao: body.descricao || null,
+          tipo: body.tipo || "privada",
+          host_id: user.id,
+          livekit_room_name: roomName,
+          max_participantes: body.max_participantes || 50,
+          agendado_para: body.agendado_para || null,
+          duracao_minutos: body.duracao_minutos || 60,
+          convidados: body.convidados || [],
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -135,19 +142,11 @@ Deno.serve(async (req) => {
       const body = await req.json();
       const roomId = body.roomId;
 
-      const { data: room, error } = await supabaseAdmin
-        .from("meeting_rooms")
-        .select("*")
-        .eq("id", roomId)
-        .single();
+      const { data: room, error } = await supabaseAdmin.from("meeting_rooms").select("*").eq("id", roomId).single();
       if (error || !room) throw new Error("Sala não encontrada");
 
       const isHost = room.host_id === user.id;
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("nome")
-        .eq("id", user.id)
-        .single();
+      const { data: profile } = await supabaseAdmin.from("profiles").select("nome").eq("id", user.id).single();
       const displayName = profile?.nome || user.email || "Participante";
 
       // Check if participant already exists
@@ -162,10 +161,13 @@ Deno.serve(async (req) => {
       if (existingParticipant) {
         // Keep existing status (don't reset approved back to pending)
         participantStatus = existingParticipant.status;
-        await supabaseAdmin.from("meeting_participants").update({
-          display_name: displayName,
-          joined_at: new Date().toISOString(),
-        }).eq("id", existingParticipant.id);
+        await supabaseAdmin
+          .from("meeting_participants")
+          .update({
+            display_name: displayName,
+            joined_at: new Date().toISOString(),
+          })
+          .eq("id", existingParticipant.id);
       } else {
         participantStatus = isHost ? "approved" : "pending";
         await supabaseAdmin.from("meeting_participants").insert({
@@ -189,10 +191,9 @@ Deno.serve(async (req) => {
         name: displayName,
       });
 
-      return new Response(
-        JSON.stringify({ token, livekitUrl, room, isHost, participantStatus }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ token, livekitUrl, room, isHost, participantStatus }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── CREATE INVITE ──
@@ -200,12 +201,16 @@ Deno.serve(async (req) => {
       const user = await getUser();
       const body = await req.json();
 
-      const { data, error } = await supabaseAdmin.from("meeting_invites").insert({
-        room_id: body.roomId,
-        criado_por: user.id,
-        nome_convidado: body.nome || null,
-        email_convidado: body.email || null,
-      }).select().single();
+      const { data, error } = await supabaseAdmin
+        .from("meeting_invites")
+        .insert({
+          room_id: body.roomId,
+          criado_por: user.id,
+          nome_convidado: body.nome || null,
+          email_convidado: body.email || null,
+        })
+        .select()
+        .single();
 
       if (error) throw error;
       return new Response(JSON.stringify({ invite: data }), {
@@ -250,10 +255,9 @@ Deno.serve(async (req) => {
         name: displayName || "Convidado",
       });
 
-      return new Response(
-        JSON.stringify({ token, livekitUrl, room, participantIdentity: guestIdentity }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ token, livekitUrl, room, participantIdentity: guestIdentity }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── APPROVE PARTICIPANT ──
@@ -287,8 +291,10 @@ Deno.serve(async (req) => {
 
       // Generate new token with publish permissions
       const newToken = await createLiveKitToken(
-        livekitApiKey, livekitApiSecret,
-        participant.identity, room.livekit_room_name,
+        livekitApiKey,
+        livekitApiSecret,
+        participant.identity,
+        room.livekit_room_name,
         {
           roomJoin: true,
           room: room.livekit_room_name,
@@ -296,13 +302,12 @@ Deno.serve(async (req) => {
           canSubscribe: true,
           canPublishData: true,
           name: participant.display_name,
-        }
+        },
       );
 
-      return new Response(
-        JSON.stringify({ success: true, newToken, participant }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: true, newToken, participant }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── DENY PARTICIPANT ──
@@ -318,15 +323,11 @@ Deno.serve(async (req) => {
         .single();
       if (!room) throw new Error("Apenas o host pode recusar");
 
-      await supabaseAdmin
-        .from("meeting_participants")
-        .update({ status: "denied" })
-        .eq("id", body.participantId);
+      await supabaseAdmin.from("meeting_participants").update({ status: "denied" }).eq("id", body.participantId);
 
-      return new Response(
-        JSON.stringify({ success: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── UPDATE ROOM ──
@@ -369,16 +370,11 @@ Deno.serve(async (req) => {
       const user = await getUser();
       const body = await req.json();
 
-      await supabaseAdmin
-        .from("meeting_rooms")
-        .delete()
-        .eq("id", body.roomId)
-        .eq("host_id", user.id);
+      await supabaseAdmin.from("meeting_rooms").delete().eq("id", body.roomId).eq("host_id", user.id);
 
-      return new Response(
-        JSON.stringify({ success: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── END ROOM ──
@@ -392,10 +388,9 @@ Deno.serve(async (req) => {
         .eq("id", body.roomId)
         .eq("host_id", user.id);
 
-      return new Response(
-        JSON.stringify({ success: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── EXTEND ROOM ──
@@ -414,15 +409,11 @@ Deno.serve(async (req) => {
       if (!room) throw new Error("Sala não encontrada ou sem permissão");
 
       const newDuration = (room.duracao_minutos || 60) + (extraMinutes || 30);
-      await supabaseAdmin
-        .from("meeting_rooms")
-        .update({ duracao_minutos: newDuration })
-        .eq("id", roomId);
+      await supabaseAdmin.from("meeting_rooms").update({ duracao_minutos: newDuration }).eq("id", roomId);
 
-      return new Response(
-        JSON.stringify({ success: true, duracao_minutos: newDuration }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: true, duracao_minutos: newDuration }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── VALIDATE INVITE (public) ──
@@ -438,10 +429,9 @@ Deno.serve(async (req) => {
       if (new Date(invite.expires_at) < new Date()) throw new Error("Convite expirado");
       if (invite.meeting_rooms?.status !== "ativa") throw new Error("Sala não está ativa");
 
-      return new Response(
-        JSON.stringify({ valid: true, room: invite.meeting_rooms }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ valid: true, room: invite.meeting_rooms }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── RSVP (public, no auth) ──
@@ -449,7 +439,10 @@ Deno.serve(async (req) => {
       const token = url.searchParams.get("token");
       const resposta = url.searchParams.get("resposta");
       if (!token || !["sim", "talvez", "nao"].includes(resposta || "")) {
-        return new Response(JSON.stringify({ error: "Link inválido" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+        return new Response(JSON.stringify({ error: "Link inválido" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
       }
 
       const { data: rsvp, error: rsvpErr } = await supabaseAdmin
@@ -460,11 +453,16 @@ Deno.serve(async (req) => {
         .single();
 
       if (rsvpErr) {
-        return new Response(JSON.stringify({ error: "Token inválido ou expirado" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+        return new Response(JSON.stringify({ error: "Token inválido ou expirado" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
       }
 
       const nome = rsvp?.meeting_rooms?.nome || "Reunião";
-      return new Response(JSON.stringify({ success: true, meetingName: nome, resposta }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ success: true, meetingName: nome, resposta }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── NOTIFY MEETING (email + whatsapp) ──
@@ -472,8 +470,28 @@ Deno.serve(async (req) => {
       console.log("[notifyMeeting] Starting...");
       const user = await getUser();
       const body = await req.json();
-      console.log("[notifyMeeting] Body:", JSON.stringify({ roomId: body.roomId, roomName: body.roomName, convidadosCount: body.convidados?.length, enviarEmail: body.enviarEmail, hasTemplate: !!body.templateCorpo }));
-      const { roomId, roomName, agendadoPara, descricao, meetingLink, convidados, enviarEmail, enviarWhatsApp, templateCorpo, templateAssunto } = body;
+      console.log(
+        "[notifyMeeting] Body:",
+        JSON.stringify({
+          roomId: body.roomId,
+          roomName: body.roomName,
+          convidadosCount: body.convidados?.length,
+          enviarEmail: body.enviarEmail,
+          hasTemplate: !!body.templateCorpo,
+        }),
+      );
+      const {
+        roomId,
+        roomName,
+        agendadoPara,
+        descricao,
+        meetingLink,
+        convidados,
+        enviarEmail,
+        enviarWhatsApp,
+        templateCorpo,
+        templateAssunto,
+      } = body;
 
       const { data: profile } = await supabaseAdmin.from("profiles").select("nome").eq("id", user.id).single();
       const hostName = profile?.nome || user.email || "Organizador";
@@ -484,12 +502,25 @@ Deno.serve(async (req) => {
         const d = new Date(agendadoPara);
         // Convert UTC to São Paulo (UTC-3)
         const sp = new Date(d.getTime() - 3 * 60 * 60 * 1000);
-        const dia = String(sp.getUTCDate()).padStart(2, '0');
-        const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+        const dia = String(sp.getUTCDate()).padStart(2, "0");
+        const meses = [
+          "janeiro",
+          "fevereiro",
+          "março",
+          "abril",
+          "maio",
+          "junho",
+          "julho",
+          "agosto",
+          "setembro",
+          "outubro",
+          "novembro",
+          "dezembro",
+        ];
         const mes = meses[sp.getUTCMonth()];
         const ano = sp.getUTCFullYear();
-        const hora = String(sp.getUTCHours()).padStart(2, '0');
-        const min = String(sp.getUTCMinutes()).padStart(2, '0');
+        const hora = String(sp.getUTCHours()).padStart(2, "0");
+        const min = String(sp.getUTCMinutes()).padStart(2, "0");
         dataFormatada = `${dia} de ${mes} de ${ano} às ${hora}:${min} (Brasília)`;
       }
 
@@ -498,10 +529,14 @@ Deno.serve(async (req) => {
       // Pre-load email configs
       const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
       console.log("[notifyMeeting] RESEND_API_KEY configured:", !!RESEND_API_KEY);
-      let resendFromEmail = "Reuniões <onboarding@resend.dev>";
+      let resendFromEmail = "Reuniões <vangard@uon1.com.br>";
       if (RESEND_API_KEY) {
         try {
-          const { data: resendConfig } = await supabaseAdmin.from("resend_config").select("*").eq("user_id", user.id).single();
+          const { data: resendConfig } = await supabaseAdmin
+            .from("resend_config")
+            .select("*")
+            .eq("user_id", user.id)
+            .single();
           if (resendConfig) resendFromEmail = `${resendConfig.from_name} <${resendConfig.from_email}>`;
         } catch (e) {
           console.log("[notifyMeeting] No resend_config found, using default from");
@@ -517,68 +552,83 @@ Deno.serve(async (req) => {
       console.log("[notifyMeeting] From email:", resendFromEmail, "SMTP configured:", !!smtpConfig);
 
       // Generate ICS content helper – uses America/Sao_Paulo VTIMEZONE
-      const generateICS = (startDate: string, durationMin: number, title: string, desc: string, location: string, organizerEmail: string, attendeeEmail: string): string => {
+      const generateICS = (
+        startDate: string,
+        durationMin: number,
+        title: string,
+        desc: string,
+        location: string,
+        organizerEmail: string,
+        attendeeEmail: string,
+      ): string => {
         const start = new Date(startDate);
         const end = new Date(start.getTime() + durationMin * 60000);
         // Format as local São Paulo time (UTC-3)
         const fmtSP = (d: Date) => {
           const sp = new Date(d.getTime() - 3 * 60 * 60 * 1000);
-          return sp.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '');
+          return sp
+            .toISOString()
+            .replace(/[-:]/g, "")
+            .replace(/\.\d{3}Z$/, "");
         };
         const uid = crypto.randomUUID();
         const now = fmtSP(new Date());
         return [
-          'BEGIN:VCALENDAR',
-          'VERSION:2.0',
-          'PRODID:-//Uon1 Talk//Meeting//PT',
-          'CALSCALE:GREGORIAN',
-          'METHOD:REQUEST',
-          'BEGIN:VTIMEZONE',
-          'TZID:America/Sao_Paulo',
-          'BEGIN:STANDARD',
-          'DTSTART:19700101T000000',
-          'TZOFFSETFROM:-0300',
-          'TZOFFSETTO:-0300',
-          'TZNAME:BRT',
-          'END:STANDARD',
-          'END:VTIMEZONE',
-          'BEGIN:VEVENT',
+          "BEGIN:VCALENDAR",
+          "VERSION:2.0",
+          "PRODID:-//Uon1 Talk//Meeting//PT",
+          "CALSCALE:GREGORIAN",
+          "METHOD:REQUEST",
+          "BEGIN:VTIMEZONE",
+          "TZID:America/Sao_Paulo",
+          "BEGIN:STANDARD",
+          "DTSTART:19700101T000000",
+          "TZOFFSETFROM:-0300",
+          "TZOFFSETTO:-0300",
+          "TZNAME:BRT",
+          "END:STANDARD",
+          "END:VTIMEZONE",
+          "BEGIN:VEVENT",
           `DTSTART;TZID=America/Sao_Paulo:${fmtSP(start)}`,
           `DTEND;TZID=America/Sao_Paulo:${fmtSP(end)}`,
           `DTSTAMP:${now}Z`,
           `UID:${uid}@uon1.com.br`,
           `SUMMARY:${title}`,
-          `DESCRIPTION:${desc.replace(/\n/g, '\\n')}`,
+          `DESCRIPTION:${desc.replace(/\n/g, "\\n")}`,
           `LOCATION:${location}`,
           `ORGANIZER;CN=${hostName}:mailto:${organizerEmail}`,
           `ATTENDEE;RSVP=TRUE;CN=${attendeeEmail}:mailto:${attendeeEmail}`,
-          'STATUS:CONFIRMED',
+          "STATUS:CONFIRMED",
           `URL:${location}`,
-          'BEGIN:VALARM',
-          'TRIGGER:-PT15M',
-          'ACTION:DISPLAY',
-          'DESCRIPTION:Reunião em 15 minutos',
-          'END:VALARM',
-          'END:VEVENT',
-          'END:VCALENDAR',
-        ].join('\r\n');
+          "BEGIN:VALARM",
+          "TRIGGER:-PT15M",
+          "ACTION:DISPLAY",
+          "DESCRIPTION:Reunião em 15 minutos",
+          "END:VALARM",
+          "END:VEVENT",
+          "END:VCALENDAR",
+        ].join("\r\n");
       };
 
-      const organizerEmail = user.email || 'noreply@uon1.com.br';
+      const organizerEmail = user.email || "noreply@uon1.com.br";
       const edgeFunctionBaseUrl = `${supabaseUrl}/functions/v1/livekit-rooms`;
 
       for (const convidado of convidados || []) {
         // Build Google Calendar URL
-        let googleCalUrl = '';
+        let googleCalUrl = "";
         if (agendadoPara) {
           const startDt = new Date(agendadoPara);
           const endDt = new Date(startDt.getTime() + (body.duracaoMinutos || 60) * 60000);
-          const fmtGcal = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+          const fmtGcal = (d: Date) =>
+            d
+              .toISOString()
+              .replace(/[-:]/g, "")
+              .replace(/\.\d{3}/, "");
           const gcalParams = new URLSearchParams({
-            action: 'TEMPLATE',
+            action: "TEMPLATE",
             text: roomName,
             dates: `${fmtGcal(startDt)}/${fmtGcal(endDt)}`,
-            details: `${descricao || ''}\n\nLink: ${meetingLink}`,
+            details: `${descricao || ""}\n\nLink: ${meetingLink}`,
             location: meetingLink,
           });
           googleCalUrl = `https://calendar.google.com/calendar/render?${gcalParams.toString()}`;
@@ -586,35 +636,41 @@ Deno.serve(async (req) => {
         // Email
         if (enviarEmail && convidado.email) {
           // Create RSVP token
-          let rsvpToken = '';
+          let rsvpToken = "";
           try {
-            const { data: rsvpData } = await supabaseAdmin.from("meeting_rsvp").insert({
-              room_id: roomId,
-              email: convidado.email,
-              nome: convidado.nome || null,
-            }).select("token").single();
-            rsvpToken = rsvpData?.token || '';
-          } catch (e) { console.error("RSVP insert error:", e); }
+            const { data: rsvpData } = await supabaseAdmin
+              .from("meeting_rsvp")
+              .insert({
+                room_id: roomId,
+                email: convidado.email,
+                nome: convidado.nome || null,
+              })
+              .select("token")
+              .single();
+            rsvpToken = rsvpData?.token || "";
+          } catch (e) {
+            console.error("RSVP insert error:", e);
+          }
 
           // Use app route for RSVP instead of edge function directly
-          const appOrigin = meetingLink ? new URL(meetingLink).origin : '';
+          const appOrigin = meetingLink ? new URL(meetingLink).origin : "";
           const rsvpSim = `${appOrigin}/meeting-rsvp?token=${rsvpToken}&resposta=sim`;
           const rsvpTalvez = `${appOrigin}/meeting-rsvp?token=${rsvpToken}&resposta=talvez`;
           const rsvpNao = `${appOrigin}/meeting-rsvp?token=${rsvpToken}&resposta=nao`;
 
           // Use custom template if provided, otherwise use default
           const templateVars: Record<string, string> = {
-            '{nome_convidado}': convidado.nome || 'convidado(a)',
-            '{nome_reuniao}': roomName,
-            '{data_reuniao}': dataFormatada,
-            '{link_reuniao}': meetingLink,
-            '{organizador}': hostName,
-            '{descricao}': descricao || '',
-            '{duracao}': `${body.duracaoMinutos || 60} min`,
-            '{rsvp_sim}': rsvpSim,
-            '{rsvp_talvez}': rsvpTalvez,
-            '{rsvp_nao}': rsvpNao,
-            '{google_calendar_url}': googleCalUrl,
+            "{nome_convidado}": convidado.nome || "convidado(a)",
+            "{nome_reuniao}": roomName,
+            "{data_reuniao}": dataFormatada,
+            "{link_reuniao}": meetingLink,
+            "{organizador}": hostName,
+            "{descricao}": descricao || "",
+            "{duracao}": `${body.duracaoMinutos || 60} min`,
+            "{rsvp_sim}": rsvpSim,
+            "{rsvp_talvez}": rsvpTalvez,
+            "{rsvp_nao}": rsvpNao,
+            "{google_calendar_url}": googleCalUrl,
           };
 
           const replaceVars = (text: string) => {
@@ -644,19 +700,33 @@ Deno.serve(async (req) => {
                       <td style="width:70px;vertical-align:top;padding-right:16px;">
                          <div style="background:#2563eb;border-radius:8px;text-align:center;padding:8px 0;width:60px;">
                           ${(() => {
-                            if (!agendadoPara) return `<span style="color:#93c5fd;font-size:10px;">Agora</span><br/><span style="color:#fff;font-size:22px;font-weight:700;">—</span>`;
+                            if (!agendadoPara)
+                              return `<span style="color:#93c5fd;font-size:10px;">Agora</span><br/><span style="color:#fff;font-size:22px;font-weight:700;">—</span>`;
                             const _d = new Date(agendadoPara);
                             const _sp = new Date(_d.getTime() - 3 * 60 * 60 * 1000);
-                            const _mesesShort = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-                            const _diasSemana = ['dom','seg','ter','qua','qui','sex','sáb'];
-                            return `<span style="color:#93c5fd;font-size:10px;text-transform:uppercase;letter-spacing:1px;">${_mesesShort[_sp.getUTCMonth()]}</span><br/><span style="color:#fff;font-size:22px;font-weight:700;">${String(_sp.getUTCDate()).padStart(2,'0')}</span><br/><span style="color:#93c5fd;font-size:10px;">${_diasSemana[_sp.getUTCDay()]}</span>`;
+                            const _mesesShort = [
+                              "jan",
+                              "fev",
+                              "mar",
+                              "abr",
+                              "mai",
+                              "jun",
+                              "jul",
+                              "ago",
+                              "set",
+                              "out",
+                              "nov",
+                              "dez",
+                            ];
+                            const _diasSemana = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+                            return `<span style="color:#93c5fd;font-size:10px;text-transform:uppercase;letter-spacing:1px;">${_mesesShort[_sp.getUTCMonth()]}</span><br/><span style="color:#fff;font-size:22px;font-weight:700;">${String(_sp.getUTCDate()).padStart(2, "0")}</span><br/><span style="color:#93c5fd;font-size:10px;">${_diasSemana[_sp.getUTCDay()]}</span>`;
                           })()}
                         </div>
                       </td>
                       <td style="vertical-align:top;">
                         <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#1e293b;">${roomName}</p>
                         ${agendadoPara ? `<p style="margin:0 0 4px;font-size:13px;color:#64748b;">📅 ${dataFormatada}</p>` : '<p style="margin:0 0 4px;font-size:13px;color:#64748b;">⚡ Reunião imediata</p>'}
-                        ${descricao ? `<p style="margin:0;font-size:13px;color:#64748b;">📋 ${descricao}</p>` : ''}
+                        ${descricao ? `<p style="margin:0;font-size:13px;color:#64748b;">📋 ${descricao}</p>` : ""}
                         <p style="margin:4px 0 0;font-size:13px;color:#64748b;">👤 Organizador: ${hostName}</p>
                       </td>
                     </tr>
@@ -679,18 +749,25 @@ Deno.serve(async (req) => {
                 <table style="width:100%;border-collapse:separate;border-spacing:0 8px;">
                   <tr>
                     <td style="width:50%;"><a href="${meetingLink}" style="display:block;text-align:center;background:#2563eb;color:#fff;padding:14px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">🎥 Entrar na Reunião</a></td>
-                    ${googleCalUrl ? `<td style="width:50%;"><a href="${googleCalUrl}" target="_blank" style="display:block;text-align:center;background:#fff;color:#334155;padding:14px;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;border:1px solid #cbd5e1;">📅 Google Agenda</a></td>` : ''}
+                    ${googleCalUrl ? `<td style="width:50%;"><a href="${googleCalUrl}" target="_blank" style="display:block;text-align:center;background:#fff;color:#334155;padding:14px;border-radius:8px;text-decoration:none;font-weight:500;font-size:14px;border:1px solid #cbd5e1;">📅 Google Agenda</a></td>` : ""}
                   </tr>
                 </table>
 
-                ${(convidados || []).length > 1 ? `
+                ${
+                  (convidados || []).length > 1
+                    ? `
                 <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;">
                   <p style="font-size:12px;font-weight:600;color:#475569;margin:0 0 8px;">Convidados</p>
                   <p style="font-size:12px;color:#64748b;margin:0;">
                     ${hostName} - organizador<br/>
-                    ${(convidados || []).filter((c: any) => c.email !== convidado.email).map((c: any) => c.nome || c.email).join('<br/>')}
+                    ${(convidados || [])
+                      .filter((c: any) => c.email !== convidado.email)
+                      .map((c: any) => c.nome || c.email)
+                      .join("<br/>")}
                   </p>
-                </div>` : ''}
+                </div>`
+                    : ""
+                }
 
                 <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;">
                   <p style="font-size:11px;color:#94a3b8;margin:0;">📎 Arquivo .ics em anexo para importar no calendário</p>
@@ -703,12 +780,20 @@ Deno.serve(async (req) => {
           const htmlBody = templateCorpo ? replaceVars(templateCorpo) : defaultHtmlBody;
           // Generate ICS
           const icsContent = agendadoPara
-            ? generateICS(agendadoPara, body.duracaoMinutos || 60, roomName, `Entrar: ${meetingLink}\n${descricao || ''}`, meetingLink, organizerEmail, convidado.email)
-            : '';
+            ? generateICS(
+                agendadoPara,
+                body.duracaoMinutos || 60,
+                roomName,
+                `Entrar: ${meetingLink}\n${descricao || ""}`,
+                meetingLink,
+                organizerEmail,
+                convidado.email,
+              )
+            : "";
 
           let emailSent = false;
-          let emailMethod = '';
-          let emailError = '';
+          let emailMethod = "";
+          let emailError = "";
 
           // Try Resend first
           if (RESEND_API_KEY) {
@@ -723,16 +808,18 @@ Deno.serve(async (req) => {
               };
               // Attach ICS if available
               if (icsContent) {
-                emailPayload.attachments = [{
-                  filename: 'invite.ics',
-                  content: btoa(icsContent),
-                }];
+                emailPayload.attachments = [
+                  {
+                    filename: "invite.ics",
+                    content: btoa(icsContent),
+                  },
+                ];
               }
               const resendResult = await resend.emails.send(emailPayload);
               console.log(`[notifyMeeting] Resend result:`, JSON.stringify(resendResult));
               if (resendResult.error) throw new Error(resendResult.error.message);
               emailSent = true;
-              emailMethod = 'Resend';
+              emailMethod = "Resend";
             } catch (resendErr: any) {
               console.error(`[notifyMeeting] Resend failed for ${convidado.email}:`, resendErr.message);
               emailError = resendErr.message;
@@ -743,24 +830,38 @@ Deno.serve(async (req) => {
           if (!emailSent && smtpConfig) {
             try {
               const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
-              let hostname = smtpConfig.smtp_host || '';
-              hostname = hostname.replace(/^(ssl|tls|https?):\/\//i, '').trim();
+              let hostname = smtpConfig.smtp_host || "";
+              hostname = hostname.replace(/^(ssl|tls|https?):\/\//i, "").trim();
               const client = new SMTPClient({
-                connection: { hostname, port: smtpConfig.smtp_port, tls: true, auth: { username: smtpConfig.smtp_user, password: smtpConfig.smtp_password } },
+                connection: {
+                  hostname,
+                  port: smtpConfig.smtp_port,
+                  tls: true,
+                  auth: { username: smtpConfig.smtp_user, password: smtpConfig.smtp_password },
+                },
               });
-              const sendPayload: any = { from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`, to: convidado.email, subject, html: htmlBody };
+              const sendPayload: any = {
+                from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`,
+                to: convidado.email,
+                subject,
+                html: htmlBody,
+              };
               if (icsContent) {
-                sendPayload.attachments = [{
-                  encoding: 'text',
-                  filename: 'invite.ics',
-                  contentType: 'text/calendar; method=REQUEST',
-                  content: icsContent,
-                }];
+                sendPayload.attachments = [
+                  {
+                    encoding: "text",
+                    filename: "invite.ics",
+                    contentType: "text/calendar; method=REQUEST",
+                    content: icsContent,
+                  },
+                ];
               }
               await client.send(sendPayload);
-              try { await client.close(); } catch {}
+              try {
+                await client.close();
+              } catch {}
               emailSent = true;
-              emailMethod = 'SMTP';
+              emailMethod = "SMTP";
             } catch (smtpErr: any) {
               emailError = emailError ? `${emailError}; SMTP: ${smtpErr.message}` : smtpErr.message;
             }
@@ -770,16 +871,21 @@ Deno.serve(async (req) => {
             emailError = "Nenhum provedor de email configurado";
           }
 
-          results.push({ tipo: "email", destinatario: convidado.email, status: emailSent ? "enviado" : "erro", erro: emailSent ? undefined : emailError });
+          results.push({
+            tipo: "email",
+            destinatario: convidado.email,
+            status: emailSent ? "enviado" : "erro",
+            erro: emailSent ? undefined : emailError,
+          });
 
           // Log to email_historico for dashboard visibility
           try {
             await supabaseAdmin.from("email_historico").insert({
               destinatario: convidado.email,
               assunto: subject,
-              corpo: `[${emailMethod || 'FALHA'}] Convite para reunião: ${roomName}`,
+              corpo: `[${emailMethod || "FALHA"}] Convite para reunião: ${roomName}`,
               enviado_por: user.id,
-              status: emailSent ? 'enviado' : 'erro',
+              status: emailSent ? "enviado" : "erro",
               erro_mensagem: emailSent ? null : emailError,
               atendimento_id: null,
             });
@@ -800,19 +906,16 @@ Deno.serve(async (req) => {
 
             const msg = `📹 *Convite para Reunião*\n\n*${roomName}*\n📅 ${dataFormatada}\n${descricao ? `📋 ${descricao}\n` : ""}\n👤 Organizador: ${hostName}\n\n🔗 Acesse: ${meetingLink}`;
 
-            const metaRes = await fetch(
-              `https://graph.facebook.com/v22.0/${metaPhoneNumberId}/messages`,
-              {
-                method: "POST",
-                headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  messaging_product: "whatsapp",
-                  to: formattedPhone,
-                  type: "text",
-                  text: { preview_url: true, body: msg },
-                }),
-              }
-            );
+            const metaRes = await fetch(`https://graph.facebook.com/v22.0/${metaPhoneNumberId}/messages`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                messaging_product: "whatsapp",
+                to: formattedPhone,
+                type: "text",
+                text: { preview_url: true, body: msg },
+              }),
+            });
             const metaData = await metaRes.json();
             if (!metaRes.ok) throw new Error(metaData?.error?.message || "Erro Meta API");
 
@@ -823,7 +926,12 @@ Deno.serve(async (req) => {
         }
 
         // Log notification to meeting_notifications
-        for (const r of results.filter(r2 => r2.destinatario === convidado.email || r2.destinatario === convidado.telefone?.replace(/\D/g, "") || r2.destinatario === `55${convidado.telefone?.replace(/\D/g, "")}`)) {
+        for (const r of results.filter(
+          (r2) =>
+            r2.destinatario === convidado.email ||
+            r2.destinatario === convidado.telefone?.replace(/\D/g, "") ||
+            r2.destinatario === `55${convidado.telefone?.replace(/\D/g, "")}`,
+        )) {
           await supabaseAdmin.from("meeting_notifications").insert({
             room_id: roomId,
             tipo: r.tipo,
@@ -856,10 +964,9 @@ Deno.serve(async (req) => {
 
       if (!participant) throw new Error("Participante não encontrado");
 
-      return new Response(
-        JSON.stringify({ status: participant.status }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ status: participant.status }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── GET GUEST TOKEN (public, no auth - for approved guests) ──
@@ -879,31 +986,22 @@ Deno.serve(async (req) => {
       if (!participant) throw new Error("Participante não encontrado");
       if (participant.status !== "approved") throw new Error("Participante não aprovado");
 
-      const { data: room } = await supabaseAdmin
-        .from("meeting_rooms")
-        .select("*")
-        .eq("id", roomId)
-        .single();
+      const { data: room } = await supabaseAdmin.from("meeting_rooms").select("*").eq("id", roomId).single();
 
       if (!room) throw new Error("Sala não encontrada");
 
-      const newToken = await createLiveKitToken(
-        livekitApiKey, livekitApiSecret,
-        identity, room.livekit_room_name,
-        {
-          roomJoin: true,
-          room: room.livekit_room_name,
-          canPublish: true,
-          canSubscribe: true,
-          canPublishData: true,
-          name: participant.display_name,
-        }
-      );
+      const newToken = await createLiveKitToken(livekitApiKey, livekitApiSecret, identity, room.livekit_room_name, {
+        roomJoin: true,
+        room: room.livekit_room_name,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+        name: participant.display_name,
+      });
 
-      return new Response(
-        JSON.stringify({ token: newToken, livekitUrl, room, participantStatus: "approved" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ token: newToken, livekitUrl, room, participantStatus: "approved" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({ error: "Ação inválida" }), {

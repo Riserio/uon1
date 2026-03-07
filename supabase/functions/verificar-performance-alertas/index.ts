@@ -29,10 +29,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
     const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -56,7 +53,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: atendimentos, error: atendimentosError } = await supabase
       .from("atendimentos")
-      .select(`
+      .select(
+        `
         *,
         responsavel:profiles!atendimentos_responsavel_id_fkey(
           id,
@@ -65,7 +63,8 @@ const handler = async (req: Request): Promise<Response> => {
           lider_id,
           administrativo_id
         )
-      `)
+      `,
+      )
       .gte("created_at", dataInicio.toISOString());
 
     if (atendimentosError) {
@@ -78,17 +77,16 @@ const handler = async (req: Request): Promise<Response> => {
     // Buscar todos os profiles para mapear líderes e administrativos
     const responsavelIds = [...new Set(atendimentos?.map((a: any) => a.responsavel?.id).filter(Boolean))];
     const liderIds = [...new Set(atendimentos?.map((a: any) => a.responsavel?.lider_id).filter(Boolean))];
-    const administrativoIds = [...new Set(atendimentos?.map((a: any) => a.responsavel?.administrativo_id).filter(Boolean))];
-    
+    const administrativoIds = [
+      ...new Set(atendimentos?.map((a: any) => a.responsavel?.administrativo_id).filter(Boolean)),
+    ];
+
     const allProfileIds = [...new Set([...liderIds, ...administrativoIds])];
-    
+
     let profilesMap = new Map();
     if (allProfileIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, nome, email")
-        .in("id", allProfileIds);
-      
+      const { data: profiles } = await supabase.from("profiles").select("id, nome, email").in("id", allProfileIds);
+
       profiles?.forEach((p: any) => {
         profilesMap.set(p.id, p);
       });
@@ -104,7 +102,7 @@ const handler = async (req: Request): Promise<Response> => {
       if (!responsaveisMap.has(resp.id)) {
         const lider = resp.lider_id ? profilesMap.get(resp.lider_id) : null;
         const administrativo = resp.administrativo_id ? profilesMap.get(resp.administrativo_id) : null;
-        
+
         responsaveisMap.set(resp.id, {
           id: resp.id,
           nome: resp.nome,
@@ -127,20 +125,16 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (atendimento.data_concluido) {
         perfData.concluidos++;
-        const tempo = Math.abs(
-          new Date(atendimento.data_concluido).getTime() - 
-          new Date(atendimento.created_at).getTime()
-        ) / (1000 * 60 * 60); // horas
-        perfData.tempoMedio = 
-          (perfData.tempoMedio * (perfData.concluidos - 1) + tempo) / perfData.concluidos;
+        const tempo =
+          Math.abs(new Date(atendimento.data_concluido).getTime() - new Date(atendimento.created_at).getTime()) /
+          (1000 * 60 * 60); // horas
+        perfData.tempoMedio = (perfData.tempoMedio * (perfData.concluidos - 1) + tempo) / perfData.concluidos;
       }
     });
 
     // Calcular taxa de conclusão
     responsaveisMap.forEach((perf) => {
-      perf.taxaConclusao = perf.total > 0 
-        ? Math.round((perf.concluidos / perf.total) * 100)
-        : 0;
+      perf.taxaConclusao = perf.total > 0 ? Math.round((perf.concluidos / perf.total) * 100) : 0;
       perf.tempoMedio = Math.round(perf.tempoMedio);
     });
 
@@ -156,9 +150,8 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("Erro ao buscar superintendentes:", superError);
     }
 
-    const superintendentesEmails = superintendentes
-      ?.filter((s: any) => s.profiles?.email)
-      .map((s: any) => s.profiles.email) || [];
+    const superintendentesEmails =
+      superintendentes?.filter((s: any) => s.profiles?.email).map((s: any) => s.profiles.email) || [];
 
     console.log(`Superintendentes encontrados: ${superintendentesEmails.length}`);
 
@@ -166,32 +159,32 @@ const handler = async (req: Request): Promise<Response> => {
     let alertasEnviados = 0;
 
     for (const [_, perf] of responsaveisMap) {
-      const alertas: Array<{tipo: string, valor: number, meta: number}> = [];
+      const alertas: Array<{ tipo: string; valor: number; meta: number }> = [];
 
       // Verificar volume de atendimentos
       if (perf.total < metas.meta_minima_atendimentos) {
         alertas.push({
-          tipo: 'volume_baixo',
+          tipo: "volume_baixo",
           valor: perf.total,
-          meta: metas.meta_minima_atendimentos
+          meta: metas.meta_minima_atendimentos,
         });
       }
 
       // Verificar taxa de conclusão
       if (perf.taxaConclusao < metas.meta_taxa_conclusao) {
         alertas.push({
-          tipo: 'taxa_conclusao_baixa',
+          tipo: "taxa_conclusao_baixa",
           valor: perf.taxaConclusao,
-          meta: metas.meta_taxa_conclusao
+          meta: metas.meta_taxa_conclusao,
         });
       }
 
       // Verificar tempo médio
       if (perf.concluidos > 0 && perf.tempoMedio > metas.meta_tempo_medio_horas) {
         alertas.push({
-          tipo: 'tempo_medio_alto',
+          tipo: "tempo_medio_alto",
           valor: perf.tempoMedio,
-          meta: metas.meta_tempo_medio_horas
+          meta: metas.meta_tempo_medio_horas,
         });
       }
 
@@ -208,13 +201,13 @@ const handler = async (req: Request): Promise<Response> => {
         const destinatariosUnicos = [...new Set(destinatarios)];
 
         // Construir mensagem do email
-        let mensagemAlertas = '';
-        alertas.forEach(alerta => {
-          if (alerta.tipo === 'volume_baixo') {
+        let mensagemAlertas = "";
+        alertas.forEach((alerta) => {
+          if (alerta.tipo === "volume_baixo") {
             mensagemAlertas += `<li><strong>Volume Baixo:</strong> ${alerta.valor} atendimentos (Meta: ${alerta.meta})</li>`;
-          } else if (alerta.tipo === 'taxa_conclusao_baixa') {
+          } else if (alerta.tipo === "taxa_conclusao_baixa") {
             mensagemAlertas += `<li><strong>Taxa de Conclusão Baixa:</strong> ${alerta.valor}% (Meta: ${alerta.meta}%)</li>`;
-          } else if (alerta.tipo === 'tempo_medio_alto') {
+          } else if (alerta.tipo === "tempo_medio_alto") {
             mensagemAlertas += `<li><strong>Tempo Médio Alto:</strong> ${alerta.valor}h (Meta: ${alerta.meta}h)</li>`;
           }
         });
@@ -254,12 +247,16 @@ const handler = async (req: Request): Promise<Response> => {
                     <td style="padding: 8px; color: #6b7280;">Taxa de Conclusão:</td>
                     <td style="padding: 8px; font-weight: bold; color: #1f2937;">${perf.taxaConclusao}%</td>
                   </tr>
-                  ${perf.concluidos > 0 ? `
+                  ${
+                    perf.concluidos > 0
+                      ? `
                   <tr>
                     <td style="padding: 8px; color: #6b7280;">Tempo Médio:</td>
                     <td style="padding: 8px; font-weight: bold; color: #1f2937;">${perf.tempoMedio}h</td>
                   </tr>
-                  ` : ''}
+                  `
+                      : ""
+                  }
                 </table>
               </div>
               
@@ -286,13 +283,13 @@ const handler = async (req: Request): Promise<Response> => {
 
         try {
           const emailResult = await resend.emails.send({
-            from: "Alertas de Performance <onboarding@resend.dev>",
+            from: "Alertas de Performance <vangard@uon1.com.br>",
             to: destinatariosUnicos,
             subject: `⚠️ Alerta: Performance abaixo da meta - ${perf.nome}`,
             html: htmlEmail,
           });
 
-          console.log(`Email enviado para: ${destinatariosUnicos.join(', ')}`);
+          console.log(`Email enviado para: ${destinatariosUnicos.join(", ")}`);
 
           // Registrar alertas no banco
           for (const alerta of alertas) {
@@ -325,17 +322,14 @@ const handler = async (req: Request): Promise<Response> => {
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (error: any) {
     console.error("Erro na verificação de performance:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 };
 

@@ -1,10 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 interface EmailRequest {
@@ -15,46 +15,46 @@ interface EmailRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const { to, subject, html, corretora_id }: EmailRequest = await req.json();
 
     if (!to || !subject || !html) {
-      return new Response(JSON.stringify({ error: 'Campos to, subject e html são obrigatórios' }), {
+      return new Response(JSON.stringify({ error: "Campos to, subject e html são obrigatórios" }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     let emailSent = false;
-    let method = '';
-    let errorMessage = '';
+    let method = "";
+    let errorMessage = "";
 
     // Try Resend first
-    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (RESEND_API_KEY) {
       try {
-        let fromEmail = "Ouvidoria <onboarding@resend.dev>";
+        let fromEmail = "Ouvidoria <vangard@uon1.com.br>";
 
         // Try to get Resend config from first admin
         const { data: adminUsers } = await supabase
-          .from('user_roles')
-          .select('user_id')
-          .or('role.eq.admin,role.eq.superintendente')
+          .from("user_roles")
+          .select("user_id")
+          .or("role.eq.admin,role.eq.superintendente")
           .limit(1);
 
         if (adminUsers && adminUsers.length > 0) {
           const { data: resendConfig } = await supabase
-            .from('resend_config')
-            .select('*')
-            .eq('user_id', adminUsers[0].user_id)
+            .from("resend_config")
+            .select("*")
+            .eq("user_id", adminUsers[0].user_id)
             .single();
 
           if (resendConfig) {
@@ -73,7 +73,7 @@ const handler = async (req: Request): Promise<Response> => {
 
         if (resendError) throw new Error(resendError.message);
         emailSent = true;
-        method = 'Resend';
+        method = "Resend";
         console.log(`[Ouvidoria Email] Sent via Resend to ${to}`);
       } catch (err: any) {
         console.error(`[Ouvidoria Email] Resend failed:`, err.message);
@@ -85,22 +85,22 @@ const handler = async (req: Request): Promise<Response> => {
     if (!emailSent) {
       try {
         const { data: adminUsers } = await supabase
-          .from('user_roles')
-          .select('user_id')
-          .or('role.eq.admin,role.eq.superintendente')
+          .from("user_roles")
+          .select("user_id")
+          .or("role.eq.admin,role.eq.superintendente")
           .limit(1);
 
         if (adminUsers && adminUsers.length > 0) {
           const { data: smtpConfig } = await supabase
-            .from('email_config')
-            .select('*')
-            .eq('user_id', adminUsers[0].user_id)
+            .from("email_config")
+            .select("*")
+            .eq("user_id", adminUsers[0].user_id)
             .single();
 
           if (smtpConfig) {
             const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
-            let hostname = smtpConfig.smtp_host || '';
-            hostname = hostname.replace(/^(ssl|tls|https?):\/\//i, '').trim();
+            let hostname = smtpConfig.smtp_host || "";
+            hostname = hostname.replace(/^(ssl|tls|https?):\/\//i, "").trim();
 
             const client = new SMTPClient({
               connection: {
@@ -124,7 +124,7 @@ const handler = async (req: Request): Promise<Response> => {
 
             await client.close();
             emailSent = true;
-            method = 'SMTP';
+            method = "SMTP";
             console.log(`[Ouvidoria Email] Sent via SMTP to ${to}`);
           }
         }
@@ -136,34 +136,37 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Log to email_historico
     const { data: adminUsers } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .or('role.eq.admin,role.eq.superintendente')
+      .from("user_roles")
+      .select("user_id")
+      .or("role.eq.admin,role.eq.superintendente")
       .limit(1);
 
-    await supabase.from('email_historico').insert({
+    await supabase.from("email_historico").insert({
       destinatario: to,
       assunto: subject,
-      corpo: `[${method || 'FALHA'}][Ouvidoria] ${subject}`,
+      corpo: `[${method || "FALHA"}][Ouvidoria] ${subject}`,
       enviado_por: adminUsers?.[0]?.user_id || null,
-      status: emailSent ? 'enviado' : 'erro',
+      status: emailSent ? "enviado" : "erro",
       erro_mensagem: emailSent ? null : errorMessage,
       atendimento_id: null,
     });
 
-    return new Response(JSON.stringify({
-      success: emailSent,
-      method: method || 'nenhum',
-      error: emailSent ? undefined : errorMessage,
-    }), {
-      status: emailSent ? 200 : 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        success: emailSent,
+        method: method || "nenhum",
+        error: emailSent ? undefined : errorMessage,
+      }),
+      {
+        status: emailSent ? 200 : 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (error: any) {
-    console.error('[Ouvidoria Email] Error:', error);
+    console.error("[Ouvidoria Email] Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 };
