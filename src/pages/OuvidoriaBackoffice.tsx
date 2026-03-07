@@ -616,6 +616,16 @@ export default function OuvidoriaBackoffice() {
                       </Badge>
                     )}
                   </div>
+                  {!["Resolvido", "Sem Resolução"].includes(selectedRegistro.status) && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="rounded-full border-green-500 text-green-600 hover:bg-green-600 hover:text-white hover:border-green-600" onClick={() => tryUpdateStatus(selectedRegistro, "Resolvido", true)}>
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Resolvido
+                      </Button>
+                      <Button size="sm" variant="outline" className="rounded-full border-red-500 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600" onClick={() => tryUpdateStatus(selectedRegistro, "Sem Resolução", true)}>
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Sem Resolução
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                   <span>{selectedRegistro.nome}</span>
