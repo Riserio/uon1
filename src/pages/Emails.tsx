@@ -59,7 +59,7 @@ interface SMTPConfig {
   from_name: string;
 }
 
-type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_finalizado";
+type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_alerta" | "ouvidoria_finalizado";
 type TemplateFrequencia = "manual" | "diario" | "semanal" | "mensal";
 
 interface EmailTemplate {
@@ -1250,7 +1250,8 @@ export default function Emails() {
                           <option value="convite_reuniao">Convite de Reunião</option>
                           <option value="alerta_performance">Alerta de Performance</option>
                           <option value="recuperacao">Recuperação de Senha</option>
-                          <option value="ouvidoria">Ouvidoria - Recebimento</option>
+                          <option value="ouvidoria">Ouvidoria - Confirmação</option>
+                          <option value="ouvidoria_alerta">Ouvidoria - Alerta Associação</option>
                           <option value="ouvidoria_finalizado">Ouvidoria - Finalizado</option>
                         </select>
                       </div>
@@ -1316,6 +1317,7 @@ export default function Emails() {
                         {novoTemplate.tipo === "alerta_performance" && " {nome_responsavel}, {tipo_alerta}, {valor_atual}, {meta}"}
                         {novoTemplate.tipo === "recuperacao" && " {link_recuperacao}, {nome_usuario}"}
                         {novoTemplate.tipo === "ouvidoria" && " {protocolo}, {nome_cliente}, {nome_associacao}, {logo_url}, {tipo}, {data}, {cor_primaria}"}
+                        {novoTemplate.tipo === "ouvidoria_alerta" && " {protocolo}, {nome_manifestante}, {nome_associacao}, {logo_url}, {tipo}, {prioridade}, {descricao}, {data}, {hora}"}
                         {novoTemplate.tipo === "ouvidoria_finalizado" && " {protocolo}, {nome_cliente}, {nome_associacao}, {logo_url}, {tipo}, {status}, {resposta}, {data}, {cor_primaria}"}
                       </p>
                     </div>
