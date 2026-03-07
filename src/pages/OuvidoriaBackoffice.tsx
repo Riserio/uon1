@@ -332,19 +332,16 @@ export default function OuvidoriaBackoffice() {
       return;
     }
     // Check if current status checkpoints are complete
-    if (!areCheckpointsComplete(registro.id, registro.status)) {
-      // Ensure checkpoints exist
-      await ensureCheckpoints(registro.id, registro.status);
-      const { data: cp } = await supabase.from("ouvidoria_checkpoints").select("*").eq("registro_id", registro.id);
-      if (cp) setCheckpoints(prev => [...prev.filter(c => c.registro_id !== registro.id), ...(cp as any)]);
-      
-      // Open detail with checkpoints tab
-      setSelectedRegistro(registro);
-      setDetailDefaultTab("checkpoints");
-      setPendingStatusChange(novoStatus);
-      setDetailOpen(true);
-      loadHistorico(registro.id);
-      toast.error(`Complete os checkpoints de "${registro.status}" antes de avançar`);
+    await ensureCheckpoints(registro.id, registro.status);
+    const { data: cp } = await supabase.from("ouvidoria_checkpoints").select("*").eq("registro_id", registro.id);
+    if (cp) setCheckpoints(prev => [...prev.filter(c => c.registro_id !== registro.id), ...(cp as any)]);
+    
+    const etapaCps = (cp as CheckpointRow[] || []).filter(c => c.etapa === registro.status);
+    const allDone = etapaCps.length === 0 || etapaCps.every(c => c.concluido);
+    
+    if (!allDone) {
+      // Show lightweight checkpoint popup
+      setCheckpointPopup({ registro, targetStatus: novoStatus });
       return;
     }
     await updateStatus(registro, novoStatus);
