@@ -107,14 +107,8 @@ if (typeof window !== 'undefined') {
 }
 
 function MainContent({ children }: { children: React.ReactNode }) {
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
-  
   return (
-    <main 
-      className="flex-1 overflow-auto transition-[margin] duration-200 ease-linear"
-      style={{ marginLeft: isCollapsed ? '3.5rem' : '16rem' }}
-    >
+    <main className="flex-1 overflow-auto w-full">
       {children}
     </main>
   );
