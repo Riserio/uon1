@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +12,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useLocation } from "react-router-dom";
+
+// ---------------- CONTEXT para compartilhar estado ----------------
+const SidebarExpandedContext = createContext<{ expanded: boolean }>({ expanded: false });
+export function useSidebarExpanded() { return useContext(SidebarExpandedContext).expanded; }
 
 // ---------------- PERMISSÕES DE MENU POR ROLE ----------------
 
