@@ -1315,8 +1315,8 @@ export default function Emails() {
                         {novoTemplate.tipo === "convite_reuniao" && " {nome_convidado}, {nome_reuniao}, {data_reuniao}, {link_reuniao}, {organizador}, {descricao}, {duracao}, {rsvp_sim}, {rsvp_talvez}, {rsvp_nao}, {google_calendar_url}"}
                         {novoTemplate.tipo === "alerta_performance" && " {nome_responsavel}, {tipo_alerta}, {valor_atual}, {meta}"}
                         {novoTemplate.tipo === "recuperacao" && " {link_recuperacao}, {nome_usuario}"}
-                        {novoTemplate.tipo === "ouvidoria" && " {protocolo}, {nome_cliente}, {nome_associacao}, {tipo}, {data}, {cor_primaria}"}
-                        {novoTemplate.tipo === "ouvidoria_finalizado" && " {protocolo}, {nome_cliente}, {nome_associacao}, {tipo}, {status}, {resposta}, {data}, {cor_primaria}"}
+                        {novoTemplate.tipo === "ouvidoria" && " {protocolo}, {nome_cliente}, {nome_associacao}, {logo_url}, {tipo}, {data}, {cor_primaria}"}
+                        {novoTemplate.tipo === "ouvidoria_finalizado" && " {protocolo}, {nome_cliente}, {nome_associacao}, {logo_url}, {tipo}, {status}, {resposta}, {data}, {cor_primaria}"}
                       </p>
                     </div>
 
