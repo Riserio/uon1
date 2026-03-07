@@ -92,6 +92,7 @@ export function AppSidebar() {
   const unreadMessages = useUnreadMessages();
   const whatsAppUnread = useWhatsAppUnread();
   const signedContracts = useSignedContracts();
+  const ouvidoriaPendentes = useOuvidoriaPendentes();
   const collapsed = state === "collapsed";
   const {
     canView
