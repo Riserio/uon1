@@ -372,7 +372,7 @@ export default function Corretoras() {
                       id="slug"
                       value={formData.slug || ''}
                       onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-                      placeholder="ex: valecar"
+                      placeholder="ex: associacao"
                     />
                     <p className="text-xs text-muted-foreground">
                       Apenas letras minúsculas, números e hífens (3-63 caracteres). Deixe vazio para usar o ID.

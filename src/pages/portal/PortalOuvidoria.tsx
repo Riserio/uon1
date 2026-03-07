@@ -487,7 +487,7 @@ export default function PortalOuvidoria() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="gap-2 rounded-full"
+                              className="gap-2 rounded-full border-blue-400 text-blue-600 hover:bg-blue-50 hover:border-blue-500"
                               onClick={() => {
                                 const subject = encodeURIComponent(`Ouvidoria - ${selectedRegistro.protocolo}`);
                                 const body = encodeURIComponent(`Olá ${selectedRegistro.nome},\n\nReferente à sua manifestação ${selectedRegistro.protocolo}:\n\n`);
@@ -502,7 +502,7 @@ export default function PortalOuvidoria() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="gap-2 rounded-full"
+                                className="gap-2 rounded-full border-green-400 text-green-600 hover:bg-green-50 hover:border-green-500"
                                 onClick={() => {
                                   openWhatsApp({
                                     phone: selectedRegistro.telefone!,
@@ -515,7 +515,7 @@ export default function PortalOuvidoria() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="gap-2 rounded-full"
+                                className="gap-2 rounded-full border-orange-400 text-orange-600 hover:bg-orange-50 hover:border-orange-500"
                                 asChild
                               >
                                 <a href={`tel:${selectedRegistro.telefone.replace(/\D/g, "")}`}>
