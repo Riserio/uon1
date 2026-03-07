@@ -191,6 +191,15 @@ export function AppSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
+  // Sincronizar margin-left do conteúdo principal
+  useEffect(() => {
+    if (isMobile) return;
+    const el = document.getElementById("main-content");
+    if (el) {
+      el.style.marginLeft = expanded ? "15rem" : "3.5rem";
+    }
+  }, [expanded, isMobile]);
+
   // Fechar mobile sidebar ao navegar
   useEffect(() => {
     setMobileOpen(false);
@@ -223,7 +232,6 @@ export function AppSidebar() {
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
-          {/* Botão fechar */}
           <button
             onClick={() => setMobileOpen(false)}
             className="absolute top-3 right-3 h-8 w-8 rounded-lg flex items-center justify-center hover:bg-accent transition-colors"
@@ -239,29 +247,25 @@ export function AppSidebar() {
 
   // Desktop: sidebar flutuante fixa
   return (
-    <SidebarExpandedContext.Provider value={{ expanded }}>
-      {/* Sidebar flutuante desktop */}
-      <div
-        className={cn(
-          "fixed inset-y-0 left-0 z-[60] flex flex-col bg-card/95 backdrop-blur-md border-r border-border shadow-lg transition-all duration-300 ease-in-out",
-          expanded ? "w-60" : "w-[3.5rem]"
-        )}
+    <div
+      className={cn(
+        "fixed inset-y-0 left-0 z-[60] flex flex-col bg-card/95 backdrop-blur-md border-r border-border shadow-lg transition-all duration-300 ease-in-out",
+        expanded ? "w-60" : "w-[3.5rem]"
+      )}
+    >
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="absolute -right-3 top-6 z-[70] h-6 w-6 rounded-full bg-card border border-border flex items-center justify-center hover:bg-accent transition-colors shadow-sm"
+        aria-label="Alternar sidebar"
       >
-        {/* Toggle button */}
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="absolute -right-3 top-6 z-[70] h-6 w-6 rounded-full bg-card border border-border flex items-center justify-center hover:bg-accent transition-colors shadow-sm"
-          aria-label="Alternar sidebar"
-        >
-          {expanded ? (
-            <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />
-          ) : (
-            <PanelLeftOpen className="h-3.5 w-3.5 text-muted-foreground" />
-          )}
-        </button>
+        {expanded ? (
+          <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />
+        ) : (
+          <PanelLeftOpen className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
+      </button>
 
-        <SidebarMenuContent collapsed={!expanded} />
-      </div>
-    </SidebarExpandedContext.Provider>
+      <SidebarMenuContent collapsed={!expanded} />
+    </div>
   );
 }
