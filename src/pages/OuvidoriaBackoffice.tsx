@@ -269,6 +269,7 @@ export default function OuvidoriaBackoffice() {
   const [slaHours, setSlaHours] = useState<Record<string, number | null>>(DEFAULT_SLA_HOURS);
   const [detailDefaultTab, setDetailDefaultTab] = useState<string>("dados");
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
+  const [checkpointPopup, setCheckpointPopup] = useState<{ registro: Registro; targetStatus: string } | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -331,19 +332,16 @@ export default function OuvidoriaBackoffice() {
       return;
     }
     // Check if current status checkpoints are complete
-    if (!areCheckpointsComplete(registro.id, registro.status)) {
-      // Ensure checkpoints exist
-      await ensureCheckpoints(registro.id, registro.status);
-      const { data: cp } = await supabase.from("ouvidoria_checkpoints").select("*").eq("registro_id", registro.id);
-      if (cp) setCheckpoints(prev => [...prev.filter(c => c.registro_id !== registro.id), ...(cp as any)]);
-      
-      // Open detail with checkpoints tab
-      setSelectedRegistro(registro);
-      setDetailDefaultTab("checkpoints");
-      setPendingStatusChange(novoStatus);
-      setDetailOpen(true);
-      loadHistorico(registro.id);
-      toast.error(`Complete os checkpoints de "${registro.status}" antes de avançar`);
+    await ensureCheckpoints(registro.id, registro.status);
+    const { data: cp } = await supabase.from("ouvidoria_checkpoints").select("*").eq("registro_id", registro.id);
+    if (cp) setCheckpoints(prev => [...prev.filter(c => c.registro_id !== registro.id), ...(cp as any)]);
+    
+    const etapaCps = (cp as CheckpointRow[] || []).filter(c => c.etapa === registro.status);
+    const allDone = etapaCps.length === 0 || etapaCps.every(c => c.concluido);
+    
+    if (!allDone) {
+      // Show lightweight checkpoint popup
+      setCheckpointPopup({ registro, targetStatus: novoStatus });
       return;
     }
     await updateStatus(registro, novoStatus);
@@ -858,6 +856,65 @@ export default function OuvidoriaBackoffice() {
       </Dialog>
 
       <OuvidoriaConfigDialog open={configOpen} onOpenChange={setConfigOpen} corretoras={corretoras} onRefresh={loadCorretoras} />
+
+      {/* Checkpoint Popup */}
+      <Dialog open={!!checkpointPopup} onOpenChange={(open) => { if (!open) setCheckpointPopup(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Checkpoints pendentes
+            </DialogTitle>
+          </DialogHeader>
+          {checkpointPopup && (() => {
+            const reg = checkpointPopup.registro;
+            const etapaCps = checkpoints.filter(c => c.registro_id === reg.id && c.etapa === reg.status);
+            const allDone = etapaCps.length > 0 && etapaCps.every(c => c.concluido);
+            return (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Complete os itens de <strong>"{reg.status}"</strong> para avançar para <strong>"{checkpointPopup.targetStatus}"</strong>.
+                </p>
+                <div className="text-xs font-mono text-muted-foreground">{reg.protocolo}</div>
+                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  {etapaCps
+                    .sort((a, b) => a.checkpoint_index - b.checkpoint_index)
+                    .map(cp => (
+                      <label
+                        key={cp.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cp.concluido ? 'bg-primary/5 border-primary/30' : 'bg-card hover:bg-muted/50'}`}
+                      >
+                        <Checkbox
+                          checked={cp.concluido}
+                          onCheckedChange={() => toggleCheckpoint(cp)}
+                        />
+                        <span className={`text-sm ${cp.concluido ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                          {cp.checkpoint_label}
+                        </span>
+                      </label>
+                    ))}
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setCheckpointPopup(null)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    disabled={!allDone}
+                    onClick={async () => {
+                      await updateStatus(reg, checkpointPopup.targetStatus);
+                      setCheckpointPopup(null);
+                    }}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                    Avançar
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
