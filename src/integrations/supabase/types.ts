@@ -3735,6 +3735,7 @@ export type Database = {
           corretora_id: string
           created_at: string
           dominios_permitidos: string[] | null
+          emails_alerta: string[] | null
           embed_token: string | null
           id: string
           sla_horas: Json | null
@@ -3749,6 +3750,7 @@ export type Database = {
           corretora_id: string
           created_at?: string
           dominios_permitidos?: string[] | null
+          emails_alerta?: string[] | null
           embed_token?: string | null
           id?: string
           sla_horas?: Json | null
@@ -3763,6 +3765,7 @@ export type Database = {
           corretora_id?: string
           created_at?: string
           dominios_permitidos?: string[] | null
+          emails_alerta?: string[] | null
           embed_token?: string | null
           id?: string
           sla_horas?: Json | null

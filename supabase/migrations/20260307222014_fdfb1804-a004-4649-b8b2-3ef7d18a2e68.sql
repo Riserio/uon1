@@ -1,0 +1,1 @@
+ALTER TABLE public.ouvidoria_config ADD COLUMN IF NOT EXISTS emails_alerta text[] DEFAULT '{}'::text[];
