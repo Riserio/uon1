@@ -1317,6 +1317,7 @@ export default function Emails() {
                         {novoTemplate.tipo === "alerta_performance" && " {nome_responsavel}, {tipo_alerta}, {valor_atual}, {meta}"}
                         {novoTemplate.tipo === "recuperacao" && " {link_recuperacao}, {nome_usuario}"}
                         {novoTemplate.tipo === "ouvidoria" && " {protocolo}, {nome_cliente}, {nome_associacao}, {logo_url}, {tipo}, {data}, {cor_primaria}"}
+                        {novoTemplate.tipo === "ouvidoria_alerta" && " {protocolo}, {nome_manifestante}, {nome_associacao}, {logo_url}, {tipo}, {prioridade}, {descricao}, {data}, {hora}"}
                         {novoTemplate.tipo === "ouvidoria_finalizado" && " {protocolo}, {nome_cliente}, {nome_associacao}, {logo_url}, {tipo}, {status}, {resposta}, {data}, {cor_primaria}"}
                       </p>
                     </div>
