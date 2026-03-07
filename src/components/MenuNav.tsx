@@ -117,6 +117,7 @@ export default function MenuNav() {
   const { signOut, userRole } = useAuth();
   const unreadMessages = useUnreadMessages();
   const pendingUsers = usePendingUsers();
+  const ouvidoriaPendentes = useOuvidoriaPendentes();
 
   const { canView } = useMenuPermissionsForRole(userRole);
 
