@@ -363,9 +363,9 @@ export default function Corretoras() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="slug">
-                      Slug do Portal
+                      Associação
                       <span className="text-xs text-muted-foreground ml-2">
-                        (usado na URL: ?associacao={formData.slug || 'id'})
+                        (identificador na URL do portal)
                       </span>
                     </Label>
                     <Input
