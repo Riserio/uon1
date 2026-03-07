@@ -243,7 +243,7 @@ export function AppSidebar() {
 
   // Desktop: sidebar flutuante fixa
   return (
-    <>
+    <SidebarExpandedContext.Provider value={{ expanded }}>
       {/* Sidebar flutuante desktop */}
       <div
         className={cn(
@@ -266,6 +266,6 @@ export function AppSidebar() {
 
         <SidebarMenuContent collapsed={!expanded} />
       </div>
-    </>
+    </SidebarExpandedContext.Provider>
   );
 }
