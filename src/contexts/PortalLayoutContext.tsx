@@ -135,13 +135,14 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
     setShowSelection(false);
     // Redirect if no indicadores access
     if (!selected.modulos_bi.includes('indicadores')) {
+      const key = selected.slug || selected.id;
       const m = selected.modulos_bi;
-      if (m.includes('eventos')) { navigate(`/portal/sga-insights?associacao=${selected.id}`, { replace: true }); return; }
-      if (m.includes('mgf')) { navigate(`/portal/mgf-insights?associacao=${selected.id}`, { replace: true }); return; }
-      if (m.includes('cobranca')) { navigate(`/portal/cobranca-insights?associacao=${selected.id}`, { replace: true }); return; }
-      if (m.includes('estudo-base')) { navigate(`/portal/estudo-base-insights?associacao=${selected.id}`, { replace: true }); return; }
-      if (m.includes('acompanhamento-eventos')) { navigate(`/portal/acompanhamento-eventos?associacao=${selected.id}`, { replace: true }); return; }
-      if (m.includes('ouvidoria')) { navigate(`/portal/ouvidoria?associacao=${selected.id}`, { replace: true }); return; }
+      if (m.includes('eventos')) { navigate(`/portal/sga-insights?associacao=${key}`, { replace: true }); return; }
+      if (m.includes('mgf')) { navigate(`/portal/mgf-insights?associacao=${key}`, { replace: true }); return; }
+      if (m.includes('cobranca')) { navigate(`/portal/cobranca-insights?associacao=${key}`, { replace: true }); return; }
+      if (m.includes('estudo-base')) { navigate(`/portal/estudo-base-insights?associacao=${key}`, { replace: true }); return; }
+      if (m.includes('acompanhamento-eventos')) { navigate(`/portal/acompanhamento-eventos?associacao=${key}`, { replace: true }); return; }
+      if (m.includes('ouvidoria')) { navigate(`/portal/ouvidoria?associacao=${key}`, { replace: true }); return; }
     }
   };
 
