@@ -245,12 +245,15 @@ export default function PortalOuvidoria() {
 
   return (
     <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-      <div>
-        <h2 className="text-xl font-bold">Ouvidoria</h2>
-        <p className="text-sm text-muted-foreground">
-          Acompanhe as manifestações da associação
-          {canEdit && <Badge variant="outline" className="ml-2 text-[10px]">Edição habilitada</Badge>}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold">Ouvidoria</h2>
+          <p className="text-sm text-muted-foreground">
+            Acompanhe as manifestações da associação
+            {canEdit && <Badge variant="outline" className="ml-2 text-[10px]">Edição habilitada</Badge>}
+          </p>
+        </div>
+        <OuvidoriaShareLinks corretoraId={corretora.id} />
       </div>
 
       {/* Stats */}
