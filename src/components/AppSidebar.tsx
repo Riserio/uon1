@@ -236,7 +236,7 @@ export function AppSidebar() {
                             <div className="relative">
                               <Headset className="h-4 w-4" />
                               {collapsed && whatsAppUnread > 0 &&
-                          <span className="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white h-4 min-w-4 flex items-center justify-center text-[9px] rounded-full px-1 font-bold shadow-sm border border-background">
+                          <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white h-4 min-w-4 flex items-center justify-center text-[9px] rounded-full px-1 font-bold shadow-sm border border-background">
                                   {whatsAppUnread > 99 ? '99+' : whatsAppUnread}
                                 </span>
                           }
