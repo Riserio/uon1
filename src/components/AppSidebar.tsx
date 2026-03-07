@@ -202,9 +202,11 @@ export function AppSidebar() {
 
   // Sincronizar margin-left do conteúdo principal
   useEffect(() => {
-    if (isMobile) return;
     const el = document.getElementById("main-content");
-    if (el) {
+    if (!el) return;
+    if (isMobile) {
+      el.style.marginLeft = "0";
+    } else {
       el.style.marginLeft = expanded ? "15.5rem" : "4rem";
     }
   }, [expanded, isMobile]);
