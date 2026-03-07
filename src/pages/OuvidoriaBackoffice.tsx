@@ -325,6 +325,11 @@ export default function OuvidoriaBackoffice() {
   };
 
   const tryUpdateStatus = async (registro: Registro, novoStatus: string, forceOpen = false) => {
+    // Final statuses skip checkpoint validation
+    if (["Resolvido", "Sem Resolução"].includes(novoStatus)) {
+      await updateStatus(registro, novoStatus);
+      return;
+    }
     // Check if current status checkpoints are complete
     if (!areCheckpointsComplete(registro.id, registro.status)) {
       // Ensure checkpoints exist
