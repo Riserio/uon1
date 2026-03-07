@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { usePontoAlertas } from "@/hooks/usePontoAlertas";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
-import { SidebarProvider } from "@/components/ui/sidebar";
+// sidebar is now self-contained in AppSidebar
 import { AppSidebar } from "@/components/AppSidebar";
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
 import { PortalLayoutProvider } from "./contexts/PortalLayoutContext";
