@@ -169,6 +169,11 @@ export default function PortalOuvidoria() {
 
   const tryUpdateStatus = async (registro: Registro, novoStatus: string) => {
     if (!canEdit) return;
+    // Final statuses skip checkpoint validation
+    if (["Resolvido", "Sem Resolução"].includes(novoStatus)) {
+      await updateStatus(registro, novoStatus);
+      return;
+    }
     if (!areCheckpointsComplete(registro.id, registro.status)) {
       await ensureCheckpoints(registro.id, registro.status);
       const { data: cp } = await supabase.from("ouvidoria_checkpoints").select("*").eq("registro_id", registro.id);
