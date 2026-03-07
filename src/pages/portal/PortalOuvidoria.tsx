@@ -16,6 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Search, LayoutGrid, List, Eye, CheckCircle2, XCircle, Clock, AlertTriangle } from "lucide-react";
 import { OuvidoriaWidgets } from "@/components/ouvidoria/OuvidoriaWidgets";
+import { OuvidoriaShareLinks } from "@/components/ouvidoria/OuvidoriaShareLinks";
 import { format, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
