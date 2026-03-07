@@ -1250,6 +1250,8 @@ export default function Emails() {
                           <option value="convite_reuniao">Convite de Reunião</option>
                           <option value="alerta_performance">Alerta de Performance</option>
                           <option value="recuperacao">Recuperação de Senha</option>
+                          <option value="ouvidoria">Ouvidoria - Recebimento</option>
+                          <option value="ouvidoria_finalizado">Ouvidoria - Finalizado</option>
                         </select>
                       </div>
 
