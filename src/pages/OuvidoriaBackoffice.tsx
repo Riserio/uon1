@@ -271,7 +271,7 @@ export default function OuvidoriaBackoffice() {
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
   const [checkpointPopup, setCheckpointPopup] = useState<{ registro: Registro; targetStatus: string } | null>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   useEffect(() => { loadCorretoras(); }, []);
   useEffect(() => { loadRegistros(); loadSlaConfig(); }, [selectedCorretora]);
