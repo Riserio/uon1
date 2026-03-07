@@ -249,7 +249,7 @@ export default function PortalHeader({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    navigate(`/portal/acompanhamento-eventos?associacao=${corretora.id}`);
+                    navigate(`/portal/acompanhamento-eventos?associacao=${assocKey}`);
                   }}
                   className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'acompanhamento-eventos' 
