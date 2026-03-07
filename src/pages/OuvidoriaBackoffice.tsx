@@ -23,12 +23,15 @@ import { OuvidoriaWidgets } from "@/components/ouvidoria/OuvidoriaWidgets";
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
   PointerSensor,
   useSensor,
   useSensors,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
@@ -163,7 +166,7 @@ function SlaIndicator({ status }: { status: "green" | "yellow" | "red" | null })
 }
 
 // Droppable column - modern widget style
-function KanbanColumn({ status, children, count, slaLabel }: { status: string; children: React.ReactNode; count: number; slaLabel?: string }) {
+function KanbanColumn({ status, children, count, slaLabel, isActiveDropZone }: { status: string; children: React.ReactNode; count: number; slaLabel?: string; isActiveDropZone?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const accentColor = STATUS_ACCENT_COLORS[status] || "#6b7280";
   return (
@@ -182,7 +185,7 @@ function KanbanColumn({ status, children, count, slaLabel }: { status: string; c
             <span className="text-[10px] text-muted-foreground font-medium">{slaLabel}</span>
           )}
         </div>
-        <div className={`flex-1 p-3 space-y-2.5 overflow-y-auto min-h-[200px] max-h-[calc(100vh-340px)] transition-colors duration-75 ${isOver ? 'bg-primary/5 ring-2 ring-primary/20 ring-inset' : ''}`}>
+        <div className={`flex-1 p-3 space-y-2.5 overflow-y-auto min-h-[200px] max-h-[calc(100vh-340px)] transition-colors duration-75 ${(isOver || isActiveDropZone) ? 'bg-primary/5 ring-2 ring-primary/20 ring-inset' : ''}`}>
           {children}
         </div>
       </div>
@@ -270,8 +273,21 @@ export default function OuvidoriaBackoffice() {
   const [detailDefaultTab, setDetailDefaultTab] = useState<string>("dados");
   const [pendingStatusChange, setPendingStatusChange] = useState<string | null>(null);
   const [checkpointPopup, setCheckpointPopup] = useState<{ registro: Registro; targetStatus: string } | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  const collisionDetectionStrategy: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args);
+    const pointerColumns = pointerCollisions.filter((c) => STATUSES.includes(String(c.id)));
+    if (pointerColumns.length > 0) return pointerColumns;
+
+    const rectCollisions = rectIntersection(args);
+    const rectColumns = rectCollisions.filter((c) => STATUSES.includes(String(c.id)));
+    if (rectColumns.length > 0) return rectColumns;
+
+    return pointerCollisions.length > 0 ? pointerCollisions : rectCollisions;
+  };
 
   useEffect(() => { loadCorretoras(); }, []);
   useEffect(() => { loadRegistros(); loadSlaConfig(); }, [selectedCorretora]);
@@ -430,9 +446,26 @@ export default function OuvidoriaBackoffice() {
   };
 
   const handleDragStart = (event: DragStartEvent) => setActiveId(event.active.id as string);
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    if (!over) {
+      setDragOverStatus(null);
+      return;
+    }
+
+    let overStatus = over.id as string;
+    if (!STATUSES.includes(overStatus)) {
+      const overCard = registros.find(r => r.id === overStatus);
+      overStatus = overCard?.status || "";
+    }
+
+    setDragOverStatus(STATUSES.includes(overStatus) ? overStatus : null);
+  };
   
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
+    setDragOverStatus(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -533,14 +566,14 @@ export default function OuvidoriaBackoffice() {
 
       {/* Content */}
       {viewMode === "kanban" && (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
+        <DndContext sensors={sensors} collisionDetection={collisionDetectionStrategy} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} onDragCancel={() => { setActiveId(null); setDragOverStatus(null); }}>
           <div className="flex gap-3 overflow-x-auto pb-4">
             {STATUSES.map(status => {
               const cards = filtered.filter(r => r.status === status);
               const slaH = slaHours[status];
               const slaLabel = slaH ? `${slaH}h` : status === "Monitoramento" ? "Agendado" : status === "Resolvido" ? "Finalizado" : status === "Sem Resolução" ? "Encerrado" : undefined;
               return (
-                <KanbanColumn key={status} status={status} count={cards.length} slaLabel={slaLabel}>
+                <KanbanColumn key={status} status={status} count={cards.length} slaLabel={slaLabel} isActiveDropZone={dragOverStatus === status}>
                   {cards.slice(0, 10).map(r => (
                     <DraggableCard key={r.id} registro={r} checkpoints={checkpoints.filter(c => c.registro_id === r.id)} onClick={() => openDetail(r)} slaHours={slaHours} corretoraName={corretoras.find(c => c.id === r.corretora_id)?.nome} />
                   ))}
