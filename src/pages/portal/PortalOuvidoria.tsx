@@ -89,7 +89,7 @@ type HistoricoRow = {
 };
 
 export default function PortalOuvidoria() {
-  const { corretora } = useOutletContext<{ corretora: { id: string; nome: string } }>();
+  const { corretora } = useOutletContext<{ corretora: { id: string; nome: string; logo_url?: string } }>();
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
