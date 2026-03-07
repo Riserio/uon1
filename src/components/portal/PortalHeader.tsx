@@ -186,7 +186,7 @@ export default function PortalHeader({
                     if (carousel) {
                       carousel.goToModule('mgf');
                     } else {
-                      navigate(`/portal/mgf-insights?associacao=${corretora.id}`);
+                      navigate(`/portal/mgf-insights?associacao=${assocKey}`);
                     }
                   }}
                   disabled={carousel?.config.enabled}
