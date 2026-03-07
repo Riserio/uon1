@@ -37,6 +37,9 @@ export default function PortalHeader({
   const carousel = usePortalCarouselOptional();
   const navigate = useNavigate();
   
+  // Identificador para URLs (slug ou id)
+  const assocKey = corretora.slug || corretora.id;
+  
   // Verificar permissões de módulos
   const hasModulo = (modulo: string) => corretora.modulos_bi.includes(modulo);
   const hasIndicadores = hasModulo('indicadores');
