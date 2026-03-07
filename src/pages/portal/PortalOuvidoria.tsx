@@ -169,6 +169,11 @@ export default function PortalOuvidoria() {
 
   const tryUpdateStatus = async (registro: Registro, novoStatus: string) => {
     if (!canEdit) return;
+    // Final statuses skip checkpoint validation
+    if (["Resolvido", "Sem Resolução"].includes(novoStatus)) {
+      await updateStatus(registro, novoStatus);
+      return;
+    }
     if (!areCheckpointsComplete(registro.id, registro.status)) {
       await ensureCheckpoints(registro.id, registro.status);
       const { data: cp } = await supabase.from("ouvidoria_checkpoints").select("*").eq("registro_id", registro.id);
@@ -428,14 +433,26 @@ export default function PortalOuvidoria() {
             <div className="flex flex-col h-full max-h-[90vh]">
               {/* Header */}
               <div className="px-6 pt-6 pb-4 border-b bg-muted/20">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-bold font-mono">{selectedRegistro.protocolo}</h2>
-                  <Badge className={STATUS_COLORS[selectedRegistro.status]}>{selectedRegistro.status}</Badge>
-                  {selectedRegistro.urgencia && (
-                    <Badge variant="outline" className="capitalize gap-1.5">
-                      <div className={`w-2 h-2 rounded-full ${URGENCIA_COLORS[selectedRegistro.urgencia]}`} />
-                      {selectedRegistro.urgencia}
-                    </Badge>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-bold font-mono">{selectedRegistro.protocolo}</h2>
+                    <Badge className={STATUS_COLORS[selectedRegistro.status]}>{selectedRegistro.status}</Badge>
+                    {selectedRegistro.urgencia && (
+                      <Badge variant="outline" className="capitalize gap-1.5">
+                        <div className={`w-2 h-2 rounded-full ${URGENCIA_COLORS[selectedRegistro.urgencia]}`} />
+                        {selectedRegistro.urgencia}
+                      </Badge>
+                    )}
+                  </div>
+                  {canEdit && !["Resolvido", "Sem Resolução"].includes(selectedRegistro.status) && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="rounded-full border-green-500 text-green-600 hover:bg-green-600 hover:text-white hover:border-green-600" onClick={() => tryUpdateStatus(selectedRegistro, "Resolvido")}>
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Resolvido
+                      </Button>
+                      <Button size="sm" variant="outline" className="rounded-full border-red-500 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600" onClick={() => tryUpdateStatus(selectedRegistro, "Sem Resolução")}>
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Sem Resolução
+                      </Button>
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
@@ -611,14 +628,6 @@ export default function PortalOuvidoria() {
                               <p className="text-xs text-destructive">Complete os checkpoints de "<strong>{selectedRegistro.status}</strong>" para avançar para "<strong>{pendingStatusChange}</strong>"</p>
                             </div>
                           )}
-                          <div className="flex gap-2 pt-1">
-                            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white rounded-full" onClick={() => tryUpdateStatus(selectedRegistro, "Resolvido")}>
-                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Resolvido
-                            </Button>
-                            <Button size="sm" variant="destructive" className="rounded-full" onClick={() => tryUpdateStatus(selectedRegistro, "Sem Resolução")}>
-                              <XCircle className="h-3.5 w-3.5 mr-1" /> Sem Resolução
-                            </Button>
-                          </div>
                         </div>
 
                         {/* Observações */}

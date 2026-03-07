@@ -325,6 +325,11 @@ export default function OuvidoriaBackoffice() {
   };
 
   const tryUpdateStatus = async (registro: Registro, novoStatus: string, forceOpen = false) => {
+    // Final statuses skip checkpoint validation
+    if (["Resolvido", "Sem Resolução"].includes(novoStatus)) {
+      await updateStatus(registro, novoStatus);
+      return;
+    }
     // Check if current status checkpoints are complete
     if (!areCheckpointsComplete(registro.id, registro.status)) {
       // Ensure checkpoints exist
@@ -611,6 +616,16 @@ export default function OuvidoriaBackoffice() {
                       </Badge>
                     )}
                   </div>
+                  {!["Resolvido", "Sem Resolução"].includes(selectedRegistro.status) && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="rounded-full border-green-500 text-green-600 hover:bg-green-600 hover:text-white hover:border-green-600" onClick={() => tryUpdateStatus(selectedRegistro, "Resolvido", true)}>
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Resolvido
+                      </Button>
+                      <Button size="sm" variant="outline" className="rounded-full border-red-500 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600" onClick={() => tryUpdateStatus(selectedRegistro, "Sem Resolução", true)}>
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Sem Resolução
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                   <span>{selectedRegistro.nome}</span>
@@ -745,14 +760,6 @@ export default function OuvidoriaBackoffice() {
                           <p className="text-xs text-destructive">Complete os checkpoints de "<strong>{selectedRegistro.status}</strong>" para avançar para "<strong>{pendingStatusChange}</strong>"</p>
                         </div>
                       )}
-                      <div className="flex gap-2 pt-1">
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white rounded-full" onClick={() => tryUpdateStatus(selectedRegistro, "Resolvido", true)}>
-                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Resolvido
-                        </Button>
-                        <Button size="sm" variant="destructive" className="rounded-full" onClick={() => tryUpdateStatus(selectedRegistro, "Sem Resolução", true)}>
-                          <XCircle className="h-3.5 w-3.5 mr-1" /> Sem Resolução
-                        </Button>
-                      </div>
                     </div>
 
                     {/* Observações */}
