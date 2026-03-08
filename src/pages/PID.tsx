@@ -38,13 +38,14 @@ export default function PID() {
         <BIAdminDashboard />
       ) : (
         <>
+          {/* Actions row - aligned right */}
           {selectedAssociacao && (
             <div className="flex justify-end">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setUsuariosDialogOpen(true)}
-                className="gap-2"
+                className="gap-2 rounded-xl"
               >
                 <Users className="h-4 w-4" />
                 <span className="text-sm">Gerenciar Usuários</span>
@@ -52,27 +53,29 @@ export default function PID() {
             </div>
           )}
 
+          {/* Tabs - Widget style matching other pages */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <div className="w-full overflow-x-auto pb-2">
-              <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/40 rounded-xl min-w-max md:min-w-0">
+            <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+              <div className="flex items-center gap-1.5 p-1.5 bg-muted/40 rounded-2xl w-fit min-w-full sm:min-w-0">
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
                   return (
-                    <TabsTrigger
+                    <button
                       key={tab.id}
-                      value={tab.id}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                                 text-muted-foreground transition-all
-                                 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                                 data-[state=active]:shadow-md hover:text-foreground hover:bg-muted/60
-                                 whitespace-nowrap"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+                        isActive
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      }`}
                     >
                       <Icon className="h-4 w-4" />
                       <span className="hidden sm:inline">{tab.label}</span>
-                    </TabsTrigger>
+                    </button>
                   );
                 })}
-              </TabsList>
+              </div>
             </div>
 
             <TabsContent value="dashboard" className="space-y-4 mt-0">
