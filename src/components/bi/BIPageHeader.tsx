@@ -73,12 +73,13 @@ export default function BIPageHeader({
   const navigate = useNavigate();
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome;
 
-  return <div className="space-y-4 pt-6 mb-6">
+  return (
+    <div className="space-y-4 pt-6 mb-6">
       {/* Row 1: Icon + Title + Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-            <BarChart3 className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+            <BarChart3 className="h-6 w-6 text-primary" />
           </div>
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold leading-tight text-foreground">{title}</h1>
@@ -86,9 +87,9 @@ export default function BIPageHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap pl-12 sm:pl-0">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={selectedAssociacao} onValueChange={onAssociacaoChange} disabled={loadingAssociacoes}>
-            <SelectTrigger className="w-44 sm:w-56 h-9 text-sm">
+            <SelectTrigger className="w-44 sm:w-52 h-9 text-sm rounded-xl">
               <SelectValue placeholder="Selecione associação..." />
             </SelectTrigger>
             <SelectContent>
@@ -108,35 +109,55 @@ export default function BIPageHeader({
             />
           )}
 
-          {recordCount !== undefined && recordCount > 0 && <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-lg whitespace-nowrap">
-              <Database className="h-3.5 w-3.5 shrink-0" />
-              <span>{recordCount.toLocaleString('pt-BR')}</span>
-              {hasActiveFilters && <span className="text-primary">(filtrados)</span>}
-              {fileName && <>
-                  <span className="text-muted-foreground/40">|</span>
-                  <span className="truncate max-w-[120px]">{fileName}</span>
-                </>}
-            </div>}
-
-          {showHistorico && onHistoricoClick && <Button variant="ghost" size="sm" onClick={onHistoricoClick} className="gap-1.5 text-muted-foreground hover:text-foreground">
+          {showHistorico && onHistoricoClick && (
+            <Button variant="ghost" size="sm" onClick={onHistoricoClick} className="gap-1.5 text-muted-foreground hover:text-foreground rounded-xl">
               <History className="h-4 w-4" />
               <span className="hidden sm:inline text-xs">Histórico</span>
-            </Button>}
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Row 2: Module navigation pills */}
-      {currentModule !== 'admin' && (
-        <nav className="flex items-center gap-2 overflow-x-auto pb-1">
-          {modules.map(mod => {
-          const Icon = mod.icon;
-          const isActive = currentModule === mod.id;
-          return <Button key={mod.id} variant="outline" size="sm" onClick={() => navigate(`${mod.path}${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)} className={`gap-2 shrink-0 transition-all duration-300 ${isActive ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' : 'hover:bg-muted'}`}>
-                <Icon className="h-4 w-4" />
-                <span>{mod.label}</span>
-              </Button>;
-        })}
-        </nav>
+      {/* Record count badge */}
+      {recordCount !== undefined && recordCount > 0 && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-xl w-fit">
+          <Database className="h-3.5 w-3.5 shrink-0" />
+          <span>{recordCount.toLocaleString('pt-BR')} registros</span>
+          {hasActiveFilters && <span className="text-primary">(filtrados)</span>}
+          {fileName && (
+            <>
+              <span className="text-muted-foreground/40">|</span>
+              <span className="truncate max-w-[120px]">{fileName}</span>
+            </>
+          )}
+        </div>
       )}
-    </div>;
+
+      {/* Row 2: Module navigation pills - Widget style */}
+      {currentModule !== 'admin' && (
+        <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="flex items-center gap-1.5 p-1.5 bg-muted/40 rounded-2xl w-fit">
+            {modules.map(mod => {
+              const Icon = mod.icon;
+              const isActive = currentModule === mod.id;
+              return (
+                <button
+                  key={mod.id}
+                  onClick={() => navigate(`${mod.path}${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{mod.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
