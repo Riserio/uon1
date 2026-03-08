@@ -1,16 +1,13 @@
 import { useState, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
-import { Clock, UserCircle, Briefcase } from "lucide-react";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Clock, UserCircle, Briefcase, Users, CalendarClock, Shield } from "lucide-react";
 import GestaoJornada from "@/components/gestao/GestaoJornada";
 import Usuarios from "@/pages/Usuarios";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Gestao() {
   const { userRole } = useAuth();
-
   const canManageUsers = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
-
   const defaultTab = canManageUsers ? "usuarios" : "jornada";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
@@ -21,86 +18,72 @@ export default function Gestao() {
   }, [activeTab, defaultTab]);
 
   const tabs = [
-    { id: "usuarios", label: "Usuários", shortLabel: "Usuários", icon: UserCircle, visible: canManageUsers, description: "Gerenciar usuários e funcionários" },
-    { id: "jornada", label: "Jornada", shortLabel: "Jornada", icon: Clock, visible: true, description: "Controle de ponto" },
+    { id: "usuarios", label: "Usuários", icon: UserCircle, visible: canManageUsers, description: "Gerenciar usuários, permissões e acessos", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+    { id: "jornada", label: "Jornada de Trabalho", icon: CalendarClock, visible: true, description: "Controle de ponto e banco de horas", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
   ].filter(tab => tab.visible);
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-6 px-6">
+      <div className="container mx-auto py-6 px-4 sm:px-6 space-y-6">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Briefcase className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Gestão</h1>
-              <p className="text-muted-foreground">Central de gerenciamento do sistema</p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+            <Briefcase className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestão</h1>
+            <p className="text-sm text-muted-foreground">Central de gerenciamento do sistema</p>
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className={`grid grid-cols-2 lg:grid-cols-${tabs.length} gap-4 mb-8`}>
+        {/* Navigation Cards - Widget Style */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
-              <Card 
+              <button
                 key={tab.id}
-                className={`cursor-pointer transition-all duration-200 hover:shadow-md border-border/50 ${
-                  isActive ? 'ring-2 ring-primary/50 bg-primary/5' : 'bg-card/50 backdrop-blur-sm'
-                }`}
                 onClick={() => setActiveTab(tab.id)}
+                className={`text-left rounded-2xl border p-5 transition-all duration-200 ${
+                  isActive 
+                    ? "border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/20" 
+                    : "border-border/50 bg-card hover:border-border hover:shadow-sm"
+                }`}
               >
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                      isActive ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                    }`}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className={`font-medium ${isActive ? 'text-primary' : 'text-foreground'}`}>
-                        {tab.label}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {tab.description}
-                      </p>
-                    </div>
+                <div className="flex items-start gap-4">
+                  <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ${
+                    isActive ? "bg-primary text-primary-foreground" : tab.color.split(" ")[0] + " " + tab.color.split(" ").slice(1).join(" ")
+                  }`}>
+                    <Icon className="h-5 w-5" />
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="min-w-0">
+                    <p className={`font-semibold text-sm ${isActive ? "text-primary" : "text-foreground"}`}>
+                      {tab.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                      {tab.description}
+                    </p>
+                  </div>
+                </div>
+              </button>
             );
           })}
         </div>
 
-        {/* Content Tabs */}
+        {/* Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="hidden">
-            {tabs.map((tab) => (
-              <TabsTrigger key={tab.id} value={tab.id}>
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          <TabsContent value="jornada" className="mt-0 animate-in fade-in-50 duration-300">
-            <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <GestaoJornada />
-              </CardContent>
-            </Card>
+          <TabsContent value="jornada" className="mt-0">
+            <div className="rounded-2xl border border-border/50 bg-card p-4 sm:p-6">
+              <GestaoJornada />
+            </div>
           </TabsContent>
 
           {canManageUsers && (
-            <TabsContent value="usuarios" className="mt-0 animate-in fade-in-50 duration-300">
-              <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <Usuarios />
-                </CardContent>
-              </Card>
+            <TabsContent value="usuarios" className="mt-0">
+              <div className="rounded-2xl border border-border/50 bg-card p-4 sm:p-6">
+                <Usuarios />
+              </div>
             </TabsContent>
           )}
         </Tabs>
