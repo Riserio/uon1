@@ -307,37 +307,21 @@ export default function Dashboard() {
   { name: "Baixa", value: atendimentos.filter((a) => a.prioridade === "Baixa").length }],
   [atendimentos]);
 
-  // Associações: group by gestao_associacao_fluxos names
+  // Associações: group by fluxo - use actual fluxo from atendimentos (all esteiras)
   const assocFluxoData = useMemo(() => {
     const m = new Map<string, number>();
-    // Use gestao_associacao_fluxos for association-specific fluxo names
-    const assocFluxoNames = new Map(assocFluxos.map((f) => [f.nome, 0]));
-    // Count atendimentos by their fluxo name (matching against both regular fluxos and assoc fluxos)
     assocAtendimentos.forEach((a) => {
       const name = a.fluxoId ? fluxoNames[a.fluxoId] || "Sem fluxo" : "Sem fluxo";
       m.set(name, (m.get(name) || 0) + 1);
     });
-    // Merge: show assoc fluxos with counts from atendimentos
-    const merged = new Map<string, number>();
-    // Add all unique gestao_associacao_fluxos names
-    assocFluxos.forEach((f) => {
-      const existing = merged.get(f.nome) || 0;
-      merged.set(f.nome, existing);
-    });
-    // Add atendimento counts
-    m.forEach((count, name) => {
-      merged.set(name, (merged.get(name) || 0) + count);
-    });
-    return Array.from(merged.entries()).map(([name, value]) => ({ name, value })).filter(d => d.value > 0).sort((a, b) => b.value - a.value).slice(0, 6);
-  }, [assocAtendimentos, fluxoNames, assocFluxos]);
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+  }, [assocAtendimentos, fluxoNames]);
 
-  // Associações: group by corretora - include ALL associations that have gestao_associacao_fluxos configured
+  // Associações: group by corretora - include ALL corretoras with atendimentos
   const assocCorretoraData = useMemo(() => {
     const m = new Map<string, number>();
-    // Initialize with all associations that have fluxos configured
-    const assocWithFluxos = new Set(assocFluxos.map((f) => f.corretora_id));
-    assocWithFluxos.forEach((cId) => {
-      const name = corretoraNames[cId] || "N/A";
+    // Include all corretoras (even without atendimentos) for full visibility
+    Object.entries(corretoraNames).forEach(([id, name]) => {
       if (!m.has(name)) m.set(name, 0);
     });
     // Count atendimentos per corretora
@@ -345,8 +329,8 @@ export default function Dashboard() {
       const name = a.corretoraId ? (corretoraNames[a.corretoraId] || "N/A") : "N/A";
       m.set(name, (m.get(name) || 0) + 1);
     });
-    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
-  }, [assocAtendimentos, corretoraNames, assocFluxos]);
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [assocAtendimentos, corretoraNames]);
 
   const responsavelData = useMemo(() => {
     const m = new Map<string, number>();
