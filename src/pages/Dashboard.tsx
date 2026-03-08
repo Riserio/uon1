@@ -278,7 +278,7 @@ export default function Dashboard() {
   const fluxoNames = useMemo(() => fluxos.reduce((a, f) => {a[f.id] = f.nome;return a;}, {} as Record<string, string>), [fluxos]);
 
   const total = atendimentos.length;
-  const finalizados = atendimentos.filter((a) => a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId)).length;
+  const finalizados = atendimentos.filter((a) => (a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId)) || statusFinalizados.has(a.status)).length;
   const emAndamento = total - finalizados;
   const taxa = total > 0 ? (finalizados / total * 100).toFixed(1) : "0";
 
