@@ -9,9 +9,11 @@ const corsHeaders = {
 interface WorkflowInput {
   corretora_id: string;
   hinova_url: string;
+  hinova_relatorio_url: string;
   hinova_user: string;
   hinova_pass: string;
   hinova_codigo_cliente: string;
+  hinova_layout: string;
   data_inicio: string;
   data_fim: string;
   execucao_id: string;
@@ -40,7 +42,6 @@ serve(async (req) => {
       );
     }
 
-    // Usar anon key + auth header para validar o token do usuário
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -56,22 +57,11 @@ serve(async (req) => {
     }
 
     const user = { id: data.claims.sub as string, email: data.claims.email as string };
-
-    // Cliente admin para operações no banco
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verificar secrets do GitHub
     if (!githubPat || !githubRepoOwner || !githubRepoName) {
-      console.error("GitHub secrets não configurados:", { 
-        pat: !!githubPat, 
-        owner: !!githubRepoOwner, 
-        repo: !!githubRepoName 
-      });
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: "Configuração do GitHub incompleta. Configure GITHUB_PAT, GITHUB_REPO_OWNER e GITHUB_REPO_NAME nos secrets." 
-        }),
+        JSON.stringify({ success: false, message: "Configuração do GitHub incompleta" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -79,11 +69,13 @@ serve(async (req) => {
     const body = await req.json();
     const { action, corretora_id, run_id } = body;
 
+    // ====================================
+    // CANCELAR EXECUÇÃO
+    // ====================================
     if (action === 'cancel' && run_id) {
-      console.log(`[SGA GitHub Workflow] Cancelando run ${run_id}`);
+      console.log(`[SGA Workflow] Cancelando run ${run_id}`);
       
       const cancelUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/runs/${run_id}/cancel`;
-      
       const cancelResponse = await fetch(cancelUrl, {
         method: 'POST',
         headers: {
@@ -96,14 +88,12 @@ serve(async (req) => {
       if (!cancelResponse.ok && cancelResponse.status !== 202) {
         const errorText = await cancelResponse.text();
         console.error("Erro ao cancelar workflow:", errorText);
-        
         if (cancelResponse.status === 409) {
           return new Response(
             JSON.stringify({ success: true, message: "Execução já foi finalizada" }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        
         return new Response(
           JSON.stringify({ success: false, message: "Erro ao cancelar execução no GitHub" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -116,6 +106,9 @@ serve(async (req) => {
       );
     }
 
+    // ====================================
+    // DISPARAR EXECUÇÃO
+    // ====================================
     if (action === 'dispatch' || !action) {
       if (!corretora_id) {
         return new Response(
@@ -124,9 +117,9 @@ serve(async (req) => {
         );
       }
 
-      console.log(`[SGA GitHub Workflow] Iniciando para corretora: ${corretora_id}`);
+      console.log(`[SGA Workflow] Iniciando para corretora: ${corretora_id}`);
 
-      // Verificar se já houve execução com sucesso ou em andamento hoje
+      // Verificar execução hoje
       const hoje = new Date().toISOString().split('T')[0];
       const { data: execucoesHoje } = await supabase
         .from("sga_automacao_execucoes")
@@ -138,32 +131,65 @@ serve(async (req) => {
 
       if (execucoesHoje && execucoesHoje.length > 0) {
         const st = execucoesHoje[0].status;
-        console.log(`[SGA GitHub Workflow] Corretora ${corretora_id} já tem execução '${st}' hoje, bloqueando disparo`);
         return new Response(
-          JSON.stringify({ success: false, message: st === "executando" ? "Já existe uma execução em andamento hoje" : "Já houve uma integração com sucesso hoje. Apenas uma por dia é permitida." }),
+          JSON.stringify({ success: false, message: st === "executando" ? "Já existe uma execução em andamento hoje" : "Já houve uma integração com sucesso hoje." }),
           { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Buscar configuração da automação SGA
-      const { data: config, error: configError } = await supabase
+      // ====================================================================
+      // FONTE DE VERDADE: hinova_credenciais para credenciais e URLs
+      // ====================================================================
+      const { data: cred } = await supabase
+        .from("hinova_credenciais")
+        .select("*")
+        .eq("corretora_id", corretora_id)
+        .maybeSingle();
+
+      // Buscar config de automação
+      let { data: config } = await supabase
         .from("sga_automacao_config")
         .select("*")
         .eq("corretora_id", corretora_id)
         .single();
 
-      if (configError || !config) {
-        console.error("Configuração SGA não encontrada:", configError);
-        return new Response(
-          JSON.stringify({ success: false, message: "Configuração de automação SGA não encontrada" }),
-          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      // Usar credenciais de hinova_credenciais (prioridade) ou sga_automacao_config (fallback)
+      const hinovaUrl = cred?.hinova_url || config?.hinova_url;
+      const hinovaUser = cred?.hinova_user || config?.hinova_user;
+      const hinovaPass = cred?.hinova_pass || config?.hinova_pass;
+      const hinovaCodigo = cred?.hinova_codigo_cliente || config?.hinova_codigo_cliente || '';
+      const urlEventos = cred?.url_eventos || '';
+      const layoutEventos = cred?.layout_eventos || '';
 
-      if (!config.hinova_user || !config.hinova_pass) {
+      if (!hinovaUser || !hinovaPass) {
         return new Response(
           JSON.stringify({ success: false, message: "Credenciais Hinova não configuradas" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Auto-criar config se não existir
+      if (!config) {
+        const { data: newConfig } = await supabase
+          .from("sga_automacao_config")
+          .insert({
+            corretora_id,
+            ativo: true,
+            hinova_url: hinovaUrl,
+            hinova_user: hinovaUser,
+            hinova_pass: hinovaPass,
+            hinova_codigo_cliente: hinovaCodigo,
+            hora_agendada: cred?.hora_agendada || '09:00:00',
+          })
+          .select()
+          .single();
+        config = newConfig;
+      }
+
+      if (!config) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Erro ao criar configuração" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
@@ -172,67 +198,65 @@ serve(async (req) => {
         .from("sga_automacao_execucoes")
         .insert({
           config_id: config.id,
-          corretora_id: corretora_id,
+          corretora_id,
           status: 'executando',
           etapa_atual: 'disparo',
           mensagem: `Execução iniciada por ${user.email}`,
           iniciado_por: user.id,
           tipo_disparo: 'manual',
-          filtros_aplicados: {
-            data_inicio: config.filtro_data_cadastro_inicio,
-            data_fim: config.filtro_data_cadastro_fim,
-          },
         })
         .select()
         .single();
 
-      if (execError) {
-        console.error("Erro ao criar registro de execução:", execError);
+      if (execError || !execucao) {
         return new Response(
           JSON.stringify({ success: false, message: "Erro ao registrar execução" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Atualizar status para executando
       await supabase
         .from("sga_automacao_config")
-        .update({
-          ultima_execucao: new Date().toISOString(),
-          ultimo_status: 'executando',
-          ultimo_erro: null,
-        })
+        .update({ ultima_execucao: new Date().toISOString(), ultimo_status: 'executando', ultimo_erro: null })
         .eq("id", config.id);
 
-      // Formatar datas para DD/MM/YYYY
-      // Data início: sempre 01/01/2000 (histórico completo)
+      // Calcular datas e derivar URL do relatório
       const dataInicio = '01/01/2000';
-      
-      // Data fim: último dia do mês atual
       const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
-      const lastDay = new Date(year, month + 1, 0);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       const dataFim = `${String(lastDay.getDate()).padStart(2, '0')}/${String(lastDay.getMonth() + 1).padStart(2, '0')}/${lastDay.getFullYear()}`;
 
-      // Preparar inputs para o workflow
+      let relatorioUrl = urlEventos;
+      if (!relatorioUrl && hinovaUrl) {
+        try {
+          const url = new URL(hinovaUrl);
+          const pathParts = url.pathname.split('/');
+          const basePathParts = pathParts.filter((p: string) =>
+            p && !p.includes('login') && !p.includes('Principal') && p !== 'v5'
+          );
+          relatorioUrl = `${url.origin}/${basePathParts.join('/')}/relatorio/relatorioEvento.php`;
+        } catch {
+          relatorioUrl = '';
+        }
+      }
+
       const workflowInputs: WorkflowInput = {
-        corretora_id: corretora_id,
-        hinova_url: config.hinova_url,
-        hinova_user: config.hinova_user,
-        hinova_pass: config.hinova_pass,
-        hinova_codigo_cliente: config.hinova_codigo_cliente || '',
+        corretora_id,
+        hinova_url: hinovaUrl,
+        hinova_relatorio_url: relatorioUrl,
+        hinova_user: hinovaUser,
+        hinova_pass: hinovaPass,
+        hinova_codigo_cliente: hinovaCodigo,
+        hinova_layout: layoutEventos,
         data_inicio: dataInicio,
         data_fim: dataFim,
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-sga-hinova`,
       };
 
-      console.log(`[Eventos GitHub Workflow] Disparando workflow para ${corretora_id} - Período: ${dataInicio} até ${dataFim}`);
+      console.log(`[SGA Workflow] Disparando workflow - Período: ${dataInicio} até ${dataFim}, Relatório: ${relatorioUrl}`);
 
-      // Disparar workflow via GitHub API (nome atualizado)
       const dispatchUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/dispatches`;
-      
       const dispatchResponse = await fetch(dispatchUrl, {
         method: 'POST',
         headers: {
@@ -241,31 +265,21 @@ serve(async (req) => {
           'X-GitHub-Api-Version': '2022-11-28',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ref: 'main',
-          inputs: workflowInputs,
-        }),
+        body: JSON.stringify({ ref: 'main', inputs: workflowInputs }),
       });
 
       if (!dispatchResponse.ok && dispatchResponse.status !== 204) {
         const errorText = await dispatchResponse.text();
         console.error("Erro ao disparar workflow:", dispatchResponse.status, errorText);
-        
+
         await supabase
           .from("sga_automacao_execucoes")
-          .update({
-            status: 'erro',
-            erro: `Erro ao disparar GitHub Actions: ${dispatchResponse.status}`,
-            finalizado_at: new Date().toISOString(),
-          })
+          .update({ status: 'erro', erro: `Erro GitHub: ${dispatchResponse.status}`, finalizado_at: new Date().toISOString() })
           .eq("id", execucao.id);
 
         await supabase
           .from("sga_automacao_config")
-          .update({
-            ultimo_status: 'erro',
-            ultimo_erro: `Erro ao disparar GitHub Actions: ${dispatchResponse.status}`,
-          })
+          .update({ ultimo_status: 'erro', ultimo_erro: `Erro GitHub: ${dispatchResponse.status}` })
           .eq("id", config.id);
 
         return new Response(
@@ -274,59 +288,45 @@ serve(async (req) => {
         );
       }
 
-      // Aguardar e buscar o run_id
+      // Buscar run_id
       await new Promise(resolve => setTimeout(resolve, 3000));
 
       const runsUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/runs?per_page=1`;
       const runsResponse = await fetch(runsUrl, {
-        headers: {
-          'Authorization': `Bearer ${githubPat}`,
-          'Accept': 'application/vnd.github.v3+json',
-        },
+        headers: { 'Authorization': `Bearer ${githubPat}`, 'Accept': 'application/vnd.github.v3+json' },
       });
 
       let githubRunId = null;
       let githubRunUrl = null;
-      
+
       if (runsResponse.ok) {
         const runsData = await runsResponse.json();
         if (runsData.workflow_runs?.length > 0) {
           const latestRun = runsData.workflow_runs[0];
           githubRunId = String(latestRun.id);
           githubRunUrl = latestRun.html_url;
-          
+
           await supabase
             .from("sga_automacao_execucoes")
-            .update({
-              github_run_id: githubRunId,
-              github_run_url: githubRunUrl,
-            })
+            .update({ github_run_id: githubRunId, github_run_url: githubRunUrl })
             .eq("id", execucao.id);
         }
       }
 
-      // Registrar log de auditoria
       await supabase.from("bi_audit_logs").insert({
         modulo: "sga_insights",
         acao: "github_workflow_disparado",
-        descricao: `Workflow SGA GitHub disparado por ${user.email}`,
-        corretora_id: corretora_id,
+        descricao: `Workflow SGA disparado por ${user.email}`,
+        corretora_id,
         user_id: user.id,
         user_nome: user.email || "Usuário",
-        dados_novos: {
-          execucao_id: execucao.id,
-          github_run_id: githubRunId,
-          github_run_url: githubRunUrl,
-          filtros: workflowInputs,
-        },
+        dados_novos: { execucao_id: execucao.id, github_run_id: githubRunId },
       });
-
-      console.log(`[SGA GitHub Workflow] Workflow disparado com sucesso. Run ID: ${githubRunId}`);
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: "Workflow SGA GitHub disparado com sucesso",
+          message: "Workflow SGA disparado com sucesso",
           execucao_id: execucao.id,
           github_run_id: githubRunId,
           github_run_url: githubRunUrl,
@@ -341,7 +341,7 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    console.error("[SGA GitHub Workflow] Erro:", error);
+    console.error("[SGA Workflow] Erro:", error);
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return new Response(
       JSON.stringify({ success: false, message: errorMessage }),

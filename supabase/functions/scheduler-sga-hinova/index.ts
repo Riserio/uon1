@@ -9,9 +9,11 @@ const corsHeaders = {
 interface WorkflowInput {
   corretora_id: string;
   hinova_url: string;
+  hinova_relatorio_url: string;
   hinova_user: string;
   hinova_pass: string;
   hinova_codigo_cliente: string;
+  hinova_layout: string;
   data_inicio: string;
   data_fim: string;
   execucao_id: string;
@@ -34,7 +36,6 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verificar secrets do GitHub
     if (!githubPat || !githubRepoOwner || !githubRepoName) {
       console.error("[Scheduler SGA] GitHub secrets não configurados");
       return new Response(
@@ -43,7 +44,6 @@ serve(async (req) => {
       );
     }
 
-    // Verificar se é uma chamada forçada (executar pendentes)
     let forceMode = false;
     let specificCorretoras: string[] = [];
     
@@ -57,9 +57,9 @@ serve(async (req) => {
       // Body vazio é ok - modo normal do cron
     }
 
-    // Obter hora atual em Brasília (UTC-3)
+    // Hora atual em Brasília (UTC-3)
     const nowUtc = new Date();
-    const brasiliaOffset = -3 * 60; // -3 horas em minutos
+    const brasiliaOffset = -3 * 60;
     const brasiliaTime = new Date(nowUtc.getTime() + brasiliaOffset * 60 * 1000);
     
     const currentHour = brasiliaTime.getUTCHours();
@@ -68,91 +68,74 @@ serve(async (req) => {
 
     console.log(`[Scheduler SGA] Verificando agendamentos para ${currentTimeStr} (Brasília)${forceMode ? ' [MODO FORÇADO]' : ''}`);
 
-    // Buscar todas as configurações ativas
-    let query = supabase
-      .from("sga_automacao_config")
+    // ====================================================================
+    // FONTE DE VERDADE: hinova_credenciais (credenciais + URLs + flags)
+    // sga_automacao_config: apenas scheduling e estado de execução
+    // ====================================================================
+
+    // Buscar todas as credenciais com módulo eventos ativo
+    let credQuery = supabase
+      .from("hinova_credenciais")
       .select(`
         *,
-        corretora:corretoras(nome, slug)
+        corretora:corretoras(id, nome, slug)
       `)
-      .eq("ativo", true);
+      .eq("ativo_eventos", true);
     
-    // Se há corretoras específicas, filtrar
     if (specificCorretoras.length > 0) {
-      query = query.in("corretora_id", specificCorretoras);
+      credQuery = credQuery.in("corretora_id", specificCorretoras);
     }
-    
-    const { data: configs, error: configsError } = await query;
 
-    if (configsError) {
-      console.error("[Scheduler SGA] Erro ao buscar configurações:", configsError);
+    const { data: credenciais, error: credError } = await credQuery;
+
+    if (credError) {
+      console.error("[Scheduler SGA] Erro ao buscar credenciais:", credError);
       return new Response(
-        JSON.stringify({ success: false, message: "Erro ao buscar configurações" }),
+        JSON.stringify({ success: false, message: "Erro ao buscar credenciais" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (!configs || configs.length === 0) {
-      console.log("[Scheduler SGA] Nenhuma configuração ativa encontrada");
+    if (!credenciais || credenciais.length === 0) {
+      console.log("[Scheduler SGA] Nenhuma associação com módulo eventos ativo");
       return new Response(
         JSON.stringify({ success: true, message: "Nenhuma configuração ativa", disparados: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // Buscar todas as configs de automação SGA de uma vez (batch)
+    const corretoraIds = credenciais.map((c: any) => c.corretora_id);
+    const { data: allConfigs } = await supabase
+      .from("sga_automacao_config")
+      .select("*")
+      .in("corretora_id", corretoraIds);
+
+    const configMap = new Map<string, any>();
+    (allConfigs || []).forEach((c: any) => configMap.set(c.corretora_id, c));
+
     // ====================================
     // FASE 1: Verificar retries pendentes
     // ====================================
     const retryDisparados: string[] = [];
     
-    // Buscar execuções com erro que precisam de retry
     const { data: execucoesParaRetry } = await supabase
       .from("sga_automacao_execucoes")
-      .select(`
-        id,
-        config_id,
-        corretora_id,
-        retry_count,
-        erro
-      `)
+      .select("id, config_id, corretora_id, retry_count, erro")
       .eq("status", "erro")
       .not("proxima_tentativa_at", "is", null)
       .lte("proxima_tentativa_at", new Date().toISOString())
+      .in("corretora_id", corretoraIds)
       .order("proxima_tentativa_at", { ascending: true });
 
     if (execucoesParaRetry && execucoesParaRetry.length > 0) {
       console.log(`[Scheduler SGA] Encontradas ${execucoesParaRetry.length} execuções para retry`);
       
       for (const execFalha of execucoesParaRetry) {
-        // Buscar config da corretora
-        const { data: config } = await supabase
-          .from("sga_automacao_config")
-          .select(`
-            *,
-            corretora:corretoras(nome, slug)
-          `)
-          .eq("id", execFalha.config_id)
-          .eq("ativo", true)
-          .single();
-
-        if (!config) {
-          console.log(`[Scheduler SGA] Config não encontrada ou inativa para retry, limpando agendamento`);
-          await supabase
-            .from("sga_automacao_execucoes")
-            .update({ proxima_tentativa_at: null })
-            .eq("id", execFalha.id);
-          continue;
-        }
-
-        // Verificar flag ativo_eventos em hinova_credenciais
-        const { data: credRetry } = await supabase
-          .from("hinova_credenciais")
-          .select("ativo_eventos")
-          .eq("corretora_id", config.corretora_id)
-          .maybeSingle();
+        const cred = credenciais.find((c: any) => c.corretora_id === execFalha.corretora_id);
+        const config = configMap.get(execFalha.corretora_id);
         
-        if (credRetry && credRetry.ativo_eventos === false) {
-          console.log(`[Scheduler SGA] ${config.corretora?.nome} módulo eventos desativado, cancelando retry`);
+        if (!cred || !config) {
           await supabase
             .from("sga_automacao_execucoes")
             .update({ proxima_tentativa_at: null })
@@ -160,18 +143,18 @@ serve(async (req) => {
           continue;
         }
 
-        // Verificar se já há uma execução com sucesso hoje
+        // Verificar se já há sucesso hoje
         const hoje = new Date().toISOString().split('T')[0];
         const { data: execucoesHojeSucesso } = await supabase
           .from("sga_automacao_execucoes")
           .select("id")
-          .eq("config_id", config.id)
+          .eq("corretora_id", execFalha.corretora_id)
           .gte("created_at", `${hoje}T00:00:00`)
           .eq("status", "sucesso")
           .limit(1);
 
         if (execucoesHojeSucesso && execucoesHojeSucesso.length > 0) {
-          console.log(`[Scheduler SGA] ${config.corretora?.nome} já tem sucesso hoje, cancelando retry`);
+          console.log(`[Scheduler SGA] ${cred.corretora?.nome} já tem sucesso hoje, cancelando retry`);
           await supabase
             .from("sga_automacao_execucoes")
             .update({ proxima_tentativa_at: null })
@@ -179,45 +162,36 @@ serve(async (req) => {
           continue;
         }
 
-        // Verificar se não há execução em andamento
+        // Verificar execução em andamento
         const { data: execucaoEmAndamento } = await supabase
           .from("sga_automacao_execucoes")
           .select("id")
-          .eq("config_id", config.id)
+          .eq("corretora_id", execFalha.corretora_id)
           .eq("status", "executando")
           .limit(1);
 
         if (execucaoEmAndamento && execucaoEmAndamento.length > 0) {
-          console.log(`[Scheduler SGA] ${config.corretora?.nome} já tem execução em andamento, pulando retry`);
           continue;
         }
 
-        console.log(`[Scheduler SGA] Executando retry para ${config.corretora?.nome} (tentativa ${(execFalha.retry_count || 0) + 1})`);
+        console.log(`[Scheduler SGA] Executando retry para ${cred.corretora?.nome} (tentativa ${(execFalha.retry_count || 0) + 1})`);
 
         try {
-          // Limpar o agendamento de retry da execução antiga
           await supabase
             .from("sga_automacao_execucoes")
             .update({ proxima_tentativa_at: null })
             .eq("id", execFalha.id);
 
-          // Calcular datas (01/01/2000 até fim do mês atual)
-          const dataInicio = '01/01/2000';
-          const now = new Date();
-          const year = now.getFullYear();
-          const month = now.getMonth();
-          const lastDay = new Date(year, month + 1, 0);
-          const dataFim = `${String(lastDay.getDate()).padStart(2, '0')}/${String(lastDay.getMonth() + 1).padStart(2, '0')}/${lastDay.getFullYear()}`;
+          const { dataInicio, dataFim } = calcularDatas();
 
-          // Criar nova execução de retry
           const { data: novaExecucao, error: execError } = await supabase
             .from("sga_automacao_execucoes")
             .insert({
               config_id: config.id,
-              corretora_id: config.corretora_id,
+              corretora_id: cred.corretora_id,
               status: 'executando',
               etapa_atual: 'disparo',
-              mensagem: `Retry automático (tentativa ${(execFalha.retry_count || 0) + 1}) após erro: ${execFalha.erro?.substring(0, 100) || 'desconhecido'}`,
+              mensagem: `Retry automático (tentativa ${(execFalha.retry_count || 0) + 1})`,
               iniciado_por: null,
               tipo_disparo: 'retry',
               retry_count: execFalha.retry_count || 0,
@@ -226,12 +200,11 @@ serve(async (req) => {
             .select()
             .single();
 
-          if (execError) {
+          if (execError || !novaExecucao) {
             console.error(`[Scheduler SGA] Erro ao criar execução de retry:`, execError);
             continue;
           }
 
-          // Atualizar status para executando
           await supabase
             .from("sga_automacao_config")
             .update({
@@ -241,47 +214,17 @@ serve(async (req) => {
             })
             .eq("id", config.id);
 
-          // Preparar inputs para o workflow
-          const workflowInputs: WorkflowInput = {
-            corretora_id: config.corretora_id,
-            hinova_url: config.hinova_url,
-            hinova_user: config.hinova_user,
-            hinova_pass: config.hinova_pass,
-            hinova_codigo_cliente: config.hinova_codigo_cliente || '',
-            data_inicio: dataInicio,
-            data_fim: dataFim,
-            execucao_id: novaExecucao.id,
-            webhook_url: `${supabaseUrl}/functions/v1/webhook-sga-hinova`,
-          };
+          const workflowInputs = buildWorkflowInputs(cred, dataInicio, dataFim, novaExecucao.id, supabaseUrl);
 
-          // Disparar workflow via GitHub API
-          const dispatchUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/dispatches`;
-          
-          const dispatchResponse = await fetch(dispatchUrl, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${githubPat}`,
-              'Accept': 'application/vnd.github.v3+json',
-              'X-GitHub-Api-Version': '2022-11-28',
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              ref: 'main',
-              inputs: workflowInputs,
-            }),
-          });
+          const dispatchOk = await dispatchGitHub(githubPat!, githubRepoOwner!, githubRepoName!, workflowInputs);
 
-          if (!dispatchResponse.ok && dispatchResponse.status !== 204) {
-            const errorText = await dispatchResponse.text();
-            console.error(`[Scheduler SGA] Erro ao disparar retry para ${config.corretora_id}:`, errorText);
-            
-            // Agendar próximo retry em 1 hora
+          if (!dispatchOk) {
             const proximoRetry = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
             await supabase
               .from("sga_automacao_execucoes")
               .update({
                 status: 'erro',
-                erro: `Erro ao disparar GitHub Actions no retry: ${dispatchResponse.status}`,
+                erro: 'Erro ao disparar GitHub Actions no retry',
                 finalizado_at: new Date().toISOString(),
                 proxima_tentativa_at: proximoRetry,
               })
@@ -289,26 +232,20 @@ serve(async (req) => {
             continue;
           }
 
-          // Registrar log de auditoria
+          await buscarEVincularRunId(githubPat!, githubRepoOwner!, githubRepoName!, novaExecucao.id, supabase);
+
           await supabase.from("bi_audit_logs").insert({
             modulo: "sga_insights",
             acao: "github_workflow_retry",
-            descricao: `Retry automático SGA disparado para ${config.corretora?.nome || config.corretora_id} (tentativa ${(execFalha.retry_count || 0) + 1})`,
-            corretora_id: config.corretora_id,
+            descricao: `Retry SGA disparado para ${cred.corretora?.nome}`,
+            corretora_id: cred.corretora_id,
             user_id: SYSTEM_USER_ID,
             user_nome: "Sistema (Scheduler Retry)",
-            dados_novos: {
-              execucao_id: novaExecucao.id,
-              retry_count: (execFalha.retry_count || 0) + 1,
-              erro_anterior: execFalha.erro?.substring(0, 200),
-            },
           });
 
-          console.log(`[Scheduler SGA] Retry disparado para ${config.corretora?.nome}`);
-          retryDisparados.push(config.corretora_id);
-
+          retryDisparados.push(cred.corretora_id);
         } catch (err) {
-          console.error(`[Scheduler SGA] Erro inesperado no retry para ${config.corretora_id}:`, err);
+          console.error(`[Scheduler SGA] Erro inesperado no retry:`, err);
         }
       }
     }
@@ -319,89 +256,89 @@ serve(async (req) => {
     const disparados: string[] = [];
     const erros: string[] = [];
 
-    for (const config of configs) {
-      // Verificar flag ativo_eventos na tabela hinova_credenciais
-      const { data: credenciaisFlag } = await supabase
-        .from("hinova_credenciais")
-        .select("ativo_eventos")
-        .eq("corretora_id", config.corretora_id)
-        .maybeSingle();
-      
-      if (credenciaisFlag && credenciaisFlag.ativo_eventos === false) {
-        console.log(`[Scheduler SGA] ${config.corretora?.nome || config.corretora_id} módulo eventos desativado em hinova_credenciais, pulando`);
-        continue;
-      }
+    for (const cred of credenciais) {
+      const config = configMap.get(cred.corretora_id);
+      const nomeAssociacao = cred.corretora?.nome || cred.corretora_id;
 
-      // Verificar se o horário agendado corresponde ao horário atual (apenas se não for modo forçado)
+      // Verificar horário agendado
       if (!forceMode) {
-        const horaAgendada = config.hora_agendada || "09:00:00";
+        const horaAgendada = cred.hora_agendada || config?.hora_agendada || "09:00:00";
         const [agendadoHora, agendadoMinuto] = horaAgendada.split(":").map(Number);
 
-        // Verificar se está dentro da janela de 1 minuto (scheduler roda a cada minuto)
         if (currentHour !== agendadoHora || currentMinute !== agendadoMinuto) {
           continue;
         }
 
-        // Verificar dia da semana (dias_agendados em hinova_credenciais)
-        const currentDayOfWeek = brasiliaTime.getUTCDay(); // 0=Dom, 1=Seg, ..., 6=Sáb
-        const { data: credRow } = await supabase
-          .from("hinova_credenciais")
-          .select("dias_agendados")
-          .eq("corretora_id", config.corretora_id)
-          .maybeSingle();
-        
-        if (credRow?.dias_agendados && Array.isArray(credRow.dias_agendados) && credRow.dias_agendados.length > 0) {
-          if (!credRow.dias_agendados.includes(currentDayOfWeek)) {
-            console.log(`[Scheduler SGA] ${config.corretora?.nome || config.corretora_id} não agendado para hoje (dia ${currentDayOfWeek}), pulando`);
+        // Verificar dia da semana
+        const currentDayOfWeek = brasiliaTime.getUTCDay();
+        if (cred.dias_agendados && Array.isArray(cred.dias_agendados) && cred.dias_agendados.length > 0) {
+          if (!cred.dias_agendados.includes(currentDayOfWeek)) {
+            console.log(`[Scheduler SGA] ${nomeAssociacao} não agendado para hoje (dia ${currentDayOfWeek}), pulando`);
             continue;
           }
         }
       }
 
-      // Verificar se já executou hoje (evitar duplicatas)
+      // Verificar se já executou hoje
       const hoje = new Date().toISOString().split('T')[0];
       const { data: execucoesHoje } = await supabase
         .from("sga_automacao_execucoes")
         .select("id, status")
-        .eq("config_id", config.id)
+        .eq("corretora_id", cred.corretora_id)
         .gte("created_at", `${hoje}T00:00:00`)
         .in("status", ["sucesso", "executando"])
         .limit(1);
 
       if (execucoesHoje && execucoesHoje.length > 0) {
-        console.log(`[Scheduler SGA] ${config.corretora?.nome || config.corretora_id} já executou hoje com sucesso, pulando`);
+        console.log(`[Scheduler SGA] ${nomeAssociacao} já executou hoje, pulando`);
         continue;
       }
 
-      // Verificar credenciais
-      if (!config.hinova_user || !config.hinova_pass) {
-        console.warn(`[Scheduler SGA] ${config.corretora?.nome || config.corretora_id} sem credenciais configuradas`);
+      // Verificar credenciais (da tabela hinova_credenciais)
+      if (!cred.hinova_user || !cred.hinova_pass) {
+        console.warn(`[Scheduler SGA] ${nomeAssociacao} sem credenciais configuradas`);
         continue;
       }
 
-      const horaAgendadaConfig = config.hora_agendada || "09:00:00";
-      console.log(`[Scheduler SGA] Disparando para ${config.corretora?.nome || config.corretora_id}`);
+      console.log(`[Scheduler SGA] Disparando para ${nomeAssociacao}`);
 
       try {
-        // Calcular datas
-        const dataInicio = '01/01/2000';
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth();
-        const lastDay = new Date(year, month + 1, 0);
-        const dataFim = `${String(lastDay.getDate()).padStart(2, '0')}/${String(lastDay.getMonth() + 1).padStart(2, '0')}/${lastDay.getFullYear()}`;
+        const { dataInicio, dataFim } = calcularDatas();
 
-        // Criar registro de execução
+        // Garantir que existe config de automação (auto-criar se necessário)
+        let configId = config?.id;
+        if (!config) {
+          const { data: newConfig } = await supabase
+            .from("sga_automacao_config")
+            .insert({
+              corretora_id: cred.corretora_id,
+              ativo: true,
+              hinova_url: cred.hinova_url,
+              hinova_user: cred.hinova_user,
+              hinova_pass: cred.hinova_pass,
+              hinova_codigo_cliente: cred.hinova_codigo_cliente || '',
+              hora_agendada: cred.hora_agendada || '09:00:00',
+            })
+            .select()
+            .single();
+          configId = newConfig?.id;
+          if (!configId) {
+            console.error(`[Scheduler SGA] Falha ao criar config para ${nomeAssociacao}`);
+            erros.push(cred.corretora_id);
+            continue;
+          }
+        }
+
         const { data: execucao, error: execError } = await supabase
           .from("sga_automacao_execucoes")
           .insert({
-            config_id: config.id,
-            corretora_id: config.corretora_id,
+            config_id: configId,
+            corretora_id: cred.corretora_id,
             status: 'executando',
             etapa_atual: 'disparo',
-            mensagem: forceMode 
-              ? `Execução forçada (pendente de ${horaAgendadaConfig} Brasília)` 
-              : `Execução agendada automática (${horaAgendadaConfig} Brasília)`,
+            mensagem: forceMode
+              ? `Execução forçada (pendente)`
+              : `Execução agendada automática`,
             iniciado_por: null,
             tipo_disparo: 'agendado',
             filtros_aplicados: { data_inicio: dataInicio, data_fim: dataFim },
@@ -409,13 +346,12 @@ serve(async (req) => {
           .select()
           .single();
 
-        if (execError) {
-          console.error(`[Scheduler SGA] Erro ao criar execução para ${config.corretora_id}:`, execError);
-          erros.push(config.corretora_id);
+        if (execError || !execucao) {
+          console.error(`[Scheduler SGA] Erro ao criar execução:`, execError);
+          erros.push(cred.corretora_id);
           continue;
         }
 
-        // Atualizar status para executando
         await supabase
           .from("sga_automacao_config")
           .update({
@@ -423,47 +359,18 @@ serve(async (req) => {
             ultimo_status: 'executando',
             ultimo_erro: null,
           })
-          .eq("id", config.id);
+          .eq("id", configId);
 
-        // Preparar inputs para o workflow
-        const workflowInputs: WorkflowInput = {
-          corretora_id: config.corretora_id,
-          hinova_url: config.hinova_url,
-          hinova_user: config.hinova_user,
-          hinova_pass: config.hinova_pass,
-          hinova_codigo_cliente: config.hinova_codigo_cliente || '',
-          data_inicio: dataInicio,
-          data_fim: dataFim,
-          execucao_id: execucao.id,
-          webhook_url: `${supabaseUrl}/functions/v1/webhook-sga-hinova`,
-        };
+        const workflowInputs = buildWorkflowInputs(cred, dataInicio, dataFim, execucao.id, supabaseUrl);
 
-        // Disparar workflow via GitHub API
-        const dispatchUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/dispatches`;
-        
-        const dispatchResponse = await fetch(dispatchUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${githubPat}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ref: 'main',
-            inputs: workflowInputs,
-          }),
-        });
+        const dispatchOk = await dispatchGitHub(githubPat!, githubRepoOwner!, githubRepoName!, workflowInputs);
 
-        if (!dispatchResponse.ok && dispatchResponse.status !== 204) {
-          const errorText = await dispatchResponse.text();
-          console.error(`[Scheduler SGA] Erro ao disparar workflow para ${config.corretora_id}:`, errorText);
-          
+        if (!dispatchOk) {
           await supabase
             .from("sga_automacao_execucoes")
             .update({
               status: 'erro',
-              erro: `Erro ao disparar GitHub Actions: ${dispatchResponse.status}`,
+              erro: 'Erro ao disparar GitHub Actions',
               finalizado_at: new Date().toISOString(),
               proxima_tentativa_at: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
             })
@@ -471,75 +378,30 @@ serve(async (req) => {
 
           await supabase
             .from("sga_automacao_config")
-            .update({
-              ultimo_status: 'erro',
-              ultimo_erro: `Erro ao disparar GitHub Actions: ${dispatchResponse.status}`,
-            })
-            .eq("id", config.id);
+            .update({ ultimo_status: 'erro', ultimo_erro: 'Erro ao disparar GitHub Actions' })
+            .eq("id", configId);
 
-          erros.push(config.corretora_id);
+          erros.push(cred.corretora_id);
           continue;
         }
 
-        // Aguardar e buscar o run_id
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await buscarEVincularRunId(githubPat!, githubRepoOwner!, githubRepoName!, execucao.id, supabase);
 
-        const runsUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/runs?per_page=5`;
-        const runsResponse = await fetch(runsUrl, {
-          headers: {
-            'Authorization': `Bearer ${githubPat}`,
-            'Accept': 'application/vnd.github.v3+json',
-          },
-        });
-
-        let githubRunId = null;
-        let githubRunUrl = null;
-        
-        if (runsResponse.ok) {
-          const runsData = await runsResponse.json();
-          const recentRun = runsData.workflow_runs?.find((run: { created_at: string }) => {
-            const runTime = new Date(run.created_at);
-            const diff = Date.now() - runTime.getTime();
-            return diff < 30000; // Últimos 30 segundos
-          });
-          
-          if (recentRun) {
-            githubRunId = String(recentRun.id);
-            githubRunUrl = recentRun.html_url;
-            
-            await supabase
-              .from("sga_automacao_execucoes")
-              .update({
-                github_run_id: githubRunId,
-                github_run_url: githubRunUrl,
-              })
-              .eq("id", execucao.id);
-          }
-        }
-
-        // Registrar log de auditoria
         await supabase.from("bi_audit_logs").insert({
           modulo: "sga_insights",
           acao: "github_workflow_agendado",
-          descricao: `Workflow SGA GitHub agendado disparado automaticamente para ${config.corretora?.nome || config.corretora_id}`,
-          corretora_id: config.corretora_id,
+          descricao: `Workflow SGA agendado para ${nomeAssociacao}`,
+          corretora_id: cred.corretora_id,
           user_id: SYSTEM_USER_ID,
           user_nome: "Sistema (Scheduler)",
-          dados_novos: {
-            execucao_id: execucao.id,
-            github_run_id: githubRunId,
-            github_run_url: githubRunUrl,
-            hora_agendada: horaAgendadaConfig,
-            modo_forcado: forceMode,
-          },
         });
 
-        console.log(`[Scheduler SGA] Workflow disparado para ${config.corretora?.nome || config.corretora_id}. Run ID: ${githubRunId}`);
-        disparados.push(config.corretora_id);
+        console.log(`[Scheduler SGA] Workflow disparado para ${nomeAssociacao}`);
+        disparados.push(cred.corretora_id);
 
       } catch (err) {
-        console.error(`[Scheduler SGA] Erro inesperado para ${config.corretora_id}:`, err);
-        erros.push(config.corretora_id);
+        console.error(`[Scheduler SGA] Erro inesperado para ${cred.corretora_id}:`, err);
+        erros.push(cred.corretora_id);
       }
     }
 
@@ -549,11 +411,7 @@ serve(async (req) => {
       disparados: disparados.length,
       retries: retryDisparados.length,
       erros: erros.length,
-      detalhes: {
-        disparados,
-        retries: retryDisparados,
-        erros,
-      },
+      detalhes: { disparados, retries: retryDisparados, erros },
     };
 
     console.log("[Scheduler SGA] Resultado:", resultado);
@@ -572,3 +430,100 @@ serve(async (req) => {
     );
   }
 });
+
+// ====================================
+// HELPERS
+// ====================================
+
+function calcularDatas() {
+  const dataInicio = '01/01/2000';
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const dataFim = `${String(lastDay.getDate()).padStart(2, '0')}/${String(lastDay.getMonth() + 1).padStart(2, '0')}/${lastDay.getFullYear()}`;
+  return { dataInicio, dataFim };
+}
+
+function buildWorkflowInputs(cred: any, dataInicio: string, dataFim: string, execucaoId: string, supabaseUrl: string): WorkflowInput {
+  // Derivar URL do relatório se não estiver configurada
+  let relatorioUrl = cred.url_eventos || '';
+  if (!relatorioUrl && cred.hinova_url) {
+    try {
+      const url = new URL(cred.hinova_url);
+      const pathParts = url.pathname.split('/');
+      const basePathParts = pathParts.filter((p: string) =>
+        p && !p.includes('login') && !p.includes('Principal') && p !== 'v5'
+      );
+      const basePath = '/' + basePathParts.join('/');
+      relatorioUrl = `${url.origin}${basePath}/relatorio/relatorioEvento.php`;
+    } catch {
+      relatorioUrl = '';
+    }
+  }
+
+  return {
+    corretora_id: cred.corretora_id,
+    hinova_url: cred.hinova_url || '',
+    hinova_relatorio_url: relatorioUrl,
+    hinova_user: cred.hinova_user || '',
+    hinova_pass: cred.hinova_pass || '',
+    hinova_codigo_cliente: cred.hinova_codigo_cliente || '',
+    hinova_layout: cred.layout_eventos || '',
+    data_inicio: dataInicio,
+    data_fim: dataFim,
+    execucao_id: execucaoId,
+    webhook_url: `${supabaseUrl}/functions/v1/webhook-sga-hinova`,
+  };
+}
+
+async function dispatchGitHub(pat: string, owner: string, repo: string, inputs: WorkflowInput): Promise<boolean> {
+  const dispatchUrl = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/eventos-hinova.yml/dispatches`;
+  
+  const response = await fetch(dispatchUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${pat}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ ref: 'main', inputs }),
+  });
+
+  if (!response.ok && response.status !== 204) {
+    const errorText = await response.text();
+    console.error(`[Scheduler SGA] Erro GitHub dispatch:`, response.status, errorText);
+    return false;
+  }
+
+  return true;
+}
+
+async function buscarEVincularRunId(pat: string, owner: string, repo: string, execucaoId: string, supabase: any) {
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  const runsUrl = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/eventos-hinova.yml/runs?per_page=5`;
+  const runsResponse = await fetch(runsUrl, {
+    headers: {
+      'Authorization': `Bearer ${pat}`,
+      'Accept': 'application/vnd.github.v3+json',
+    },
+  });
+
+  if (runsResponse.ok) {
+    const runsData = await runsResponse.json();
+    const recentRun = runsData.workflow_runs?.find((run: { created_at: string }) => {
+      const diff = Date.now() - new Date(run.created_at).getTime();
+      return diff < 30000;
+    });
+
+    if (recentRun) {
+      await supabase
+        .from("sga_automacao_execucoes")
+        .update({
+          github_run_id: String(recentRun.id),
+          github_run_url: recentRun.html_url,
+        })
+        .eq("id", execucaoId);
+    }
+  }
+}
