@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings } from "lucide-react";
@@ -18,57 +19,35 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from "recharts";
 import { openWhatsApp } from "@/utils/whatsapp";
-const COLORS = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
+
+const COLORS = ["hsl(var(--primary))", "hsl(var(--destructive))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+
 interface Vistoria {
-  id: string;
-  numero: number;
-  status: string;
-  cliente_nome: string;
-  veiculo_placa: string;
-  created_at: string;
-  link_token: string;
-  corretora_id?: string;
-  corretora_nome?: string;
-  tipo_sinistro?: string;
-  custo_oficina?: number;
-  custo_reparo?: number;
-  custo_acordo?: number;
-  custo_terceiros?: number;
-  custo_perda_total?: number;
-  custo_perda_parcial?: number;
-  atendimento_id?: string | null;
-  tipo_abertura: string;
+  id: string; numero: number; status: string; cliente_nome: string; veiculo_placa: string;
+  created_at: string; link_token: string; corretora_id?: string; corretora_nome?: string;
+  tipo_sinistro?: string; custo_oficina?: number; custo_reparo?: number; custo_acordo?: number;
+  custo_terceiros?: number; custo_perda_total?: number; custo_perda_parcial?: number;
+  atendimento_id?: string | null; tipo_abertura: string;
 }
-interface StatusConfig {
-  nome: string;
-  cor: string;
-  ordem: number;
-}
-type TabType = "vistorias" | "acompanhamento" | "dashboard";
+
+interface StatusConfig { nome: string; cor: string; ordem: number; }
+
+type TabType = "acompanhamento" | "vistorias" | "dashboard";
+
 export default function Sinistros() {
   const navigate = useNavigate();
-  const {
-    user
-  } = useAuth();
-  const {
-    canViewFluxo
-  } = useFluxoPermissions(user?.id);
+  const { user } = useAuth();
+  const { canViewFluxo } = useFluxoPermissions(user?.id);
   const [activeTab, setActiveTab] = useState<TabType>("acompanhamento");
   const [vistorias, setVistorias] = useState<Vistoria[]>([]);
   const [loading, setLoading] = useState(false);
-
-  // Acompanhamento states
   const [claims, setClaims] = useState<Claim[]>([]);
   const [statusConfigs, setStatusConfigs] = useState<StatusConfig[]>([]);
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCorretora, setSelectedCorretora] = useState("all");
   const [corretoras, setCorretoras] = useState<any[]>([]);
-
-  // Vistorias filtro
   const [vistoriaSearchTerm, setVistoriaSearchTerm] = useState("");
-
-  // Dashboard states
   const [dashboardStats, setDashboardStats] = useState<any>({});
   const [statusData, setStatusData] = useState<any[]>([]);
   const [tipoData, setTipoData] = useState<any[]>([]);
@@ -76,1137 +55,445 @@ export default function Sinistros() {
   const [dashboardCorretoras, setDashboardCorretoras] = useState<any[]>([]);
   const [selectedDashboardCorretora, setSelectedDashboardCorretora] = useState("all");
   const [timelineData, setTimelineData] = useState<any[]>([]);
-
-  // Edição de custos (sinistro / vistoria)
   const [editingClaim, setEditingClaim] = useState<Claim | null>(null);
-  const [editingValues, setEditingValues] = useState({
-    custo_oficina: "",
-    custo_reparo: "",
-    custo_acordo: "",
-    custo_terceiros: "",
-    custo_perda_total: "",
-    custo_perda_parcial: ""
-  });
+  const [editingValues, setEditingValues] = useState({ custo_oficina: "", custo_reparo: "", custo_acordo: "", custo_terceiros: "", custo_perda_total: "", custo_perda_parcial: "" });
   const [savingEdit, setSavingEdit] = useState(false);
-
-  // Acompanhamento dialog
   const [acompanhamentoClaim, setAcompanhamentoClaim] = useState<Claim | null>(null);
-  
+
   useEffect(() => {
-    if (activeTab === "vistorias") {
-      loadVistorias();
-    } else if (activeTab === "acompanhamento") {
-      loadAcompanhamento();
-    } else if (activeTab === "dashboard") {
-      loadDashboard();
-    }
+    if (activeTab === "vistorias") loadVistorias();
+    else if (activeTab === "acompanhamento") loadAcompanhamento();
+    else if (activeTab === "dashboard") loadDashboard();
   }, [activeTab, selectedDashboardCorretora, selectedCorretora]);
+
   const loadVistorias = async () => {
     try {
       setLoading(true);
-      const {
-        data,
-        error
-      } = await supabase.from("vistorias").select(`
-        *,
-        corretoras(nome)
-      `).order("created_at", {
-        ascending: false
-      });
+      const { data, error } = await supabase.from("vistorias").select("*, corretoras(nome)").order("created_at", { ascending: false });
       if (error) throw error;
-      // Map to include corretora_nome
-      const vistoriasWithCorretora = (data || []).map((v: any) => ({
-        ...v,
-        corretora_nome: v.corretoras?.nome || null
-      }));
-      setVistorias(vistoriasWithCorretora);
-    } catch (error) {
-      console.error("Erro ao carregar vistorias:", error);
-      toast.error("Erro ao carregar vistorias");
-    } finally {
-      setLoading(false);
-    }
+      setVistorias((data || []).map((v: any) => ({ ...v, corretora_nome: v.corretoras?.nome || null })));
+    } catch { toast.error("Erro ao carregar vistorias"); }
+    finally { setLoading(false); }
   };
+
   const loadAcompanhamento = async () => {
     try {
       setLoading(true);
-      const {
-        data: statusData,
-        error: statusError
-      } = await supabase.from("status_config").select("nome, cor, ordem").eq("ativo", true).order("ordem");
-      if (statusError) throw statusError;
+      const { data: statusData } = await supabase.from("status_config").select("nome, cor, ordem").eq("ativo", true).order("ordem");
       setStatusConfigs(statusData || []);
-      const {
-        data: corretorasData
-      } = await supabase.from("corretoras").select("id, nome").order("nome");
+      const { data: corretorasData } = await supabase.from("corretoras").select("id, nome").order("nome");
       setCorretoras(corretorasData || []);
-      let atendimentosQuery = supabase.from("atendimentos").select(`
-          id,
-          numero,
-          assunto,
-          status,
-          observacoes,
-          created_at,
-          updated_at,
-          fluxo_id,
-          corretora_id,
-          corretoras(nome)
-        `).order("created_at", {
-        ascending: false
-      });
-      if (selectedCorretora !== "all") {
-        atendimentosQuery = atendimentosQuery.eq("corretora_id", selectedCorretora);
-      }
-      const {
-        data: atendimentosData,
-        error: atendimentosError
-      } = await atendimentosQuery;
-      if (atendimentosError) throw atendimentosError;
-      const atendimentoIds = (atendimentosData || []).map(a => a.id);
-      const {
-        data: vistoriasData
-      } = await supabase.from("vistorias").select(`
-          id,
-          numero,
-          atendimento_id,
-          veiculo_placa,
-          custo_oficina,
-          custo_reparo,
-          custo_acordo,
-          custo_terceiros,
-          custo_perda_total,
-          custo_perda_parcial,
-          valor_franquia,
-          valor_indenizacao,
-          tipo_sinistro
-        `).in("atendimento_id", atendimentoIds);
-      const {
-        data: historicoData
-      } = await supabase.from("atendimentos_historico").select("atendimento_id, acao, created_at, campos_alterados, valores_anteriores, valores_novos").in("atendimento_id", atendimentoIds).order("created_at", {
-        ascending: true
-      });
 
-      // Buscar nomes dos fluxos para exibição
+      let q = supabase.from("atendimentos").select("id, numero, assunto, status, observacoes, created_at, updated_at, fluxo_id, corretora_id, corretoras(nome)").order("created_at", { ascending: false });
+      if (selectedCorretora !== "all") q = q.eq("corretora_id", selectedCorretora);
+      const { data: atendimentosData } = await q;
+
+      const atendimentoIds = (atendimentosData || []).map(a => a.id);
+      const { data: vistoriasData } = await supabase.from("vistorias").select("id, numero, atendimento_id, veiculo_placa, custo_oficina, custo_reparo, custo_acordo, custo_terceiros, custo_perda_total, custo_perda_parcial, valor_franquia, valor_indenizacao, tipo_sinistro").in("atendimento_id", atendimentoIds);
+      const { data: historicoData } = await supabase.from("atendimentos_historico").select("atendimento_id, acao, created_at, campos_alterados, valores_anteriores, valores_novos").in("atendimento_id", atendimentoIds).order("created_at", { ascending: true });
       const { data: fluxosData } = await supabase.from("fluxos").select("id, nome");
       const fluxosMap = new Map((fluxosData || []).map(f => [f.id, f.nome]));
 
-      const claimsWithTimeline: Claim[] = (atendimentosData || []).filter(atendimento => canViewFluxo(atendimento.fluxo_id)).map(atendimento => {
-        const statusConfig = statusData?.find(s => s.nome === atendimento.status);
+      const claimsResult: Claim[] = (atendimentosData || []).filter(a => canViewFluxo(a.fluxo_id)).map(atendimento => {
+        const sc = statusData?.find(s => s.nome === atendimento.status);
         const vistoria = vistoriasData?.find(v => v.atendimento_id === atendimento.id);
-        const historico = historicoData?.filter(h => h.atendimento_id === atendimento.id) || [];
-        
-        // Filtrar apenas mudanças de status e fluxo
-        const statusFluxoChanges = historico.filter(h => {
-          const campos = h.campos_alterados;
-          if (!Array.isArray(campos)) return false;
-          return campos.includes("status") || campos.includes("fluxo_id");
-        });
-
-        const timeline = [{
-          date: atendimento.created_at,
-          title: "Sinistro Registrado",
-          description: `Status inicial: ${atendimento.status}`
-        }, ...statusFluxoChanges.map(h => {
-          const campos = h.campos_alterados as string[];
-          const anteriores = h.valores_anteriores as Record<string, any> || {};
-          const novos = h.valores_novos as Record<string, any> || {};
-          
-          const changes: string[] = [];
-          
-          if (campos.includes("status")) {
-            const statusAnterior = anteriores.status || "N/A";
-            const statusNovo = novos.status || "N/A";
-            changes.push(`Status: ${statusAnterior} → ${statusNovo}`);
-          }
-          
-          if (campos.includes("fluxo_id")) {
-            const fluxoAnterior = fluxosMap.get(anteriores.fluxo_id) || "N/A";
-            const fluxoNovo = fluxosMap.get(novos.fluxo_id) || "N/A";
-            changes.push(`Fluxo: ${fluxoAnterior} → ${fluxoNovo}`);
-          }
-          
-          return {
-            date: h.created_at,
-            title: "Alteração de " + (campos.includes("status") && campos.includes("fluxo_id") ? "Status e Fluxo" : campos.includes("status") ? "Status" : "Fluxo"),
-            description: changes.join(" | ")
-          };
-        })];
-        return {
-          id: atendimento.id,
-          numero: atendimento.numero,
-          assunto: atendimento.assunto,
-          created_at: atendimento.created_at,
-          status: atendimento.status,
-          statusColor: statusConfig?.cor || "#6b7280",
-          observacoes: atendimento.observacoes,
-          veiculo_placa: vistoria?.veiculo_placa,
-          custo_oficina: vistoria?.custo_oficina,
-          custo_reparo: vistoria?.custo_reparo,
-          custo_acordo: vistoria?.custo_acordo,
-          custo_terceiros: vistoria?.custo_terceiros,
-          custo_perda_total: vistoria?.custo_perda_total,
-          custo_perda_parcial: vistoria?.custo_perda_parcial,
-          valor_franquia: vistoria?.valor_franquia,
-          valor_indenizacao: vistoria?.valor_indenizacao,
-          vistoria_id: vistoria?.id,
-          vistoria_numero: vistoria?.numero,
-          corretora_id: atendimento.corretora_id,
-          tipo_sinistro: vistoria?.tipo_sinistro,
-          timeline,
-          corretoraInfo: atendimento.corretoras
-        } as any;
+        const historico = (historicoData?.filter(h => h.atendimento_id === atendimento.id) || []).filter(h => { const c = h.campos_alterados; return Array.isArray(c) && (c.includes("status") || c.includes("fluxo_id")); });
+        const timeline = [{ date: atendimento.created_at, title: "Sinistro Registrado", description: `Status: ${atendimento.status}` },
+          ...historico.map(h => {
+            const campos = h.campos_alterados as string[];
+            const ant = h.valores_anteriores as Record<string, any> || {};
+            const nov = h.valores_novos as Record<string, any> || {};
+            const changes: string[] = [];
+            if (campos.includes("status")) changes.push(`Status: ${ant.status || "N/A"} → ${nov.status || "N/A"}`);
+            if (campos.includes("fluxo_id")) changes.push(`Fluxo: ${fluxosMap.get(ant.fluxo_id) || "N/A"} → ${fluxosMap.get(nov.fluxo_id) || "N/A"}`);
+            return { date: h.created_at, title: `Alteração`, description: changes.join(" | ") };
+          })];
+        return { id: atendimento.id, numero: atendimento.numero, assunto: atendimento.assunto, created_at: atendimento.created_at, status: atendimento.status, statusColor: sc?.cor || "#6b7280", observacoes: atendimento.observacoes, veiculo_placa: vistoria?.veiculo_placa, custo_oficina: vistoria?.custo_oficina, custo_reparo: vistoria?.custo_reparo, custo_acordo: vistoria?.custo_acordo, custo_terceiros: vistoria?.custo_terceiros, custo_perda_total: vistoria?.custo_perda_total, custo_perda_parcial: vistoria?.custo_perda_parcial, valor_franquia: vistoria?.valor_franquia, valor_indenizacao: vistoria?.valor_indenizacao, vistoria_id: vistoria?.id, vistoria_numero: vistoria?.numero, corretora_id: atendimento.corretora_id, tipo_sinistro: vistoria?.tipo_sinistro, timeline, corretoraInfo: atendimento.corretoras } as any;
       });
-      setClaims(claimsWithTimeline);
-    } catch (error) {
-      console.error("Erro ao carregar acompanhamento:", error);
-      toast.error("Erro ao carregar dados de acompanhamento");
-    } finally {
-      setLoading(false);
-    }
+      setClaims(claimsResult);
+    } catch { toast.error("Erro ao carregar"); }
+    finally { setLoading(false); }
   };
+
   const loadDashboard = async () => {
     try {
       setLoading(true);
-      const {
-        data: corretorasData
-      } = await supabase.from("corretoras").select("id, nome").order("nome");
+      const { data: corretorasData } = await supabase.from("corretoras").select("id, nome").order("nome");
       setDashboardCorretoras(corretorasData || []);
-      let query = supabase.from("vistorias").select("*").order("created_at", {
-        ascending: false
-      });
+      let query = supabase.from("vistorias").select("*").order("created_at", { ascending: false });
       if (selectedDashboardCorretora !== "all") query = query.eq("corretora_id", selectedDashboardCorretora);
-      const {
-        data: vistoriasData
-      } = await query;
+      const { data: vistoriasData } = await query;
       if (!vistoriasData) return;
-      let custoOficinas = 0;
-      let custoReparos = 0;
-      let custoAcordos = 0;
-      let custoTerceiros = 0;
-      let custoPerdaTotal = 0;
-      let custoPerdaParcial = 0;
-      vistoriasData.forEach((v: any) => {
-        custoOficinas += Number(v.custo_oficina) || 0;
-        custoReparos += Number(v.custo_reparo) || 0;
-        custoAcordos += Number(v.custo_acordo) || 0;
-        custoTerceiros += Number(v.custo_terceiros) || 0;
-        custoPerdaTotal += Number(v.custo_perda_total) || 0;
-        custoPerdaParcial += Number(v.custo_perda_parcial) || 0;
-      });
-      const custoTotal = custoOficinas + custoReparos + custoAcordos + custoTerceiros + custoPerdaTotal + custoPerdaParcial;
-      setDashboardStats({
-        total: vistoriasData.length,
-        aguardando: vistoriasData.filter((v: any) => v.status === "aguardando_fotos").length,
-        analise: vistoriasData.filter((v: any) => v.status === "em_analise").length,
-        concluidas: vistoriasData.filter((v: any) => v.status === "concluida").length,
-        canceladas: vistoriasData.filter((v: any) => v.status === "cancelada").length,
-        custoTotal,
-        custoMedio: vistoriasData.length > 0 ? custoTotal / vistoriasData.length : 0,
-        custoOficinas,
-        custoReparos,
-        custoAcordos,
-        custoTerceiros,
-        custoPerdaTotal,
-        custoPerdaParcial
-      });
-      setStatusData([{
-        name: "Aguardando",
-        value: vistoriasData.filter((v: any) => v.status === "aguardando_fotos").length
-      }, {
-        name: "Em Análise",
-        value: vistoriasData.filter((v: any) => v.status === "em_analise").length
-      }, {
-        name: "Concluídas",
-        value: vistoriasData.filter((v: any) => v.status === "concluida").length
-      }, {
-        name: "Canceladas",
-        value: vistoriasData.filter((v: any) => v.status === "cancelada").length
-      }]);
-      const tipos: any = {};
-      vistoriasData.forEach((v: any) => {
-        const tipo = v.tipo_sinistro || "Não especificado";
-        if (!tipos[tipo]) tipos[tipo] = {
-          count: 0,
-          custo: 0
-        };
-        tipos[tipo].count++;
-        tipos[tipo].custo += (Number(v.custo_oficina) || 0) + (Number(v.custo_reparo) || 0);
-      });
-      setTipoData(Object.entries(tipos).map(([name, data]: any) => ({
-        name,
-        quantidade: data.count,
-        custo: data.custo
-      })));
-      const {
-        data: atendimentosData
-      } = await supabase.from("atendimentos").select("fluxo_id, fluxos(nome)").not("arquivado", "eq", true);
-      if (atendimentosData) {
-        const fluxos: any = {};
-        (atendimentosData as any[]).forEach(a => {
-          const fluxoNome = a.fluxos?.nome || "Sem fluxo";
-          if (!fluxos[fluxoNome]) fluxos[fluxoNome] = 0;
-          fluxos[fluxoNome]++;
-        });
-        setFluxoData(Object.entries(fluxos).map(([name, value]) => ({
-          name,
-          value
-        })));
-      }
-      const timelineMap: any = {};
-      vistoriasData.forEach((v: any) => {
-        const month = format(new Date(v.created_at), "MMM/yy", {
-          locale: ptBR
-        });
-        if (!timelineMap[month]) {
-          timelineMap[month] = {
-            month,
-            total: 0,
-            custos: 0
-          };
-        }
-        timelineMap[month].total++;
-        timelineMap[month].custos += (Number(v.custo_oficina) || 0) + (Number(v.custo_reparo) || 0) + (Number(v.custo_acordo) || 0) + (Number(v.custo_terceiros) || 0);
-      });
-      setTimelineData(Object.values(timelineMap).slice(-6));
-    } catch (error) {
-      console.error("Erro ao carregar dashboard:", error);
-      toast.error("Erro ao carregar dashboard");
-    } finally {
-      setLoading(false);
-    }
+      let cO = 0, cR = 0, cA = 0, cT = 0, cPT = 0, cPP = 0;
+      vistoriasData.forEach((v: any) => { cO += Number(v.custo_oficina) || 0; cR += Number(v.custo_reparo) || 0; cA += Number(v.custo_acordo) || 0; cT += Number(v.custo_terceiros) || 0; cPT += Number(v.custo_perda_total) || 0; cPP += Number(v.custo_perda_parcial) || 0; });
+      const total = cO + cR + cA + cT + cPT + cPP;
+      setDashboardStats({ total: vistoriasData.length, aguardando: vistoriasData.filter((v: any) => v.status === "aguardando_fotos").length, analise: vistoriasData.filter((v: any) => v.status === "em_analise").length, concluidas: vistoriasData.filter((v: any) => v.status === "concluida").length, canceladas: vistoriasData.filter((v: any) => v.status === "cancelada").length, custoTotal: total, custoMedio: vistoriasData.length ? total / vistoriasData.length : 0, custoOficinas: cO, custoReparos: cR, custoAcordos: cA, custoTerceiros: cT, custoPerdaTotal: cPT, custoPerdaParcial: cPP });
+      setStatusData([{ name: "Aguardando", value: vistoriasData.filter((v: any) => v.status === "aguardando_fotos").length }, { name: "Em Análise", value: vistoriasData.filter((v: any) => v.status === "em_analise").length }, { name: "Concluídas", value: vistoriasData.filter((v: any) => v.status === "concluida").length }, { name: "Canceladas", value: vistoriasData.filter((v: any) => v.status === "cancelada").length }]);
+      const tipos: Record<string, { count: number; custo: number }> = {};
+      vistoriasData.forEach((v: any) => { const t = v.tipo_sinistro || "N/E"; if (!tipos[t]) tipos[t] = { count: 0, custo: 0 }; tipos[t].count++; tipos[t].custo += (Number(v.custo_oficina) || 0) + (Number(v.custo_reparo) || 0); });
+      setTipoData(Object.entries(tipos).map(([name, d]) => ({ name, quantidade: d.count, custo: d.custo })));
+      const { data: atd } = await supabase.from("atendimentos").select("fluxo_id, fluxos(nome)").not("arquivado", "eq", true);
+      if (atd) { const f: Record<string, number> = {}; (atd as any[]).forEach(a => { const n = a.fluxos?.nome || "Sem fluxo"; f[n] = (f[n] || 0) + 1; }); setFluxoData(Object.entries(f).map(([name, value]) => ({ name, value }))); }
+      const tm: Record<string, { month: string; total: number; custos: number }> = {};
+      vistoriasData.forEach((v: any) => { const m = format(new Date(v.created_at), "MMM/yy", { locale: ptBR }); if (!tm[m]) tm[m] = { month: m, total: 0, custos: 0 }; tm[m].total++; tm[m].custos += (Number(v.custo_oficina) || 0) + (Number(v.custo_reparo) || 0) + (Number(v.custo_acordo) || 0) + (Number(v.custo_terceiros) || 0); });
+      setTimelineData(Object.values(tm).slice(-6));
+    } catch { toast.error("Erro dashboard"); }
+    finally { setLoading(false); }
   };
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pendente: "bg-yellow-500",
-      pendente_novas_fotos: "bg-yellow-500",
-      aguardando_fotos: "bg-blue-500",
-      em_analise: "bg-purple-500",
-      concluida: "bg-green-500",
-      cancelada: "bg-red-500"
-    };
-    return colors[status] || "bg-gray-500";
-  };
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      pendente: "Pendente Novas Fotos",
-      pendente_novas_fotos: "Pendente Novas Fotos",
-      aguardando_fotos: "Aguardando Fotos",
-      em_analise: "Em Análise",
-      concluida: "Concluída",
-      cancelada: "Cancelada"
-    };
-    return labels[status] || status;
-  };
-  const formatCurrency = (value: number) => new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL"
-  }).format(value || 0);
-  const filteredClaims = claims.filter(claim => {
-    const matchesStatus = selectedStatus === "all" || claim.status === selectedStatus;
-    const matchesSearch = claim.numero.toString().includes(searchTerm.toLowerCase()) || claim.assunto.toLowerCase().includes(searchTerm.toLowerCase()) || claim.observacoes?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
-    return matchesStatus && matchesSearch;
+
+  const getStatusColor = (s: string) => ({ pendente: "bg-yellow-500", pendente_novas_fotos: "bg-yellow-500", aguardando_fotos: "bg-blue-500", em_analise: "bg-purple-500", concluida: "bg-green-500", cancelada: "bg-red-500" }[s] || "bg-gray-500");
+  const getStatusLabel = (s: string) => ({ pendente: "Pendente", pendente_novas_fotos: "Pend. Fotos", aguardando_fotos: "Aguardando", em_analise: "Em Análise", concluida: "Concluída", cancelada: "Cancelada" }[s] || s);
+  const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
+  const parseCurrencyToNumber = (v: string) => { const n = Number(v.replace(/\./g, "").replace(",", ".")); return isNaN(n) ? 0 : n; };
+
+  const filteredClaims = claims.filter(c => {
+    const ms = selectedStatus === "all" || c.status === selectedStatus;
+    const mt = c.numero.toString().includes(searchTerm.toLowerCase()) || c.assunto.toLowerCase().includes(searchTerm.toLowerCase()) || c.observacoes?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+    return ms && mt;
   });
-  const filteredVistorias = vistorias.filter(vistoria => {
-    if (!vistoriaSearchTerm) return true;
-    const term = vistoriaSearchTerm.toLowerCase();
-    return vistoria.numero.toString().includes(term) || vistoria.cliente_nome?.toLowerCase().includes(term) || vistoria.veiculo_placa?.toLowerCase().includes(term) || getStatusLabel(vistoria.status).toLowerCase().includes(term);
-  });
-  const getVistoriaPublicLink = (vistoria: Vistoria) => {
-    if (!vistoria.link_token) {
-      return null;
-    }
-    return `${window.location.origin}/vistoria/${vistoria.link_token}`;
-  };
-  const handleOpenPublicLink = (vistoria: Vistoria) => {
-    const link = getVistoriaPublicLink(vistoria);
-    if (!link) {
-      toast.error("Esta vistoria não possui um link de acesso público gerado.");
-      return;
-    }
-    window.open(link, "_blank", "noopener,noreferrer");
-  };
-  const handleShareWhatsApp = (vistoria: Vistoria) => {
-    const link = getVistoriaPublicLink(vistoria);
-    if (!link) {
-      toast.error("Esta vistoria não possui um link de acesso público gerado.");
-      return;
-    }
-    openWhatsApp({
-      message: `Olá, segue o link para continuar a vistoria do veículo ${vistoria.veiculo_placa}:\n${link}`
-    });
-  };
-  const handleShareEmail = (vistoria: Vistoria) => {
-    const link = getVistoriaPublicLink(vistoria);
-    if (!link) {
-      toast.error("Esta vistoria não possui um link de acesso público gerado.");
-      return;
-    }
-    const subject = `Vistoria #${vistoria.numero} - Continuidade`;
-    const body = `Olá,\n\nSegue o link para acessar e continuar a vistoria do veículo ${vistoria.veiculo_placa} (${vistoria.cliente_nome}):\n${link}\n\nQualquer dúvida, estamos à disposição.\n`;
-    const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailto;
-  };
-  const handleGoToSinistroFromVistoria = (vistoria: Vistoria) => {
-    if (!vistoria.atendimento_id) {
-      toast.error("Esta vistoria ainda não está vinculada a um sinistro.");
-      return;
-    }
-    setActiveTab("acompanhamento");
-    setSelectedStatus("all");
-    setSelectedCorretora("all");
-    const claim = claims.find((c: any) => c.id === vistoria.atendimento_id);
-    if (claim) {
-      setSearchTerm(claim.numero.toString());
-    } else {
-      setSearchTerm("");
-    }
-  };
-  const normalizeStatus = (status?: string | null) => (status || "").toString().toLowerCase();
+  const filteredVistorias = vistorias.filter(v => { if (!vistoriaSearchTerm) return true; const t = vistoriaSearchTerm.toLowerCase(); return v.numero.toString().includes(t) || v.cliente_nome?.toLowerCase().includes(t) || v.veiculo_placa?.toLowerCase().includes(t); });
+
+  const normalizeStatus = (s?: string | null) => (s || "").toLowerCase();
   const totalSinistros = claims.length;
-  const sinistrosConcluidos = claims.filter((c: any) => normalizeStatus(c.status).includes("conclu")).length;
-  const sinistrosCancelados = claims.filter((c: any) => normalizeStatus(c.status).includes("cancel")).length;
+  const sinistrosConcluidos = claims.filter(c => normalizeStatus(c.status).includes("conclu")).length;
+  const sinistrosCancelados = claims.filter(c => normalizeStatus(c.status).includes("cancel")).length;
   const sinistrosEmAndamento = totalSinistros - sinistrosConcluidos - sinistrosCancelados;
+
+  const handleOpenPublicLink = (v: Vistoria) => { const l = v.link_token ? `${window.location.origin}/vistoria/${v.link_token}` : null; if (!l) { toast.error("Sem link"); return; } window.open(l, "_blank"); };
+  const handleShareWhatsApp = (v: Vistoria) => { const l = v.link_token ? `${window.location.origin}/vistoria/${v.link_token}` : null; if (!l) { toast.error("Sem link"); return; } openWhatsApp({ message: `Link da vistoria ${v.veiculo_placa}:\n${l}` }); };
+
   const handleOpenEditClaim = (claim: Claim) => {
     setEditingClaim(claim);
-    setEditingValues({
-      custo_oficina: claim.custo_oficina != null ? String(claim.custo_oficina).replace(".", ",") : "",
-      custo_reparo: claim.custo_reparo != null ? String(claim.custo_reparo).replace(".", ",") : "",
-      custo_acordo: claim.custo_acordo != null ? String(claim.custo_acordo).replace(".", ",") : "",
-      custo_terceiros: claim.custo_terceiros != null ? String(claim.custo_terceiros).replace(".", ",") : "",
-      custo_perda_total: claim.custo_perda_total != null ? String(claim.custo_perda_total).replace(".", ",") : "",
-      custo_perda_parcial: claim.custo_perda_parcial != null ? String(claim.custo_perda_parcial).replace(".", ",") : ""
-    });
+    setEditingValues({ custo_oficina: claim.custo_oficina != null ? String(claim.custo_oficina).replace(".", ",") : "", custo_reparo: claim.custo_reparo != null ? String(claim.custo_reparo).replace(".", ",") : "", custo_acordo: claim.custo_acordo != null ? String(claim.custo_acordo).replace(".", ",") : "", custo_terceiros: claim.custo_terceiros != null ? String(claim.custo_terceiros).replace(".", ",") : "", custo_perda_total: claim.custo_perda_total != null ? String(claim.custo_perda_total).replace(".", ",") : "", custo_perda_parcial: claim.custo_perda_parcial != null ? String(claim.custo_perda_parcial).replace(".", ",") : "" });
   };
-  const parseCurrencyToNumber = (value: string) => {
-    const cleaned = value.replace(/\./g, "").replace(",", ".");
-    const num = Number(cleaned);
-    return isNaN(num) ? 0 : num;
-  };
+
   const handleSaveEditClaim = async () => {
-    if (!editingClaim || !(editingClaim as any).vistoria_id) {
-      toast.error("Não foi possível identificar a vistoria vinculada a este sinistro.");
-      return;
-    }
-    const vistoriaId = (editingClaim as any).vistoria_id as string;
+    if (!editingClaim || !(editingClaim as any).vistoria_id) { toast.error("Sem vistoria vinculada"); return; }
     const payload: any = {};
-    if (editingValues.custo_oficina.trim() !== "") {
-      payload.custo_oficina = parseCurrencyToNumber(editingValues.custo_oficina);
-    }
-    if (editingValues.custo_reparo.trim() !== "") {
-      payload.custo_reparo = parseCurrencyToNumber(editingValues.custo_reparo);
-    }
-    if (editingValues.custo_acordo.trim() !== "") {
-      payload.custo_acordo = parseCurrencyToNumber(editingValues.custo_acordo);
-    }
-    if (editingValues.custo_terceiros.trim() !== "") {
-      payload.custo_terceiros = parseCurrencyToNumber(editingValues.custo_terceiros);
-    }
-    if (editingValues.custo_perda_total.trim() !== "") {
-      payload.custo_perda_total = parseCurrencyToNumber(editingValues.custo_perda_total);
-    }
-    if (editingValues.custo_perda_parcial.trim() !== "") {
-      payload.custo_perda_parcial = parseCurrencyToNumber(editingValues.custo_perda_parcial);
-    }
-    if (Object.keys(payload).length === 0) {
-      toast.error("Informe ao menos um valor para atualizar.");
-      return;
-    }
+    if (editingValues.custo_oficina.trim()) payload.custo_oficina = parseCurrencyToNumber(editingValues.custo_oficina);
+    if (editingValues.custo_reparo.trim()) payload.custo_reparo = parseCurrencyToNumber(editingValues.custo_reparo);
+    if (editingValues.custo_acordo.trim()) payload.custo_acordo = parseCurrencyToNumber(editingValues.custo_acordo);
+    if (editingValues.custo_terceiros.trim()) payload.custo_terceiros = parseCurrencyToNumber(editingValues.custo_terceiros);
+    if (editingValues.custo_perda_total.trim()) payload.custo_perda_total = parseCurrencyToNumber(editingValues.custo_perda_total);
+    if (editingValues.custo_perda_parcial.trim()) payload.custo_perda_parcial = parseCurrencyToNumber(editingValues.custo_perda_parcial);
+    if (!Object.keys(payload).length) { toast.error("Informe um valor"); return; }
     try {
       setSavingEdit(true);
-      const {
-        error
-      } = await supabase.from("vistorias").update(payload).eq("id", vistoriaId);
+      const { error } = await supabase.from("vistorias").update(payload).eq("id", (editingClaim as any).vistoria_id);
       if (error) throw error;
-      toast.success("Custos atualizados com sucesso.");
+      toast.success("Custos atualizados!");
       setEditingClaim(null);
-
-      // Recarrega dados para refletir nos cards, acompanhamento e dashboard
       await Promise.all([loadAcompanhamento(), loadDashboard(), loadVistorias()]);
-    } catch (error) {
-      console.error("Erro ao atualizar custos:", error);
-      toast.error("Erro ao atualizar custos da vistoria.");
-    } finally {
-      setSavingEdit(false);
-    }
+    } catch { toast.error("Erro ao atualizar"); }
+    finally { setSavingEdit(false); }
   };
-  return <div className="container mx-auto p-6 space-y-6">
+
+  return (
+    <div className="container mx-auto p-4 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl">
-            <AlertTriangle className="h-7 w-7 text-primary" />
+          <div className="p-2.5 rounded-2xl bg-primary/10">
+            <AlertTriangle className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-              Sinistros
-            </h1>
-            <p className="text-sm text-muted-foreground">Gestão integrada de sinistros, vistorias e acompanhamento</p>
+            <h1 className="text-2xl sm:text-3xl font-bold">Sinistros</h1>
+            <p className="text-sm text-muted-foreground">Gestão integrada de sinistros e vistorias</p>
           </div>
         </div>
-
-        <div className="flex gap-2">
-          <Button onClick={() => navigate("/vistorias/nova/manual")} size="lg" className="gap-2 shadow-lg">
-            <Plus className="h-4 w-4" />
-            Abertura Manual
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => navigate("/vistorias/nova/manual")} className="rounded-xl gap-1.5 shadow-sm">
+            <Plus className="h-4 w-4" /> Abertura Manual
           </Button>
-          <Button onClick={() => navigate("/vistorias/nova/digital")} variant="outline" size="lg" className="gap-2 shadow-sm">
-            <Plus className="h-4 w-4" />
-            Abertura Digital
+          <Button onClick={() => navigate("/vistorias/nova/digital")} variant="outline" className="rounded-xl gap-1.5">
+            <Plus className="h-4 w-4" /> Abertura Digital
           </Button>
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex gap-2 border-b">
-        <Button variant={activeTab === "acompanhamento" ? "default" : "ghost"} onClick={() => setActiveTab("acompanhamento")} className="gap-2">
-          <FileText className="h-4 w-4" />
-          Painel
-        </Button>
-        <Button variant={activeTab === "vistorias" ? "default" : "ghost"} onClick={() => setActiveTab("vistorias")} className="gap-2">
-          <Camera className="h-4 w-4" />
-          Vistorias
-        </Button>
-        <Button variant={activeTab === "dashboard" ? "default" : "ghost"} onClick={() => setActiveTab("dashboard")} className="gap-2">
-          <BarChart3 className="h-4 w-4" />
-          Dashboard
-        </Button>
-        <Button variant="ghost" onClick={() => navigate('/sinistros/configuracoes')} className="gap-2 ml-auto">
-          <Settings className="h-4 w-4" />
-          Configurações
-        </Button>
-      </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)}>
+        <div className="flex items-center justify-between gap-2">
+          <TabsList className="rounded-xl bg-muted/50 p-1">
+            <TabsTrigger value="acompanhamento" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <FileText className="h-4 w-4" /> Painel
+            </TabsTrigger>
+            <TabsTrigger value="vistorias" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Camera className="h-4 w-4" /> Vistorias
+            </TabsTrigger>
+            <TabsTrigger value="dashboard" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <BarChart3 className="h-4 w-4" /> Dashboard
+            </TabsTrigger>
+          </TabsList>
+          <Button variant="ghost" onClick={() => navigate('/sinistros/configuracoes')} className="gap-1.5 rounded-xl">
+            <Settings className="h-4 w-4" /> <span className="hidden sm:inline">Configurações</span>
+          </Button>
+        </div>
 
-      {loading ? <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
-        </div> : <>
-          {/* ACOMPANHAMENTO TAB */}
-          {activeTab === "acompanhamento" && <div className="space-y-6">
-              {/* Header com informações de sinistros */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">Total de Sinistros</span>
-                      <FileText className="h-5 w-5 text-blue-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{totalSinistros}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Registros totais</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-yellow-500 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">Em andamento</span>
-                      <Clock className="h-5 w-5 text-yellow-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{sinistrosEmAndamento}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Em análise / em fluxo</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">Concluídos</span>
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{sinistrosConcluidos}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Sinistros finalizados</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-red-500 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">Cancelados</span>
-                      <XCircle className="h-5 w-5 text-red-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{sinistrosCancelados}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Cancelados / encerrados</p>
-                  </CardContent>
-                </Card>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary/20 border-t-primary" />
+          </div>
+        ) : (
+          <>
+            {/* PAINEL */}
+            <TabsContent value="acompanhamento" className="space-y-6 mt-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: "Total", value: totalSinistros, icon: FileText, color: "text-primary" },
+                  { label: "Em andamento", value: sinistrosEmAndamento, icon: Clock, color: "text-muted-foreground" },
+                  { label: "Concluídos", value: sinistrosConcluidos, icon: CheckCircle2, color: "text-primary" },
+                  { label: "Cancelados", value: sinistrosCancelados, icon: XCircle, color: "text-destructive" },
+                ].map((s, i) => (
+                  <Card key={i} className="rounded-2xl border-border/50 shadow-sm hover:shadow-md transition-shadow">
+                    <CardContent className="p-4 sm:p-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs text-muted-foreground font-medium">{s.label}</p>
+                        <s.icon className={`h-4 w-4 ${s.color}`} />
+                      </div>
+                      <p className="text-2xl sm:text-3xl font-bold">{s.value}</p>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
 
-              {/* Filtros Compactos */}
-              <Card className="border-2">
-                <CardContent className="p-6">
-                  <div className="flex gap-4 flex-wrap items-center">
-                    <div className="flex-1 min-w-[280px] relative">
+              <Card className="rounded-2xl border-border/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex gap-3 flex-wrap items-center">
+                    <div className="flex-1 min-w-[200px] relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="Buscar por número, assunto ou observações..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 h-11" />
+                      <Input placeholder="Buscar número, assunto..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 rounded-xl" />
                     </div>
-
                     <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                      <SelectTrigger className="w-[200px] h-11">
-                        <Filter className="h-4 w-4 mr-2" />
-                        <SelectValue placeholder="Filtrar Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos os Status</SelectItem>
-                        {statusConfigs.map(s => <SelectItem key={s.nome} value={s.nome}>
-                            {s.nome}
-                          </SelectItem>)}
-                      </SelectContent>
+                      <SelectTrigger className="w-[180px] rounded-xl"><Filter className="h-4 w-4 mr-1.5" /><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectContent>{[{ value: "all", label: "Todos" }, ...statusConfigs.map(s => ({ value: s.nome, label: s.nome }))].map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
                     </Select>
-
                     <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
-                      <SelectTrigger className="w-[220px] h-11">
-                        <Building2 className="h-4 w-4 mr-2" />
-                        <SelectValue placeholder="Filtrar Corretora" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas as Corretoras</SelectItem>
-                        {corretoras.map(c => <SelectItem key={c.id} value={c.id}>
-                            {c.nome}
-                          </SelectItem>)}
-                      </SelectContent>
+                      <SelectTrigger className="w-[200px] rounded-xl"><Building2 className="h-4 w-4 mr-1.5" /><SelectValue placeholder="Associação" /></SelectTrigger>
+                      <SelectContent><SelectItem value="all">Todas</SelectItem>{corretoras.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Lista de Claims */}
               <div className="space-y-4">
                 {filteredClaims.map(claim => <ClaimCard key={claim.id} claim={claim} />)}
-                {filteredClaims.length === 0 && <Card>
+                {filteredClaims.length === 0 && (
+                  <Card className="rounded-2xl border-dashed border-2 border-border/50">
                     <CardContent className="p-12 text-center">
-                      <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground">Nenhum sinistro encontrado com os filtros aplicados</p>
+                      <FileText className="h-8 w-8 text-muted-foreground/50 mx-auto mb-3" />
+                      <p className="text-muted-foreground">Nenhum sinistro encontrado</p>
                     </CardContent>
-                  </Card>}
+                  </Card>
+                )}
               </div>
-            </div>}
+            </TabsContent>
 
-          {/* VISTORIAS TAB */}
-          {activeTab === "vistorias" && <div className="space-y-6">
-              {/* Header de Vistorias com contagem por status */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">Total de Vistorias</span>
-                      <FileText className="h-5 w-5 text-blue-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{vistorias.length}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Registros totais</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-yellow-500 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">Pendentes Novas Fotos</span>
-                      <Clock className="h-5 w-5 text-yellow-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">
-                      {vistorias.filter(v => v.status === "pendente" || v.status === "pendente_novas_fotos").length}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">Aguardando envio inicial</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">Aguardando fotos</span>
-                      <Camera className="h-5 w-5 text-blue-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">
-                      {vistorias.filter(v => v.status === "aguardando_fotos").length}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">Cliente em processo de envio</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">Concluídas</span>
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{vistorias.filter(v => v.status === "concluida").length}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Vistorias finalizadas</p>
-                  </CardContent>
-                </Card>
+            {/* VISTORIAS */}
+            <TabsContent value="vistorias" className="space-y-6 mt-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: "Total", value: vistorias.length, icon: FileText },
+                  { label: "Pendentes", value: vistorias.filter(v => v.status === "pendente" || v.status === "pendente_novas_fotos").length, icon: Clock },
+                  { label: "Aguardando", value: vistorias.filter(v => v.status === "aguardando_fotos").length, icon: Camera },
+                  { label: "Concluídas", value: vistorias.filter(v => v.status === "concluida").length, icon: CheckCircle2 },
+                ].map((s, i) => (
+                  <Card key={i} className="rounded-2xl border-border/50 shadow-sm">
+                    <CardContent className="p-4 sm:p-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs text-muted-foreground font-medium">{s.label}</p>
+                        <s.icon className="h-4 w-4 text-primary" />
+                      </div>
+                      <p className="text-2xl sm:text-3xl font-bold">{s.value}</p>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
 
-              {/* Filtro / busca de vistorias */}
-              <Card className="border-2">
+              <Card className="rounded-2xl border-border/50 shadow-sm">
                 <CardContent className="p-4">
-                  <div className="flex gap-4 flex-wrap items-center">
-                    <div className="flex-1 min-w-[280px] relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="Buscar por número, cliente, placa ou status..." value={vistoriaSearchTerm} onChange={e => setVistoriaSearchTerm(e.target.value)} className="pl-10 h-11" />
-                    </div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Buscar por número, cliente, placa..." value={vistoriaSearchTerm} onChange={e => setVistoriaSearchTerm(e.target.value)} className="pl-10 rounded-xl" />
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Lista de Vistorias */}
-              <div className="grid gap-4">
-                {filteredVistorias.map(vistoria => <Card key={vistoria.id} className="hover:shadow-lg transition-shadow border border-border/70 bg-gradient-to-br from-background to-muted/40">
-                     <CardContent className="p-6">
-                      {/* Associação em destaque */}
+              <div className="grid gap-3">
+                {filteredVistorias.map(vistoria => (
+                  <Card key={vistoria.id} className="rounded-2xl hover:shadow-md transition-shadow border-border/50">
+                    <CardContent className="p-4 sm:p-5">
                       <div className="flex items-center gap-2 flex-wrap mb-3">
                         {vistoria.corretora_nome ? (
-                          <Badge variant="secondary" className="text-sm h-6 px-3 font-semibold bg-primary/10 text-primary border-primary/20">
-                            <Building2 className="h-3.5 w-3.5 mr-1.5" />
-                            {vistoria.corretora_nome}
-                          </Badge>
+                          <Badge className="bg-primary/10 text-primary border-0 text-[11px]"><Building2 className="h-3 w-3 mr-1" />{vistoria.corretora_nome}</Badge>
                         ) : (
-                          <Badge variant="destructive" className="text-sm h-6 px-3 font-semibold">
-                            <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
-                            Sem associação
-                          </Badge>
+                          <Badge variant="destructive" className="text-[11px]"><AlertTriangle className="h-3 w-3 mr-1" />Sem associação</Badge>
                         )}
-                        {vistoria.tipo_sinistro && (
-                          <Badge variant="outline" className="text-sm h-6 px-3 bg-secondary/50">
-                            {vistoria.tipo_sinistro}
-                          </Badge>
-                        )}
+                        {vistoria.tipo_sinistro && <Badge variant="outline" className="text-[11px]">{vistoria.tipo_sinistro}</Badge>}
                       </div>
-
                       <div className="flex items-center justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2 flex-wrap">
-                            <h3 className="text-lg font-semibold">Vistoria #{vistoria.numero}</h3>
-                            <Badge className={getStatusColor(vistoria.status)}>{getStatusLabel(vistoria.status)}</Badge>
-                            <Badge variant={vistoria.tipo_abertura === "manual" ? "secondary" : "default"}>
-                              {vistoria.tipo_abertura === "manual" ? "Manual" : "Digital"}
-                            </Badge>
-                            {vistoria.atendimento_id && <Badge variant="outline" className="gap-1">
-                                <FileText className="h-3 w-3" />
-                                Sinistro vinculado
-                              </Badge>}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <h3 className="text-base font-semibold">Vistoria #{vistoria.numero}</h3>
+                            <Badge className={`${getStatusColor(vistoria.status)} text-white text-[10px]`}>{getStatusLabel(vistoria.status)}</Badge>
+                            <Badge variant={vistoria.tipo_abertura === "manual" ? "secondary" : "default"} className="text-[10px]">{vistoria.tipo_abertura === "manual" ? "Manual" : "Digital"}</Badge>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
-                            <div>
-                              <span className="font-medium">Cliente:</span> {vistoria.cliente_nome}
-                            </div>
-                            <div>
-                              <span className="font-medium">Placa:</span> {vistoria.veiculo_placa}
-                            </div>
-                            <div>
-                              <span className="font-medium">Data:</span>{" "}
-                              {format(new Date(vistoria.created_at), "dd/MM/yyyy HH:mm", {
-                        locale: ptBR
-                      })}
-                            </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-muted-foreground">
+                            <span><span className="font-medium text-foreground">Cliente:</span> {vistoria.cliente_nome}</span>
+                            <span><span className="font-medium text-foreground">Placa:</span> {vistoria.veiculo_placa}</span>
+                            <span><span className="font-medium text-foreground">Data:</span> {format(new Date(vistoria.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                          {/* Atalho para o sinistro vinculado */}
-                          <Button variant="outline" size="icon" onClick={() => handleGoToSinistroFromVistoria(vistoria)} title="Ir para o sinistro vinculado" className="rounded-full">
-                            <FileText className="h-4 w-4" />
-                          </Button>
-
-                          <Button variant="outline" size="icon" onClick={() => navigate(`/vistorias/${vistoria.id}`)} title="Visualizar vistoria" className="rounded-full">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="icon" onClick={() => handleOpenPublicLink(vistoria)} title="Abrir link da vistoria" className="rounded-full">
-                            <Link2 className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="icon" onClick={() => handleShareWhatsApp(vistoria)} title="Enviar link por WhatsApp" className="rounded-full">
-                            <MessageCircle className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="icon" onClick={() => handleShareEmail(vistoria)} title="Enviar link por e-mail" className="rounded-full">
-                            <Mail className="h-4 w-4" />
-                          </Button>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl" onClick={() => navigate(`/vistorias/${vistoria.id}`)} title="Ver"><Eye className="h-4 w-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl" onClick={() => handleOpenPublicLink(vistoria)} title="Link"><Link2 className="h-4 w-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl" onClick={() => handleShareWhatsApp(vistoria)} title="WhatsApp"><MessageCircle className="h-4 w-4" /></Button>
                         </div>
                       </div>
                     </CardContent>
-                  </Card>)}
-
-                {filteredVistorias.length === 0 && <Card>
+                  </Card>
+                ))}
+                {filteredVistorias.length === 0 && (
+                  <Card className="rounded-2xl border-dashed border-2 border-border/50">
                     <CardContent className="p-12 text-center">
-                      <Camera className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground">
-                        Nenhuma vistoria encontrada com os filtros / busca aplicados
-                      </p>
+                      <Camera className="h-8 w-8 text-muted-foreground/50 mx-auto mb-3" />
+                      <p className="text-muted-foreground">Nenhuma vistoria encontrada</p>
                     </CardContent>
-                  </Card>}
+                  </Card>
+                )}
               </div>
-            </div>}
+            </TabsContent>
 
-          {/* DASHBOARD TAB */}
-          {activeTab === "dashboard" && <div className="space-y-6">
-              {/* Filtro de Corretora */}
-              <Card>
+            {/* DASHBOARD */}
+            <TabsContent value="dashboard" className="space-y-6 mt-4">
+              <Card className="rounded-2xl border-border/50 shadow-sm">
                 <CardContent className="p-4">
                   <Select value={selectedDashboardCorretora} onValueChange={setSelectedDashboardCorretora}>
-                    <SelectTrigger className="w-full max-w-xs">
-                      <Building2 className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Filtrar por corretora" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as Corretoras</SelectItem>
-                      {dashboardCorretoras.map(c => <SelectItem key={c.id} value={c.id}>
-                          {c.nome}
-                        </SelectItem>)}
-                    </SelectContent>
+                    <SelectTrigger className="w-full max-w-xs rounded-xl"><Building2 className="h-4 w-4 mr-1.5" /><SelectValue placeholder="Filtrar" /></SelectTrigger>
+                    <SelectContent><SelectItem value="all">Todas</SelectItem>{dashboardCorretoras.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
                   </Select>
                 </CardContent>
               </Card>
 
-              {/* Cards de Métricas */}
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {/* TOTAL */}
-                <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                      <BarChart3 className="h-5 w-5" />
-                      Total
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{dashboardStats.total || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Total de vistorias</p>
-                  </CardContent>
-                </Card>
-
-                {/* AGUARDANDO */}
-                <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100/50 dark:from-yellow-950/20 dark:to-yellow-900/10 border-yellow-200 dark:border-yellow-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
-                      <Clock className="h-5 w-5" />
-                      Aguardando
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{dashboardStats.aguardando || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Aguardando fotos</p>
-                  </CardContent>
-                </Card>
-
-                {/* EM ANÁLISE */}
-                <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
-                      <Activity className="h-5 w-5" />
-                      Em Análise
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{dashboardStats.analise || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Análises em andamento</p>
-                  </CardContent>
-                </Card>
-
-                {/* CONCLUÍDOS */}
-                <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                      <CheckCircle2 className="h-5 w-5" />
-                      Concluídas
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{dashboardStats.concluidas || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Vistorias finalizadas</p>
-                  </CardContent>
-                </Card>
-
-                {/* CUSTO TOTAL */}
-                <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                      <DollarSign className="h-5 w-5" />
-                      Custo Total
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{formatCurrency(dashboardStats.custoTotal || 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Somatório geral</p>
-                  </CardContent>
-                </Card>
-
-                {/* CUSTO MÉDIO */}
-                <Card className="bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/30 dark:to-violet-900/20 border-violet-200 dark:border-violet-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-violet-700 dark:text-violet-400">
-                      <TrendingUp className="h-5 w-5" />
-                      Custo Médio
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{formatCurrency(dashboardStats.custoMedio || 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Por vistoria</p>
-                  </CardContent>
-                </Card>
-
-                {/* OFICINAS */}
-                <Card className="bg-gradient-to-br from-blue-50/50 to-blue-100/50 dark:from-blue-950/20 dark:to-blue-900/10 border-blue-200 dark:border-blue-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                      <Wrench className="h-5 w-5" />
-                      Oficinas
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoOficinas || 0)}</p>
-                    <p className="text-xs text-muted-foreground">Custos de oficina</p>
-                  </CardContent>
-                </Card>
-
-                {/* REPAROS */}
-                <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/20 dark:to-orange-900/10 border-orange-200 dark:border-orange-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
-                      <Wrench className="h-5 w-5" />
-                      Reparos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoReparos || 0)}</p>
-                    <p className="text-xs text-muted-foreground">Custos de reparo</p>
-                  </CardContent>
-                </Card>
-
-                {/* ACORDOS */}
-                <Card className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-950/20 dark:to-slate-900/10 border-slate-200 dark:border-slate-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                      <Handshake className="h-5 w-5" />
-                      Acordos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoAcordos || 0)}</p>
-                    <p className="text-xs text-muted-foreground">Custo de acordos</p>
-                  </CardContent>
-                </Card>
-
-                {/* TERCEIROS */}
-                <Card className="bg-gradient-to-br from-pink-50 to-pink-100/50 dark:from-pink-950/20 dark:to-pink-900/10 border-pink-200 dark:border-pink-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-pink-700 dark:text-pink-400">
-                      <Users className="h-5 w-5" />
-                      Terceiros
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoTerceiros || 0)}</p>
-                    <p className="text-xs text-muted-foreground">Custo com terceiros</p>
-                  </CardContent>
-                </Card>
-
-                {/* PERDA TOTAL */}
-                <Card className="bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20 border-red-200 dark:border-red-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
-                      <AlertTriangle className="h-5 w-5" />
-                      Perda Total
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoPerdaTotal || 0)}</p>
-                    <p className="text-xs text-muted-foreground">Indenizações</p>
-                  </CardContent>
-                </Card>
-
-                {/* PERDA PARCIAL */}
-                <Card className="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/20 dark:to-amber-900/10 border-amber-200 dark:border-amber-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                      <AlertTriangle className="h-5 w-5" />
-                      Perda Parcial
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoPerdaParcial || 0)}</p>
-                    <p className="text-xs text-muted-foreground">Custos parciais</p>
-                  </CardContent>
-                </Card>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {[
+                  { icon: BarChart3, label: "Total", value: dashboardStats.total || 0 },
+                  { icon: Clock, label: "Aguardando", value: dashboardStats.aguardando || 0 },
+                  { icon: Activity, label: "Em Análise", value: dashboardStats.analise || 0 },
+                  { icon: CheckCircle2, label: "Concluídas", value: dashboardStats.concluidas || 0 },
+                  { icon: DollarSign, label: "Custo Total", value: formatCurrency(dashboardStats.custoTotal || 0), isText: true },
+                  { icon: TrendingUp, label: "Custo Médio", value: formatCurrency(dashboardStats.custoMedio || 0), isText: true },
+                  { icon: Wrench, label: "Oficinas", value: formatCurrency(dashboardStats.custoOficinas || 0), isText: true },
+                  { icon: Handshake, label: "Acordos", value: formatCurrency(dashboardStats.custoAcordos || 0), isText: true },
+                ].map((s, i) => (
+                  <Card key={i} className="rounded-2xl border-border/50 shadow-sm">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs text-muted-foreground font-medium">{s.label}</p>
+                        <s.icon className="h-4 w-4 text-primary" />
+                      </div>
+                      <p className={`font-bold truncate ${(s as any).isText ? 'text-lg' : 'text-2xl'}`}>{s.value}</p>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
 
-              {/* Gráficos */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5" />
-                      Distribuição por Status
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={320}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Card className="rounded-2xl">
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold text-sm mb-4 flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Status</h3>
+                    <ResponsiveContainer width="100%" height={280}>
                       <PieChart>
-                        <Pie data={statusData} cx="50%" cy="50%" labelLine={false} label={(entry: any) => `${entry.name}: ${entry.value}`} outerRadius={110} innerRadius={60} fill="#8884d8" dataKey="value">
-                          {statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                        <Pie data={statusData} cx="50%" cy="50%" labelLine={false} label={(e: any) => `${e.name}: ${e.value}`} outerRadius={100} innerRadius={55} dataKey="value">
+                          {statusData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                         </Pie>
                         <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5" />
-                      Tipos de Sinistro
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={320}>
+                <Card className="rounded-2xl">
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold text-sm mb-4 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Tipos</h3>
+                    <ResponsiveContainer width="100%" height={280}>
                       <BarChart data={tipoData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} fontSize={12} />
-                        <YAxis />
-                        <Tooltip formatter={value => typeof value === "number" ? formatCurrency(value) : value} />
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={11} tick={{ fill: "hsl(var(--muted-foreground))" }} />
+                        <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                        <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }} formatter={(v: any) => typeof v === "number" ? formatCurrency(v) : v} />
                         <Legend />
-                        <Bar dataKey="quantidade" fill="#3b82f6" name="Quantidade" radius={[8, 8, 0, 0]} />
-                        <Bar dataKey="custo" fill="#22c55e" name="Custo Total" radius={[8, 8, 0, 0]} />
+                        <Bar dataKey="quantidade" fill="hsl(var(--primary))" name="Qtd" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="custo" fill="hsl(var(--chart-2))" name="Custo" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Gráfico de Fluxos */}
-              {fluxoData.length > 0 && <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5" />
-                      Distribuição por Fluxo
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={fluxoData} layout="horizontal">
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" />
-                        <YAxis dataKey="name" type="category" width={150} />
-                        <Tooltip />
-                        <Bar dataKey="value" fill="#8b5cf6" name="Atendimentos" radius={[0, 8, 8, 0]} />
+              {fluxoData.length > 0 && (
+                <Card className="rounded-2xl">
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold text-sm mb-4 flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Fluxos</h3>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={fluxoData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis type="number" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                        <YAxis dataKey="name" type="category" width={150} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                        <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12 }} />
+                        <Bar dataKey="value" fill="hsl(var(--chart-4))" name="Atendimentos" radius={[0, 6, 6, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
-                </Card>}
+                </Card>
+              )}
 
-              {/* Evolução Temporal */}
-              {timelineData.length > 0 && <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Activity className="h-5 w-5" />
-                      Evolução nos Últimos Meses
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={320}>
+              {timelineData.length > 0 && (
+                <Card className="rounded-2xl">
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold text-sm mb-4 flex items-center gap-2"><Activity className="h-4 w-4" /> Evolução</h3>
+                    <ResponsiveContainer width="100%" height={280}>
                       <AreaChart data={timelineData}>
                         <defs>
                           <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                          </linearGradient>
-                          <linearGradient id="colorCustos" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis />
-                        <Tooltip formatter={value => typeof value === "number" ? formatCurrency(value) : value} />
-                        <Legend />
-                        <Area type="monotone" dataKey="total" stroke="#3b82f6" fillOpacity={1} fill="url(#colorTotal)" name="Total de Vistorias" />
-                        <Area type="monotone" dataKey="custos" stroke="#22c55e" fillOpacity={1} fill="url(#colorCustos)" name="Custos (R$)" />
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="month" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                        <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                        <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12 }} />
+                        <Area type="monotone" dataKey="total" stroke="hsl(var(--primary))" fill="url(#colorTotal)" name="Vistorias" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </CardContent>
-                </Card>}
-            </div>}
-        </>}
+                </Card>
+              )}
+            </TabsContent>
+          </>
+        )}
+      </Tabs>
 
-      {/* Modal de edição de custos do sinistro/vistoria */}
-      <Dialog open={!!editingClaim} onOpenChange={open => {
-      if (!open && !savingEdit) setEditingClaim(null);
-    }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Editar custos do sinistro {editingClaim ? `#${(editingClaim as any).numero ?? ""}` : ""}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 pt-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label>Custo Oficina</Label>
-                <Input value={editingValues.custo_oficina} onChange={e => setEditingValues(prev => ({
-                ...prev,
-                custo_oficina: e.target.value
-              }))} placeholder="0,00" />
+      {/* Edit Costs Dialog */}
+      <Dialog open={!!editingClaim} onOpenChange={(v) => !v && setEditingClaim(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Editar Custos</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            {(["custo_oficina", "custo_reparo", "custo_acordo", "custo_terceiros", "custo_perda_total", "custo_perda_parcial"] as const).map(field => (
+              <div key={field} className="grid gap-2">
+                <Label className="text-xs capitalize">{field.replace("custo_", "").replace("_", " ")}</Label>
+                <Input value={editingValues[field]} onChange={e => setEditingValues({ ...editingValues, [field]: e.target.value })} placeholder="0,00" />
               </div>
-              <div className="space-y-1">
-                <Label>Custo Reparos</Label>
-                <Input value={editingValues.custo_reparo} onChange={e => setEditingValues(prev => ({
-                ...prev,
-                custo_reparo: e.target.value
-              }))} placeholder="0,00" />
-              </div>
-              <div className="space-y-1">
-                <Label>Custo Acordos</Label>
-                <Input value={editingValues.custo_acordo} onChange={e => setEditingValues(prev => ({
-                ...prev,
-                custo_acordo: e.target.value
-              }))} placeholder="0,00" />
-              </div>
-              <div className="space-y-1">
-                <Label>Custo Terceiros</Label>
-                <Input value={editingValues.custo_terceiros} onChange={e => setEditingValues(prev => ({
-                ...prev,
-                custo_terceiros: e.target.value
-              }))} placeholder="0,00" />
-              </div>
-              <div className="space-y-1">
-                <Label>Perda Total</Label>
-                <Input value={editingValues.custo_perda_total} onChange={e => setEditingValues(prev => ({
-                ...prev,
-                custo_perda_total: e.target.value
-              }))} placeholder="0,00" />
-              </div>
-              <div className="space-y-1">
-                <Label>Perda Parcial</Label>
-                <Input value={editingValues.custo_perda_parcial} onChange={e => setEditingValues(prev => ({
-                ...prev,
-                custo_perda_parcial: e.target.value
-              }))} placeholder="0,00" />
-              </div>
-            </div>
+            ))}
           </div>
-
-          <DialogFooter className="pt-4">
-            <Button variant="outline" onClick={() => !savingEdit && setEditingClaim(null)} disabled={savingEdit}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveEditClaim} disabled={savingEdit}>
-              {savingEdit ? "Salvando..." : "Salvar"}
-            </Button>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingClaim(null)} className="rounded-xl">Cancelar</Button>
+            <Button onClick={handleSaveEditClaim} disabled={savingEdit} className="rounded-xl">{savingEdit ? "Salvando..." : "Salvar"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Acompanhamento Dialog */}
-      {acompanhamentoClaim && <AcompanhamentoSinistroDialog open={!!acompanhamentoClaim} onOpenChange={open => !open && setAcompanhamentoClaim(null)} atendimentoId={acompanhamentoClaim.id} sinistroNumero={acompanhamentoClaim.numero} corretoraId={acompanhamentoClaim.corretora_id || undefined} onUpdate={loadAcompanhamento} />}
-    </div>;
+      {acompanhamentoClaim && <AcompanhamentoSinistroDialog atendimentoId={acompanhamentoClaim.id} sinistroNumero={acompanhamentoClaim.numero} corretoraId={acompanhamentoClaim.corretora_id || undefined} open={!!acompanhamentoClaim} onOpenChange={(v) => !v && setAcompanhamentoClaim(null)} onUpdate={loadAcompanhamento} />}
+    </div>
+  );
 }
