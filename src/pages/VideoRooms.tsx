@@ -50,35 +50,48 @@ export default function VideoRooms() {
     try {
       const { data: activeRooms } = await supabase
         .from("meeting_rooms")
-        .select("id, agendado_para, duracao_minutos, host_id")
+        .select("id, agendado_para, duracao_minutos, host_id, created_at")
         .eq("status", "ativa");
 
       if (activeRooms && activeRooms.length > 0) {
         const now = new Date();
+        const session = (await supabase.auth.getSession()).data.session;
+        
         for (const room of activeRooms) {
+          let shouldFinalize = false;
+          
           if (room.agendado_para && room.duracao_minutos) {
+            // Has schedule + duration: finalize when end time passed
             const endTime = new Date(new Date(room.agendado_para).getTime() + room.duracao_minutos * 60000);
-            if (now > endTime) {
-              // Call edge function to properly finalize
-              try {
-                await fetch(
-                  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=endRoom`,
-                  {
-                    method: "POST",
-                    headers: {
-                      Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ roomId: room.id }),
-                  }
-                );
-              } catch {
-                // Fallback: update DB directly
-                await supabase
-                  .from("meeting_rooms")
-                  .update({ status: "finalizada", finalizado_em: now.toISOString() })
-                  .eq("id", room.id);
-              }
+            shouldFinalize = now > endTime;
+          } else if (room.agendado_para && !room.duracao_minutos) {
+            // Has schedule but no duration: finalize if scheduled time was > 2 hours ago
+            const scheduledTime = new Date(room.agendado_para);
+            shouldFinalize = now.getTime() - scheduledTime.getTime() > 2 * 60 * 60 * 1000;
+          } else if (!room.agendado_para) {
+            // No schedule at all: finalize if created > 4 hours ago
+            const createdTime = new Date(room.created_at);
+            shouldFinalize = now.getTime() - createdTime.getTime() > 4 * 60 * 60 * 1000;
+          }
+
+          if (shouldFinalize) {
+            try {
+              await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=endRoom`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${session?.access_token}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ roomId: room.id }),
+                }
+              );
+            } catch {
+              await supabase
+                .from("meeting_rooms")
+                .update({ status: "finalizada", finalizado_em: now.toISOString() })
+                .eq("id", room.id);
             }
           }
         }
