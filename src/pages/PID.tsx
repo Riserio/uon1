@@ -1,4 +1,4 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import PIDDashboard from "@/components/portal/PIDDashboard";
 import PIDOperacional from "@/components/portal/PIDOperacional";
@@ -38,25 +38,26 @@ export default function PID() {
         <BIAdminDashboard />
       ) : (
         <>
-          {/* Actions row - aligned right */}
-          {selectedAssociacao && (
-            <div className="flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setUsuariosDialogOpen(true)}
-                className="gap-2 rounded-xl"
-              >
-                <Users className="h-4 w-4" />
-                <span className="text-sm">Gerenciar Usuários</span>
-              </Button>
-            </div>
-          )}
+          {/* Actions + Tabs row */}
+          <div className="flex flex-col gap-4">
+            {/* Manage users button */}
+            {selectedAssociacao && (
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUsuariosDialogOpen(true)}
+                  className="gap-2 rounded-xl"
+                >
+                  <Users className="h-4 w-4" />
+                  <span className="text-sm hidden sm:inline">Gerenciar Usuários</span>
+                </Button>
+              </div>
+            )}
 
-          {/* Tabs - Widget style matching other pages */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-              <div className="flex items-center gap-1.5 p-1.5 bg-muted/40 rounded-2xl w-fit min-w-full sm:min-w-0">
+            {/* Internal tab navigation - matching SGAInsights style */}
+            <div className="w-full overflow-x-auto pb-1 -mx-1 px-1">
+              <div className="inline-flex md:flex md:w-full max-w-4xl mx-auto gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.id;
@@ -64,9 +65,9 @@ export default function PID() {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 flex-1 justify-center ${
                         isActive
-                          ? "bg-primary text-primary-foreground shadow-sm"
+                          ? "bg-primary text-primary-foreground shadow-md"
                           : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                       }`}
                     >
@@ -77,7 +78,10 @@ export default function PID() {
                 })}
               </div>
             </div>
+          </div>
 
+          {/* Tab contents */}
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsContent value="dashboard" className="space-y-4 mt-0">
               <PIDDashboard corretoraId={selectedAssociacao} />
             </TabsContent>
