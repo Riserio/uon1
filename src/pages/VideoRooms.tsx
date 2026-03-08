@@ -8,7 +8,7 @@ import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/respo
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Video, Plus, Copy, Trash2, Calendar, Users, Clock, Link2, MessageSquare, Pencil, BarChart3, Timer, TrendingUp, CheckCircle2 } from "lucide-react";
+import { Video, Plus, Copy, Trash2, Calendar, Users, Clock, Link2, MessageSquare, Pencil, BarChart3, Timer, TrendingUp, CheckCircle2, RotateCcw, Play } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import CriarReuniaoDialog from "@/components/CriarReuniaoDialog";
@@ -59,10 +59,26 @@ export default function VideoRooms() {
           if (room.agendado_para && room.duracao_minutos) {
             const endTime = new Date(new Date(room.agendado_para).getTime() + room.duracao_minutos * 60000);
             if (now > endTime) {
-              await supabase
-                .from("meeting_rooms")
-                .update({ status: "finalizada", finalizado_em: now.toISOString() })
-                .eq("id", room.id);
+              // Call edge function to properly finalize
+              try {
+                await fetch(
+                  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=endRoom`,
+                  {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ roomId: room.id }),
+                  }
+                );
+              } catch {
+                // Fallback: update DB directly
+                await supabase
+                  .from("meeting_rooms")
+                  .update({ status: "finalizada", finalizado_em: now.toISOString() })
+                  .eq("id", room.id);
+              }
             }
           }
         }
@@ -78,6 +94,15 @@ export default function VideoRooms() {
     }
   }, [user]);
 
+  // Poll for auto-finalization every 60 seconds
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      autoFinalizeExpired().then(() => fetchRooms());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
+
   const fetchRooms = async () => {
     setLoading(true);
     try {
@@ -90,7 +115,6 @@ export default function VideoRooms() {
       const roomsList = (data || []) as unknown as MeetingRoom[];
       setRooms(roomsList);
 
-      // Fetch RSVP statuses for all rooms
       const roomIds = roomsList.map(r => r.id);
       if (roomIds.length > 0) {
         const { data: rsvpData } = await supabase
@@ -135,6 +159,21 @@ export default function VideoRooms() {
       fetchRooms();
     } catch (e: any) {
       toast.error(e.message);
+    }
+  };
+
+  const handleReopenRoom = async (roomId: string) => {
+    if (!confirm("Reabrir esta sala?")) return;
+    try {
+      const { error } = await supabase
+        .from("meeting_rooms")
+        .update({ status: "ativa", finalizado_em: null })
+        .eq("id", roomId);
+      if (error) throw error;
+      toast.success("Sala reaberta com sucesso!");
+      fetchRooms();
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao reabrir sala");
     }
   };
 
@@ -193,96 +232,104 @@ export default function VideoRooms() {
   const ativas = rooms.filter((r) => r.status === "ativa");
   const finalizadas = rooms.filter((r) => r.status !== "ativa");
 
-  const getStatusBadge = (status: string) => {
-    const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-      ativa: { label: "Ativa", variant: "default" },
-      finalizada: { label: "Finalizada", variant: "secondary" },
-      cancelada: { label: "Cancelada", variant: "destructive" },
-    };
-    const info = map[status] || map.ativa;
-    return <Badge variant={info.variant}>{info.label}</Badge>;
-  };
-
   const formatDateRange = (room: MeetingRoom) => {
     if (!room.agendado_para) return null;
     const start = new Date(room.agendado_para);
     const end = room.duracao_minutos ? new Date(start.getTime() + room.duracao_minutos * 60000) : null;
     return (
-      <span className="flex items-center gap-1 text-primary font-medium">
-        <Calendar className="h-3 w-3" />
-        {start.toLocaleDateString("pt-BR")} {start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-        {end && ` – ${end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+      <span className="flex items-center gap-1.5 text-xs">
+        <Calendar className="h-3 w-3 text-primary" />
+        <span className="font-medium text-foreground">
+          {start.toLocaleDateString("pt-BR")} {start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+          {end && ` – ${end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+        </span>
         {room.duracao_minutos && (
-          <span className="text-muted-foreground font-normal ml-1">({room.duracao_minutos}min)</span>
+          <span className="text-muted-foreground">({room.duracao_minutos}min)</span>
         )}
       </span>
     );
   };
 
+  const getRemainingTime = (room: MeetingRoom) => {
+    if (!room.agendado_para || !room.duracao_minutos) return null;
+    const endTime = new Date(new Date(room.agendado_para).getTime() + room.duracao_minutos * 60000);
+    const now = new Date();
+    const diff = endTime.getTime() - now.getTime();
+    if (diff <= 0) return <Badge variant="destructive" className="text-[10px] h-5">Expirada</Badge>;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return <Badge variant="outline" className="text-[10px] h-5 border-primary/30 text-primary">{mins}min restante(s)</Badge>;
+    const hours = Math.floor(mins / 60);
+    return <Badge variant="outline" className="text-[10px] h-5 border-primary/30 text-primary">{hours}h{mins % 60}min</Badge>;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto p-6 space-y-6">
+    <div className="min-h-screen">
+      <div className="container mx-auto p-4 sm:p-6 space-y-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Video className="h-7 w-7 text-primary" />
-              </div>
-              Uon1 Talk
-            </h1>
-            <p className="text-muted-foreground mt-1">Videoconferências com LiveKit</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-primary/10">
+              <Video className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Uon1 Talk</h1>
+              <p className="text-sm text-muted-foreground">Videoconferências</p>
+            </div>
           </div>
-          <Button onClick={() => setCreateOpen(true)} size="lg" className="gap-2">
+          <Button onClick={() => setCreateOpen(true)} size="lg" className="gap-2 rounded-xl shadow-md">
             <Plus className="h-4 w-4" /> Nova Sala
           </Button>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="salas" className="gap-1.5"><Video className="h-4 w-4" /> Salas</TabsTrigger>
-            <TabsTrigger value="dashboard" className="gap-1.5"><BarChart3 className="h-4 w-4" /> Dashboard</TabsTrigger>
+          <TabsList className="rounded-xl bg-muted/50 p-1">
+            <TabsTrigger value="salas" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Video className="h-4 w-4" /> Salas
+            </TabsTrigger>
+            <TabsTrigger value="dashboard" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <BarChart3 className="h-4 w-4" /> Dashboard
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="salas" className="space-y-6 mt-4">
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardContent className="p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card className="rounded-2xl border-border/50 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground">Salas Ativas</p>
-                      <p className="text-2xl font-bold">{ativas.length}</p>
+                      <p className="text-xs text-muted-foreground font-medium">Salas Ativas</p>
+                      <p className="text-3xl font-bold mt-1">{ativas.length}</p>
                     </div>
-                    <div className="p-2 rounded-full bg-primary/10">
-                      <Calendar className="h-5 w-5 text-primary" />
+                    <div className="p-3 rounded-xl bg-primary/10">
+                      <Play className="h-5 w-5 text-primary" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="p-4">
+              <Card className="rounded-2xl border-border/50 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground">Total de Salas</p>
-                      <p className="text-2xl font-bold">{rooms.length}</p>
+                      <p className="text-xs text-muted-foreground font-medium">Total de Salas</p>
+                      <p className="text-3xl font-bold mt-1">{rooms.length}</p>
                     </div>
-                    <div className="p-2 rounded-full bg-secondary">
+                    <div className="p-3 rounded-xl bg-secondary">
                       <Video className="h-5 w-5 text-secondary-foreground" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="p-4">
+              <Card className="rounded-2xl border-border/50 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground">Participantes Conectados</p>
-                      <p className="text-2xl font-bold">
+                      <p className="text-xs text-muted-foreground font-medium">Participantes</p>
+                      <p className="text-3xl font-bold mt-1">
                         {ativas.reduce((sum, r) => sum + (r.meeting_participants?.filter(p => p.status === "approved").length || 0), 0)}
                       </p>
                     </div>
-                    <div className="p-2 rounded-full bg-accent">
+                    <div className="p-3 rounded-xl bg-accent">
                       <Users className="h-5 w-5 text-accent-foreground" />
                     </div>
                   </div>
@@ -292,17 +339,24 @@ export default function VideoRooms() {
 
             {/* Active Rooms */}
             <div>
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Calendar className="h-5 w-5" /> Salas Ativas
+              <h2 className="text-base font-semibold mb-3 flex items-center gap-2 text-foreground">
+                <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                Salas Ativas
               </h2>
               {loading ? (
-                <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary/20 border-t-primary mx-auto" />
+                  <p className="text-sm text-muted-foreground mt-3">Carregando...</p>
+                </div>
               ) : ativas.length === 0 ? (
-                <Card>
+                <Card className="rounded-2xl border-dashed border-2 border-border/60">
                   <CardContent className="py-12 text-center">
-                    <Video className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                    <p className="text-muted-foreground">Nenhuma sala ativa</p>
-                    <Button onClick={() => setCreateOpen(true)} variant="outline" className="mt-4 gap-2">
+                    <div className="p-4 rounded-2xl bg-muted/50 w-fit mx-auto mb-4">
+                      <Video className="h-8 w-8 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-muted-foreground mb-1">Nenhuma sala ativa</p>
+                    <p className="text-xs text-muted-foreground/70 mb-4">Crie uma nova sala para começar</p>
+                    <Button onClick={() => setCreateOpen(true)} variant="outline" className="gap-2 rounded-xl">
                       <Plus className="h-4 w-4" /> Criar Sala
                     </Button>
                   </CardContent>
@@ -310,22 +364,19 @@ export default function VideoRooms() {
               ) : (
                 <div className="grid gap-3">
                   {ativas.map((room) => (
-                    <Card key={room.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4">
+                    <Card key={room.id} className="rounded-2xl hover:shadow-md transition-all border-border/50 group">
+                      <CardContent className="p-4 sm:p-5">
+                        <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold truncate">{room.nome}</h3>
-                              {getStatusBadge(room.status)}
-                              <Badge variant="outline">{room.tipo}</Badge>
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <h3 className="font-semibold text-base truncate">{room.nome}</h3>
+                              <Badge className="bg-primary/15 text-primary border-0 text-[11px] font-medium">Ativa</Badge>
+                              <Badge variant="outline" className="text-[11px]">{room.tipo}</Badge>
+                              {getRemainingTime(room)}
                             </div>
                             {room.descricao && <p className="text-sm text-muted-foreground line-clamp-1 mb-2">{room.descricao}</p>}
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                               {formatDateRange(room)}
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                Criada em {new Date(room.created_at).toLocaleDateString("pt-BR")}
-                              </span>
                               <span className="flex items-center gap-1">
                                 <Users className="h-3 w-3" />
                                 {room.meeting_participants?.filter(p => p.status === "approved").length || 0} participante(s)
@@ -337,30 +388,29 @@ export default function VideoRooms() {
                                 </span>
                               )}
                               {rsvpMap[room.id] && (rsvpMap[room.id].sim > 0 || rsvpMap[room.id].nao > 0 || rsvpMap[room.id].talvez > 0) && (
-                                <span className="flex items-center gap-2">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  <span className="text-emerald-600">✓{rsvpMap[room.id].sim}</span>
-                                  {rsvpMap[room.id].talvez > 0 && <span className="text-amber-600">?{rsvpMap[room.id].talvez}</span>}
-                                  {rsvpMap[room.id].nao > 0 && <span className="text-red-600">✕{rsvpMap[room.id].nao}</span>}
+                                <span className="flex items-center gap-1.5">
+                                  <span className="text-primary font-medium">✓{rsvpMap[room.id].sim}</span>
+                                  {rsvpMap[room.id].talvez > 0 && <span className="text-muted-foreground">?{rsvpMap[room.id].talvez}</span>}
+                                  {rsvpMap[room.id].nao > 0 && <span className="text-destructive">✕{rsvpMap[room.id].nao}</span>}
                                   {rsvpMap[room.id].pendente > 0 && <span>⏳{rsvpMap[room.id].pendente}</span>}
                                 </span>
                               )}
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <Button size="sm" onClick={() => navigate(`/video/${room.id}`)} className="gap-1.5">
+                            <Button size="sm" onClick={() => navigate(`/video/${room.id}`)} className="gap-1.5 rounded-xl shadow-sm">
                               <Video className="h-3.5 w-3.5" /> Entrar
                             </Button>
                             {room.host_id === user?.id && (
-                              <Button size="sm" variant="outline" onClick={() => setEditRoom(room)} title="Editar">
+                              <Button size="sm" variant="outline" className="rounded-xl" onClick={() => setEditRoom(room)} title="Editar">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                             )}
-                            <Button size="sm" variant="outline" onClick={() => handleCreateInvite(room.id)} title="Gerar convite">
+                            <Button size="sm" variant="outline" className="rounded-xl" onClick={() => handleCreateInvite(room.id)} title="Gerar convite">
                               <Link2 className="h-3.5 w-3.5" />
                             </Button>
                             {room.host_id === user?.id && (
-                              <Button size="sm" variant="ghost" onClick={() => handleEndRoom(room.id)} className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Concluir reunião">
+                              <Button size="sm" variant="ghost" onClick={() => handleEndRoom(room.id)} className="text-primary hover:text-primary/80 hover:bg-primary/10 rounded-xl" title="Finalizar reunião">
                                 <CheckCircle2 className="h-3.5 w-3.5" />
                               </Button>
                             )}
@@ -374,53 +424,58 @@ export default function VideoRooms() {
             </div>
 
             {/* History */}
-            {finalizadas.length > 0 ? (
-              <div>
-                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <Clock className="h-5 w-5" /> Histórico
-                </h2>
-                <div className="grid gap-3">
+            <div>
+              <h2 className="text-base font-semibold mb-3 flex items-center gap-2 text-foreground">
+                <Clock className="h-4 w-4 text-muted-foreground" /> Histórico
+              </h2>
+              {finalizadas.length > 0 ? (
+                <div className="grid gap-2">
                   {finalizadas.map((room) => (
-                    <Card key={room.id} className="opacity-70">
+                    <Card key={room.id} className="rounded-2xl border-border/40 bg-card/80">
                       <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-medium">{room.nome}</h3>
-                              {getStatusBadge(room.status)}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-medium text-sm truncate">{room.nome}</h3>
+                              <Badge variant="secondary" className="text-[10px] h-5">
+                                {room.status === "finalizada" ? "Finalizada" : room.status === "cancelada" ? "Cancelada" : room.status}
+                              </Badge>
                             </div>
                             <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
                               {formatDateRange(room)}
                               {room.finalizado_em && (
-                                <span>Finalizada em {new Date(room.finalizado_em).toLocaleDateString("pt-BR")} às {new Date(room.finalizado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                                <span>Encerrada em {new Date(room.finalizado_em).toLocaleDateString("pt-BR")} às {new Date(room.finalizado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
                               )}
                               <span>{room.meeting_participants?.length || 0} participante(s)</span>
                             </div>
                           </div>
-                          {room.host_id === user?.id && (
-                            <Button size="sm" variant="ghost" onClick={() => handleDeleteRoom(room.id)} className="text-destructive hover:text-destructive" title="Apagar do histórico">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {room.host_id === user?.id && room.status === "finalizada" && (
+                              <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => handleReopenRoom(room.id)} title="Reabrir sala">
+                                <RotateCcw className="h-3 w-3" />
+                                <span className="hidden sm:inline">Reabrir</span>
+                              </Button>
+                            )}
+                            {room.host_id === user?.id && (
+                              <Button size="sm" variant="ghost" onClick={() => handleDeleteRoom(room.id)} className="text-destructive hover:text-destructive rounded-xl" title="Apagar">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
-              </div>
-            ) : (
-              <div>
-                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <Clock className="h-5 w-5" /> Histórico
-                </h2>
-                <Card>
+              ) : (
+                <Card className="rounded-2xl border-dashed border-2 border-border/40">
                   <CardContent className="py-8 text-center">
-                    <Clock className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-                    <p className="text-muted-foreground text-sm">Nenhuma reunião finalizada ainda</p>
+                    <Clock className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">Nenhuma reunião finalizada ainda</p>
                   </CardContent>
                 </Card>
-              </div>
-            )}
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="dashboard" className="mt-4">
@@ -429,29 +484,25 @@ export default function VideoRooms() {
         </Tabs>
       </div>
 
-      {/* Create Room Dialog */}
       <CriarReuniaoDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={fetchRooms} />
-
-      {/* Edit Room Dialog */}
       {editRoom && (
         <EditarReuniaoDialog room={editRoom} open={!!editRoom} onOpenChange={(v) => !v && setEditRoom(null)} onUpdated={fetchRooms} />
       )}
 
-      {/* Invite Link Dialog */}
       <ResponsiveDialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <ResponsiveDialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Link de Convite</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Compartilhe este link para convidar participantes. O convidado entrará em uma sala de espera até ser aprovado.</p>
+            <p className="text-sm text-muted-foreground">Compartilhe este link para convidar participantes.</p>
             <div className="flex gap-2">
-              <Input value={inviteLink} readOnly className="flex-1" />
-              <Button onClick={copyInviteLink} variant="outline">
+              <Input value={inviteLink} readOnly className="flex-1 rounded-xl" />
+              <Button onClick={copyInviteLink} variant="outline" className="rounded-xl">
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
-            <Button onClick={() => setInviteOpen(false)} className="w-full">Fechar</Button>
+            <Button onClick={() => setInviteOpen(false)} className="w-full rounded-xl">Fechar</Button>
           </div>
         </ResponsiveDialogContent>
       </ResponsiveDialog>
@@ -462,21 +513,16 @@ export default function VideoRooms() {
 // ── Talk Dashboard ──
 function TalkDashboard({ rooms }: { rooms: MeetingRoom[] }) {
   const finalizadas = rooms.filter(r => r.status !== "ativa");
-  const ativas = rooms.filter(r => r.status === "ativa");
-
   const totalParticipantes = rooms.reduce((sum, r) => sum + (r.meeting_participants?.length || 0), 0);
   const avgDuration = finalizadas.length > 0
     ? Math.round(finalizadas.reduce((sum, r) => sum + (r.duracao_minutos || 0), 0) / finalizadas.length)
     : 0;
   const totalConvidados = rooms.reduce((sum, r) => sum + ((r.convidados as any[])?.length || 0), 0);
 
-  // Meetings per week (last 8 weeks)
   const weeklyData = useMemo(() => {
     const weeks: Record<string, number> = {};
     const now = new Date();
     for (let i = 7; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i * 7);
       const key = `Sem ${8 - i}`;
       weeks[key] = 0;
     }
@@ -490,7 +536,6 @@ function TalkDashboard({ rooms }: { rooms: MeetingRoom[] }) {
     return Object.entries(weeks).map(([name, total]) => ({ name, total }));
   }, [rooms]);
 
-  // Status distribution
   const statusData = useMemo(() => {
     const counts: Record<string, number> = {};
     rooms.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
@@ -504,55 +549,39 @@ function TalkDashboard({ rooms }: { rooms: MeetingRoom[] }) {
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Video className="h-5 w-5 mx-auto text-primary mb-1" />
-            <p className="text-2xl font-bold">{rooms.length}</p>
-            <p className="text-xs text-muted-foreground">Total Reuniões</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Users className="h-5 w-5 mx-auto text-primary mb-1" />
-            <p className="text-2xl font-bold">{totalParticipantes}</p>
-            <p className="text-xs text-muted-foreground">Total Participantes</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Timer className="h-5 w-5 mx-auto text-primary mb-1" />
-            <p className="text-2xl font-bold">{avgDuration} min</p>
-            <p className="text-xs text-muted-foreground">Duração Média</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <TrendingUp className="h-5 w-5 mx-auto text-primary mb-1" />
-            <p className="text-2xl font-bold">{totalConvidados}</p>
-            <p className="text-xs text-muted-foreground">Total Convidados</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { icon: Video, label: "Total Reuniões", value: rooms.length },
+          { icon: Users, label: "Participantes", value: totalParticipantes },
+          { icon: Timer, label: "Duração Média", value: `${avgDuration} min` },
+          { icon: TrendingUp, label: "Convidados", value: totalConvidados },
+        ].map((item, i) => (
+          <Card key={i} className="rounded-2xl border-border/50">
+            <CardContent className="p-4 text-center">
+              <item.icon className="h-5 w-5 mx-auto text-primary mb-1.5" />
+              <p className="text-2xl font-bold">{item.value}</p>
+              <p className="text-[11px] text-muted-foreground">{item.label}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="rounded-2xl">
           <CardContent className="p-4">
             <h3 className="font-semibold text-sm mb-4">Reuniões por Semana</h3>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={weeklyData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="name" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                <XAxis dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
                 <YAxis allowDecimals={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
-                <RechartsTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Reuniões" />
+                <RechartsTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }} />
+                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} name="Reuniões" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-2xl">
           <CardContent className="p-4">
             <h3 className="font-semibold text-sm mb-4">Status das Reuniões</h3>
             <ResponsiveContainer width="100%" height={250}>
@@ -563,33 +592,30 @@ function TalkDashboard({ rooms }: { rooms: MeetingRoom[] }) {
                   ))}
                 </Pie>
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <RechartsTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+                <RechartsTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent finalized */}
-      <Card>
+      <Card className="rounded-2xl">
         <CardContent className="p-4">
           <h3 className="font-semibold text-sm mb-3">Últimas Reuniões Finalizadas</h3>
           {finalizadas.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma reunião finalizada ainda</p>
+            <p className="text-sm text-muted-foreground py-6 text-center">Nenhuma reunião finalizada</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {finalizadas.slice(0, 10).map(r => (
-                <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-sm">
+                <div key={r.id} className="flex items-center justify-between p-2.5 rounded-xl bg-muted/30 text-sm">
                   <div className="flex items-center gap-2">
                     <Video className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">{r.nome}</span>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     {r.duracao_minutos && <span>{r.duracao_minutos} min</span>}
-                    <span>{r.meeting_participants?.length || 0} participantes</span>
-                    {r.finalizado_em && (
-                      <span>{new Date(r.finalizado_em).toLocaleDateString("pt-BR")}</span>
-                    )}
+                    <span>{r.meeting_participants?.length || 0} part.</span>
+                    {r.finalizado_em && <span>{new Date(r.finalizado_em).toLocaleDateString("pt-BR")}</span>}
                   </div>
                 </div>
               ))}
