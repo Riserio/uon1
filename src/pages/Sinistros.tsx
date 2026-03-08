@@ -493,7 +493,7 @@ export default function Sinistros() {
         </DialogContent>
       </Dialog>
 
-      {acompanhamentoClaim && <AcompanhamentoSinistroDialog claim={acompanhamentoClaim} open={!!acompanhamentoClaim} onOpenChange={(v) => !v && setAcompanhamentoClaim(null)} />}
+      {acompanhamentoClaim && <AcompanhamentoSinistroDialog atendimentoId={acompanhamentoClaim.id} sinistroNumero={acompanhamentoClaim.numero} corretoraId={acompanhamentoClaim.corretora_id || undefined} open={!!acompanhamentoClaim} onOpenChange={(v) => !v && setAcompanhamentoClaim(null)} onUpdate={loadAcompanhamento} />}
     </div>
   );
 }
