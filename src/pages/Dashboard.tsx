@@ -285,18 +285,20 @@ export default function Dashboard() {
   // Associações computed - atendimentos com corretora_id (vinculados a associações)
   const assocAtendimentos = useMemo(() => atendimentos.filter((a) => a.corretoraId), [atendimentos]);
   const totalAssoc = assocAtendimentos.length;
-  const assocFinalizados = useMemo(() => assocAtendimentos.filter((a) => a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId)).length, [assocAtendimentos, fluxoFinalizadoIds]);
+  const isAtendimentoFinalizado = (a: Atendimento) => 
+    (a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId)) || statusFinalizados.has(a.status);
+  const assocFinalizados = useMemo(() => assocAtendimentos.filter(isAtendimentoFinalizado).length, [assocAtendimentos, fluxoFinalizadoIds, statusFinalizados]);
   const assocEmAndamento = totalAssoc - assocFinalizados;
   const assocTaxa = totalAssoc > 0 ? (assocFinalizados / totalAssoc * 100).toFixed(1) : "0";
 
-  // Group by fluxo for donut
+  // Group by fluxo for donut - include ALL fluxos (admin)
   const fluxoData = useMemo(() => {
     const m = new Map<string, number>();
     atendimentos.forEach((a) => {
       const name = a.fluxoId ? fluxoNames[a.fluxoId] || "Sem fluxo" : "Sem fluxo";
       m.set(name, (m.get(name) || 0) + 1);
     });
-    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [atendimentos, fluxoNames]);
 
   const priorityData = useMemo(() => [
