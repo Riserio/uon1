@@ -7,9 +7,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Link as LinkIcon, Upload, Download, Trash2, ExternalLink, Pencil, Search } from "lucide-react";
+import { FileText, Link as LinkIcon, Upload, Download, Trash2, ExternalLink, Pencil, Search, File, Image, FileSpreadsheet, FileArchive, FolderOpen, Globe } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Documento {
@@ -32,6 +32,24 @@ interface LinkUtil {
   created_at: string;
 }
 
+const getFileIcon = (tipo: string | null) => {
+  if (!tipo) return File;
+  if (tipo.startsWith("image/")) return Image;
+  if (tipo.includes("spreadsheet") || tipo.includes("excel") || tipo.includes("csv")) return FileSpreadsheet;
+  if (tipo.includes("zip") || tipo.includes("rar") || tipo.includes("7z")) return FileArchive;
+  if (tipo.includes("pdf")) return FileText;
+  return File;
+};
+
+const getFileColor = (tipo: string | null) => {
+  if (!tipo) return "text-muted-foreground";
+  if (tipo.startsWith("image/")) return "text-purple-500";
+  if (tipo.includes("pdf")) return "text-red-500";
+  if (tipo.includes("spreadsheet") || tipo.includes("excel")) return "text-emerald-500";
+  if (tipo.includes("zip")) return "text-amber-500";
+  return "text-primary";
+};
+
 export default function Documentos() {
   const { user, userRole } = useAuth();
   const [documentos, setDocumentos] = useState<Documento[]>([]);
@@ -41,14 +59,12 @@ export default function Documentos() {
   const [searchDocTerm, setSearchDocTerm] = useState("");
   const [searchLinkTerm, setSearchLinkTerm] = useState("");
   
-  // Documento form
   const [docDialogOpen, setDocDialogOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<Documento | null>(null);
   const [docTitulo, setDocTitulo] = useState("");
   const [docDescricao, setDocDescricao] = useState("");
   const [docFile, setDocFile] = useState<File | null>(null);
   
-  // Link form
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkUtil | null>(null);
   const [linkTitulo, setLinkTitulo] = useState("");
@@ -77,148 +93,81 @@ export default function Documentos() {
     );
   }, [links, searchLinkTerm]);
 
+  const linkCategorias = useMemo(() => {
+    const cats = new Set<string>();
+    links.forEach(l => { if (l.categoria) cats.add(l.categoria); });
+    return Array.from(cats);
+  }, [links]);
+
   useEffect(() => {
     fetchDocumentos();
     fetchLinks();
   }, []);
 
   const fetchDocumentos = async () => {
-    const { data, error } = await supabase
-      .from("documentos")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      toast.error("Erro ao carregar documentos");
-      console.error(error);
-    } else {
-      setDocumentos(data || []);
-    }
+    const { data, error } = await supabase.from("documentos").select("*").order("created_at", { ascending: false });
+    if (!error) setDocumentos(data || []);
     setLoading(false);
   };
 
   const fetchLinks = async () => {
-    const { data, error } = await supabase
-      .from("links_uteis")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      toast.error("Erro ao carregar links");
-      console.error(error);
-    } else {
-      setLinks(data || []);
-    }
+    const { data, error } = await supabase.from("links_uteis").select("*").order("created_at", { ascending: false });
+    if (!error) setLinks(data || []);
   };
 
   const handleUploadDocumento = async () => {
-    if (!docTitulo) {
-      toast.error("Preencha o título");
-      return;
-    }
-
-    if (!editingDoc && !docFile) {
-      toast.error("Selecione um arquivo");
-      return;
-    }
-
-    if (!user) {
-      toast.error("Você precisa estar autenticado");
-      return;
-    }
-
+    if (!docTitulo) { toast.error("Preencha o título"); return; }
+    if (!editingDoc && !docFile) { toast.error("Selecione um arquivo"); return; }
+    if (!user) { toast.error("Você precisa estar autenticado"); return; }
     setUploading(true);
-
     try {
       if (editingDoc) {
-        // Editar documento existente
-        const updateData: any = {
-          titulo: docTitulo,
-          descricao: docDescricao || null,
-        };
-
-        // Se um novo arquivo foi selecionado, faz upload
+        const updateData: any = { titulo: docTitulo, descricao: docDescricao || null };
         if (docFile) {
           const fileExt = docFile.name.split('.').pop();
           const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-          const filePath = `${fileName}`;
-
-          const { error: uploadError } = await supabase.storage
-            .from("documentos")
-            .upload(filePath, docFile);
-
+          const { error: uploadError } = await supabase.storage.from("documentos").upload(fileName, docFile);
           if (uploadError) throw uploadError;
-
-          const { data: urlData } = supabase.storage
-            .from("documentos")
-            .getPublicUrl(filePath);
-
+          const { data: urlData } = supabase.storage.from("documentos").getPublicUrl(fileName);
           updateData.arquivo_url = urlData.publicUrl;
           updateData.arquivo_nome = docFile.name;
           updateData.arquivo_tamanho = docFile.size;
           updateData.tipo_arquivo = docFile.type;
-
-          // Remove arquivo antigo
-          const oldUrlParts = editingDoc.arquivo_url.split('/');
-          const oldFilePath = oldUrlParts[oldUrlParts.length - 1];
-          if (oldFilePath) {
-            await supabase.storage.from("documentos").remove([oldFilePath]);
-          }
+          const oldFilePath = editingDoc.arquivo_url.split('/').pop();
+          if (oldFilePath) await supabase.storage.from("documentos").remove([oldFilePath]);
         }
-
-        const { error: updateError } = await supabase
-          .from("documentos")
-          .update(updateData)
-          .eq("id", editingDoc.id);
-
-        if (updateError) throw updateError;
-
-        toast.success("Documento atualizado com sucesso!");
+        const { error } = await supabase.from("documentos").update(updateData).eq("id", editingDoc.id);
+        if (error) throw error;
+        toast.success("Documento atualizado!");
       } else {
-        // Criar novo documento
         const fileExt = docFile!.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("documentos")
-          .upload(filePath, docFile!);
-
+        const { error: uploadError } = await supabase.storage.from("documentos").upload(fileName, docFile!);
         if (uploadError) throw uploadError;
-
-        const { data: urlData } = supabase.storage
-          .from("documentos")
-          .getPublicUrl(filePath);
-
-        const { error: insertError } = await supabase
-          .from("documentos")
-          .insert({
-            titulo: docTitulo,
-            descricao: docDescricao || null,
-            arquivo_url: urlData.publicUrl,
-            arquivo_nome: docFile!.name,
-            arquivo_tamanho: docFile!.size,
-            tipo_arquivo: docFile!.type,
-            criado_por: user.id,
-          });
-
-        if (insertError) throw insertError;
-
-        toast.success("Documento enviado com sucesso!");
+        const { data: urlData } = supabase.storage.from("documentos").getPublicUrl(fileName);
+        const { error } = await supabase.from("documentos").insert({
+          titulo: docTitulo, descricao: docDescricao || null,
+          arquivo_url: urlData.publicUrl, arquivo_nome: docFile!.name,
+          arquivo_tamanho: docFile!.size, tipo_arquivo: docFile!.type,
+          criado_por: user.id,
+        });
+        if (error) throw error;
+        toast.success("Documento enviado!");
       }
-
-      setDocDialogOpen(false);
-      setEditingDoc(null);
-      setDocTitulo("");
-      setDocDescricao("");
-      setDocFile(null);
+      resetDocForm();
       fetchDocumentos();
     } catch (error) {
       console.error(error);
-      toast.error(editingDoc ? "Erro ao atualizar documento" : "Erro ao enviar documento");
-    } finally {
-      setUploading(false);
-    }
+      toast.error(editingDoc ? "Erro ao atualizar" : "Erro ao enviar");
+    } finally { setUploading(false); }
+  };
+
+  const resetDocForm = () => {
+    setDocDialogOpen(false);
+    setEditingDoc(null);
+    setDocTitulo("");
+    setDocDescricao("");
+    setDocFile(null);
   };
 
   const handleEditDocumento = (doc: Documento) => {
@@ -230,50 +179,34 @@ export default function Documentos() {
   };
 
   const handleAddOrUpdateLink = async () => {
-    if (!linkTitulo || !linkUrl) {
-      toast.error("Preencha todos os campos obrigatórios");
-      return;
-    }
-
-    if (!user) {
-      toast.error("Você precisa estar autenticado");
-      return;
-    }
-
+    if (!linkTitulo || !linkUrl) { toast.error("Preencha os campos obrigatórios"); return; }
+    if (!user) return;
     try {
-      const linkData = {
-        titulo: linkTitulo,
-        descricao: linkDescricao || null,
-        url: linkUrl,
-        categoria: linkCategoria || null,
-        criado_por: user.id,
-      };
-
+      const linkData = { titulo: linkTitulo, descricao: linkDescricao || null, url: linkUrl, categoria: linkCategoria || null, criado_por: user.id };
       if (editingLink) {
-        const { error } = await supabase
-          .from("links_uteis")
-          .update(linkData)
-          .eq("id", editingLink.id);
-
+        const { error } = await supabase.from("links_uteis").update(linkData).eq("id", editingLink.id);
         if (error) throw error;
-        toast.success("Link atualizado com sucesso!");
+        toast.success("Link atualizado!");
       } else {
         const { error } = await supabase.from("links_uteis").insert(linkData);
         if (error) throw error;
-        toast.success("Link adicionado com sucesso!");
+        toast.success("Link adicionado!");
       }
-
-      setLinkDialogOpen(false);
-      setEditingLink(null);
-      setLinkTitulo("");
-      setLinkDescricao("");
-      setLinkUrl("");
-      setLinkCategoria("");
+      resetLinkForm();
       fetchLinks();
     } catch (error) {
       console.error(error);
-      toast.error(editingLink ? "Erro ao atualizar link" : "Erro ao adicionar link");
+      toast.error("Erro ao salvar link");
     }
+  };
+
+  const resetLinkForm = () => {
+    setLinkDialogOpen(false);
+    setEditingLink(null);
+    setLinkTitulo("");
+    setLinkDescricao("");
+    setLinkUrl("");
+    setLinkCategoria("");
   };
 
   const handleEditLink = (link: LinkUtil) => {
@@ -287,18 +220,9 @@ export default function Documentos() {
 
   const handleDownloadDocumento = async (arquivo_url: string, arquivo_nome: string) => {
     try {
-      // Extract file path from URL
-      const urlParts = arquivo_url.split('/');
-      const filePath = urlParts[urlParts.length - 1];
-      
-      // Download from storage
-      const { data, error } = await supabase.storage
-        .from("documentos")
-        .download(filePath);
-
+      const filePath = arquivo_url.split('/').pop()!;
+      const { data, error } = await supabase.storage.from("documentos").download(filePath);
       if (error) throw error;
-
-      // Create blob URL and trigger download
       const blob = new Blob([data], { type: data.type });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -308,47 +232,30 @@ export default function Documentos() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
       toast.success("Download iniciado");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao fazer download");
-    }
+    } catch { toast.error("Erro ao fazer download"); }
   };
 
   const handleDeleteDocumento = async (id: string, arquivo_url: string) => {
+    if (!confirm("Excluir este documento?")) return;
     try {
-      const urlParts = arquivo_url.split('/');
-      const filePath = urlParts[urlParts.length - 1];
-      
-      if (filePath) {
-        await supabase.storage.from("documentos").remove([filePath]);
-      }
-
+      const filePath = arquivo_url.split('/').pop();
+      if (filePath) await supabase.storage.from("documentos").remove([filePath]);
       const { error } = await supabase.from("documentos").delete().eq("id", id);
-
       if (error) throw error;
-
       toast.success("Documento excluído");
       fetchDocumentos();
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao excluir documento");
-    }
+    } catch { toast.error("Erro ao excluir"); }
   };
 
   const handleDeleteLink = async (id: string) => {
+    if (!confirm("Excluir este link?")) return;
     try {
       const { error } = await supabase.from("links_uteis").delete().eq("id", id);
-
       if (error) throw error;
-
       toast.success("Link excluído");
       fetchLinks();
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao excluir link");
-    }
+    } catch { toast.error("Erro ao excluir"); }
   };
 
   const formatFileSize = (bytes: number | null) => {
@@ -361,322 +268,226 @@ export default function Documentos() {
   const isAdmin = userRole === "admin" || userRole === "superintendente";
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-          <FileText className="h-6 w-6 text-primary" />
+    <div className="min-h-screen">
+      <div className="p-4 sm:p-6 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-primary/10">
+              <FileText className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Documentos e Links</h1>
+              <p className="text-sm text-muted-foreground">Gerencie documentos e links úteis</p>
+            </div>
+          </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-bold">Documentos e Links</h1>
-          <p className="text-sm text-muted-foreground">Gerencie documentos e links úteis para sua equipe</p>
-        </div>
-      </div>
 
-      <Tabs defaultValue="documentos" className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="documentos">Documentos</TabsTrigger>
-          <TabsTrigger value="links">Links Úteis</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="documentos" className="animate-fade-in">
-          <Card className="border-border/40 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base font-medium">Documentos</CardTitle>
-                  <CardDescription>Documentos compartilhados com a equipe</CardDescription>
-                </div>
-                  {isAdmin && (
-                    <Dialog open={docDialogOpen} onOpenChange={(open) => {
-                      setDocDialogOpen(open);
-                      if (!open) {
-                        setEditingDoc(null);
-                        setDocTitulo("");
-                        setDocDescricao("");
-                        setDocFile(null);
-                      }
-                    }}>
-                      <DialogTrigger asChild>
-                        <Button>
-                          <Upload className="h-4 w-4 mr-2" />
-                          Adicionar Documento
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{editingDoc ? 'Editar Documento' : 'Adicionar Documento'}</DialogTitle>
-                          <DialogDescription>
-                            {editingDoc ? 'Edite as informações do documento' : 'Envie um documento para compartilhar com a equipe'}
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="doc-titulo">Título *</Label>
-                            <Input
-                              id="doc-titulo"
-                              value={docTitulo}
-                              onChange={(e) => setDocTitulo(e.target.value)}
-                              placeholder="Nome do documento"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="doc-descricao">Descrição</Label>
-                            <Textarea
-                              id="doc-descricao"
-                              value={docDescricao}
-                              onChange={(e) => setDocDescricao(e.target.value)}
-                              placeholder="Descrição opcional"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="doc-file">Arquivo {editingDoc ? '' : '*'}</Label>
-                            <Input
-                              id="doc-file"
-                              type="file"
-                              onChange={(e) => setDocFile(e.target.files?.[0] || null)}
-                            />
-                            {editingDoc && <p className="text-xs text-muted-foreground mt-1">Deixe em branco para manter o arquivo atual</p>}
-                          </div>
-                          <Button onClick={handleUploadDocumento} disabled={uploading} className="w-full">
-                            {uploading ? (editingDoc ? "Salvando..." : "Enviando...") : (editingDoc ? "Salvar Alterações" : "Enviar Documento")}
-                          </Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="relative mb-4">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar documentos..."
-                    value={searchDocTerm}
-                    onChange={(e) => setSearchDocTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                {loading ? (
-                  <p className="text-center text-muted-foreground">Carregando...</p>
-                ) : filteredDocumentos.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">{searchDocTerm ? 'Nenhum documento encontrado' : 'Nenhum documento cadastrado'}</p>
-                ) : (
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Título</TableHead>
-                          <TableHead>Descrição</TableHead>
-                        <TableHead>Tamanho</TableHead>
-                        <TableHead>Data</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredDocumentos.map((doc) => (
-                        <TableRow key={doc.id}>
-                          <TableCell className="font-medium">{doc.titulo}</TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {doc.descricao || "-"}
-                          </TableCell>
-                          <TableCell>{formatFileSize(doc.arquivo_tamanho)}</TableCell>
-                          <TableCell>
-                            {new Date(doc.created_at).toLocaleDateString("pt-BR")}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDownloadDocumento(doc.arquivo_url, doc.arquivo_nome)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                              {isAdmin && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleEditDocumento(doc)}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleDeleteDocumento(doc.id, doc.arquivo_url)}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      </TableBody>
-                    </Table>
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Documentos", value: documentos.length, icon: FileText, color: "text-primary", bg: "bg-primary/10" },
+            { label: "Links", value: links.length, icon: Globe, color: "text-emerald-600", bg: "bg-emerald-500/10" },
+            { label: "Categorias", value: linkCategorias.length, icon: FolderOpen, color: "text-amber-600", bg: "bg-amber-500/10" },
+            { label: "Total Itens", value: documentos.length + links.length, icon: File, color: "text-purple-600", bg: "bg-purple-500/10" },
+          ].map((stat) => (
+            <Card key={stat.label} className="rounded-2xl border-border/50 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
+                  <div className={`p-1.5 rounded-lg ${stat.bg}`}>
+                    <stat.icon className={`h-3.5 w-3.5 ${stat.color}`} />
                   </div>
-                )}
+                </div>
+                <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
               </CardContent>
             </Card>
+          ))}
+        </div>
+
+        <Tabs defaultValue="documentos" className="space-y-4">
+          <TabsList className="rounded-xl bg-muted/50 p-1">
+            <TabsTrigger value="documentos" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <FileText className="h-4 w-4" /> Documentos
+            </TabsTrigger>
+            <TabsTrigger value="links" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Globe className="h-4 w-4" /> Links Úteis
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Documents Tab */}
+          <TabsContent value="documentos">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Buscar documentos..." value={searchDocTerm} onChange={(e) => setSearchDocTerm(e.target.value)} className="pl-10 rounded-xl" />
+                </div>
+                {isAdmin && (
+                  <Dialog open={docDialogOpen} onOpenChange={(open) => { setDocDialogOpen(open); if (!open) resetDocForm(); }}>
+                    <DialogTrigger asChild>
+                      <Button className="rounded-xl gap-2 shadow-sm shrink-0">
+                        <Upload className="h-4 w-4" /> Adicionar
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>{editingDoc ? 'Editar Documento' : 'Adicionar Documento'}</DialogTitle>
+                        <DialogDescription>{editingDoc ? 'Edite as informações' : 'Envie um documento para a equipe'}</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div><Label>Título *</Label><Input value={docTitulo} onChange={(e) => setDocTitulo(e.target.value)} placeholder="Nome do documento" /></div>
+                        <div><Label>Descrição</Label><Textarea value={docDescricao} onChange={(e) => setDocDescricao(e.target.value)} placeholder="Descrição opcional" /></div>
+                        <div>
+                          <Label>Arquivo {editingDoc ? '' : '*'}</Label>
+                          <Input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} />
+                          {editingDoc && <p className="text-xs text-muted-foreground mt-1">Deixe em branco para manter o atual</p>}
+                        </div>
+                        <Button onClick={handleUploadDocumento} disabled={uploading} className="w-full">
+                          {uploading ? "Processando..." : (editingDoc ? "Salvar" : "Enviar")}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+
+              {loading ? (
+                <div className="text-center py-12 text-muted-foreground">Carregando...</div>
+              ) : filteredDocumentos.length === 0 ? (
+                <Card className="rounded-2xl border-dashed border-2 border-border/50">
+                  <CardContent className="py-16 text-center">
+                    <FolderOpen className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                    <p className="text-muted-foreground font-medium">{searchDocTerm ? 'Nenhum documento encontrado' : 'Nenhum documento cadastrado'}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">Clique em "Adicionar" para começar</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredDocumentos.map((doc) => {
+                    const IconComp = getFileIcon(doc.tipo_arquivo);
+                    const iconColor = getFileColor(doc.tipo_arquivo);
+                    return (
+                      <Card key={doc.id} className="rounded-2xl border-border/50 shadow-sm hover:shadow-md transition-all group">
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2.5 rounded-xl bg-muted/50 shrink-0">
+                              <IconComp className={`h-5 w-5 ${iconColor}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-sm truncate">{doc.titulo}</h3>
+                              {doc.descricao && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{doc.descricao}</p>}
+                              <div className="flex items-center gap-2 mt-2 text-[11px] text-muted-foreground">
+                                <span>{formatFileSize(doc.arquivo_tamanho)}</span>
+                                <span>•</span>
+                                <span>{new Date(doc.created_at).toLocaleDateString("pt-BR")}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-border/30">
+                            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs flex-1 rounded-lg" onClick={() => handleDownloadDocumento(doc.arquivo_url, doc.arquivo_nome)}>
+                              <Download className="h-3.5 w-3.5" /> Download
+                            </Button>
+                            {isAdmin && (
+                              <>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleEditDocumento(doc)}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDeleteDocumento(doc.id, doc.arquivo_url)}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
-          <TabsContent value="links" className="animate-fade-in">
-            <Card className="border-border/40 shadow-sm">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base font-medium">Links Úteis</CardTitle>
-                    <CardDescription>Links importantes para a equipe</CardDescription>
-                  </div>
-                  {isAdmin && (
-                    <Dialog open={linkDialogOpen} onOpenChange={(open) => {
-                      setLinkDialogOpen(open);
-                      if (!open) {
-                        setEditingLink(null);
-                        setLinkTitulo("");
-                        setLinkDescricao("");
-                        setLinkUrl("");
-                        setLinkCategoria("");
-                      }
-                    }}>
-                      <DialogTrigger asChild>
-                        <Button>
-                          <LinkIcon className="h-4 w-4 mr-2" />
-                          Adicionar Link
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{editingLink ? 'Editar Link' : 'Adicionar Link'}</DialogTitle>
-                          <DialogDescription>
-                            {editingLink ? 'Edite as informações do link' : 'Adicione um link útil para compartilhar com a equipe'}
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="link-titulo">Título *</Label>
-                            <Input
-                              id="link-titulo"
-                              value={linkTitulo}
-                              onChange={(e) => setLinkTitulo(e.target.value)}
-                              placeholder="Nome do link"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="link-descricao">Descrição</Label>
-                            <Textarea
-                              id="link-descricao"
-                              value={linkDescricao}
-                              onChange={(e) => setLinkDescricao(e.target.value)}
-                              placeholder="Descrição opcional"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="link-url">URL *</Label>
-                            <Input
-                              id="link-url"
-                              type="url"
-                              value={linkUrl}
-                              onChange={(e) => setLinkUrl(e.target.value)}
-                              placeholder="https://exemplo.com"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="link-categoria">Categoria</Label>
-                            <Input
-                              id="link-categoria"
-                              value={linkCategoria}
-                              onChange={(e) => setLinkCategoria(e.target.value)}
-                              placeholder="Ex: Ferramentas, Documentação, etc."
-                            />
-                          </div>
-                          <Button onClick={handleAddOrUpdateLink} className="w-full">
-                            {editingLink ? 'Atualizar Link' : 'Adicionar Link'}
-                          </Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  )}
+          {/* Links Tab */}
+          <TabsContent value="links">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Buscar links..." value={searchLinkTerm} onChange={(e) => setSearchLinkTerm(e.target.value)} className="pl-10 rounded-xl" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="relative mb-4">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar links..."
-                    value={searchLinkTerm}
-                    onChange={(e) => setSearchLinkTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                {loading ? (
-                  <p className="text-center text-muted-foreground">Carregando...</p>
-                ) : filteredLinks.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">{searchLinkTerm ? 'Nenhum link encontrado' : 'Nenhum link cadastrado'}</p>
-                ) : (
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                      <TableRow>
-                        <TableHead>Título</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead>Categoria</TableHead>
-                        <TableHead>Data</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredLinks.map((link) => (
-                        <TableRow key={link.id}>
-                          <TableCell className="font-medium">{link.titulo}</TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {link.descricao || "-"}
-                          </TableCell>
-                          <TableCell>{link.categoria || "-"}</TableCell>
-                          <TableCell>
-                            {new Date(link.created_at).toLocaleDateString("pt-BR")}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => window.open(link.url, "_blank")}
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                              {isAdmin && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleEditLink(link)}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleDeleteLink(link.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                {isAdmin && (
+                  <Dialog open={linkDialogOpen} onOpenChange={(open) => { setLinkDialogOpen(open); if (!open) resetLinkForm(); }}>
+                    <DialogTrigger asChild>
+                      <Button className="rounded-xl gap-2 shadow-sm shrink-0">
+                        <LinkIcon className="h-4 w-4" /> Adicionar
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>{editingLink ? 'Editar Link' : 'Adicionar Link'}</DialogTitle>
+                        <DialogDescription>{editingLink ? 'Edite as informações' : 'Adicione um link útil'}</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div><Label>Título *</Label><Input value={linkTitulo} onChange={(e) => setLinkTitulo(e.target.value)} placeholder="Nome do link" /></div>
+                        <div><Label>Descrição</Label><Textarea value={linkDescricao} onChange={(e) => setLinkDescricao(e.target.value)} placeholder="Descrição opcional" /></div>
+                        <div><Label>URL *</Label><Input type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://exemplo.com" /></div>
+                        <div><Label>Categoria</Label><Input value={linkCategoria} onChange={(e) => setLinkCategoria(e.target.value)} placeholder="Ex: Ferramentas, Docs..." /></div>
+                        <Button onClick={handleAddOrUpdateLink} className="w-full">{editingLink ? 'Atualizar' : 'Adicionar'}</Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+
+              {filteredLinks.length === 0 ? (
+                <Card className="rounded-2xl border-dashed border-2 border-border/50">
+                  <CardContent className="py-16 text-center">
+                    <Globe className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                    <p className="text-muted-foreground font-medium">{searchLinkTerm ? 'Nenhum link encontrado' : 'Nenhum link cadastrado'}</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredLinks.map((link) => (
+                    <Card key={link.id} className="rounded-2xl border-border/50 shadow-sm hover:shadow-md transition-all group cursor-pointer" onClick={() => window.open(link.url, "_blank")}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2.5 rounded-xl bg-emerald-500/10 shrink-0">
+                            <Globe className="h-5 w-5 text-emerald-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-sm truncate">{link.titulo}</h3>
+                              {link.categoria && <Badge variant="secondary" className="text-[10px] h-5 shrink-0">{link.categoria}</Badge>}
+                            </div>
+                            {link.descricao && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{link.descricao}</p>}
+                            <p className="text-[11px] text-primary truncate mt-1.5">{link.url}</p>
+                            <p className="text-[11px] text-muted-foreground mt-1">{new Date(link.created_at).toLocaleDateString("pt-BR")}</p>
+                          </div>
+                        </div>
+                        {isAdmin && (
+                          <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-border/30" onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs flex-1 rounded-lg" onClick={() => window.open(link.url, "_blank")}>
+                              <ExternalLink className="h-3.5 w-3.5" /> Abrir
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleEditLink(link)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDeleteLink(link.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
-    );
-  }
+    </div>
+  );
+}
