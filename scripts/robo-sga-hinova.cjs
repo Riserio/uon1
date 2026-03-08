@@ -64,9 +64,12 @@ function deriveRelatorioUrl(loginUrl) {
 
 const HINOVA_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
 
+// URL do relatório: prioridade para env HINOVA_RELATORIO_URL (vinda de hinova_credenciais.url_eventos)
+const HINOVA_RELATORIO_URL_ENV = process.env.HINOVA_RELATORIO_URL;
+
 const CONFIG = {
   HINOVA_URL: HINOVA_URL,
-  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || deriveRelatorioUrl(HINOVA_URL),
+  HINOVA_RELATORIO_URL: HINOVA_RELATORIO_URL_ENV || deriveRelatorioUrl(HINOVA_URL),
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
   HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
