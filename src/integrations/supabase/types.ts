@@ -1387,6 +1387,8 @@ export type Database = {
           endereco: string | null
           estado: string | null
           id: string
+          logo_collapsed_url: string | null
+          logo_expanded_url: string | null
           logo_url: string | null
           nome: string
           observacoes: string | null
@@ -1406,6 +1408,8 @@ export type Database = {
           endereco?: string | null
           estado?: string | null
           id?: string
+          logo_collapsed_url?: string | null
+          logo_expanded_url?: string | null
           logo_url?: string | null
           nome: string
           observacoes?: string | null
@@ -1425,6 +1429,8 @@ export type Database = {
           endereco?: string | null
           estado?: string | null
           id?: string
+          logo_collapsed_url?: string | null
+          logo_expanded_url?: string | null
           logo_url?: string | null
           nome?: string
           observacoes?: string | null
