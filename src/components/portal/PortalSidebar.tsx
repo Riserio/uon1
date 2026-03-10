@@ -351,6 +351,12 @@ export default function PortalSidebar(props: Props) {
     props.corretora.modulos_bi.includes(m)
   );
 
+  // Prefetch data for other modules
+  const prefetchModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' = 
+    (props.currentModule === 'acompanhamento-eventos' || props.currentModule === 'ouvidoria') 
+      ? 'indicadores' : props.currentModule;
+  usePortalDataPrefetch(props.corretora.id, prefetchModule, availableModules);
+
   useEffect(() => {
     localStorage.setItem("portal-sidebar-expanded", String(expanded));
   }, [expanded]);
