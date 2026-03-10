@@ -615,7 +615,7 @@ export default function GestaoJornada() {
 
   // Navigation tabs
   const views = [
-    { id: "registrar ponto" as const, label: "registrar ponto", icon: BarChart3 },
+    { id: "registrar ponto" as const, label: "Registrar Ponto", icon: BarChart3 },
     { id: "historico" as const, label: "Histórico", icon: Calendar },
     { id: "relatorio" as const, label: "Relatório", icon: FileText },
   ];
