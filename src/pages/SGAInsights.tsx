@@ -139,78 +139,86 @@ export default function SGAInsights() {
   useEffect(() => {
     if (biLayout && !isPortalAccess) return; // Skip - using shared context
     
+    // Portal access: use corretora from portal context directly (avoids slug vs id mismatch)
+    if (isPortalAccess && portalLayout?.corretora) {
+      const c = portalLayout.corretora;
+      setAssociacoes([{ id: c.id, nome: c.nome }]);
+      setSelectedAssociacao(c.id);
+      setCorretoraData({ id: c.id, nome: c.nome, logo_url: c.logo_url });
+      setModulosBi(c.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
+      setMultipleAssociacoes(portalLayout.corretorasDisponiveis.length > 1);
+      setLoadingAssociacoes(false);
+      return;
+    }
+    
     async function fetchAssociacoes() {
       try {
         const associacaoParam = searchParams.get("associacao");
         
         if (isPortalAccess && associacaoParam) {
-          const { data: corretora, error: corretoraError } = await supabase
+          // Fallback: try by id first, then by slug
+          let { data: corretora, error: corretoraError } = await supabase
             .from("corretoras")
             .select("id, nome, logo_url")
             .eq("id", associacaoParam)
-            .single();
+            .maybeSingle();
 
-          if (corretoraError) throw corretoraError;
+          if (!corretora) {
+            const slugResult = await supabase
+              .from("corretoras")
+              .select("id, nome, logo_url")
+              .eq("slug", associacaoParam)
+              .maybeSingle();
+            corretora = slugResult.data;
+          }
 
           if (corretora) {
-            const { data: usuarioData } = await supabase
-              .from("corretora_usuarios")
-              .select("modulos_bi")
-              .eq("corretora_id", associacaoParam)
-              .eq("ativo", true)
-              .maybeSingle();
-
             setAssociacoes([{ id: corretora.id, nome: corretora.nome }]);
             setSelectedAssociacao(corretora.id);
             setCorretoraData(corretora);
-            setModulosBi(usuarioData?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
-            
-            const { data: todasAssociacoes } = await supabase
-              .from("corretora_usuarios")
-              .select("corretora_id")
-              .eq("ativo", true);
-            setMultipleAssociacoes((todasAssociacoes?.length || 0) > 1);
-          }
-        } else {
-          const associacaoParam2 = searchParams.get("associacao");
-          const cached = getCachedAssociacoes();
-          if (cached && cached.length > 0 && !associacoes.length) {
-            setAssociacoes(cached);
-            if (associacaoParam2 && cached.some(c => c.id === associacaoParam2)) {
-              setSelectedAssociacao(associacaoParam2);
-            } else if (!selectedAssociacao) {
-              setSelectedAssociacao(cached[0].id);
-            }
             setLoadingAssociacoes(false);
+            return;
           }
-          
-          const { data, error } = await supabase
-            .from("corretoras")
-            .select("id, nome")
-            .order("nome");
+        }
+        
+        const associacaoParam2 = searchParams.get("associacao");
+        const cached = getCachedAssociacoes();
+        if (cached && cached.length > 0 && !associacoes.length) {
+          setAssociacoes(cached);
+          if (associacaoParam2 && cached.some(c => c.id === associacaoParam2)) {
+            setSelectedAssociacao(associacaoParam2);
+          } else if (!selectedAssociacao) {
+            setSelectedAssociacao(cached[0].id);
+          }
+          setLoadingAssociacoes(false);
+        }
+        
+        const { data, error } = await supabase
+          .from("corretoras")
+          .select("id, nome")
+          .order("nome");
 
-          if (error) throw error;
-          setAssociacoes(data || []);
-          setCachedAssociacoes(data || []);
-          
-          if (!cached || cached.length === 0) {
-            if (associacaoParam2 && data?.some(c => c.id === associacaoParam2)) {
-              setSelectedAssociacao(associacaoParam2);
-            } else if (data && data.length > 0) {
-              setSelectedAssociacao(data[0].id);
-            }
+        if (error) throw error;
+        setAssociacoes(data || []);
+        setCachedAssociacoes(data || []);
+        
+        if (!cached || cached.length === 0) {
+          if (associacaoParam2 && data?.some(c => c.id === associacaoParam2)) {
+            setSelectedAssociacao(associacaoParam2);
+          } else if (data && data.length > 0) {
+            setSelectedAssociacao(data[0].id);
           }
         }
       } catch (error) {
         console.error("Erro ao carregar associações:", error);
-        toast.error("Erro ao carregar associações");
+        if (!isPortalAccess) toast.error("Erro ao carregar associações");
       } finally {
         setLoadingAssociacoes(false);
       }
     }
 
     fetchAssociacoes();
-  }, [searchParams, isPortalAccess]);
+  }, [searchParams, isPortalAccess, portalLayout?.corretora?.id]);
 
   const fetchEventos = async (forceRefresh = false) => {
     if (!selectedAssociacao) {

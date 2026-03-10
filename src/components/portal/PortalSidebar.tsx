@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  TrendingUp, Activity, DollarSign, Car, KanbanSquare, MessageSquare,
+  TrendingUp, Activity, DollarSign, CreditCard, Database, KanbanSquare, MessageSquare,
   LogOut, ArrowLeftRight, Settings, PanelLeftClose, PanelLeftOpen,
   Menu, X, Building2, Play, Pause, ChevronLeft, ChevronRight, Monitor, Eye,
 } from "lucide-react";
@@ -45,9 +45,9 @@ type Props = {
 const MODULE_CONFIG: Record<PortalModule, { label: string; icon: React.ElementType; path: string }> = {
   indicadores: { label: "Indicadores", icon: TrendingUp, path: "/portal" },
   eventos: { label: "Eventos", icon: Activity, path: "/portal/sga-insights" },
-  mgf: { label: "MGF", icon: Activity, path: "/portal/mgf-insights" },
-  cobranca: { label: "Cobrança", icon: DollarSign, path: "/portal/cobranca-insights" },
-  "estudo-base": { label: "Estudo de Base", icon: Car, path: "/portal/estudo-base-insights" },
+  mgf: { label: "MGF", icon: DollarSign, path: "/portal/mgf-insights" },
+  cobranca: { label: "Cobrança", icon: CreditCard, path: "/portal/cobranca-insights" },
+  "estudo-base": { label: "Estudo de Base", icon: Database, path: "/portal/estudo-base-insights" },
   "acompanhamento-eventos": { label: "Acompanhamento", icon: KanbanSquare, path: "/portal/acompanhamento-eventos" },
   ouvidoria: { label: "Ouvidoria", icon: MessageSquare, path: "/portal/ouvidoria" },
 };
