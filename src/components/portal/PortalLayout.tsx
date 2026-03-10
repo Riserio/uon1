@@ -140,7 +140,7 @@ export default function PortalLayout() {
       availableModules={availableModules}
       currentModule={currentModule}
     >
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
+      <div className="portal-theme min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
         <PortalSidebar
           corretora={corretora}
           currentModule={currentModule}
