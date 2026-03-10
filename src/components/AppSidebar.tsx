@@ -173,7 +173,7 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
       <div className="border-t border-sidebar-border p-2">
         <button
           onClick={() => { signOut(); onNavigate?.(); }}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-destructive hover:bg-destructive/10 transition-colors"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-orange-500 hover:bg-orange-500/10 transition-colors"
         >
           <LogOut className="h-4 w-4 flex-shrink-0" />
           {!collapsed && <span>Sair</span>}

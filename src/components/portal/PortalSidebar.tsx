@@ -29,6 +29,8 @@ type Corretora = {
   nome: string;
   slug?: string | null;
   logo_url?: string | null;
+  logo_collapsed_url?: string | null;
+  logo_expanded_url?: string | null;
   modulos_bi: string[];
 };
 
@@ -173,24 +175,36 @@ function SidebarContent({
     <div className="flex flex-col h-full">
       {/* Logo area */}
       <div className="border-b border-border/50 p-3 flex items-center justify-center">
-        {corretora.logo_url ? (
-          <div className={cn("flex items-center justify-center overflow-hidden transition-all", collapsed ? "h-9 w-9" : "h-12 w-full px-2")}>
-            <img
-              src={corretora.logo_url}
-              alt={corretora.nome}
-              className={cn(
-                "object-contain transition-all",
-                collapsed ? "h-9 w-9 rounded-full object-cover" : "h-12 max-w-[140px] rounded-lg"
-              )}
-            />
-          </div>
+        {collapsed ? (
+          // Collapsed: use logo_collapsed_url > logo_url > fallback
+          (corretora.logo_collapsed_url || corretora.logo_url) ? (
+            <div className="h-9 w-9 flex items-center justify-center overflow-hidden">
+              <img
+                src={corretora.logo_collapsed_url || corretora.logo_url!}
+                alt={corretora.nome}
+                className="h-9 w-9 rounded-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="h-9 w-9 flex items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/10">
+              <Building2 className="h-4 w-4 text-primary" />
+            </div>
+          )
         ) : (
-          <div className={cn(
-            "flex items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/10 transition-all",
-            collapsed ? "h-9 w-9" : "h-12 w-12"
-          )}>
-            <Building2 className={cn("text-primary", collapsed ? "h-4 w-4" : "h-6 w-6")} />
-          </div>
+          // Expanded: use logo_expanded_url > logo_url > fallback
+          (corretora.logo_expanded_url || corretora.logo_url) ? (
+            <div className="h-12 w-full px-2 flex items-center justify-center overflow-hidden">
+              <img
+                src={corretora.logo_expanded_url || corretora.logo_url!}
+                alt={corretora.nome}
+                className="h-12 max-w-[140px] rounded-lg object-contain"
+              />
+            </div>
+          ) : (
+            <div className="h-12 w-12 flex items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/10">
+              <Building2 className="h-6 w-6 text-primary" />
+            </div>
+          )
         )}
       </div>
 
@@ -327,7 +341,7 @@ function SidebarContent({
       <div className="border-t border-border/50 p-2">
         <button
           onClick={() => { onLogout(); onNavigate?.(); }}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-destructive hover:bg-destructive/10 transition-colors"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-orange-500 hover:bg-orange-500/10 transition-colors"
         >
           <LogOut className="h-4 w-4 flex-shrink-0" />
           {!collapsed && <span>Sair</span>}

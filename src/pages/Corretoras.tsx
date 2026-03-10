@@ -36,6 +36,8 @@ interface Corretora {
   responsavel?: string;
   observacoes?: string;
   logo_url?: string;
+  logo_collapsed_url?: string;
+  logo_expanded_url?: string;
 }
 
 export default function Corretoras() {
@@ -340,7 +342,7 @@ export default function Corretoras() {
               <Textarea value={formData.observacoes || ''} onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })} />
             </div>
             <div className="grid gap-2">
-              <Label>Logo</Label>
+              <Label>Logo Principal</Label>
               <div className="flex items-center gap-4">
                 {formData.logo_url && <img src={formData.logo_url} alt="Logo" className="h-16 w-auto object-contain border rounded-xl p-2" />}
                 <div className="flex-1">
@@ -351,6 +353,66 @@ export default function Corretoras() {
                     </div>
                   </Label>
                   <Input id="logo-upload" type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" disabled={uploadingLogo} />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Logo Sidebar Colapsada</Label>
+                <p className="text-xs text-muted-foreground">Formato quadrado ou redondo, ideal para ícone.</p>
+                <div className="flex items-center gap-3">
+                  {formData.logo_collapsed_url && <img src={formData.logo_collapsed_url} alt="Logo colapsada" className="h-10 w-10 object-cover rounded-full border p-0.5" />}
+                  <div className="flex-1">
+                    <Label htmlFor="logo-collapsed-upload" className="cursor-pointer">
+                      <div className="border-2 border-dashed rounded-xl p-3 hover:border-primary transition-colors text-center">
+                        <Upload className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">Upload</p>
+                      </div>
+                    </Label>
+                    <Input id="logo-collapsed-upload" type="file" accept="image/*" onChange={async (e) => {
+                      const file = e.target.files?.[0]; if (!file) return;
+                      setUploadingLogo(true);
+                      try {
+                        const fileExt = file.name.split('.').pop();
+                        const filePath = `collapsed-${Math.random()}.${fileExt}`;
+                        const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, file);
+                        if (uploadError) throw uploadError;
+                        const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(filePath);
+                        setFormData({ ...formData, logo_collapsed_url: publicUrl });
+                        toast.success('Logo colapsada enviada!');
+                      } catch { toast.error('Erro ao enviar logo'); }
+                      finally { setUploadingLogo(false); }
+                    }} className="hidden" disabled={uploadingLogo} />
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Logo Sidebar Expandida</Label>
+                <p className="text-xs text-muted-foreground">Formato horizontal, ideal para nome completo.</p>
+                <div className="flex items-center gap-3">
+                  {formData.logo_expanded_url && <img src={formData.logo_expanded_url} alt="Logo expandida" className="h-10 w-auto max-w-[120px] object-contain border rounded-lg p-0.5" />}
+                  <div className="flex-1">
+                    <Label htmlFor="logo-expanded-upload" className="cursor-pointer">
+                      <div className="border-2 border-dashed rounded-xl p-3 hover:border-primary transition-colors text-center">
+                        <Upload className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">Upload</p>
+                      </div>
+                    </Label>
+                    <Input id="logo-expanded-upload" type="file" accept="image/*" onChange={async (e) => {
+                      const file = e.target.files?.[0]; if (!file) return;
+                      setUploadingLogo(true);
+                      try {
+                        const fileExt = file.name.split('.').pop();
+                        const filePath = `expanded-${Math.random()}.${fileExt}`;
+                        const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, file);
+                        if (uploadError) throw uploadError;
+                        const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(filePath);
+                        setFormData({ ...formData, logo_expanded_url: publicUrl });
+                        toast.success('Logo expandida enviada!');
+                      } catch { toast.error('Erro ao enviar logo'); }
+                      finally { setUploadingLogo(false); }
+                    }} className="hidden" disabled={uploadingLogo} />
+                  </div>
                 </div>
               </div>
             </div>
