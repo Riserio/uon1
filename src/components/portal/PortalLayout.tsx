@@ -46,7 +46,7 @@ export default function PortalLayout() {
 
   if (notLinked) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
+      <div className="portal-theme min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
         <Card className="max-w-md w-full shadow-lg">
           <CardContent className="p-8 text-center space-y-6">
             <div className="mx-auto h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
