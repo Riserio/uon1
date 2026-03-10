@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  TrendingUp, Activity, DollarSign, Car, KanbanSquare, MessageSquare,
+  TrendingUp, BarChart3, DollarSign, Car, KanbanSquare, MessageSquare,
   LogOut, ArrowLeftRight, Settings, PanelLeftClose, PanelLeftOpen,
-  Menu, X, Building2, Play, Pause, ChevronLeft, ChevronRight, Monitor, Eye,
+  Menu, X, Building2, Play, Pause, ChevronLeft, ChevronRight, Monitor, Eye, Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
