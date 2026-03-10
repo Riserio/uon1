@@ -70,7 +70,7 @@ export default function PortalLayout() {
 
   if (showSelection && corretorasDisponiveis.length > 1) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
+      <div className="portal-theme min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
         <Card className="max-w-lg w-full shadow-xl border-0">
           <CardContent className="p-8 space-y-6">
             <div className="text-center space-y-2">
