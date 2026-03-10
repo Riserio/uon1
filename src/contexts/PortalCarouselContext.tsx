@@ -56,7 +56,8 @@ export function PortalCarouselProvider({
         return {
           ...defaultConfig,
           ...parsed,
-          // Filtrar módulos visíveis para apenas os disponíveis
+          // Sempre iniciar pausado
+          enabled: false,
           visibleModules: (parsed.visibleModules || defaultConfig.visibleModules)
             .filter((m: PortalModule) => availableModules.includes(m)),
         };
