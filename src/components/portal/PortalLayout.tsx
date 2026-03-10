@@ -35,7 +35,7 @@ export default function PortalLayout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
+      <div className="portal-theme min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Carregando portal...</p>
@@ -46,7 +46,7 @@ export default function PortalLayout() {
 
   if (notLinked) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
+      <div className="portal-theme min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
         <Card className="max-w-md w-full shadow-lg">
           <CardContent className="p-8 text-center space-y-6">
             <div className="mx-auto h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -70,7 +70,7 @@ export default function PortalLayout() {
 
   if (showSelection && corretorasDisponiveis.length > 1) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
+      <div className="portal-theme min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
         <Card className="max-w-lg w-full shadow-xl border-0">
           <CardContent className="p-8 space-y-6">
             <div className="text-center space-y-2">
@@ -115,7 +115,7 @@ export default function PortalLayout() {
 
   if (!corretora) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
+      <div className="portal-theme min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
       </div>
     );
@@ -140,7 +140,7 @@ export default function PortalLayout() {
       availableModules={availableModules}
       currentModule={currentModule}
     >
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
+      <div className="portal-theme min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
         <PortalSidebar
           corretora={corretora}
           currentModule={currentModule}

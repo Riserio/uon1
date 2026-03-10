@@ -153,6 +153,13 @@ All colors MUST be HSL.
   background-size: 200% 100%;
 }
 
+/* Portal do Parceiro - tema roxo */
+.portal-theme {
+  --primary: 249 51% 35%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 249 51% 35%;
+}
+
 /* Hide scrollbar utility */
 .scrollbar-hide {
   -ms-overflow-style: none;
