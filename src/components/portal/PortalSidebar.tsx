@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePortalCarouselOptional } from "@/contexts/PortalCarouselContext";
+import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
 import {
   Dialog,
   DialogContent,
