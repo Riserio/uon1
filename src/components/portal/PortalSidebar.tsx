@@ -29,6 +29,8 @@ type Corretora = {
   nome: string;
   slug?: string | null;
   logo_url?: string | null;
+  logo_collapsed_url?: string | null;
+  logo_expanded_url?: string | null;
   modulos_bi: string[];
 };
 
