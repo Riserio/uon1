@@ -2,7 +2,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Building2, LogOut } from "lucide-react";
-import PortalHeader from "./PortalHeader";
+import PortalSidebar from "./PortalSidebar";
 import PortalPageWrapper from "./PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
@@ -121,10 +121,8 @@ export default function PortalLayout() {
     );
   }
 
-  // Determine current module from path
   const currentModule: PortalModule = moduleMap[location.pathname] || 'indicadores';
 
-  // Available modules for carousel
   const availableModules: PortalModule[] = [
     ...(corretora.modulos_bi.includes('indicadores') ? ['indicadores'] as const : []),
     ...(corretora.modulos_bi.includes('eventos') ? ['eventos'] as const : []),
@@ -135,10 +133,6 @@ export default function PortalLayout() {
     ...(corretora.modulos_bi.includes('ouvidoria') ? ['ouvidoria'] as const : []),
   ];
 
-  // Check if user has "acompanhamento-eventos" module
-  const hasAcompanhamento = corretora.modulos_bi.includes('acompanhamento-eventos');
-  const hasOuvidoria = corretora.modulos_bi.includes('ouvidoria');
-
   return (
     <PortalCarouselProvider
       corretoraId={corretora.id}
@@ -147,20 +141,19 @@ export default function PortalLayout() {
       currentModule={currentModule}
     >
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
-        <PortalHeader
+        <PortalSidebar
           corretora={corretora}
+          currentModule={currentModule}
           showChangeButton={corretorasDisponiveis.length > 1}
           onChangeCorretora={handleChangeCorretora}
           onLogout={handleLogout}
-          currentModule={currentModule}
-          showCarouselControls={true}
-          hasAcompanhamento={hasAcompanhamento}
-          hasOuvidoria={hasOuvidoria}
         />
 
-        <PortalPageWrapper>
-          <Outlet context={{ corretora, corretorasDisponiveis }} />
-        </PortalPageWrapper>
+        <div id="portal-main-content" className="transition-all duration-300 ease-in-out">
+          <PortalPageWrapper>
+            <Outlet context={{ corretora, corretorasDisponiveis }} />
+          </PortalPageWrapper>
+        </div>
       </div>
     </PortalCarouselProvider>
   );
