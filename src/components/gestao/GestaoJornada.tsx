@@ -170,7 +170,7 @@ export default function GestaoJornada() {
   const [registroParaAjuste, setRegistroParaAjuste] = useState<any>(null);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
-  const [activeView, setActiveView] = useState<"historico" | "relatorio">("historico");
+  const [activeView, setActiveView] = useState<"registrar ponto" | "historico" | "relatorio">("registrar ponto");
 
   const canManageAll = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
   const canExport = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
@@ -615,6 +615,7 @@ export default function GestaoJornada() {
 
   // Navigation tabs
   const views = [
+    { id: "registrar ponto" as const, label: "Registrar Ponto", icon: BarChart3 },
     { id: "historico" as const, label: "Histórico", icon: Calendar },
     { id: "relatorio" as const, label: "Relatório", icon: FileText },
   ];
@@ -703,84 +704,387 @@ export default function GestaoJornada() {
             })}
           </div>
 
-          {/* Clock-in buttons - always visible */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {tiposPonto.map((tipo) => {
-              const Icon = tipo.icon;
-              const isRegistered = registeredTypes.has(tipo.value);
-              return (
-                <button
-                  key={tipo.value}
-                  onClick={() => registrarPonto.mutate(tipo.value)}
-                  disabled={registrarPonto.isPending || isRegistered}
+          {/* REGISTRAR PONTO VIEW */}
+          {activeView === "registrar ponto" && (
+            <div className="space-y-6">
+              {/* Clock-in buttons */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {tiposPonto.map((tipo) => {
+                  const Icon = tipo.icon;
+                  const isRegistered = registeredTypes.has(tipo.value);
+                  return (
+                    <button
+                      key={tipo.value}
+                      onClick={() => registrarPonto.mutate(tipo.value)}
+                      disabled={registrarPonto.isPending || isRegistered}
+                      className={cn(
+                        "relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200",
+                        isRegistered
+                          ? "opacity-60 cursor-not-allowed border-border/50 bg-muted/30"
+                          : `${tipo.border} hover:shadow-md hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-br ${tipo.gradient}`,
+                      )}
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", tipo.bg)}>
+                          <Icon className={cn("h-5 w-5", tipo.color)} />
+                        </div>
+                        {isRegistered && (
+                          <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
+                            Registrado
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="font-semibold text-sm">{tipo.label}</p>
+                      {isRegistered && todayRecords.find((r: any) => r.tipo === tipo.value) && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          às{" "}
+                          {format(new Date(todayRecords.find((r: any) => r.tipo === tipo.value)!.data_hora), "HH:mm")}
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Location + receipt row */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2 text-xs">
+                  {location ? (
+                    <span className="flex items-center gap-1.5 text-emerald-600 bg-emerald-500/10 px-3 py-1.5 rounded-full">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {endereco || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-amber-600 bg-amber-500/10 px-3 py-1.5 rounded-full">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Obtendo localização...
+                    </span>
+                  )}
+                </div>
+                {todayRecords.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <FileText className="h-4 w-4" />
+                        Recibo
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={enviarReciboWhatsApp}>
+                        <MessageCircle className="h-4 w-4 mr-2 text-emerald-600" />
+                        WhatsApp
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={enviarReciboEmail}>
+                        <Mail className="h-4 w-4 mr-2 text-blue-600" />
+                        E-mail
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={baixarReciboPDF}>
+                        <Download className="h-4 w-4 mr-2 text-purple-600" />
+                        PDF
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+
+              {/* KPI cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <Card className="rounded-2xl border-border/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <CalendarDays className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-muted-foreground font-medium">Dias Trabalhados</p>
+                        <p className="text-xl font-bold leading-tight">
+                          {detailedStats?.workedDaysCount || 0}
+                          <span className="text-sm font-normal text-muted-foreground">
+                            /{detailedStats?.businessDays || 0}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border-border/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                        <Clock className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-muted-foreground font-medium">Horas Trabalhadas</p>
+                        <p className="text-xl font-bold leading-tight">
+                          {detailedStats ? formatHoursMinutes(detailedStats.totalHoursWorked) : "0h00m"}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card
                   className={cn(
-                    "relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200",
-                    isRegistered
-                      ? "opacity-60 cursor-not-allowed border-border/50 bg-muted/30"
-                      : `${tipo.border} hover:shadow-md hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-br ${tipo.gradient}`,
+                    "rounded-2xl",
+                    detailedStats?.lateCount ? "border-red-200 dark:border-red-800" : "border-border/50",
                   )}
                 >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", tipo.bg)}>
-                      <Icon className={cn("h-5 w-5", tipo.color)} />
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "h-9 w-9 rounded-xl flex items-center justify-center shrink-0",
+                          detailedStats?.lateCount ? "bg-red-500/10" : "bg-muted",
+                        )}
+                      >
+                        <TrendingDown
+                          className={cn("h-4 w-4", detailedStats?.lateCount ? "text-red-600" : "text-muted-foreground")}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-muted-foreground font-medium">Atrasos (+10min)</p>
+                        <p
+                          className={cn(
+                            "text-xl font-bold leading-tight",
+                            detailedStats?.lateCount ? "text-red-600" : "",
+                          )}
+                        >
+                          {detailedStats?.lateCount || 0}
+                        </p>
+                      </div>
                     </div>
-                    {isRegistered && (
-                      <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
-                        Registrado
-                      </Badge>
-                    )}
+                  </CardContent>
+                </Card>
+
+                <Card
+                  className={cn(
+                    "rounded-2xl",
+                    detailedStats?.overtimeCount ? "border-emerald-200 dark:border-emerald-800" : "border-border/50",
+                  )}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "h-9 w-9 rounded-xl flex items-center justify-center shrink-0",
+                          detailedStats?.overtimeCount ? "bg-emerald-500/10" : "bg-muted",
+                        )}
+                      >
+                        <TrendingUp
+                          className={cn(
+                            "h-4 w-4",
+                            detailedStats?.overtimeCount ? "text-emerald-600" : "text-muted-foreground",
+                          )}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-muted-foreground font-medium">Horas Extras</p>
+                        <p
+                          className={cn(
+                            "text-xl font-bold leading-tight",
+                            detailedStats?.overtimeCount ? "text-emerald-600" : "",
+                          )}
+                        >
+                          {detailedStats?.totalOvertimeMinutes
+                            ? formatHoursMinutes(detailedStats.totalOvertimeMinutes / 60)
+                            : "0h00m"}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Hours progress bar */}
+              <Card className="rounded-2xl border-border/50">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-semibold">Progresso Mensal</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(ano, mes - 1), "MMMM yyyy", { locale: ptBR })} • Jornada:{" "}
+                        {funcionarioSelecionado?.carga_horaria_semanal || 44}h/sem
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold">
+                        {detailedStats ? formatHoursMinutes(detailedStats.totalHoursWorked) : "0h00m"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">de {formatHoursMinutes(expectedMonthlyHours)}</p>
+                    </div>
                   </div>
-                  <p className="font-semibold text-sm">{tipo.label}</p>
-                  {isRegistered && todayRecords.find((r: any) => r.tipo === tipo.value) && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      às {format(new Date(todayRecords.find((r: any) => r.tipo === tipo.value)!.data_hora), "HH:mm")}
+                  <Progress value={hoursProgress} className="h-2.5" />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {hoursProgress.toFixed(0)}% concluído
+                    {expectedMonthlyHours - (detailedStats?.totalHoursWorked || 0) > 0 &&
+                      ` • ${formatHoursMinutes(expectedMonthlyHours - (detailedStats?.totalHoursWorked || 0))} restantes`}
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Today's timeline */}
+              <Card className="rounded-2xl border-border/50">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-sm font-semibold">Registros de Hoje</CardTitle>
+                      <CardDescription className="text-xs">
+                        {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                      </CardDescription>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      {todayRecords.length} registro(s)
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  {todayRecords.length === 0 ? (
+                    <div className="text-center py-6">
+                      <Clock className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Nenhum registro hoje</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {todayRecords
+                        .sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
+                        .map((registro: any, idx: number) => {
+                          const tipo = tiposPonto.find((t) => t.value === registro.tipo);
+                          const Icon = tipo?.icon || Clock;
+                          return (
+                            <div
+                              key={registro.id}
+                              className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/40 transition-colors"
+                            >
+                              <div className="flex flex-col items-center">
+                                <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", tipo?.bg)}>
+                                  <Icon className={cn("h-4 w-4", tipo?.color)} />
+                                </div>
+                                {idx < todayRecords.length - 1 && <div className="w-px h-4 bg-border mt-1" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">{tipo?.label}</p>
+                                {registro.endereco_aproximado && (
+                                  <p className="text-[11px] text-muted-foreground truncate">
+                                    📍 {registro.endereco_aproximado}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="text-sm font-mono font-medium text-muted-foreground">
+                                {format(new Date(registro.data_hora), "HH:mm")}
+                              </span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Period selector + last days */}
+              <Card className="rounded-2xl border-border/50">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <CardTitle className="text-sm font-semibold">Últimos Dias Trabalhados</CardTitle>
+                    <div className="flex gap-2">
+                      <Select value={mes.toString()} onValueChange={(v) => setMes(parseInt(v))}>
+                        <SelectTrigger className="w-[130px] h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 12 }, (_, i) => (
+                            <SelectItem key={i + 1} value={(i + 1).toString()}>
+                              {format(new Date(2024, i), "MMMM", { locale: ptBR })}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={ano.toString()} onValueChange={(v) => setAno(parseInt(v))}>
+                        <SelectTrigger className="w-[80px] h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[2024, 2025, 2026].map((a) => (
+                            <SelectItem key={a} value={a.toString()}>
+                              {a}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  {detailedStats?.workedDays && detailedStats.workedDays.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {detailedStats.workedDays.slice(0, 7).map((day) => (
+                        <div
+                          key={day.date}
+                          className={cn(
+                            "flex items-center justify-between p-3 rounded-xl transition-colors",
+                            day.isLate
+                              ? "bg-red-500/5 border border-red-200/50 dark:border-red-800/50"
+                              : day.hasOvertime
+                                ? "bg-emerald-500/5 border border-emerald-200/50 dark:border-emerald-800/50"
+                                : "bg-muted/30 hover:bg-muted/50",
+                          )}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex flex-col items-center shrink-0 w-10">
+                              <span className="text-lg font-bold leading-none">{format(parseISO(day.date), "dd")}</span>
+                              <span className="text-[10px] text-muted-foreground uppercase">
+                                {format(parseISO(day.date), "EEE", { locale: ptBR })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs flex-wrap">
+                              <span className="font-mono">
+                                <span className="text-muted-foreground">E:</span> {day.entrada || "-"}
+                              </span>
+                              <span className="font-mono">
+                                <span className="text-muted-foreground">S:</span> {day.saida || "-"}
+                              </span>
+                              <span className="font-mono">
+                                <span className="text-muted-foreground">Alm:</span>{" "}
+                                {formatHoursMinutes(day.almocoMinutes / 60)}
+                                {!day.almocoRegistrado && (
+                                  <span className="text-muted-foreground/50 text-[10px] ml-0.5">•</span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-sm font-semibold">{formatHoursMinutes(day.hoursWorked)}</span>
+                            {day.isLate && (
+                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                                -{day.lateMinutes}min
+                              </Badge>
+                            )}
+                            {day.hasOvertime && (
+                              <Badge className="text-[10px] px-1.5 py-0 bg-emerald-600">
+                                +{day.overtimeMinutes}min
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {detailedStats.workedDays.length > 7 && (
+                        <button
+                          onClick={() => setActiveView("historico")}
+                          className="w-full text-center text-xs text-primary font-medium py-2 hover:underline flex items-center justify-center gap-1"
+                        >
+                          Ver todos os {detailedStats.workedDays.length} dias <ChevronRight className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground text-sm py-6">
+                      Nenhum dia trabalhado neste período
                     </p>
                   )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Location + receipt row */}
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 text-xs">
-              {location ? (
-                <span className="flex items-center gap-1.5 text-emerald-600 bg-emerald-500/10 px-3 py-1.5 rounded-full">
-                  <MapPin className="h-3.5 w-3.5" />
-                  {endereco || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 text-amber-600 bg-amber-500/10 px-3 py-1.5 rounded-full">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  Obtendo localização...
-                </span>
-              )}
+                </CardContent>
+              </Card>
             </div>
-            {todayRecords.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <FileText className="h-4 w-4" />
-                    Recibo
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={enviarReciboWhatsApp}>
-                    <MessageCircle className="h-4 w-4 mr-2 text-emerald-600" />
-                    WhatsApp
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={enviarReciboEmail}>
-                    <Mail className="h-4 w-4 mr-2 text-blue-600" />
-                    E-mail
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={baixarReciboPDF}>
-                    <Download className="h-4 w-4 mr-2 text-purple-600" />
-                    PDF
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
+          )}
 
           {/* HISTORICO VIEW */}
           {activeView === "historico" && (
