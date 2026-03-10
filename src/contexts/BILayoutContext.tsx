@@ -53,6 +53,7 @@ export function BILayoutProvider({ children }: { children: ReactNode }) {
   const adminDefaultAppliedRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
     async function fetchAssociacoes() {
       try {
         const cached = getCachedAssociacoes();
@@ -72,6 +73,7 @@ export function BILayoutProvider({ children }: { children: ReactNode }) {
         }
 
         const { data, error } = await supabase.from("corretoras").select("id, nome, slug").order("nome");
+        if (cancelled) return;
         if (error) throw error;
         setAssociacoes(data || []);
         setCachedAssociacoes(data || []);
@@ -87,13 +89,29 @@ export function BILayoutProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (error) {
+        if (cancelled) return;
         console.error("Erro ao carregar associações:", error);
-        toast.error("Erro ao carregar associações");
+        // Silently retry once before showing error
+        try {
+          const { data } = await supabase.from("corretoras").select("id, nome, slug").order("nome");
+          if (cancelled) return;
+          if (data && data.length > 0) {
+            setAssociacoes(data);
+            setCachedAssociacoes(data);
+            if (!selectedAssociacao) {
+              if (canViewAdmin) { setSelectedAssociacao("__admin__"); adminDefaultAppliedRef.current = true; }
+              else setSelectedAssociacao(data[0].id);
+            }
+            return;
+          }
+        } catch { /* ignore retry error */ }
+        if (!cancelled) toast.error("Erro ao carregar associações");
       } finally {
-        setLoadingAssociacoes(false);
+        if (!cancelled) setLoadingAssociacoes(false);
       }
     }
     fetchAssociacoes();
+    return () => { cancelled = true; };
   }, [searchParams, canViewAdmin]);
 
   return (
