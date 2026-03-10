@@ -87,8 +87,8 @@ export default function PortalLayout() {
                   onClick={() => handleSelectCorretora(item)}
                   className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 hover:border-primary hover:bg-primary/5 transition-all duration-200 text-left group"
                 >
-                  {item.logo_url ? (
-                    <img src={item.logo_url} alt={item.nome} className="h-12 w-12 rounded-full object-cover ring-2 ring-muted group-hover:ring-primary/30 transition-all" />
+                  {(item.logo_collapsed_url || item.logo_url) ? (
+                    <img src={item.logo_collapsed_url || item.logo_url!} alt={item.nome} className="h-12 w-12 rounded-full object-cover ring-2 ring-muted group-hover:ring-primary/30 transition-all" />
                   ) : (
                     <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-all">
                       <Building2 className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
