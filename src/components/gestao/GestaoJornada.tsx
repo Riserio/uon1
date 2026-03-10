@@ -170,7 +170,7 @@ export default function GestaoJornada() {
   const [registroParaAjuste, setRegistroParaAjuste] = useState<any>(null);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
-  const [activeView, setActiveView] = useState<"registrar ponto" | "historico" | "relatorio">("registrar ponto");
+  const [activeView, setActiveView] = useState<"historico" | "relatorio">("historico");
 
   const canManageAll = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
   const canExport = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
