@@ -36,6 +36,8 @@ interface Corretora {
   responsavel?: string;
   observacoes?: string;
   logo_url?: string;
+  logo_collapsed_url?: string;
+  logo_expanded_url?: string;
 }
 
 export default function Corretoras() {
