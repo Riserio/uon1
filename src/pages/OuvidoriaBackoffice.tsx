@@ -412,10 +412,15 @@ export default function OuvidoriaBackoffice() {
   };
 
   const ensureCheckpoints = async (registroId: string, etapa: string) => {
-    const existing = checkpoints.filter(c => c.registro_id === registroId && c.etapa === etapa);
-    if (existing.length > 0) return;
     const labels = CHECKPOINTS_PER_ETAPA[etapa] || [];
     if (labels.length === 0) return;
+    // Always check DB to avoid duplicates from stale local state
+    const { data: dbExisting } = await supabase
+      .from("ouvidoria_checkpoints")
+      .select("id, checkpoint_label")
+      .eq("registro_id", registroId)
+      .eq("etapa", etapa);
+    if (dbExisting && dbExisting.length > 0) return;
     const inserts = labels.map((label, idx) => ({
       registro_id: registroId,
       etapa,
