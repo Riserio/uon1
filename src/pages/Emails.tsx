@@ -123,6 +123,8 @@ export default function Emails() {
     daily: { sending: number; failed: number; limit: number };
   } | null>(null);
   const [processandoFila, setProcessandoFila] = useState(false);
+  const [resendingSingle, setResendingSingle] = useState<string | null>(null);
+  const [resendingAll, setResendingAll] = useState(false);
   const [availableStatus, setAvailableStatus] = useState<string[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewContent, setPreviewContent] = useState('');
