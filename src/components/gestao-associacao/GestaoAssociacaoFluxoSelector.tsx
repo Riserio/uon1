@@ -32,7 +32,7 @@ export function GestaoAssociacaoFluxoSelector({
 }: GestaoAssociacaoFluxoSelectorProps) {
   const [fluxos, setFluxos] = useState<Fluxo[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
-  const scrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     loadFluxos();

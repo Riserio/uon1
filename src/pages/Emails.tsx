@@ -1023,7 +1023,25 @@ export default function Emails() {
                         <CardTitle>Últimos Emails Enviados</CardTitle>
                         <CardDescription>Histórico recente de envios do sistema</CardDescription>
                       </div>
-                      <Badge variant="outline">{historico.length} registro(s)</Badge>
+                      <div className="flex items-center gap-2">
+                        {historico.some((e) => e.status === "erro") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                            onClick={handleResendAllFailed}
+                            disabled={resendingAll}
+                          >
+                            {resendingAll ? (
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            )}
+                            Reenviar Todos com Falha
+                          </Button>
+                        )}
+                        <Badge variant="outline">{historico.length} registro(s)</Badge>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -1077,6 +1095,22 @@ export default function Emails() {
                                 <p className="text-xs text-red-600 mt-1">{email.erro_mensagem}</p>
                               )}
                             </div>
+                            {email.status === "erro" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="shrink-0 text-xs gap-1 hover:text-primary"
+                                onClick={() => handleResendSingle(email)}
+                                disabled={resendingSingle === email.id}
+                              >
+                                {resendingSingle === email.id ? (
+                                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                )}
+                                Reenviar
+                              </Button>
+                            )}
                           </div>
                         ))}
                       </div>
