@@ -24,7 +24,7 @@ export default function ConfiguracaoStatusPublico() {
   const [statusConfig, setStatusConfig] = useState<any[]>([]);
   const [statusPublicos, setStatusPublicos] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const debounceTimers = useRef<{ [key: string]: NodeJS.Timeout }>({});
+  const debounceTimers = useRef<{ [key: string]: ReturnType<typeof setTimeout> }>({});
 
   useEffect(() => {
     loadFluxos();
