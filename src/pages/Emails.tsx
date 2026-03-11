@@ -504,6 +504,78 @@ export default function Emails() {
     }
   };
 
+  const handleResendSingle = async (email: any) => {
+    setResendingSingle(email.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { toast.error('Sessão expirada'); return; }
+
+      // Clean body prefix like [Resend], [SMTP], [FALHA]
+      const cleanBody = (email.corpo || '').replace(/^\[(Resend|SMTP|FALHA|nenhum)\]\s*/i, '');
+
+      const response = await supabase.functions.invoke('enviar-email-smtp', {
+        body: { to: [email.destinatario], subject: email.assunto, message: cleanBody },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (response.error) throw response.error;
+
+      const result = response.data?.results?.[0];
+      if (result?.status === 'enviado') {
+        toast.success(`Email reenviado para ${email.destinatario}`);
+      } else {
+        toast.error(`Falha ao reenviar: ${result?.error || 'Erro desconhecido'}`);
+      }
+      loadHistorico();
+      loadStats();
+    } catch (error: any) {
+      console.error('Erro ao reenviar email:', error);
+      toast.error(error.message || 'Erro ao reenviar email');
+    } finally {
+      setResendingSingle(null);
+    }
+  };
+
+  const handleResendAllFailed = async () => {
+    const failedEmails = historico.filter((e) => e.status === 'erro');
+    if (failedEmails.length === 0) { toast.info('Nenhum email com falha'); return; }
+
+    setResendingAll(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { toast.error('Sessão expirada'); return; }
+
+      for (const email of failedEmails) {
+        try {
+          const cleanBody = (email.corpo || '').replace(/^\[(Resend|SMTP|FALHA|nenhum)\]\s*/i, '');
+          const response = await supabase.functions.invoke('enviar-email-smtp', {
+            body: { to: [email.destinatario], subject: email.assunto, message: cleanBody },
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+
+          if (response.error) throw response.error;
+          const result = response.data?.results?.[0];
+          if (result?.status === 'enviado') successCount++;
+          else errorCount++;
+        } catch {
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) toast.success(`${successCount} email(s) reenviado(s) com sucesso`);
+      if (errorCount > 0) toast.error(`${errorCount} email(s) falharam novamente`);
+      loadHistorico();
+      loadStats();
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao reenviar emails');
+    } finally {
+      setResendingAll(false);
+    }
+  };
+
   const handleProcessarFila = async () => {
     setProcessandoFila(true);
     try {
