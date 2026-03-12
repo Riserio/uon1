@@ -82,6 +82,8 @@ export default function DashboardAnalytics() {
       if (customStartDate && customEndDate) {
         startDate = customStartDate;
         endDate = customEndDate;
+      } else if (selectedPeriod === 'all') {
+        startDate = new Date('2020-01-01');
       } else {
         const daysAgo = parseInt(selectedPeriod);
         startDate = new Date();
