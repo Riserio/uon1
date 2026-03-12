@@ -328,7 +328,7 @@ export default function DashboardAnalytics() {
     doc.setFontSize(18);
     doc.text('Dashboard de Atendimentos', 14, 20);
     doc.setFontSize(11);
-    doc.text(`Período: Últimos ${selectedPeriod} dias`, 14, 28);
+    doc.text(`Período: ${selectedPeriod === 'all' ? 'Todo período' : `Últimos ${selectedPeriod} dias`}`, 14, 28);
     doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", {
       locale: ptBR
     })}`, 14, 34);
