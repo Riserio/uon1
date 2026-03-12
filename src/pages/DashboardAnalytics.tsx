@@ -281,8 +281,9 @@ export default function DashboardAnalytics() {
 
   // Evolução diária
   const dailyEvolution = (() => {
+    const periodDays = selectedPeriod === 'all' ? 365 : parseInt(selectedPeriod);
     const days = eachDayOfInterval({
-      start: new Date(new Date().setDate(new Date().getDate() - parseInt(selectedPeriod))),
+      start: new Date(new Date().setDate(new Date().getDate() - Math.min(periodDays, 90))),
       end: new Date()
     });
     return days.map(day => {
