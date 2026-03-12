@@ -413,11 +413,14 @@ export default function DashboardAnalytics() {
               setCustomStartDate(null);
               setCustomEndDate(null);
             }} className="px-4 py-2 rounded-lg border bg-background">
+                <option value="all">Todo período</option>
                 <option value="7">Últimos 7 dias</option>
                 <option value="15">Últimos 15 dias</option>
                 <option value="30">Últimos 30 dias</option>
                 <option value="60">Últimos 60 dias</option>
                 <option value="90">Últimos 90 dias</option>
+                <option value="180">Últimos 180 dias</option>
+                <option value="365">Último ano</option>
               </select>
             </div>
             
