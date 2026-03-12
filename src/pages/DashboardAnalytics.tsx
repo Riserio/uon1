@@ -56,7 +56,7 @@ export default function DashboardAnalytics() {
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
   const [statusConfigs, setStatusConfigs] = useState<StatusConfig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState('30'); // days
+  const [selectedPeriod, setSelectedPeriod] = useState('all'); // days or 'all'
   const [metasDialogOpen, setMetasDialogOpen] = useState(false);
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
@@ -82,6 +82,8 @@ export default function DashboardAnalytics() {
       if (customStartDate && customEndDate) {
         startDate = customStartDate;
         endDate = customEndDate;
+      } else if (selectedPeriod === 'all') {
+        startDate = new Date('2020-01-01');
       } else {
         const daysAgo = parseInt(selectedPeriod);
         startDate = new Date();
@@ -279,8 +281,9 @@ export default function DashboardAnalytics() {
 
   // Evolução diária
   const dailyEvolution = (() => {
+    const periodDays = selectedPeriod === 'all' ? 365 : parseInt(selectedPeriod);
     const days = eachDayOfInterval({
-      start: new Date(new Date().setDate(new Date().getDate() - parseInt(selectedPeriod))),
+      start: new Date(new Date().setDate(new Date().getDate() - Math.min(periodDays, 90))),
       end: new Date()
     });
     return days.map(day => {
@@ -325,7 +328,7 @@ export default function DashboardAnalytics() {
     doc.setFontSize(18);
     doc.text('Dashboard de Atendimentos', 14, 20);
     doc.setFontSize(11);
-    doc.text(`Período: Últimos ${selectedPeriod} dias`, 14, 28);
+    doc.text(`Período: ${selectedPeriod === 'all' ? 'Todo período' : `Últimos ${selectedPeriod} dias`}`, 14, 28);
     doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", {
       locale: ptBR
     })}`, 14, 34);
@@ -411,11 +414,14 @@ export default function DashboardAnalytics() {
               setCustomStartDate(null);
               setCustomEndDate(null);
             }} className="px-4 py-2 rounded-lg border bg-background">
+                <option value="all">Todo período</option>
                 <option value="7">Últimos 7 dias</option>
                 <option value="15">Últimos 15 dias</option>
                 <option value="30">Últimos 30 dias</option>
                 <option value="60">Últimos 60 dias</option>
                 <option value="90">Últimos 90 dias</option>
+                <option value="180">Últimos 180 dias</option>
+                <option value="365">Último ano</option>
               </select>
             </div>
             
