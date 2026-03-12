@@ -56,7 +56,7 @@ export default function DashboardAnalytics() {
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
   const [statusConfigs, setStatusConfigs] = useState<StatusConfig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState('30'); // days
+  const [selectedPeriod, setSelectedPeriod] = useState('all'); // days or 'all'
   const [metasDialogOpen, setMetasDialogOpen] = useState(false);
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
