@@ -41,7 +41,10 @@ export const HELP_MODULES: HelpModule[] = [
           "Os valores são atualizados automaticamente. Cada card é clicável e leva direto para a área correspondente.",
           "Os gráficos mostram a evolução dos atendimentos ao longo do tempo e a distribuição por status."
         ],
-        tip: "Passe o mouse sobre os gráficos para ver valores detalhados de cada período."
+        tip: "Passe o mouse sobre os gráficos para ver valores detalhados de cada período.",
+        images: [
+          { src: "/help/painel-dashboard.png", caption: "Painel com KPIs, gráficos de evolução e distribuição por status" }
+        ]
       },
       {
         title: "Alertas e notificações",
