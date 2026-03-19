@@ -96,20 +96,23 @@ const CONFIG = {
 // ============================================
 const TIMEOUTS = {
   PAGE_LOAD: 90000,
-  LOGIN_RETRY_WAIT: 5000,       // Reduzido de 8s → 5s
-  DOWNLOAD_EVENT: 3 * 60000,
-  DOWNLOAD_TOTAL: 20 * 60000,   // Reduzido de 55 min → 20 min
-  DOWNLOAD_SAVE: 20 * 60000,    // Reduzido de 55 min → 20 min
-  DOWNLOAD_IDLE: 15 * 60000,    // Reduzido de 40 min → 15 min (stall detection)
-  DOWNLOAD_HARD: 20 * 60000,    // Reduzido de 55 min → 20 min
+  LOGIN_RETRY_WAIT: 5000,
+  DOWNLOAD_EVENT: 45 * 1000,
+  DOWNLOAD_TOTAL: 20 * 60000,
+  DOWNLOAD_SAVE: 20 * 60000,
+  DOWNLOAD_IDLE: 15 * 60000,
+  DOWNLOAD_HARD: 20 * 60000,
+  DOWNLOAD_REPLAY: 4 * 60000,
   POPUP_CLOSE: 800,
   FILE_PROGRESS_INTERVAL: 10000,
 };
 
 const LIMITS = {
-  MAX_LOGIN_RETRIES: 5,         // Reduzido de 20 → 5
+  MAX_LOGIN_RETRIES: 5,
   MAX_POPUP_CLOSE_ATTEMPTS: 10,
   MAX_DOWNLOAD_RETRIES: 3,
+  INITIAL_WINDOW_DAYS: 31,
+  MIN_WINDOW_DAYS: 7,
 };
 
 // ============================================
@@ -1085,7 +1088,54 @@ function addDays(date, amount) {
   return next;
 }
 
-function buildDateWindows(start, end, windowDays = 92) {
+function getDateWindowDays(periodo) {
+  const startDate = parseBrazilianDate(periodo?.inicio);
+  const endDate = parseBrazilianDate(periodo?.fim);
+
+  if (!startDate || !endDate) return 1;
+  return Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1);
+}
+
+function splitDateWindow(periodo) {
+  const startDate = parseBrazilianDate(periodo?.inicio);
+  const endDate = parseBrazilianDate(periodo?.fim);
+
+  if (!startDate || !endDate || startDate.getTime() >= endDate.getTime()) {
+    return [periodo];
+  }
+
+  const totalDays = getDateWindowDays(periodo);
+  const firstWindowDays = Math.max(1, Math.ceil(totalDays / 2));
+  const firstEnd = addDays(startDate, firstWindowDays - 1);
+  const boundedFirstEnd = firstEnd.getTime() < endDate.getTime() ? firstEnd : new Date(endDate);
+  const secondStart = addDays(boundedFirstEnd, 1);
+
+  const windows = [
+    {
+      inicio: formatBrazilianDate(startDate),
+      fim: formatBrazilianDate(boundedFirstEnd),
+    },
+  ];
+
+  if (secondStart.getTime() <= endDate.getTime()) {
+    windows.push({
+      inicio: formatBrazilianDate(secondStart),
+      fim: formatBrazilianDate(endDate),
+    });
+  }
+
+  return windows;
+}
+
+function shouldSplitWindow(error, periodo) {
+  const totalDays = getDateWindowDays(periodo);
+  if (totalDays <= LIMITS.MIN_WINDOW_DAYS) return false;
+
+  const message = normalizeText(error?.message || '');
+  return ['timeout', 'travado', 'capturado', 'download', 'resposta vazia'].some((token) => message.includes(normalizeText(token)));
+}
+
+function buildDateWindows(start, end, windowDays = LIMITS.INITIAL_WINDOW_DAYS) {
   const startDate = parseBrazilianDate(start);
   const endDate = parseBrazilianDate(end);
 
@@ -1630,7 +1680,7 @@ async function baixarRelatorioViaFormReplay({ context, page, downloadDir, semant
     data: formulario.method === 'GET' ? undefined : encodedBody,
     responseType: 'arraybuffer',
     maxRedirects: 10,
-    timeout: TIMEOUTS.DOWNLOAD_HARD,
+    timeout: TIMEOUTS.DOWNLOAD_REPLAY,
     validateStatus: (status) => status >= 200 && status < 400,
   });
 
@@ -1909,6 +1959,47 @@ async function coletarDadosDoPeriodoComRetry(context, page, periodo, index, tota
   throw lastError || new Error('Falha ao coletar janela do relatório');
 }
 
+async function coletarDadosDoPeriodoAdaptativo(context, page, periodo, index, total, depth = 0) {
+  try {
+    return await coletarDadosDoPeriodoComRetry(context, page, periodo, index, total);
+  } catch (error) {
+    if (!shouldSplitWindow(error, periodo)) {
+      throw error;
+    }
+
+    const subJanelas = splitDateWindow(periodo);
+    if (subJanelas.length < 2) {
+      throw error;
+    }
+
+    log(
+      `Janela ${periodo.inicio} até ${periodo.fim} (${getDateWindowDays(periodo)} dias) será dividida em ${subJanelas
+        .map((janela) => `${janela.inicio} até ${janela.fim}`)
+        .join(' | ')} após falha: ${error.message}`,
+      LOG_LEVELS.WARN,
+    );
+
+    const dadosAgrupados = [];
+
+    for (let subIndex = 0; subIndex < subJanelas.length; subIndex++) {
+      const dadosSubjanela = await coletarDadosDoPeriodoAdaptativo(
+        context,
+        page,
+        subJanelas[subIndex],
+        subIndex,
+        subJanelas.length,
+        depth + 1,
+      );
+
+      if (dadosSubjanela.length > 0) {
+        dadosAgrupados.push(...dadosSubjanela);
+      }
+    }
+
+    return dadosAgrupados;
+  }
+}
+
 // ============================================
 // MAIN
 // ============================================
@@ -2050,14 +2141,14 @@ async function main() {
 
     await fecharPopups(page);
 
-    const janelas = buildDateWindows(inicio, fim, 92);
-    log(`Coleta segmentada em ${janelas.length} janelas de até 92 dias para evitar travas no portal`, LOG_LEVELS.INFO);
+    const janelas = buildDateWindows(inicio, fim, LIMITS.INITIAL_WINDOW_DAYS);
+    log(`Coleta segmentada em ${janelas.length} janelas de até ${LIMITS.INITIAL_WINDOW_DAYS} dias com divisão automática em falhas`, LOG_LEVELS.INFO);
 
     const dadosAcumulados = [];
 
     for (let index = 0; index < janelas.length; index++) {
       const periodo = janelas[index];
-      const dadosPeriodo = await coletarDadosDoPeriodoComRetry(context, page, periodo, index, janelas.length);
+      const dadosPeriodo = await coletarDadosDoPeriodoAdaptativo(context, page, periodo, index, janelas.length);
       if (dadosPeriodo.length === 0) continue;
 
       dadosAcumulados.push(...dadosPeriodo);
