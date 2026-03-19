@@ -96,20 +96,23 @@ const CONFIG = {
 // ============================================
 const TIMEOUTS = {
   PAGE_LOAD: 90000,
-  LOGIN_RETRY_WAIT: 5000,       // Reduzido de 8s → 5s
-  DOWNLOAD_EVENT: 3 * 60000,
-  DOWNLOAD_TOTAL: 20 * 60000,   // Reduzido de 55 min → 20 min
-  DOWNLOAD_SAVE: 20 * 60000,    // Reduzido de 55 min → 20 min
-  DOWNLOAD_IDLE: 15 * 60000,    // Reduzido de 40 min → 15 min (stall detection)
-  DOWNLOAD_HARD: 20 * 60000,    // Reduzido de 55 min → 20 min
+  LOGIN_RETRY_WAIT: 5000,
+  DOWNLOAD_EVENT: 45 * 1000,
+  DOWNLOAD_TOTAL: 20 * 60000,
+  DOWNLOAD_SAVE: 20 * 60000,
+  DOWNLOAD_IDLE: 15 * 60000,
+  DOWNLOAD_HARD: 20 * 60000,
+  DOWNLOAD_REPLAY: 4 * 60000,
   POPUP_CLOSE: 800,
   FILE_PROGRESS_INTERVAL: 10000,
 };
 
 const LIMITS = {
-  MAX_LOGIN_RETRIES: 5,         // Reduzido de 20 → 5
+  MAX_LOGIN_RETRIES: 5,
   MAX_POPUP_CLOSE_ATTEMPTS: 10,
   MAX_DOWNLOAD_RETRIES: 3,
+  INITIAL_WINDOW_DAYS: 31,
+  MIN_WINDOW_DAYS: 7,
 };
 
 // ============================================
