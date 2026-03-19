@@ -5,10 +5,16 @@ import {
   Video, Megaphone, Briefcase, Settings, HelpCircle
 } from "lucide-react";
 
+export interface HelpImage {
+  src: string;
+  caption: string;
+}
+
 export interface HelpTopic {
   title: string;
   steps: string[];
   tip?: string;
+  images?: HelpImage[];
 }
 
 export interface HelpModule {
