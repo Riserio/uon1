@@ -223,8 +223,7 @@ serve(async (req) => {
       // Calcular datas e derivar URL do relatório
       const dataInicio = '01/01/2023';
       const now = new Date();
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const dataFim = `${String(lastDay.getDate()).padStart(2, '0')}/${String(lastDay.getMonth() + 1).padStart(2, '0')}/${lastDay.getFullYear()}`;
+      const dataFim = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
 
       let relatorioUrl = urlEventos;
       if (!relatorioUrl && hinovaUrl) {

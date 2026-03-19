@@ -1051,7 +1051,9 @@ async function buildCookieHeader(context, url) {
     const cookies = await context.cookies(url);
     if (!cookies || cookies.length === 0) return '';
     return cookies.map((c) => `${c.name}=${c.value}`).join('; ');
-  } catch { return ''; }
+  } catch {
+    return '';
+  }
 }
 
 function pickHeadersForHttpReplay(headers = {}) {
@@ -1064,17 +1066,77 @@ function pickHeadersForHttpReplay(headers = {}) {
   return out;
 }
 
+function parseBrazilianDate(value) {
+  const [day, month, year] = String(value || '').split('/').map(Number);
+  if (!day || !month || !year) return null;
+  const date = new Date(year, month - 1, day);
+  date.setHours(0, 0, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatBrazilianDate(date) {
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+}
+
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function buildDateWindows(start, end, windowDays = 92) {
+  const startDate = parseBrazilianDate(start);
+  const endDate = parseBrazilianDate(end);
+
+  if (!startDate || !endDate || startDate.getTime() > endDate.getTime()) {
+    return [{ inicio: start, fim: end }];
+  }
+
+  const windows = [];
+  let cursor = new Date(startDate);
+
+  while (cursor.getTime() <= endDate.getTime()) {
+    const candidateEnd = addDays(cursor, windowDays - 1);
+    const windowEnd = candidateEnd.getTime() < endDate.getTime() ? candidateEnd : new Date(endDate);
+
+    windows.push({
+      inicio: formatBrazilianDate(cursor),
+      fim: formatBrazilianDate(windowEnd),
+    });
+
+    cursor = addDays(windowEnd, 1);
+  }
+
+  return windows;
+}
+
+function sanitizeFilePart(value) {
+  return String(value || '').replace(/\D/g, '') || 'sem_data';
+}
+
+function generateWindowFilename(periodo, index, total) {
+  const ordem = String(index + 1).padStart(2, '0');
+  const totalLabel = String(total).padStart(2, '0');
+  return `EVENTOS_${sanitizeFilePart(periodo.inicio)}_${sanitizeFilePart(periodo.fim)}_parte_${ordem}_de_${totalLabel}.xlsx`;
+}
+
+function writeBufferToFile(filePath, buffer) {
+  fs.writeFileSync(filePath, buffer);
+  return { filePath, size: buffer.length };
+}
+
 async function downloadViaAxiosStream({ url, method = 'GET', headers = {}, data, filePath, expectedBytes = 0, idleTimeoutMs = TIMEOUTS.DOWNLOAD_IDLE, hardTimeoutMs = TIMEOUTS.DOWNLOAD_HARD }) {
   if (!url) throw new Error('URL de download vazia');
   const startedAt = Date.now();
   const abortController = new AbortController();
   const tempFilePath = filePath + '.tmp';
 
-  let hardTimer = hardTimeoutMs > 0 ? setTimeout(() => abortController.abort(new Error(`Timeout rígido de download`)), hardTimeoutMs) : null;
+  let hardTimer = hardTimeoutMs > 0 ? setTimeout(() => abortController.abort(new Error('Timeout rígido de download')), hardTimeoutMs) : null;
   let idleTimer = null;
   const resetIdleTimer = () => {
     if (idleTimer) clearTimeout(idleTimer);
-    if (idleTimeoutMs > 0) idleTimer = setTimeout(() => abortController.abort(new Error(`Download travado`)), idleTimeoutMs);
+    if (idleTimeoutMs > 0) idleTimer = setTimeout(() => abortController.abort(new Error('Download travado')), idleTimeoutMs);
   };
   resetIdleTimer();
 
@@ -1087,24 +1149,45 @@ async function downloadViaAxiosStream({ url, method = 'GET', headers = {}, data,
     const speed = receivedBytes / Math.max(1, Math.floor((now - startedAt) / 1000));
     if (expectedBytes > 0) {
       const pct = Math.min(100, Math.floor((receivedBytes / expectedBytes) * 100));
-      const barSize = 20; const filled = Math.round((pct / 100) * barSize);
-      log(`   ⬇️ Download [${('█').repeat(filled)}${('░').repeat(barSize - filled)}] ${pct}% (${formatBytes(receivedBytes)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
+      const barSize = 20;
+      const filled = Math.round((pct / 100) * barSize);
+      log(`   ⬇️ Download [${'█'.repeat(filled)}${'░'.repeat(barSize - filled)}] ${pct}% (${formatBytes(receivedBytes)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
     } else {
       log(`   ⬇️ Download: ${formatBytes(receivedBytes)} • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
     }
   };
-  const clearTimers = () => { if (idleTimer) clearTimeout(idleTimer); if (hardTimer) clearTimeout(hardTimer); };
+  const clearTimers = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (hardTimer) clearTimeout(hardTimer);
+  };
 
   try {
-    const response = await axios({ url, method, headers, data, responseType: 'stream', maxRedirects: 10, timeout: 0, signal: abortController.signal, validateStatus: (s) => s >= 200 && s < 400 });
+    const response = await axios({
+      url,
+      method,
+      headers,
+      data,
+      responseType: 'stream',
+      maxRedirects: 10,
+      timeout: 0,
+      signal: abortController.signal,
+      validateStatus: (s) => s >= 200 && s < 400,
+    });
+
     const responseLen = parseInt(response.headers?.['content-length'] || '0', 10);
     if (!expectedBytes && responseLen > 0) expectedBytes = responseLen;
-    
+
     const writeStream = fs.createWriteStream(tempFilePath, { highWaterMark: 8 * 1024 * 1024 });
     const progressTransform = new Transform({
-      transform(chunk, encoding, callback) { receivedBytes += chunk.length; resetIdleTimer(); logProgress(false); callback(null, chunk); },
+      transform(chunk, encoding, callback) {
+        receivedBytes += chunk.length;
+        resetIdleTimer();
+        logProgress(false);
+        callback(null, chunk);
+      },
       highWaterMark: 8 * 1024 * 1024,
     });
+
     await pipeline(response.data, progressTransform, writeStream);
     logProgress(true);
     clearTimers();
@@ -1117,7 +1200,9 @@ async function downloadViaAxiosStream({ url, method = 'GET', headers = {}, data,
     return { filePath, size: stats.size };
   } catch (error) {
     clearTimers();
-    try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch {}
+    try {
+      if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+    } catch {}
     throw error;
   }
 }
@@ -1136,16 +1221,24 @@ function isExcelResponse(response) {
     if (url.includes('.xlsx') || url.includes('.xls')) return true;
     if ((ct.includes('octet-stream') || ct.includes('download') || ct.includes('force-download')) && (cd.includes('attachment') || cd.includes('xls'))) return true;
     return false;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 async function processarDownloadImediato(download, downloadDir, semanticName) {
   const filePath = path.join(downloadDir, semanticName);
   const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
   let expectedSize = 0;
+
   try {
     const request = download.request?.();
-    if (request) { const response = await request.response?.(); if (response) { expectedSize = parseInt((response.headers?.() || {})['content-length'] || '0', 10); } }
+    if (request) {
+      const response = await request.response?.();
+      if (response) {
+        expectedSize = parseInt((response.headers?.() || {})['content-length'] || '0', 10);
+      }
+    }
   } catch {}
 
   log(`Download capturado - ${expectedSize > 0 ? formatBytes(expectedSize) : 'tamanho desconhecido'}`, LOG_LEVELS.SUCCESS);
@@ -1157,7 +1250,16 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     const minutes = Math.floor(elapsed / 60);
     let fileSize = 0;
-    for (const p of [filePath, filePath + '.crdownload', filePath + '.part']) { try { if (fs.existsSync(p)) { fileSize = fs.statSync(p).size; break; } } catch {} }
+
+    for (const p of [filePath, filePath + '.crdownload', filePath + '.part']) {
+      try {
+        if (fs.existsSync(p)) {
+          fileSize = fs.statSync(p).size;
+          break;
+        }
+      } catch {}
+    }
+
     if (fileSize > 0) {
       const speed = fileSize / Math.max(1, elapsed);
       log(`⏳ Recebendo... ${formatBytes(fileSize)} • ${formatBytes(speed)}/s (${minutes}m)`, LOG_LEVELS.INFO);
@@ -1168,33 +1270,73 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
 
   let timeoutId = null;
   try {
-    const timeoutPromise = new Promise((_, reject) => { timeoutId = setTimeout(() => reject(new Error(`Timeout de ${Math.floor(TIMEOUTS.DOWNLOAD_HARD / 60000)} min`)), TIMEOUTS.DOWNLOAD_HARD); });
-    await Promise.race([download.saveAs(filePath), timeoutPromise]);
-    if (timeoutId) clearTimeout(timeoutId);
-  } catch (err) { if (timeoutId) clearTimeout(timeoutId); throw err; }
-  finally { clearInterval(heartbeatInterval); stopMonitor(); }
+    timeoutId = setTimeout(() => {
+      try {
+        stopMonitor();
+        clearInterval(heartbeatInterval);
+      } catch {}
+    }, TIMEOUTS.DOWNLOAD_SAVE);
 
-  if (!fs.existsSync(filePath)) throw new Error('Arquivo não existe após saveAs');
-  const stats = fs.statSync(filePath);
-  if (stats.size <= 0) throw new Error(`Arquivo vazio (${stats.size} bytes)`);
-  const totalTime = Math.floor((Date.now() - startTime) / 1000);
-  log(`Download concluído em ${Math.floor(totalTime / 60)}m ${totalTime % 60}s (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
-  return { filePath, size: stats.size };
+    await download.saveAs(filePath);
+
+    stopMonitor();
+    clearInterval(heartbeatInterval);
+    if (timeoutId) clearTimeout(timeoutId);
+
+    if (!fs.existsSync(filePath)) {
+      throw new Error('Arquivo não encontrado após saveAs');
+    }
+
+    const stats = fs.statSync(filePath);
+    if (stats.size <= 0) {
+      throw new Error('Arquivo salvo vazio');
+    }
+
+    const totalTime = Math.floor((Date.now() - startTime) / 1000);
+    log(`Download concluído em ${Math.floor(totalTime / 60)}m ${totalTime % 60}s (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
+    return { filePath, size: stats.size };
+  } catch (error) {
+    stopMonitor();
+    clearInterval(heartbeatInterval);
+    if (timeoutId) clearTimeout(timeoutId);
+    throw error;
+  }
 }
 
 function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName) {
   const pagesAttached = new Set();
+
   const onDownload = async (download) => {
     if (controller.isCaptured()) return;
     const wasCaptured = controller.setCaptured({ type: 'download', download, source: 'globalDownload' });
     if (!wasCaptured) return;
-    try { const result = await processarDownloadImediato(download, downloadDir, semanticName); controller.setFileResult(result); }
-    catch (e) { controller.setError(e); }
+
+    try {
+      const result = await processarDownloadImediato(download, downloadDir, semanticName);
+      controller.setFileResult(result);
+    } catch (e) {
+      controller.setError(e);
+    }
   };
-  const attachToPage = (page) => { if (!page || pagesAttached.has(page)) return; pagesAttached.add(page); page.on('download', onDownload); };
+
+  const attachToPage = (page) => {
+    if (!page || pagesAttached.has(page)) return;
+    pagesAttached.add(page);
+    page.on('download', onDownload);
+  };
+
   for (const p of context.pages()) attachToPage(p);
-  context.on('page', (page) => { if (!controller.isCaptured()) attachToPage(page); });
-  controller.addCleanup(() => { for (const p of pagesAttached) { try { p.removeListener('download', onDownload); } catch {} } });
+  context.on('page', (page) => {
+    if (!controller.isCaptured()) attachToPage(page);
+  });
+
+  controller.addCleanup(() => {
+    for (const p of pagesAttached) {
+      try {
+        p.removeListener('download', onDownload);
+      } catch {}
+    }
+  });
 }
 
 function criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName) {
@@ -1202,29 +1344,60 @@ function criarWatcherDownloadPaginaPrincipal(context, page, controller, download
     if (controller.isCaptured()) return;
     const wasCaptured = controller.setCaptured({ type: 'download', download, source: 'mainPage' });
     if (!wasCaptured) return;
-    try { const result = await processarDownloadImediato(download, downloadDir, semanticName); controller.setFileResult(result); }
-    catch (e) { controller.setError(e); }
+
+    try {
+      const result = await processarDownloadImediato(download, downloadDir, semanticName);
+      controller.setFileResult(result);
+    } catch (e) {
+      controller.setError(e);
+    }
   };
+
   page.on('download', onDownload);
-  controller.addCleanup(() => { try { page.removeListener('download', onDownload); } catch {} });
+  controller.addCleanup(() => {
+    try {
+      page.removeListener('download', onDownload);
+    } catch {}
+  });
 }
 
 function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanticName) {
   const processarNovaAba = async (newPage) => {
-    if (controller.isCaptured()) { try { await newPage.close(); } catch {} return; }
+    if (controller.isCaptured()) {
+      try {
+        await newPage.close();
+      } catch {}
+      return;
+    }
+
     try {
       const onNewPageDownload = async (download) => {
         if (controller.isCaptured()) return;
         const wasCaptured = controller.setCaptured({ type: 'download', download, source: 'newTab', newPage });
         if (!wasCaptured) return;
-        try { const result = await processarDownloadImediato(download, downloadDir, semanticName); controller.setFileResult(result); newPage.close().catch(() => {}); }
-        catch (e) { controller.setError(e); }
+
+        try {
+          const result = await processarDownloadImediato(download, downloadDir, semanticName);
+          controller.setFileResult(result);
+          newPage.close().catch(() => {});
+        } catch (e) {
+          controller.setError(e);
+        }
       };
+
       newPage.on('download', onNewPageDownload);
-      await Promise.race([newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }), new Promise(r => setTimeout(r, 8000))]).catch(() => {});
-      if (controller.isCaptured()) { try { newPage.removeListener('download', onNewPageDownload); } catch {} return; }
-      
-      // Check for inline HTML table content (large report opened in new tab)
+      await Promise.race([
+        newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }),
+        new Promise((resolve) => setTimeout(resolve, 8000)),
+      ]).catch(() => {});
+
+      if (controller.isCaptured()) {
+        try {
+          newPage.removeListener('download', onNewPageDownload);
+        } catch {}
+        return;
+      }
+
       try {
         const content = await newPage.content();
         if (content && content.length > 5000) {
@@ -1241,70 +1414,499 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
           }
         }
       } catch {}
-      
-      controller.addCleanup(() => { try { newPage.removeListener('download', onNewPageDownload); } catch {} });
+
+      controller.addCleanup(() => {
+        try {
+          newPage.removeListener('download', onNewPageDownload);
+        } catch {}
+      });
     } catch {}
   };
-  const onNewPage = (newPage) => { if (newPage !== mainPage) processarNovaAba(newPage); };
+
+  const onNewPage = (newPage) => {
+    if (newPage !== mainPage) processarNovaAba(newPage);
+  };
+
   context.on('page', onNewPage);
-  controller.addCleanup(() => { try { context.removeListener('page', onNewPage); } catch {} });
+  controller.addCleanup(() => {
+    try {
+      context.removeListener('page', onNewPage);
+    } catch {}
+  });
 }
 
 function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName) {
   const pagesAttached = new Set();
+
   const onResponse = async (response) => {
     if (controller.isCaptured()) return;
-    if (isExcelResponse(response)) {
-      if (controller.isCaptured()) return;
-      const headers = response.headers() || {};
-      const contentLength = parseInt(headers['content-length'] || '0', 10);
-      const wasCaptured = controller.setCaptured({ type: 'httpResponse', response, source: 'httpStream' });
-      if (!wasCaptured) return;
-      log(`Download capturado via HTTP stream (fallback)`, LOG_LEVELS.SUCCESS);
-      try {
-        const filePath = path.join(downloadDir, semanticName);
-        const request = response.request?.();
-        const url = response.url?.();
-        const method = request?.method?.() || 'GET';
-        const requestHeaders = pickHeadersForHttpReplay(request?.headers?.() || {});
-        const cookieHeader = await buildCookieHeader(context, url);
-        if (cookieHeader) requestHeaders['cookie'] = cookieHeader;
-        const postData = request?.postData?.();
-        const result = await downloadViaAxiosStream({ url, method, headers: requestHeaders, data: method !== 'GET' ? postData : undefined, filePath, expectedBytes: contentLength, idleTimeoutMs: TIMEOUTS.DOWNLOAD_IDLE, hardTimeoutMs: TIMEOUTS.DOWNLOAD_HARD });
-        controller.setFileResult({ filePath, size: result.size });
-      } catch (e) { controller.setError(e); }
+    if (!isExcelResponse(response)) return;
+
+    const headers = response.headers() || {};
+    const contentLength = parseInt(headers['content-length'] || '0', 10);
+    const wasCaptured = controller.setCaptured({ type: 'httpResponse', response, source: 'httpStream' });
+    if (!wasCaptured) return;
+
+    log('Download capturado via HTTP stream (fallback)', LOG_LEVELS.SUCCESS);
+
+    try {
+      const filePath = path.join(downloadDir, semanticName);
+      const request = response.request?.();
+      const url = response.url?.();
+      const method = request?.method?.() || 'GET';
+      const requestHeaders = pickHeadersForHttpReplay(request?.headers?.() || {});
+      const cookieHeader = await buildCookieHeader(context, url);
+      if (cookieHeader) requestHeaders.cookie = cookieHeader;
+      const postData = request?.postData?.();
+      const result = await downloadViaAxiosStream({
+        url,
+        method,
+        headers: requestHeaders,
+        data: method !== 'GET' ? postData : undefined,
+        filePath,
+        expectedBytes: contentLength,
+        idleTimeoutMs: TIMEOUTS.DOWNLOAD_IDLE,
+        hardTimeoutMs: TIMEOUTS.DOWNLOAD_HARD,
+      });
+      controller.setFileResult({ filePath, size: result.size });
+    } catch (e) {
+      controller.setError(e);
     }
   };
-  const attachToPage = (page) => { if (!page || pagesAttached.has(page)) return; pagesAttached.add(page); page.on('response', onResponse); };
+
+  const attachToPage = (page) => {
+    if (!page || pagesAttached.has(page)) return;
+    pagesAttached.add(page);
+    page.on('response', onResponse);
+  };
+
   for (const p of context.pages()) attachToPage(p);
-  context.on('page', (page) => { if (!controller.isCaptured()) attachToPage(page); });
-  controller.addCleanup(() => { for (const p of pagesAttached) { try { p.removeListener('response', onResponse); } catch {} } });
+  context.on('page', (page) => {
+    if (!controller.isCaptured()) attachToPage(page);
+  });
+
+  controller.addCleanup(() => {
+    for (const p of pagesAttached) {
+      try {
+        p.removeListener('response', onResponse);
+      } catch {}
+    }
+  });
 }
 
 async function aguardarDownloadHibrido(context, page, downloadDir, semanticName, timeoutMs) {
-  log(`Iniciando captura de download (multi-watcher)...`, LOG_LEVELS.INFO);
-  log(`PRIORIDADE: Download Playwright (saveAs) > Nova Aba (HTML) > HTTP Stream (fallback)`, LOG_LEVELS.DEBUG);
-  
+  log('Iniciando captura de download (multi-watcher)...', LOG_LEVELS.INFO);
+  log('PRIORIDADE: Download Playwright (saveAs) > Nova Aba (HTML) > HTTP Stream (fallback)', LOG_LEVELS.DEBUG);
+
   const controller = new DownloadController();
   criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);
   criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName);
   criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);
   criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);
   controller.startProgressMonitor();
-  
+
   return new Promise((resolve) => {
     let resolved = false;
-    const doResolve = (result) => { if (resolved) return; resolved = true; controller.cleanup(); resolve(result); };
+    const doResolve = (result) => {
+      if (resolved) return;
+      resolved = true;
+      controller.cleanup();
+      resolve(result);
+    };
+
     controller.setOnComplete(() => {
-      if (controller.getError()) doResolve({ success: false, error: controller.getError() });
-      else if (controller.getFileResult()) {
+      if (controller.getError()) {
+        doResolve({ success: false, error: controller.getError() });
+      } else if (controller.getFileResult()) {
         const fr = controller.getFileResult();
         doResolve({ success: true, filePath: fr.filePath, size: fr.size, source: controller.getResult()?.source });
       }
     });
-    const timeoutId = setTimeout(() => { if (!resolved) doResolve({ success: false, error: new Error('Timeout - nenhum download capturado') }); }, timeoutMs);
+
+    const timeoutId = setTimeout(() => {
+      if (!resolved) doResolve({ success: false, error: new Error('Timeout - nenhum download capturado') });
+    }, timeoutMs);
+
     controller.addCleanup(() => clearTimeout(timeoutId));
   });
+}
+
+async function capturarHtmlRelatorioRenderizado(page, downloadDir, semanticName) {
+  const targets = [
+    { target: page, source: 'mainPageHtml' },
+    ...page.frames().filter((frame) => frame !== page.mainFrame()).map((frame) => ({ target: frame, source: 'frameHtml' })),
+  ];
+
+  for (const { target, source } of targets) {
+    try {
+      const content = await target.content();
+      if (!content || content.length < 1500) continue;
+
+      const normalized = normalizeText(content);
+      const hasTable = /<table/i.test(content);
+      const looksLikeReport = hasTable && (
+        normalized.includes('protocolo') ||
+        normalized.includes('evento') ||
+        normalized.includes('situacao') ||
+        normalized.includes('situacao evento') ||
+        normalized.includes('data cadastro') ||
+        normalized.includes('nenhum registro')
+      );
+
+      if (!looksLikeReport) continue;
+
+      const filePath = path.join(downloadDir, semanticName);
+      fs.writeFileSync(filePath, content);
+      log(`HTML do relatório capturado diretamente da interface (${source})`, LOG_LEVELS.SUCCESS);
+      return { filePath, size: Buffer.byteLength(content), source };
+    } catch {}
+  }
+
+  return null;
+}
+
+async function extrairFormularioRelatorio(page) {
+  return page.evaluate(() => {
+    const submitters = Array.from(document.querySelectorAll('input[type="submit"], button'));
+    const submitter = submitters.find((el) => {
+      const text = String(el.value || el.textContent || '').toLowerCase();
+      return text.includes('gerar') || text.includes('exportar');
+    });
+
+    const form = submitter?.form || submitter?.closest('form') || document.querySelector('form');
+    if (!form) return null;
+
+    const formData = new FormData(form);
+    const entries = [];
+    for (const [key, value] of formData.entries()) {
+      if (typeof value === 'string') {
+        entries.push([key, value]);
+      }
+    }
+
+    if (submitter?.name) {
+      entries.push([submitter.name, submitter.value || submitter.textContent || 'Gerar']);
+    }
+
+    return {
+      action: form.action || window.location.href,
+      method: String(form.method || 'POST').toUpperCase(),
+      entries,
+      submitterText: submitter?.value || submitter?.textContent || 'Gerar',
+    };
+  });
+}
+
+async function baixarRelatorioViaFormReplay({ context, page, downloadDir, semanticName }) {
+  const formulario = await extrairFormularioRelatorio(page);
+  if (!formulario) {
+    throw new Error('Formulário do relatório não encontrado para replay HTTP');
+  }
+
+  const resolvedUrl = new URL(formulario.action || page.url(), page.url()).toString();
+  const requestHeaders = pickHeadersForHttpReplay({
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    accept: 'text/html,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*',
+    'accept-language': 'pt-BR,pt;q=0.9,en;q=0.8',
+    referer: page.url(),
+    origin: new URL(resolvedUrl).origin,
+    'content-type': 'application/x-www-form-urlencoded',
+  });
+
+  const cookieHeader = await buildCookieHeader(context, resolvedUrl);
+  if (cookieHeader) requestHeaders.cookie = cookieHeader;
+
+  const encodedBody = new URLSearchParams(formulario.entries).toString();
+  const requestUrl = formulario.method === 'GET' && encodedBody
+    ? `${resolvedUrl}${resolvedUrl.includes('?') ? '&' : '?'}${encodedBody}`
+    : resolvedUrl;
+
+  log(`Fallback HTTP: reenviando formulário do relatório (${formulario.method} ${requestUrl})`, LOG_LEVELS.INFO);
+
+  const response = await axios({
+    url: requestUrl,
+    method: formulario.method,
+    headers: requestHeaders,
+    data: formulario.method === 'GET' ? undefined : encodedBody,
+    responseType: 'arraybuffer',
+    maxRedirects: 10,
+    timeout: TIMEOUTS.DOWNLOAD_HARD,
+    validateStatus: (status) => status >= 200 && status < 400,
+  });
+
+  const buffer = Buffer.from(response.data || []);
+  if (!buffer.length) {
+    throw new Error('Replay HTTP retornou resposta vazia');
+  }
+
+  const filePath = path.join(downloadDir, semanticName);
+  const saved = writeBufferToFile(filePath, buffer);
+  log(`Fallback HTTP salvou ${formatBytes(saved.size)} em ${filePath}`, LOG_LEVELS.SUCCESS);
+  return { ...saved, source: 'formReplay', contentType: response.headers?.['content-type'] || '' };
+}
+
+async function executarDownloadDoPeriodo({ context, page, downloadDir, semanticName }) {
+  const directCaptureTimeoutMs = Math.min(TIMEOUTS.DOWNLOAD_EVENT, 60000);
+
+  log('Aguardando download direto (janela curta) antes dos fallbacks...', LOG_LEVELS.INFO);
+  const directResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, directCaptureTimeoutMs);
+  if (directResult.success) {
+    return directResult;
+  }
+
+  log(`Download direto não foi capturado: ${directResult.error?.message || 'sem detalhes'}`, LOG_LEVELS.WARN);
+
+  const htmlCapture = await capturarHtmlRelatorioRenderizado(page, downloadDir, semanticName);
+  if (htmlCapture) {
+    return { success: true, ...htmlCapture };
+  }
+
+  try {
+    const replayResult = await baixarRelatorioViaFormReplay({ context, page, downloadDir, semanticName });
+    return { success: true, ...replayResult };
+  } catch (error) {
+    log(`Replay HTTP falhou: ${error.message}`, LOG_LEVELS.WARN);
+  }
+
+  return directResult;
+}
+
+async function abrirPaginaRelatorio(page) {
+  log(`Navegando para Relatório de Eventos: ${CONFIG.HINOVA_RELATORIO_URL}`);
+
+  await page.goto(CONFIG.HINOVA_RELATORIO_URL, {
+    waitUntil: 'domcontentloaded',
+    timeout: TIMEOUTS.PAGE_LOAD,
+  });
+
+  await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {
+    log('DOMContentLoaded timeout - continuando...', LOG_LEVELS.WARN);
+  });
+  await fecharPopups(page);
+
+  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {
+    log('NetworkIdle timeout - continuando...', LOG_LEVELS.WARN);
+  });
+
+  await fecharPopups(page);
+  log('Página de relatório aberta', LOG_LEVELS.SUCCESS);
+}
+
+async function configurarFiltrosRelatorio(page, inicio, fim) {
+  setStep('FILTROS');
+
+  log('=== CONFIGURAÇÃO DE FILTROS ===', LOG_LEVELS.INFO);
+  log(`Data Início: ${inicio}`, LOG_LEVELS.INFO);
+  log(`Data Fim: ${fim}`, LOG_LEVELS.INFO);
+  log(`Layout desejado: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.INFO);
+
+  await page.evaluate(() => {
+    const labels = document.querySelectorAll('td, th, label, span, div');
+    for (const label of labels) {
+      const texto = (label.textContent || '').trim().toLowerCase();
+      if (texto.includes('usuário alteração') || texto.includes('usuario alteracao') || texto.includes('usuário alteraçao')) {
+        const row = label.closest('tr') || label.closest('div') || label.parentElement;
+        if (row) {
+          const inputs = row.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="password"])');
+          for (const input of inputs) {
+            if (input.value) {
+              input.value = '';
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+        }
+      }
+    }
+  }).catch(() => {});
+  log('Campo "Usuário Alteração" limpo (se existia)', LOG_LEVELS.DEBUG);
+
+  const dadosVizJaAberto = await page.evaluate(() => {
+    const secoes = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
+    for (const secao of secoes) {
+      const textoRaw = (secao.textContent || '').trim();
+      const texto = textoRaw.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (texto.includes('DADOS VISUALIZADOS') && textoRaw.length < 40) {
+        const container = secao.closest('table') || secao.closest('div') || secao.parentElement;
+        if (container) {
+          const selects = container.querySelectorAll('select');
+          for (const s of selects) {
+            if (s.offsetParent !== null) return true;
+          }
+        }
+        return false;
+      }
+    }
+    return false;
+  }).catch(() => false);
+
+  if (!dadosVizJaAberto) {
+    log('Seção Dados Visualizados parece colapsada - expandindo...', LOG_LEVELS.DEBUG);
+    await page.evaluate(() => {
+      const secoes = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
+      let melhorMatch = null;
+      let menorLength = Infinity;
+      for (const secao of secoes) {
+        const textoRaw = (secao.textContent || '').trim();
+        const texto = textoRaw.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (texto.includes('DADOS VISUALIZADOS') && textoRaw.length < menorLength && textoRaw.length < 40) {
+          melhorMatch = secao;
+          menorLength = textoRaw.length;
+        }
+      }
+      if (melhorMatch) melhorMatch.click();
+    }).catch(() => {});
+    await page.waitForTimeout(1500);
+  } else {
+    log('Seção Dados Visualizados já está aberta', LOG_LEVELS.DEBUG);
+  }
+
+  const datasOk = await preencherDataCadastroItem(page, inicio, fim);
+  if (!datasOk) {
+    log('⚠️ ALERTA: Datas podem não ter sido preenchidas corretamente!', LOG_LEVELS.WARN);
+  }
+
+  await updateProgress('executando', 'FILTROS');
+  const layoutOk = await selecionarLayoutRelatorio(page);
+  if (!layoutOk) {
+    log('⚠️ ALERTA: Layout pode não ter sido selecionado - verificar opções disponíveis no portal!', LOG_LEVELS.WARN);
+  }
+  await page.waitForTimeout(500);
+
+  await page.evaluate(() => {
+    const labels = document.querySelectorAll('td, th, label, span, div');
+    for (const label of labels) {
+      const texto = (label.textContent || '').trim().toLowerCase();
+      if (texto.includes('usuário alteração') || texto.includes('usuario alteracao') || texto.includes('usuário alteraçao')) {
+        const row = label.closest('tr') || label.closest('div') || label.parentElement;
+        if (row) {
+          const inputs = row.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="password"])');
+          for (const input of inputs) {
+            if (input.value) {
+              input.value = '';
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+        }
+      }
+    }
+  }).catch(() => {});
+
+  const excelOk = await selecionarFormaExibicaoEmExcel(page);
+  if (!excelOk) {
+    log('⚠️ ALERTA: Forma de exibição Excel pode não ter sido selecionada!', LOG_LEVELS.WARN);
+  }
+  await page.waitForTimeout(1000);
+
+  log('=== RESUMO FILTROS ===', LOG_LEVELS.INFO);
+  log(`Datas: ${datasOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
+  log(`Layout: ${layoutOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
+  log(`Excel: ${excelOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
+}
+
+async function dispararGeracaoRelatorio(page) {
+  log('Clicando em Gerar Relatório...');
+
+  const btnGerar = page.locator('input[type="submit"]:has-text("Gerar"), button:has-text("Gerar"), input[value*="Gerar" i], button:has-text("Exportar")').first();
+  if (await btnGerar.isVisible().catch(() => false)) {
+    await btnGerar.click();
+    log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
+    return;
+  }
+
+  await page.evaluate(() => {
+    const btns = document.querySelectorAll('input[type="submit"], button');
+    for (const btn of btns) {
+      const text = (btn.value || btn.textContent || '').toLowerCase();
+      if (text.includes('gerar') || text.includes('exportar')) {
+        btn.click();
+        return;
+      }
+    }
+  });
+  log('Botão Gerar clicado via fallback', LOG_LEVELS.DEBUG);
+}
+
+async function coletarDadosDoPeriodo(context, page, periodo, index, total) {
+  const downloadDir = getDownloadDirectory();
+  const semanticName = generateWindowFilename(periodo, index, total);
+
+  setStep('NAVEGACAO');
+  await updateProgress('executando', 'FILTROS');
+  log(`=== COLETA ${index + 1}/${total} • ${periodo.inicio} até ${periodo.fim} ===`, LOG_LEVELS.INFO);
+
+  await abrirPaginaRelatorio(page);
+  await configurarFiltrosRelatorio(page, periodo.inicio, periodo.fim);
+
+  setStep('DOWNLOAD');
+  await updateProgress('executando', 'DOWNLOAD');
+  log(`Diretório de download: ${downloadDir}`);
+
+  await dispararGeracaoRelatorio(page);
+
+  const downloadResult = await executarDownloadDoPeriodo({
+    context,
+    page,
+    downloadDir,
+    semanticName,
+  });
+
+  if (!downloadResult.success) {
+    throw downloadResult.error || new Error('Falha no download');
+  }
+
+  const filePath = downloadResult.filePath;
+  log(`Download concluído via ${downloadResult.source} (${formatBytes(downloadResult.size)})`, LOG_LEVELS.SUCCESS);
+
+  const validation = validateDownloadedFile(filePath, downloadResult.contentType || '');
+  if (!validation.valid) {
+    throw new Error(`Arquivo inválido: ${validation.error}`);
+  }
+
+  log(`Validação OK: ${validation.fileType.toUpperCase()} (${formatBytes(validation.size)})`, LOG_LEVELS.SUCCESS);
+
+  if (validation.isHtml || validation.fileType === 'html') {
+    const htmlContent = fs.readFileSync(filePath, 'utf8');
+    const normalizedHtml = normalizeText(htmlContent);
+    if (
+      normalizedHtml.includes('nenhum registro') ||
+      normalizedHtml.includes('nao foram encontrados') ||
+      normalizedHtml.includes('sem registros')
+    ) {
+      log(`Período ${periodo.inicio} até ${periodo.fim} retornou 0 registros`, LOG_LEVELS.WARN);
+      return [];
+    }
+  }
+
+  const dados = await processarArquivo(filePath);
+  if (dados.length === 0) {
+    log(`Período ${periodo.inicio} até ${periodo.fim} sem registros após processamento`, LOG_LEVELS.WARN);
+    return [];
+  }
+
+  return dados;
+}
+
+async function coletarDadosDoPeriodoComRetry(context, page, periodo, index, total) {
+  let lastError = null;
+
+  for (let tentativa = 1; tentativa <= LIMITS.MAX_DOWNLOAD_RETRIES; tentativa++) {
+    try {
+      if (tentativa > 1) {
+        log(`Reprocessando janela ${periodo.inicio} até ${periodo.fim} (tentativa ${tentativa}/${LIMITS.MAX_DOWNLOAD_RETRIES})`, LOG_LEVELS.WARN);
+      }
+      return await coletarDadosDoPeriodo(context, page, periodo, index, total);
+    } catch (error) {
+      lastError = error;
+      log(`Falha na janela ${periodo.inicio} até ${periodo.fim}: ${error.message}`, LOG_LEVELS.WARN);
+      if (tentativa < LIMITS.MAX_DOWNLOAD_RETRIES) {
+        await page.waitForTimeout(1500);
+      }
+    }
+  }
+
+  throw lastError || new Error('Falha ao coletar janela do relatório');
 }
 
 // ============================================
@@ -1325,12 +1927,11 @@ async function main() {
   log(`Período: ${inicio} até ${fim}`, LOG_LEVELS.INFO);
   log(`URL Relatório: ${CONFIG.HINOVA_RELATORIO_URL}`, LOG_LEVELS.INFO);
 
-  // Notificar início
   await updateProgress('executando', 'LOGIN');
 
   const browser = await chromium.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
 
   const context = await browser.newContext({
@@ -1342,26 +1943,22 @@ async function main() {
   const page = await context.newPage();
 
   try {
-    // ============================================
-    // ETAPA: LOGIN
-    // ============================================
     setStep('LOGIN');
     log(`Acessando portal: ${CONFIG.HINOVA_URL}`);
 
     await page.goto(CONFIG.HINOVA_URL, {
       waitUntil: 'domcontentloaded',
-      timeout: TIMEOUTS.PAGE_LOAD
+      timeout: TIMEOUTS.PAGE_LOAD,
     });
 
     log('Aguardando formulário de login...');
     await page.waitForSelector('input[type="password"], input[name*="senha" i], input[id*="senha" i]', {
-      timeout: 30000
+      timeout: 30000,
     });
     log('Formulário de login carregado', LOG_LEVELS.SUCCESS);
 
     await fecharPopups(page);
 
-    // Preencher credenciais
     log('Preenchendo credenciais...');
 
     const campoCodigoCliente = await page.$('input[placeholder*="Código" i], input[name*="codigo" i], input[id*="codigo" i]');
@@ -1384,10 +1981,8 @@ async function main() {
 
     log('Credenciais preenchidas com sucesso', LOG_LEVELS.SUCCESS);
 
-    // Selecionar layout no login
     await trySelectHinovaLayout(page);
 
-    // Dispensar código de autenticação
     const dispensarAuth = async () => {
       try {
         const campoAuth = await page.$('input[placeholder*="Autenticação" i]');
@@ -1401,7 +1996,6 @@ async function main() {
       } catch {}
     };
 
-    // Clicar Entrar
     let loginSucesso = false;
 
     const isAindaNaLogin = async () => {
@@ -1456,236 +2050,35 @@ async function main() {
 
     await fecharPopups(page);
 
-    // ============================================
-    // ETAPA: NAVEGAÇÃO PARA RELATÓRIO
-    // ============================================
-    setStep('NAVEGACAO');
-    await updateProgress('executando', 'FILTROS');
+    const janelas = buildDateWindows(inicio, fim, 92);
+    log(`Coleta segmentada em ${janelas.length} janelas de até 92 dias para evitar travas no portal`, LOG_LEVELS.INFO);
 
-    log(`Navegando para Relatório de Eventos: ${CONFIG.HINOVA_RELATORIO_URL}`);
+    const dadosAcumulados = [];
 
-    await page.goto(CONFIG.HINOVA_RELATORIO_URL, {
-      waitUntil: 'domcontentloaded',
-      timeout: TIMEOUTS.PAGE_LOAD
-    });
+    for (let index = 0; index < janelas.length; index++) {
+      const periodo = janelas[index];
+      const dadosPeriodo = await coletarDadosDoPeriodoComRetry(context, page, periodo, index, janelas.length);
+      if (dadosPeriodo.length === 0) continue;
 
-    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {
-      log('DOMContentLoaded timeout - continuando...', LOG_LEVELS.WARN);
-    });
-    await fecharPopups(page);
-
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {
-      log('NetworkIdle timeout - continuando...', LOG_LEVELS.WARN);
-    });
-
-    await fecharPopups(page);
-    log('Página de relatório aberta', LOG_LEVELS.SUCCESS);
-
-    // ============================================
-    // ETAPA: FILTROS
-    // ============================================
-    setStep('FILTROS');
-
-    log(`=== CONFIGURAÇÃO DE FILTROS ===`, LOG_LEVELS.INFO);
-    log(`Data Início: ${inicio}`, LOG_LEVELS.INFO);
-    log(`Data Fim: ${fim}`, LOG_LEVELS.INFO);
-    log(`Layout desejado: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.INFO);
-
-    // PASSO 0: Limpar campo "Usuário Alteração" se preenchido indevidamente
-    await page.evaluate(() => {
-      const labels = document.querySelectorAll('td, th, label, span, div');
-      for (const label of labels) {
-        const texto = (label.textContent || '').trim().toLowerCase();
-        if (texto.includes('usuário alteração') || texto.includes('usuario alteracao') || texto.includes('usuário alteraçao')) {
-          const row = label.closest('tr') || label.closest('div') || label.parentElement;
-          if (row) {
-            const inputs = row.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="password"])');
-            for (const input of inputs) {
-              if (input.value) {
-                input.value = '';
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-              }
-            }
-          }
-        }
-      }
-    }).catch(() => {});
-    log('Campo "Usuário Alteração" limpo (se existia)', LOG_LEVELS.DEBUG);
-
-    // PASSO 0.5: Expandir seção "Dados Visualizados" se estiver colapsada
-    // Verificar se a seção já tem selects visíveis — se sim, já está aberta
-    const dadosVizJaAberto = await page.evaluate(() => {
-      const secoes = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
-      for (const secao of secoes) {
-        const textoRaw = (secao.textContent || '').trim();
-        const texto = textoRaw.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (texto.includes('DADOS VISUALIZADOS') && textoRaw.length < 40) {
-          const container = secao.closest('table') || secao.closest('div') || secao.parentElement;
-          if (container) {
-            const selects = container.querySelectorAll('select');
-            for (const s of selects) {
-              if (s.offsetParent !== null) return true;
-            }
-          }
-          return false;
-        }
-      }
-      return false;
-    }).catch(() => false);
-
-    if (!dadosVizJaAberto) {
-      log('Seção Dados Visualizados parece colapsada - expandindo...', LOG_LEVELS.DEBUG);
-      await page.evaluate(() => {
-        const secoes = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
-        let melhorMatch = null;
-        let menorLength = Infinity;
-        for (const secao of secoes) {
-          const textoRaw = (secao.textContent || '').trim();
-          const texto = textoRaw.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          if (texto.includes('DADOS VISUALIZADOS') && textoRaw.length < menorLength && textoRaw.length < 40) {
-            melhorMatch = secao;
-            menorLength = textoRaw.length;
-          }
-        }
-        if (melhorMatch) melhorMatch.click();
-      }).catch(() => {});
-      await page.waitForTimeout(1500);
-    } else {
-      log('Seção Dados Visualizados já está aberta', LOG_LEVELS.DEBUG);
+      dadosAcumulados.push(...dadosPeriodo);
+      log(`Janela ${index + 1}/${janelas.length} concluída com ${dadosPeriodo.length} registros (acumulado: ${dadosAcumulados.length})`, LOG_LEVELS.SUCCESS);
     }
 
-    // PASSO 1: Data Cadastro Item
-    const datasOk = await preencherDataCadastroItem(page, inicio, fim);
-    if (!datasOk) {
-      log('⚠️ ALERTA: Datas podem não ter sido preenchidas corretamente!', LOG_LEVELS.WARN);
+    if (dadosAcumulados.length === 0) {
+      throw new Error('Nenhum registro encontrado em nenhuma janela do período solicitado.');
     }
 
-    // PASSO 2: Layout
-    await updateProgress('executando', 'FILTROS');
-    const layoutOk = await selecionarLayoutRelatorio(page);
-    if (!layoutOk) {
-      log('⚠️ ALERTA: Layout pode não ter sido selecionado - verificar opções disponíveis no portal!', LOG_LEVELS.WARN);
-    }
-    await page.waitForTimeout(500);
-
-    // PASSO 2.5: Limpar "Usuário Alteração" novamente após seleção de layout
-    await page.evaluate(() => {
-      const labels = document.querySelectorAll('td, th, label, span, div');
-      for (const label of labels) {
-        const texto = (label.textContent || '').trim().toLowerCase();
-        if (texto.includes('usuário alteração') || texto.includes('usuario alteracao') || texto.includes('usuário alteraçao')) {
-          const row = label.closest('tr') || label.closest('div') || label.parentElement;
-          if (row) {
-            const inputs = row.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="password"])');
-            for (const input of inputs) {
-              if (input.value) {
-                input.value = '';
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-              }
-            }
-          }
-        }
-      }
-    }).catch(() => {});
-
-    // PASSO 3: Em Excel
-    const excelOk = await selecionarFormaExibicaoEmExcel(page);
-    if (!excelOk) {
-      log('⚠️ ALERTA: Forma de exibição Excel pode não ter sido selecionada!', LOG_LEVELS.WARN);
-    }
-    await page.waitForTimeout(1000);
-
-    // Log final dos filtros
-    log(`=== RESUMO FILTROS ===`, LOG_LEVELS.INFO);
-    log(`Datas: ${datasOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
-    log(`Layout: ${layoutOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
-    log(`Excel: ${excelOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
-
-    // ============================================
-    // ETAPA: DOWNLOAD (multi-watcher robusto)
-    // ============================================
-    setStep('DOWNLOAD');
-    await updateProgress('executando', 'DOWNLOAD');
-
-    const downloadDir = getDownloadDirectory();
-    const semanticName = generateSemanticFilename();
-    log(`Diretório de download: ${downloadDir}`);
-
-    // Clicar Gerar Relatório
-    log('Clicando em Gerar Relatório...');
-
-    const btnGerar = page.locator('input[type="submit"]:has-text("Gerar"), button:has-text("Gerar"), input[value*="Gerar" i], button:has-text("Exportar")').first();
-    if (await btnGerar.isVisible().catch(() => false)) {
-      await btnGerar.click();
-      log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
-    } else {
-      await page.evaluate(() => {
-        const btns = document.querySelectorAll('input[type="submit"], button');
-        for (const btn of btns) {
-          const text = (btn.value || btn.textContent || '').toLowerCase();
-          if (text.includes('gerar')) { btn.click(); return; }
-        }
-      });
-      log('Botão Gerar clicado via fallback', LOG_LEVELS.DEBUG);
-    }
-
-    // Padrão cobrança: radio "Em Excel" já selecionado + "Gerar Relatório" dispara download direto
-    // Aguardar download com timeout completo (o portal pode demorar para gerar)
-    log('Aguardando download direto (radio Em Excel selecionado)...', LOG_LEVELS.INFO);
-
-    const downloadResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
-    const downloadIniciado = downloadResult.success;
-
-    if (!downloadIniciado || !downloadResult || !downloadResult.success) {
-      await saveDebugInfo(page, context, 'Timeout download');
-      throw (downloadResult && downloadResult.error) || new Error('Falha no download');
-    }
-
-    const filePath = downloadResult.filePath;
-    log(`Download concluído via ${downloadResult.source} (${formatBytes(downloadResult.size)})`, LOG_LEVELS.SUCCESS);
-
-    // Validar arquivo
-    const validation = validateDownloadedFile(filePath, '');
-    if (!validation.valid) {
-      throw new Error(`Arquivo inválido: ${validation.error}`);
-    }
-
-    log(`Validação OK: ${validation.fileType.toUpperCase()} (${formatBytes(validation.size)})`, LOG_LEVELS.SUCCESS);
-
-    // Se arquivo for HTML, verificar se é erro do portal
-    if (validation.isHtml || validation.fileType === 'html') {
-      const htmlContent = fs.readFileSync(filePath, 'utf8');
-      if (htmlContent.includes('Nenhum registro') || htmlContent.includes('nenhum registro') || 
-          htmlContent.includes('Não foram encontrados') || htmlContent.includes('não encontrado') ||
-          htmlContent.includes('Erro') || htmlContent.includes('erro')) {
-        log('⚠️ Portal retornou mensagem de erro ou nenhum registro', LOG_LEVELS.WARN);
-        log(`Conteúdo: ${htmlContent.substring(0, 500)}`, LOG_LEVELS.DEBUG);
-      }
-    }
-
-    // Processar arquivo
-    const dados = await processarArquivo(filePath);
-
-    if (dados.length === 0) {
-      throw new Error('Arquivo baixado do portal não contém registros. Verifique os filtros aplicados no portal Hinova (data, layout e situação).');
-    }
-
-    // ============================================
-    // ETAPA: ENVIAR DADOS
-    // ============================================
     setStep('ENVIO');
     await updateProgress('executando', 'ENVIANDO');
 
-    log(`Enviando ${dados.length} registros via webhook em chunks...`, LOG_LEVELS.INFO);
+    const semanticName = generateSemanticFilename();
+    log(`Enviando ${dadosAcumulados.length} registros via webhook em chunks...`, LOG_LEVELS.INFO);
 
-    // Enviar dados em chunks para evitar timeout na edge function
     const CHUNK_SIZE = 2000;
-    const totalChunks = Math.ceil(dados.length / CHUNK_SIZE);
+    const totalChunks = Math.ceil(dadosAcumulados.length / CHUNK_SIZE);
 
-    for (let i = 0; i < dados.length; i += CHUNK_SIZE) {
-      const chunk = dados.slice(i, i + CHUNK_SIZE);
+    for (let i = 0; i < dadosAcumulados.length; i += CHUNK_SIZE) {
+      const chunk = dadosAcumulados.slice(i, i + CHUNK_SIZE);
       const chunkNum = Math.floor(i / CHUNK_SIZE) + 1;
       log(`Enviando chunk ${chunkNum}/${totalChunks} (${chunk.length} registros)...`, LOG_LEVELS.INFO);
 
@@ -1696,7 +2089,7 @@ async function main() {
         github_run_id: CONFIG.GITHUB_RUN_ID,
         github_run_url: CONFIG.GITHUB_RUN_URL,
         nome_arquivo: semanticName,
-        total_registros: dados.length,
+        total_registros: dadosAcumulados.length,
         dados: chunk,
         chunk_atual: chunkNum,
         total_chunks: totalChunks,
@@ -1705,22 +2098,18 @@ async function main() {
       log(`Chunk ${chunkNum}/${totalChunks} enviado com sucesso`, LOG_LEVELS.SUCCESS);
     }
 
-    // ============================================
-    // FINALIZAÇÃO
-    // ============================================
     setStep('FINALIZACAO');
 
     await updateProgress('sucesso', 'CONCLUIDO', {
-      registros_total: dados.length,
+      registros_total: dadosAcumulados.length,
       nome_arquivo: semanticName,
     });
 
     log('='.repeat(60), LOG_LEVELS.SUCCESS);
     log('ROBÔ SGA HINOVA - CONCLUÍDO COM SUCESSO', LOG_LEVELS.SUCCESS);
-    log(`Total de registros: ${dados.length}`, LOG_LEVELS.SUCCESS);
+    log(`Total de registros: ${dadosAcumulados.length}`, LOG_LEVELS.SUCCESS);
     log('='.repeat(60), LOG_LEVELS.SUCCESS);
 
-    // Limpar debug em caso de sucesso
     try {
       if (fs.existsSync(CONFIG.DEBUG_DIR)) {
         const files = fs.readdirSync(CONFIG.DEBUG_DIR);
@@ -1730,7 +2119,6 @@ async function main() {
         log('Debug files removidos (sucesso)', LOG_LEVELS.DEBUG);
       }
     } catch {}
-
   } catch (error) {
     log(`ERRO: ${error.message}`, LOG_LEVELS.ERROR);
     log(error.stack || '', LOG_LEVELS.DEBUG);
