@@ -1646,7 +1646,7 @@ async function baixarRelatorioViaFormReplay({ context, page, downloadDir, semant
 }
 
 async function executarDownloadDoPeriodo({ context, page, downloadDir, semanticName }) {
-  const directCaptureTimeoutMs = Math.min(TIMEOUTS.DOWNLOAD_EVENT, 2 * 60000);
+  const directCaptureTimeoutMs = Math.min(TIMEOUTS.DOWNLOAD_EVENT, 60000);
 
   log('Aguardando download direto (janela curta) antes dos fallbacks...', LOG_LEVELS.INFO);
   const directResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, directCaptureTimeoutMs);
