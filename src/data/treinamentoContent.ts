@@ -298,6 +298,9 @@ export const HELP_MODULES: HelpModule[] = [
           "O painel financeiro mostra o resumo: receitas, despesas, saldo e inadimplência.",
           "Os gráficos apresentam a evolução mensal e comparativos entre períodos.",
           "Use os filtros de período para analisar meses ou trimestres específicos."
+        ],
+        images: [
+          { src: "/help/financeiro-visao.png", caption: "Dashboard financeiro com receitas, despesas, gráficos e lançamentos" }
         ]
       },
       {
