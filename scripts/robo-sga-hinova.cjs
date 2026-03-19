@@ -1088,7 +1088,54 @@ function addDays(date, amount) {
   return next;
 }
 
-function buildDateWindows(start, end, windowDays = 92) {
+function getDateWindowDays(periodo) {
+  const startDate = parseBrazilianDate(periodo?.inicio);
+  const endDate = parseBrazilianDate(periodo?.fim);
+
+  if (!startDate || !endDate) return 1;
+  return Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1);
+}
+
+function splitDateWindow(periodo) {
+  const startDate = parseBrazilianDate(periodo?.inicio);
+  const endDate = parseBrazilianDate(periodo?.fim);
+
+  if (!startDate || !endDate || startDate.getTime() >= endDate.getTime()) {
+    return [periodo];
+  }
+
+  const totalDays = getDateWindowDays(periodo);
+  const firstWindowDays = Math.max(1, Math.ceil(totalDays / 2));
+  const firstEnd = addDays(startDate, firstWindowDays - 1);
+  const boundedFirstEnd = firstEnd.getTime() < endDate.getTime() ? firstEnd : new Date(endDate);
+  const secondStart = addDays(boundedFirstEnd, 1);
+
+  const windows = [
+    {
+      inicio: formatBrazilianDate(startDate),
+      fim: formatBrazilianDate(boundedFirstEnd),
+    },
+  ];
+
+  if (secondStart.getTime() <= endDate.getTime()) {
+    windows.push({
+      inicio: formatBrazilianDate(secondStart),
+      fim: formatBrazilianDate(endDate),
+    });
+  }
+
+  return windows;
+}
+
+function shouldSplitWindow(error, periodo) {
+  const totalDays = getDateWindowDays(periodo);
+  if (totalDays <= LIMITS.MIN_WINDOW_DAYS) return false;
+
+  const message = normalizeText(error?.message || '');
+  return ['timeout', 'travado', 'capturado', 'download', 'resposta vazia'].some((token) => message.includes(normalizeText(token)));
+}
+
+function buildDateWindows(start, end, windowDays = LIMITS.INITIAL_WINDOW_DAYS) {
   const startDate = parseBrazilianDate(start);
   const endDate = parseBrazilianDate(end);
 
