@@ -5,26 +5,6 @@ import {
   Video, Megaphone, Briefcase, Settings, HelpCircle
 } from "lucide-react";
 
-import imgPainel from "@/assets/help/painel.jpg";
-import imgAtendimentos from "@/assets/help/atendimentos.jpg";
-import imgAssociacoes from "@/assets/help/associacoes.jpg";
-import imgTermos from "@/assets/help/termos.jpg";
-import imgContatos from "@/assets/help/contatos.jpg";
-import imgSinistros from "@/assets/help/sinistros.jpg";
-import imgFinanceiro from "@/assets/help/financeiro.jpg";
-import imgAgenda from "@/assets/help/agenda.jpg";
-import imgDocumentos from "@/assets/help/documentos.jpg";
-import imgCentralAtendimento from "@/assets/help/central_atendimento.jpg";
-import imgMensagens from "@/assets/help/mensagens.jpg";
-import imgBI from "@/assets/help/bi_indicadores.jpg";
-import imgOuvidoria from "@/assets/help/ouvidoria.jpg";
-import imgUon1Sign from "@/assets/help/uon1sign.jpg";
-import imgUon1Talk from "@/assets/help/uon1talk.jpg";
-import imgComunicados from "@/assets/help/comunicados.jpg";
-import imgGestao from "@/assets/help/gestao.jpg";
-import imgConfiguracoes from "@/assets/help/configuracoes.jpg";
-import imgUsuarios from "@/assets/help/usuarios.jpg";
-
 export interface HelpTopic {
   title: string;
   steps: string[];
@@ -44,7 +24,6 @@ export interface HelpModule {
 export const HELP_MODULES: HelpModule[] = [
   {
     id: "painel",
-    image: imgPainel,
     title: "Painel (Dashboard)",
     description: "Visão geral do sistema com indicadores, gráficos e alertas em tempo real.",
     icon: LayoutDashboard,
@@ -80,7 +59,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "atendimentos",
-    image: imgAtendimentos,
     title: "Atendimentos",
     description: "Gestão completa de atendimentos com Kanban, fluxos personalizáveis e histórico.",
     icon: ClipboardList,
@@ -143,7 +121,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "associacoes",
-    image: imgAssociacoes,
     title: "Associações",
     description: "Cadastro e gestão das associações (corretoras) vinculadas ao sistema.",
     icon: Building2,
@@ -187,7 +164,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "termos",
-    image: imgTermos,
     title: "Termos de Aceite",
     description: "Criação e gestão de termos que os associados precisam aceitar.",
     icon: FileText,
@@ -214,7 +190,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "contatos",
-    image: imgContatos,
     title: "Contatos",
     description: "Base de contatos centralizada com informações de associados e terceiros.",
     icon: Users,
@@ -241,7 +216,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "sinistros",
-    image: imgSinistros,
     title: "Sinistros",
     description: "Gestão completa do ciclo de sinistros: abertura, deliberação, vistoria e acompanhamento.",
     icon: AlertTriangle,
@@ -296,7 +270,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "financeiro",
-    image: imgFinanceiro,
     title: "Financeiro",
     description: "Controle financeiro completo com lançamentos, contas a pagar/receber e fluxo de caixa.",
     icon: DollarSign,
@@ -347,7 +320,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "agenda",
-    image: imgAgenda,
     title: "Agenda",
     description: "Calendário de reuniões, compromissos e integração com Google Calendar.",
     icon: Calendar,
@@ -383,7 +355,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "documentos",
-    image: imgDocumentos,
     title: "Documentos",
     description: "Repositório centralizado para upload e gestão de documentos importantes.",
     icon: FolderOpen,
@@ -411,7 +382,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "central_atendimento",
-    image: imgCentralAtendimento,
     title: "Central de Atendimento",
     description: "Hub unificado para comunicação via WhatsApp, e-mail e templates automáticos.",
     icon: Headset,
@@ -455,7 +425,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "mensagens",
-    image: imgMensagens,
     title: "Mensagens",
     description: "Chat interno para comunicação rápida entre os membros da equipe.",
     icon: MessageCircle,
@@ -482,7 +451,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "bi_indicadores",
-    image: imgBI,
     title: "BI - Indicadores",
     description: "Business Intelligence com dashboards de PID, SGA (Eventos), MGF, Cobrança e Estudo de Base.",
     icon: TrendingUp,
@@ -545,7 +513,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "ouvidoria",
-    image: imgOuvidoria,
     title: "Ouvidoria",
     description: "Sistema completo de ouvidoria com formulário público, backoffice e widgets.",
     icon: MessageSquareWarning,
@@ -590,7 +557,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "uon1sign",
-    image: imgUon1Sign,
     title: "Uon1 Sign",
     description: "Plataforma de contratos digitais com assinatura eletrônica e rastreabilidade completa.",
     icon: FileSignature,
@@ -637,7 +603,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "uon1talk",
-    image: imgUon1Talk,
     title: "Uon1 Talk",
     description: "Videoconferência integrada para reuniões internas e com associados.",
     icon: Video,
@@ -665,7 +630,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "comunicados",
-    image: imgComunicados,
     title: "Comunicados",
     description: "Envio de comunicados internos para toda a equipe ou grupos específicos.",
     icon: Megaphone,
@@ -693,7 +657,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "gestao",
-    image: imgGestao,
     title: "Gestão",
     description: "Gestão de funcionários, contratos de trabalho, jornada e ponto eletrônico.",
     icon: Briefcase,
@@ -745,7 +708,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "configuracoes",
-    image: imgConfiguracoes,
     title: "Configurações",
     description: "Personalização do sistema: aparência, segurança, integrações e permissões.",
     icon: Settings,
@@ -797,7 +759,6 @@ export const HELP_MODULES: HelpModule[] = [
   },
   {
     id: "usuarios",
-    image: imgUsuarios,
     title: "Usuários",
     description: "Gestão de usuários do sistema: aprovação, cargos e permissões individuais.",
     icon: Users,
