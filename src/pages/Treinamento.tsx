@@ -15,18 +15,29 @@ function ModuleCard({ mod, onClick }: { mod: HelpModule; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      className="text-left p-5 rounded-2xl border bg-card hover:bg-muted/40 transition-all duration-200 hover:shadow-md group"
+      className="text-left rounded-2xl border bg-card hover:bg-muted/40 transition-all duration-200 hover:shadow-md group overflow-hidden"
     >
-      <div className="flex items-start gap-4">
-        <div className={cn("p-2.5 rounded-xl bg-muted/60 group-hover:bg-muted", mod.color)}>
-          <Icon className="h-5 w-5" />
+      {mod.image && (
+        <div className="w-full h-36 overflow-hidden">
+          <img
+            src={mod.image}
+            alt={mod.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-sm text-foreground">{mod.title}</h3>
-          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{mod.description}</p>
-          <span className="text-[11px] text-muted-foreground/60 mt-2 inline-block">
-            {mod.topics.length} {mod.topics.length === 1 ? "tópico" : "tópicos"}
-          </span>
+      )}
+      <div className="p-5">
+        <div className="flex items-start gap-4">
+          <div className={cn("p-2.5 rounded-xl bg-muted/60 group-hover:bg-muted", mod.color)}>
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-sm text-foreground">{mod.title}</h3>
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{mod.description}</p>
+            <span className="text-[11px] text-muted-foreground/60 mt-2 inline-block">
+              {mod.topics.length} {mod.topics.length === 1 ? "tópico" : "tópicos"}
+            </span>
+          </div>
         </div>
       </div>
     </button>
@@ -45,13 +56,24 @@ function ModuleDetail({ mod, onBack }: { mod: HelpModule; onBack: () => void }) 
         Voltar para todos os módulos
       </button>
 
-      <div className="flex items-center gap-4 p-5 rounded-2xl border bg-card">
-        <div className={cn("p-3 rounded-xl bg-muted/60", mod.color)}>
-          <Icon className="h-6 w-6" />
-        </div>
-        <div>
-          <h2 className="text-lg font-bold text-foreground">{mod.title}</h2>
-          <p className="text-sm text-muted-foreground">{mod.description}</p>
+      <div className="rounded-2xl border bg-card overflow-hidden">
+        {mod.image && (
+          <div className="w-full h-48 md:h-64 overflow-hidden">
+            <img
+              src={mod.image}
+              alt={mod.title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+        <div className="flex items-center gap-4 p-5">
+          <div className={cn("p-3 rounded-xl bg-muted/60", mod.color)}>
+            <Icon className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-foreground">{mod.title}</h2>
+            <p className="text-sm text-muted-foreground">{mod.description}</p>
+          </div>
         </div>
       </div>
 
@@ -118,7 +140,7 @@ export default function Treinamento() {
     : null;
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8 max-w-5xl mx-auto">
+    <div className="min-h-screen bg-background p-4 md:p-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-2">
         <div className="p-2.5 rounded-xl bg-primary/10">
@@ -157,7 +179,7 @@ export default function Treinamento() {
               <p className="text-xs mt-1">Tente termos mais gerais como "sinistro", "financeiro" ou "whatsapp"</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map((mod) => (
                 <ModuleCard key={mod.id} mod={mod} onClick={() => setSelectedId(mod.id)} />
               ))}
