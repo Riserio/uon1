@@ -482,6 +482,9 @@ export const HELP_MODULES: HelpModule[] = [
           "O PID mostra indicadores de desempenho consolidados da associação.",
           "Gráficos de evolução mensal, comparativos e rankings são gerados automaticamente.",
           "Selecione a associação no filtro para ver dados específicos."
+        ],
+        images: [
+          { src: "/help/bi-indicadores.png", caption: "Dashboard de BI com gráficos de eventos, distribuição e KPIs" }
         ]
       },
       {
