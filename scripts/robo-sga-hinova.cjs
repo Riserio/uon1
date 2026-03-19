@@ -103,6 +103,8 @@ const TIMEOUTS = {
   DOWNLOAD_IDLE: 15 * 60000,
   DOWNLOAD_HARD: 20 * 60000,
   DOWNLOAD_REPLAY: 4 * 60000,
+  DOWNLOAD_REPLAY_CONNECT: 90 * 1000,
+  DOWNLOAD_REPLAY_IDLE: 45 * 1000,
   POPUP_CLOSE: 800,
   FILE_PROGRESS_INTERVAL: 10000,
 };
@@ -747,7 +749,29 @@ function validateDownloadedFile(filePath, contentType) {
     return { valid: true, fileType: 'xlsx', size: stats.size };
   } else if (isXls) {
     return { valid: true, fileType: 'xls', size: stats.size };
-  } else if (isHtml) {
+  } else if (isHtml || String(contentType || '').toLowerCase().includes('html')) {
+    const preview = fs.readFileSync(filePath, 'utf8').slice(0, 120000);
+    const normalized = normalizeText(preview);
+    const hasTable = /<table/i.test(preview);
+    const looksLikeLogin = normalized.includes('entrar') && normalized.includes('senha') && normalized.includes('usuario');
+    const looksLikeReport = hasTable && (
+      normalized.includes('protocolo') ||
+      normalized.includes('evento') ||
+      normalized.includes('situacao') ||
+      normalized.includes('data cadastro') ||
+      normalized.includes('nenhum registro') ||
+      normalized.includes('nao foram encontrados') ||
+      normalized.includes('sem registros')
+    );
+
+    if (looksLikeLogin) {
+      return { valid: false, error: 'Sessão expirada - retorno HTML de login no replay HTTP', fileType: 'html', isHtml: true, size: stats.size };
+    }
+
+    if (!looksLikeReport) {
+      return { valid: false, error: 'HTML retornado não parece ser o relatório de eventos', fileType: 'html', isHtml: true, size: stats.size };
+    }
+
     return { valid: true, fileType: 'html', isHtml: true, size: stats.size };
   }
 
@@ -1176,17 +1200,26 @@ function writeBufferToFile(filePath, buffer) {
   return { filePath, size: buffer.length };
 }
 
-async function downloadViaAxiosStream({ url, method = 'GET', headers = {}, data, filePath, expectedBytes = 0, idleTimeoutMs = TIMEOUTS.DOWNLOAD_IDLE, hardTimeoutMs = TIMEOUTS.DOWNLOAD_HARD }) {
+async function downloadViaAxiosStream({ url, method = 'GET', headers = {}, data, filePath, expectedBytes = 0, idleTimeoutMs = TIMEOUTS.DOWNLOAD_IDLE, hardTimeoutMs = TIMEOUTS.DOWNLOAD_HARD, connectTimeoutMs = 0 }) {
   if (!url) throw new Error('URL de download vazia');
   const startedAt = Date.now();
   const abortController = new AbortController();
   const tempFilePath = filePath + '.tmp';
 
-  let hardTimer = hardTimeoutMs > 0 ? setTimeout(() => abortController.abort(new Error('Timeout rígido de download')), hardTimeoutMs) : null;
+  let abortReason = 'Download abortado';
+  const abortWithReason = (reason) => {
+    abortReason = reason;
+    try {
+      abortController.abort();
+    } catch {}
+  };
+
+  let connectTimer = connectTimeoutMs > 0 ? setTimeout(() => abortWithReason('Timeout aguardando resposta do servidor Hinova'), connectTimeoutMs) : null;
+  let hardTimer = hardTimeoutMs > 0 ? setTimeout(() => abortWithReason('Timeout rígido de download'), hardTimeoutMs) : null;
   let idleTimer = null;
   const resetIdleTimer = () => {
     if (idleTimer) clearTimeout(idleTimer);
-    if (idleTimeoutMs > 0) idleTimer = setTimeout(() => abortController.abort(new Error('Download travado')), idleTimeoutMs);
+    if (idleTimeoutMs > 0) idleTimer = setTimeout(() => abortWithReason('Download travado'), idleTimeoutMs);
   };
   resetIdleTimer();
 
@@ -1209,6 +1242,7 @@ async function downloadViaAxiosStream({ url, method = 'GET', headers = {}, data,
   const clearTimers = () => {
     if (idleTimer) clearTimeout(idleTimer);
     if (hardTimer) clearTimeout(hardTimer);
+    if (connectTimer) clearTimeout(connectTimer);
   };
 
   try {
@@ -1223,6 +1257,14 @@ async function downloadViaAxiosStream({ url, method = 'GET', headers = {}, data,
       signal: abortController.signal,
       validateStatus: (s) => s >= 200 && s < 400,
     });
+
+    if (connectTimer) {
+      clearTimeout(connectTimer);
+      connectTimer = null;
+    }
+
+    const responseContentType = String(response.headers?.['content-type'] || '');
+    log(`Resposta HTTP recebida: ${response.status} ${response.statusText || ''} • ${responseContentType || 'sem content-type'}`, LOG_LEVELS.DEBUG);
 
     const responseLen = parseInt(response.headers?.['content-length'] || '0', 10);
     if (!expectedBytes && responseLen > 0) expectedBytes = responseLen;
@@ -1247,12 +1289,15 @@ async function downloadViaAxiosStream({ url, method = 'GET', headers = {}, data,
     if (stats.size <= 0) throw new Error('Arquivo temporário vazio');
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     fs.renameSync(tempFilePath, filePath);
-    return { filePath, size: stats.size };
+    return { filePath, size: stats.size, contentType: responseContentType };
   } catch (error) {
     clearTimers();
     try {
       if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
     } catch {}
+    if (abortController.signal.aborted) {
+      throw new Error(abortReason);
+    }
     throw error;
   }
 }
@@ -1673,26 +1718,28 @@ async function baixarRelatorioViaFormReplay({ context, page, downloadDir, semant
 
   log(`Fallback HTTP: reenviando formulário do relatório (${formulario.method} ${requestUrl})`, LOG_LEVELS.INFO);
 
-  const response = await axios({
+  const filePath = path.join(downloadDir, semanticName);
+  const saved = await downloadViaAxiosStream({
     url: requestUrl,
     method: formulario.method,
     headers: requestHeaders,
     data: formulario.method === 'GET' ? undefined : encodedBody,
-    responseType: 'arraybuffer',
-    maxRedirects: 10,
-    timeout: TIMEOUTS.DOWNLOAD_REPLAY,
-    validateStatus: (status) => status >= 200 && status < 400,
+    filePath,
+    idleTimeoutMs: TIMEOUTS.DOWNLOAD_REPLAY_IDLE,
+    hardTimeoutMs: TIMEOUTS.DOWNLOAD_REPLAY,
+    connectTimeoutMs: TIMEOUTS.DOWNLOAD_REPLAY_CONNECT,
   });
 
-  const buffer = Buffer.from(response.data || []);
-  if (!buffer.length) {
-    throw new Error('Replay HTTP retornou resposta vazia');
+  const validation = validateDownloadedFile(filePath, saved.contentType || '');
+  if (!validation.valid) {
+    try {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch {}
+    throw new Error(validation.error || 'Replay HTTP retornou arquivo inválido');
   }
 
-  const filePath = path.join(downloadDir, semanticName);
-  const saved = writeBufferToFile(filePath, buffer);
   log(`Fallback HTTP salvou ${formatBytes(saved.size)} em ${filePath}`, LOG_LEVELS.SUCCESS);
-  return { ...saved, source: 'formReplay', contentType: response.headers?.['content-type'] || '' };
+  return { ...saved, source: 'formReplay' };
 }
 
 async function executarDownloadDoPeriodo({ context, page, downloadDir, semanticName }) {
