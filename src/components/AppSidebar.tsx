@@ -73,7 +73,7 @@ function useMenuItems() {
 
   const items: MenuItem[] = [
     // Navegação
-    { id: "dashboard", label: "Painel", to: "/", icon: LayoutDashboard, end: true, group: "nav" },
+    { id: "dashboard", label: "Painel", to: "/dashboard", icon: LayoutDashboard, end: true, group: "nav" },
     { id: "atendimentos", label: "Atendimentos", to: "/atendimentos", icon: ClipboardList, group: "nav" },
     // Cadastros
     { id: "corretoras", label: "Associações", to: "/corretoras", icon: Building2, group: "cadastros" },
