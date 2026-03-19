@@ -79,7 +79,10 @@ export const HELP_MODULES: HelpModule[] = [
           "Arraste os cards entre as colunas para mudar o status de um atendimento.",
           "Use o botão de visualização (ícone de lista) para alternar entre Kanban e Lista."
         ],
-        tip: "Você pode personalizar as colunas do Kanban em Configurações > Fluxos para adaptar ao processo da sua associação."
+        tip: "Você pode personalizar as colunas do Kanban em Configurações > Fluxos para adaptar ao processo da sua associação.",
+        images: [
+          { src: "/help/kanban-atendimentos.png", caption: "Visão Kanban com colunas de status e cards de atendimento" }
+        ]
       },
       {
         title: "Criar novo atendimento",
