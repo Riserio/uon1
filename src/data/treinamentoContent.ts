@@ -242,6 +242,9 @@ export const HELP_MODULES: HelpModule[] = [
           "Preencha os dados do veículo, tipo de evento e descrição detalhada.",
           "Anexe fotos, boletim de ocorrência e documentos relevantes.",
           "O sinistro será criado com status 'Aberto' e ficará visível no painel de sinistros."
+        ],
+        images: [
+          { src: "/help/sinistro-detalhe.png", caption: "Painel de sinistro com dados do veículo, timeline de status e fotos anexadas" }
         ]
       },
       {
