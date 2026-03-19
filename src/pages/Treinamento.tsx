@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
-import { HELP_MODULES, HelpModule, HelpImage } from "@/data/treinamentoContent";
-import { Search, Lightbulb, ArrowLeft, BookOpen, ZoomIn } from "lucide-react";
+import { HELP_MODULES, HelpModule } from "@/data/treinamentoContent";
+import { Search, Lightbulb, ArrowLeft, BookOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Accordion,
@@ -8,11 +8,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 function ModuleCard({ mod, onClick }: { mod: HelpModule; onClick: () => void }) {
@@ -35,80 +30,6 @@ function ModuleCard({ mod, onClick }: { mod: HelpModule; onClick: () => void }) 
         </div>
       </div>
     </button>
-  );
-}
-
-function ImageLightbox({
-  image,
-  open,
-  onOpenChange,
-}: {
-  image: HelpImage | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  if (!image) return null;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] p-2 sm:p-4">
-        <DialogTitle className="sr-only">{image.caption}</DialogTitle>
-        <div className="space-y-2">
-          <img
-            src={image.src}
-            alt={image.caption}
-            className="w-full rounded-lg border"
-          />
-          {image.caption && (
-            <p className="text-sm text-muted-foreground text-center px-2">
-              {image.caption}
-            </p>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function TopicImages({ images }: { images: HelpImage[] }) {
-  const [lightboxImage, setLightboxImage] = useState<HelpImage | null>(null);
-
-  return (
-    <>
-      <div className={cn(
-        "grid gap-3 mt-3",
-        images.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"
-      )}>
-        {images.map((img, i) => (
-          <button
-            key={i}
-            onClick={() => setLightboxImage(img)}
-            className="group relative rounded-xl overflow-hidden border bg-muted/30 hover:shadow-md transition-all duration-200"
-          >
-            <img
-              src={img.src}
-              alt={img.caption}
-              className="w-full h-auto"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-background/90 rounded-full p-2 shadow-lg">
-                <ZoomIn className="h-4 w-4 text-foreground" />
-              </div>
-            </div>
-            {img.caption && (
-              <p className="text-xs text-muted-foreground p-2 text-center border-t bg-muted/20">
-                {img.caption}
-              </p>
-            )}
-          </button>
-        ))}
-      </div>
-      <ImageLightbox
-        image={lightboxImage}
-        open={!!lightboxImage}
-        onOpenChange={(open) => !open && setLightboxImage(null)}
-      />
-    </>
   );
 }
 
@@ -156,9 +77,6 @@ function ModuleDetail({ mod, onBack }: { mod: HelpModule; onBack: () => void }) 
                     </li>
                   ))}
                 </ol>
-                {topic.images && topic.images.length > 0 && (
-                  <TopicImages images={topic.images} />
-                )}
                 {topic.tip && (
                   <div className="flex gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
                     <Lightbulb className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />

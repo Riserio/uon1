@@ -5,16 +5,10 @@ import {
   Video, Megaphone, Briefcase, Settings, HelpCircle
 } from "lucide-react";
 
-export interface HelpImage {
-  src: string;
-  caption: string;
-}
-
 export interface HelpTopic {
   title: string;
   steps: string[];
   tip?: string;
-  images?: HelpImage[];
 }
 
 export interface HelpModule {
@@ -41,10 +35,7 @@ export const HELP_MODULES: HelpModule[] = [
           "Os valores são atualizados automaticamente. Cada card é clicável e leva direto para a área correspondente.",
           "Os gráficos mostram a evolução dos atendimentos ao longo do tempo e a distribuição por status."
         ],
-        tip: "Passe o mouse sobre os gráficos para ver valores detalhados de cada período.",
-        images: [
-          { src: "/help/painel-dashboard.png", caption: "Painel com KPIs, gráficos de evolução e distribuição por status" }
-        ]
+        tip: "Passe o mouse sobre os gráficos para ver valores detalhados de cada período."
       },
       {
         title: "Alertas e notificações",
@@ -79,10 +70,7 @@ export const HELP_MODULES: HelpModule[] = [
           "Arraste os cards entre as colunas para mudar o status de um atendimento.",
           "Use o botão de visualização (ícone de lista) para alternar entre Kanban e Lista."
         ],
-        tip: "Você pode personalizar as colunas do Kanban em Configurações > Fluxos para adaptar ao processo da sua associação.",
-        images: [
-          { src: "/help/kanban-atendimentos.png", caption: "Visão Kanban com colunas de status e cards de atendimento" }
-        ]
+        tip: "Você pode personalizar as colunas do Kanban em Configurações > Fluxos para adaptar ao processo da sua associação."
       },
       {
         title: "Criar novo atendimento",
@@ -91,9 +79,6 @@ export const HELP_MODULES: HelpModule[] = [
           "Preencha o assunto, selecione a associação (corretora), o contato relacionado e a prioridade.",
           "Opcionalmente, adicione observações, anexos e selecione o fluxo de trabalho.",
           "Clique em 'Salvar' para criar. O atendimento aparecerá na primeira coluna do Kanban."
-        ],
-        images: [
-          { src: "/help/novo-atendimento-form.png", caption: "Formulário de criação de novo atendimento" }
         ]
       },
       {
@@ -242,9 +227,6 @@ export const HELP_MODULES: HelpModule[] = [
           "Preencha os dados do veículo, tipo de evento e descrição detalhada.",
           "Anexe fotos, boletim de ocorrência e documentos relevantes.",
           "O sinistro será criado com status 'Aberto' e ficará visível no painel de sinistros."
-        ],
-        images: [
-          { src: "/help/sinistro-detalhe.png", caption: "Painel de sinistro com dados do veículo, timeline de status e fotos anexadas" }
         ]
       },
       {
@@ -298,9 +280,6 @@ export const HELP_MODULES: HelpModule[] = [
           "O painel financeiro mostra o resumo: receitas, despesas, saldo e inadimplência.",
           "Os gráficos apresentam a evolução mensal e comparativos entre períodos.",
           "Use os filtros de período para analisar meses ou trimestres específicos."
-        ],
-        images: [
-          { src: "/help/financeiro-visao.png", caption: "Dashboard financeiro com receitas, despesas, gráficos e lançamentos" }
         ]
       },
       {
@@ -482,9 +461,6 @@ export const HELP_MODULES: HelpModule[] = [
           "O PID mostra indicadores de desempenho consolidados da associação.",
           "Gráficos de evolução mensal, comparativos e rankings são gerados automaticamente.",
           "Selecione a associação no filtro para ver dados específicos."
-        ],
-        images: [
-          { src: "/help/bi-indicadores.png", caption: "Dashboard de BI com gráficos de eventos, distribuição e KPIs" }
         ]
       },
       {
