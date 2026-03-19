@@ -221,7 +221,7 @@ serve(async (req) => {
         .eq("id", config.id);
 
       // Calcular datas e derivar URL do relatório
-      const dataInicio = '01/01/2000';
+      const dataInicio = '01/01/2023';
       const now = new Date();
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       const dataFim = `${String(lastDay.getDate()).padStart(2, '0')}/${String(lastDay.getMonth() + 1).padStart(2, '0')}/${lastDay.getFullYear()}`;
