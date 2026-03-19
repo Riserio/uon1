@@ -1,0 +1,1 @@
+UPDATE sga_automacao_execucoes SET status = 'erro', erro = 'Reset manual - reinício solicitado', finalizado_at = now() WHERE id = '9d691949-842f-41ba-873d-f5ed53efe233' AND status = 'executando'; UPDATE sga_automacao_config SET ultimo_status = 'erro', ultimo_erro = 'Reset manual' WHERE corretora_id = 'a4931643-8bf1-4153-97b1-c64925f536eb';
