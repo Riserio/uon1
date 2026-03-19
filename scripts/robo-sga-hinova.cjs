@@ -2141,14 +2141,14 @@ async function main() {
 
     await fecharPopups(page);
 
-    const janelas = buildDateWindows(inicio, fim, 92);
-    log(`Coleta segmentada em ${janelas.length} janelas de até 92 dias para evitar travas no portal`, LOG_LEVELS.INFO);
+    const janelas = buildDateWindows(inicio, fim, LIMITS.INITIAL_WINDOW_DAYS);
+    log(`Coleta segmentada em ${janelas.length} janelas de até ${LIMITS.INITIAL_WINDOW_DAYS} dias com divisão automática em falhas`, LOG_LEVELS.INFO);
 
     const dadosAcumulados = [];
 
     for (let index = 0; index < janelas.length; index++) {
       const periodo = janelas[index];
-      const dadosPeriodo = await coletarDadosDoPeriodoComRetry(context, page, periodo, index, janelas.length);
+      const dadosPeriodo = await coletarDadosDoPeriodoAdaptativo(context, page, periodo, index, janelas.length);
       if (dadosPeriodo.length === 0) continue;
 
       dadosAcumulados.push(...dadosPeriodo);
