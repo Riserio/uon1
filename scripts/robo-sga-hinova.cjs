@@ -1959,6 +1959,47 @@ async function coletarDadosDoPeriodoComRetry(context, page, periodo, index, tota
   throw lastError || new Error('Falha ao coletar janela do relatório');
 }
 
+async function coletarDadosDoPeriodoAdaptativo(context, page, periodo, index, total, depth = 0) {
+  try {
+    return await coletarDadosDoPeriodoComRetry(context, page, periodo, index, total);
+  } catch (error) {
+    if (!shouldSplitWindow(error, periodo)) {
+      throw error;
+    }
+
+    const subJanelas = splitDateWindow(periodo);
+    if (subJanelas.length < 2) {
+      throw error;
+    }
+
+    log(
+      `Janela ${periodo.inicio} até ${periodo.fim} (${getDateWindowDays(periodo)} dias) será dividida em ${subJanelas
+        .map((janela) => `${janela.inicio} até ${janela.fim}`)
+        .join(' | ')} após falha: ${error.message}`,
+      LOG_LEVELS.WARN,
+    );
+
+    const dadosAgrupados = [];
+
+    for (let subIndex = 0; subIndex < subJanelas.length; subIndex++) {
+      const dadosSubjanela = await coletarDadosDoPeriodoAdaptativo(
+        context,
+        page,
+        subJanelas[subIndex],
+        subIndex,
+        subJanelas.length,
+        depth + 1,
+      );
+
+      if (dadosSubjanela.length > 0) {
+        dadosAgrupados.push(...dadosSubjanela);
+      }
+    }
+
+    return dadosAgrupados;
+  }
+}
+
 // ============================================
 // MAIN
 // ============================================
