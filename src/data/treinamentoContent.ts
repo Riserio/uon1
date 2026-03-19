@@ -5,6 +5,26 @@ import {
   Video, Megaphone, Briefcase, Settings, HelpCircle
 } from "lucide-react";
 
+import imgPainel from "@/assets/help/painel.jpg";
+import imgAtendimentos from "@/assets/help/atendimentos.jpg";
+import imgAssociacoes from "@/assets/help/associacoes.jpg";
+import imgTermos from "@/assets/help/termos.jpg";
+import imgContatos from "@/assets/help/contatos.jpg";
+import imgSinistros from "@/assets/help/sinistros.jpg";
+import imgFinanceiro from "@/assets/help/financeiro.jpg";
+import imgAgenda from "@/assets/help/agenda.jpg";
+import imgDocumentos from "@/assets/help/documentos.jpg";
+import imgCentralAtendimento from "@/assets/help/central_atendimento.jpg";
+import imgMensagens from "@/assets/help/mensagens.jpg";
+import imgBI from "@/assets/help/bi_indicadores.jpg";
+import imgOuvidoria from "@/assets/help/ouvidoria.jpg";
+import imgUon1Sign from "@/assets/help/uon1sign.jpg";
+import imgUon1Talk from "@/assets/help/uon1talk.jpg";
+import imgComunicados from "@/assets/help/comunicados.jpg";
+import imgGestao from "@/assets/help/gestao.jpg";
+import imgConfiguracoes from "@/assets/help/configuracoes.jpg";
+import imgUsuarios from "@/assets/help/usuarios.jpg";
+
 export interface HelpTopic {
   title: string;
   steps: string[];
