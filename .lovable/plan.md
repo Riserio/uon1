@@ -1,29 +1,55 @@
 
 
-## Plan: Improve Link Section in Ouvidoria Config Dialog
+## Plano: Pagina "Ajuda" — Central de Treinamento
 
-The current link section shows two raw URLs ("Link Publico do Formulario" and "Link Embed (Portal)") with no explanation of what they do. The user needs clarity.
+Criar uma pagina completa `/ajuda` com conteudo didatico preenchido para todos os 19 modulos do sistema, acessivel pelo menu lateral como "Ajuda".
 
-### Changes to `src/components/ouvidoria/OuvidoriaConfigDialog.tsx`
+### Arquivos
 
-Replace the two plain URL sections (lines 167-186) with styled card-based blocks that include:
+**1. `src/data/treinamentoContent.ts`** — Conteudo completo de todos os modulos
 
-1. **Link Publico** card:
-   - Icon: `ExternalLink`
-   - Title: "Formulario Publico"
-   - Description: "Link direto para o associado abrir ou responder uma manifestacao. Compartilhe por e-mail, WhatsApp ou site."
-   - URL field (read-only) + Copy button + Open in new tab button
+Array com 19 modulos, cada um contendo:
+- Icone, titulo, descricao geral
+- Lista de topicos (accordion), cada topico com:
+  - Titulo da funcionalidade
+  - Explicacao passo a passo (texto didatico, simples)
+  - Dicas praticas ("Voce sabia que...")
 
-2. **Link Embed** card:
-   - Icon: `Code`
-   - Title: "Embed para Portal"
-   - Description: "Use este link para incorporar o formulario via iframe no portal do parceiro. Requer token de autenticacao."
-   - URL field (read-only) + Copy button
-   - Show iframe snippet copyable (e.g. `<iframe src="..."></iframe>`)
+Modulos cobertos:
+1. Painel — KPIs, graficos, alertas, agenda semanal
+2. Atendimentos — Kanban, fluxos, criar/editar, historico, anexos, prazos
+3. Associacoes — Cadastro, slug, parceiros, upload em massa, historico
+4. Termos de Aceite — Criar, visualizar, gerenciar termos
+5. Contatos — Busca, cadastro, edicao
+6. Sinistros — Abertura, deliberacao, vistoria digital/manual, acompanhamento publico
+7. Financeiro — Lancamentos, contas pagar/receber, fluxo de caixa, conciliacao, notas fiscais
+8. Agenda — Criar reuniao, convites, Google Calendar
+9. Documentos — Upload, organizacao, busca
+10. Central de Atendimento — WhatsApp, email, templates, fluxos automaticos
+11. Mensagens — Chat interno entre usuarios
+12. BI Indicadores — PID, SGA (Eventos), MGF, Cobranca, Estudo de Base, importacao, dashboards
+13. Ouvidoria — Backoffice, formulario publico, widgets, links, configuracao
+14. Uon1 Sign — Contratos digitais, templates, assinatura, status
+15. Uon1 Talk — Video chamadas, salas
+16. Comunicados — Criar e enviar comunicados internos
+17. Gestao — Funcionarios, contratos, jornada, ponto, fechamento mensal
+18. Configuracoes — Aparencia, logos, seguranca 2FA, notificacoes, permissoes
+19. Usuarios — Aprovacao, roles, permissoes de menu e fluxo
 
-3. **Visual style**: Each link in a bordered card (`p-4 rounded-xl border bg-muted/20`) with icon + title + description on top, URL + actions below. Consistent with the widget pattern used elsewhere.
+**2. `src/pages/Treinamento.tsx`** — Pagina principal
 
-4. **Slug indicator**: Show a small badge next to the URL indicating if it's using slug or UUID (e.g., Badge "slug: vide" in green, or "usando ID" in yellow with hint to configure slug).
+- Header com titulo "Ajuda" e subtitulo "Aprenda a usar cada area do sistema"
+- Campo de busca que filtra modulos e topicos em tempo real
+- Grid responsivo de cards (1 col mobile, 2 cols tablet, 3 cols desktop)
+- Cada card: icone colorido + titulo + descricao curta
+- Ao clicar no card, abre uma area expandida com accordions dos topicos
+- Cada topico tem explicacao em texto claro + caixa de "Dica" destacada
+- Design seguindo o padrao widget moderno (rounded-2xl, bg-muted/40)
 
-Single file edit, no database changes needed.
+**3. `src/App.tsx`** — Adicionar rota `/ajuda` (lazy loaded, protegida)
+
+**4. `src/components/AppSidebar.tsx`** — Adicionar item "Ajuda" com icone `HelpCircle` no grupo "ferramentas", antes de Configuracoes
+
+### Sem alteracoes no banco de dados
+Todo o conteudo e estatico/hardcoded. Nao requer migracao.
 
