@@ -118,7 +118,7 @@ export default function Treinamento() {
     : null;
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8 max-w-5xl mx-auto">
+    <div className="min-h-screen bg-background p-4 md:p-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-2">
         <div className="p-2.5 rounded-xl bg-primary/10">

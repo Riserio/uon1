@@ -17,6 +17,7 @@ export interface HelpModule {
   description: string;
   icon: React.ElementType;
   color: string;
+  image?: string;
   topics: HelpTopic[];
 }
 
