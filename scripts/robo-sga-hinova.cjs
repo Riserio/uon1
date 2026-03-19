@@ -1680,7 +1680,7 @@ async function baixarRelatorioViaFormReplay({ context, page, downloadDir, semant
     data: formulario.method === 'GET' ? undefined : encodedBody,
     responseType: 'arraybuffer',
     maxRedirects: 10,
-    timeout: TIMEOUTS.DOWNLOAD_HARD,
+    timeout: TIMEOUTS.DOWNLOAD_REPLAY,
     validateStatus: (status) => status >= 200 && status < 400,
   });
 
