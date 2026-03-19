@@ -220,10 +220,11 @@ serve(async (req) => {
         .update({ ultima_execucao: new Date().toISOString(), ultimo_status: 'executando', ultimo_erro: null })
         .eq("id", config.id);
 
-      // Calcular datas e derivar URL do relatório
-      const dataInicio = '01/01/2023';
+      // Calcular datas: desde 01/01/2000 até último dia do mês atual
+      const dataInicio = '01/01/2000';
       const now = new Date();
-      const dataFim = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+      const ultimoDiaMes = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const dataFim = `${String(ultimoDiaMes.getDate()).padStart(2, '0')}/${String(ultimoDiaMes.getMonth() + 1).padStart(2, '0')}/${ultimoDiaMes.getFullYear()}`;
 
       let relatorioUrl = urlEventos;
       if (!relatorioUrl && hinovaUrl) {

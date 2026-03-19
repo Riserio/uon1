@@ -2209,14 +2209,45 @@ async function main() {
     setStep('ENVIO');
     await updateProgress('executando', 'ENVIANDO');
 
+    // Descartar campos pesados (observações, textos longos) para reduzir payload
+    const CAMPOS_DESCARTAVEIS = [
+      'observacao', 'observacoes', 'observação', 'observações',
+      'obs', 'descricao_detalhada', 'historico', 'histórico',
+      'parecer', 'laudo', 'justificativa', 'comentario', 'comentários',
+      'detalhe', 'detalhes', 'narrativa', 'relato',
+      'texto_livre', 'informacoes_adicionais', 'informações adicionais',
+      'complemento', 'nota', 'notas',
+    ];
+    const TAMANHO_MAX_CAMPO = 200;
+
+    const dadosLeves = dadosAcumulados.map(registro => {
+      const leve = {};
+      for (const [chave, valor] of Object.entries(registro)) {
+        const chaveNorm = normalizeText(chave);
+        const ehDescartavel = CAMPOS_DESCARTAVEIS.some(c => chaveNorm.includes(normalizeText(c)));
+        if (ehDescartavel) continue;
+        if (typeof valor === 'string' && valor.length > TAMANHO_MAX_CAMPO) {
+          leve[chave] = valor.substring(0, TAMANHO_MAX_CAMPO) + '...';
+        } else {
+          leve[chave] = valor;
+        }
+      }
+      return leve;
+    });
+
+    const payloadOriginal = JSON.stringify(dadosAcumulados).length;
+    const payloadLeve = JSON.stringify(dadosLeves).length;
+    const reducao = Math.round((1 - payloadLeve / payloadOriginal) * 100);
+    log(`Payload reduzido: ${formatBytes(payloadOriginal)} → ${formatBytes(payloadLeve)} (${reducao}% menor)`, LOG_LEVELS.INFO);
+
     const semanticName = generateSemanticFilename();
-    log(`Enviando ${dadosAcumulados.length} registros via webhook em chunks...`, LOG_LEVELS.INFO);
+    log(`Enviando ${dadosLeves.length} registros via webhook em chunks...`, LOG_LEVELS.INFO);
 
     const CHUNK_SIZE = 2000;
-    const totalChunks = Math.ceil(dadosAcumulados.length / CHUNK_SIZE);
+    const totalChunks = Math.ceil(dadosLeves.length / CHUNK_SIZE);
 
-    for (let i = 0; i < dadosAcumulados.length; i += CHUNK_SIZE) {
-      const chunk = dadosAcumulados.slice(i, i + CHUNK_SIZE);
+    for (let i = 0; i < dadosLeves.length; i += CHUNK_SIZE) {
+      const chunk = dadosLeves.slice(i, i + CHUNK_SIZE);
       const chunkNum = Math.floor(i / CHUNK_SIZE) + 1;
       log(`Enviando chunk ${chunkNum}/${totalChunks} (${chunk.length} registros)...`, LOG_LEVELS.INFO);
 
@@ -2227,7 +2258,7 @@ async function main() {
         github_run_id: CONFIG.GITHUB_RUN_ID,
         github_run_url: CONFIG.GITHUB_RUN_URL,
         nome_arquivo: semanticName,
-        total_registros: dadosAcumulados.length,
+        total_registros: dadosLeves.length,
         dados: chunk,
         chunk_atual: chunkNum,
         total_chunks: totalChunks,
