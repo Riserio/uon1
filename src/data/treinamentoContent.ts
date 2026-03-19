@@ -91,6 +91,9 @@ export const HELP_MODULES: HelpModule[] = [
           "Preencha o assunto, selecione a associação (corretora), o contato relacionado e a prioridade.",
           "Opcionalmente, adicione observações, anexos e selecione o fluxo de trabalho.",
           "Clique em 'Salvar' para criar. O atendimento aparecerá na primeira coluna do Kanban."
+        ],
+        images: [
+          { src: "/help/novo-atendimento-form.png", caption: "Formulário de criação de novo atendimento" }
         ]
       },
       {
