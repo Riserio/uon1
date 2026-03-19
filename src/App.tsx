@@ -82,6 +82,7 @@ const MeetingRsvp = lazy(() => import("./pages/MeetingRsvp"));
 const OuvidoriaPublica = lazy(() => import("./pages/OuvidoriaPublica"));
 const OuvidoriaBackoffice = lazy(() => import("./pages/OuvidoriaBackoffice"));
 const OuvidoriaEmbed = lazy(() => import("./pages/OuvidoriaEmbed"));
+const Treinamento = lazy(() => import("./pages/Treinamento"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -285,6 +286,7 @@ const App = () => (
                 <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
                 <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
                 <Route path="/ouvidoria-backoffice" element={<ProtectedRoute><OuvidoriaBackoffice /></ProtectedRoute>} />
+                <Route path="/ajuda" element={<ProtectedRoute><Treinamento /></ProtectedRoute>} />
                 <Route path="/talk" element={<Navigate to="/video" replace />} />
               </Route>
               
