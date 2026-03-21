@@ -199,116 +199,56 @@ async function hinovaLogin(rawUrl: string, usuario: string, senha: string, codig
   const loginPageUrl = `${portalBase}/v5/login.php`;
 
   try {
-    // Step 1: GET login page to capture PHPSESSID and CSRF
+    // Step 1: GET login page to capture PHPSESSID
     const loginPageResponse = await fetch(loginPageUrl, {
       method: "GET",
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
       redirect: "follow",
     });
-
     const loginHtml = await loginPageResponse.text();
     const initialCookies = extractCookies(loginPageResponse);
     const csrf = loginHtml.match(/name=["']hCsrf["'][^>]*value=["']([^"']+)/i)?.[1] || "";
 
-    // Step 2: Try multiple login approaches
-    const bodies: URLSearchParams[] = [];
-    
-    // Body 1: exact v5 form fields
-    const b1 = new URLSearchParams();
-    b1.set("codigo_mobile", codigoCliente);
-    b1.set("usuario", usuario);
-    b1.set("senha", senha);
-    b1.set("codigo_fma", "");
-    if (csrf) b1.set("hCsrf", csrf);
-    bodies.push(b1);
+    // Step 2: POST login form
+    const body = new URLSearchParams();
+    body.set("codigo_mobile", codigoCliente);
+    body.set("usuario", usuario);
+    body.set("senha", senha);
+    body.set("codigo_fma", "");
+    if (csrf) body.set("hCsrf", csrf);
 
-    // Body 2: without hCsrf
-    const b2 = new URLSearchParams();
-    b2.set("codigo_mobile", codigoCliente);
-    b2.set("usuario", usuario);
-    b2.set("senha", senha);
-    b2.set("codigo_fma", "");
-    bodies.push(b2);
-
-    // URLs to try
-    const submitUrls = [
-      loginPageUrl,
-      `${portalBase}/v5/login/validar`,
-      `${portalBase}/v5/actions.php`,
-      `${portalBase}/actions.php`,
-    ];
-
-    // Headers variants: regular form POST and AJAX-style
-    const headerVariants = [
-      {
+    await fetch(loginPageUrl, {
+      method: "POST",
+      headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         Cookie: initialCookies,
         Referer: loginPageUrl,
       },
-      {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        Cookie: initialCookies,
-        Referer: loginPageUrl,
-        "X-Requested-With": "XMLHttpRequest",
-      },
-    ];
+      body: body.toString(),
+      redirect: "follow",
+    }).then(r => r.text()); // consume body
 
-    for (const submitUrl of submitUrls) {
-      for (const headers of headerVariants) {
-        for (const body of bodies) {
-          try {
-            const response = await fetch(submitUrl, {
-              method: "POST",
-              headers,
-              body: body.toString(),
-              redirect: "manual",
-            });
+    // Step 3: Verify session by testing autocomplete endpoint
+    const verifyRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, initialCookies);
+    const verifyText = await verifyRes.text();
 
-            const responseText = await response.text();
-            const responseCookies = [initialCookies, extractCookies(response)].filter(Boolean).join("; ");
-            const location = response.headers.get("location") || "";
-            const status = response.status;
+    console.info("Hinova login verify", {
+      verifyLen: verifyText.length,
+      isLogin: isLoginPage(verifyText),
+      rawPreview: verifyText.slice(0, 500),
+    });
 
-            // Skip 404s silently
-            if (status === 404) continue;
+    if (!isLoginPage(verifyText)) {
+      console.info("Hinova login OK");
+      return { cookies: initialCookies, success: true };
+    }
 
-            const isXhr = !!headers["X-Requested-With"];
-            console.info("Hinova login attempt", {
-              submitUrl: submitUrl.replace(portalBase, ""),
-              status,
-              location: location || "none",
-              len: responseText.length,
-              isLogin: isLoginPage(responseText),
-              isXhr,
-              bodyKeys: [...body.keys()].join(","),
-              preview: stripHtml(responseText).slice(0, 200),
-            });
-
-            // Success: redirect to non-login page
-            if (status >= 300 && status < 400 && location && !/login/i.test(location)) {
-              const fullUrl = location.startsWith("http") ? location : `${portalBase}${location.startsWith("/") ? "" : "/v5/"}${location}`;
-              const dashRes = await fetch(fullUrl, {
-                headers: { Cookie: responseCookies, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-                redirect: "follow",
-              });
-              const dashCookies = [responseCookies, extractCookies(dashRes)].filter(Boolean).join("; ");
-              await dashRes.text();
-              console.info("Hinova login OK (redirect)", { location });
-              return { cookies: dashCookies, success: true };
-            }
-
-            // Success: 200 with non-login content (check AJAX JSON response too)
-            if (status === 200 && !isLoginPage(responseText) && responseText.trim().length > 0) {
-              // Verify session works
-              const verifyRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, responseCookies);
-              const verifyText = await verifyRes.text();
-              if (!isLoginPage(verifyText) && verifyText.trim().length > 0) {
-                console.info("Hinova login OK (verified)", { submitUrl: submitUrl.replace(portalBase, "") });
-                return { cookies: responseCookies, success: true };
-              }
-            }
+    return { cookies: "", success: false, error: "Login falhou - sessão não autenticada" };
+  } catch (e) {
+    return { cookies: "", success: false, error: `Erro de conexão: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
           } catch {
             continue;
           }
