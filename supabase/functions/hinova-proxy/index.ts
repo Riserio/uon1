@@ -292,23 +292,6 @@ async function hinovaLogin(rawUrl: string, usuario: string, senha: string, codig
     return { cookies: "", success: false, error: `Erro de conexão: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
-          }
-        } catch (e) {
-          console.warn("Hinova login attempt error", { submitUrl, error: String(e) });
-          continue;
-        }
-      }
-    }
-
-    return {
-      cookies: "",
-      success: false,
-      error: "Não foi possível autenticar no Hinova com as credenciais salvas.",
-    };
-  } catch (e) {
-    return { cookies: "", success: false, error: `Erro de conexão: ${e instanceof Error ? e.message : String(e)}` };
-  }
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
