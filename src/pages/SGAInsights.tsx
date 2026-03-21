@@ -11,6 +11,7 @@ import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle,
 import { format } from "date-fns";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
+import SGAConsultaHinova from "@/components/sga/SGAConsultaHinova";
 import SGAImportacao from "@/components/sga/SGAImportacao";
 import SGAMapa from "@/components/sga/SGAMapa";
 import SGATabela from "@/components/sga/SGATabela";
