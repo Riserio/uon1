@@ -358,6 +358,7 @@ export default function SGAInsights() {
         { id: "mapa", label: "Mapa Geográfico", icon: Map },
         { id: "tabela", label: "Dados Completos", icon: Database },
         { id: "importar", label: "Importar Dados", icon: Upload },
+        { id: "consulta-sga", label: "Consulta SGA", icon: Globe },
       ];
 
   const handlePortalLogout = async () => {
