@@ -329,6 +329,12 @@ serve(async (req) => {
         let autoCompleteResponse = await fetchWithCookies(autoCompleteUrl, cookies);
         let autoCompletePayload = await autoCompleteResponse.text();
 
+        console.info("Hinova autocomplete raw", {
+          searchTerm,
+          len: autoCompletePayload.length,
+          raw: autoCompletePayload.slice(0, 500),
+        });
+
         if (isLoginPage(autoCompletePayload)) {
           return new Response(JSON.stringify({ error: "Sessão expirada, faça login novamente", action: "session_expired" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
