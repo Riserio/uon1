@@ -177,7 +177,7 @@ serve(async (req) => {
       );
     }
 
-    const baseUrl = creds.url?.replace(/\/$/, '') || '';
+    const baseUrl = (creds.hinova_url || '')?.replace(/\/$/, '');
     if (!baseUrl) {
       return new Response(
         JSON.stringify({ error: 'URL do Hinova não configurada' }),
@@ -188,7 +188,7 @@ serve(async (req) => {
     // Login (or reuse session)
     let cookies = session_cookies || '';
     if (!cookies) {
-      const loginResult = await hinovaLogin(baseUrl, creds.usuario, creds.senha, creds.codigo_cliente || '');
+      const loginResult = await hinovaLogin(baseUrl, creds.hinova_user, creds.hinova_pass, creds.hinova_codigo_cliente || '');
       if (!loginResult.success) {
         return new Response(
           JSON.stringify({ error: loginResult.error, action: 'login_failed' }),
