@@ -7,10 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign, CreditCard, LogOut, ArrowLeftRight, Building2, Activity, ChevronDown } from "lucide-react";
+import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign, CreditCard, LogOut, ArrowLeftRight, Building2, Activity, ChevronDown, Globe } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
+import SGAConsultaHinova from "@/components/sga/SGAConsultaHinova";
 import SGAImportacao from "@/components/sga/SGAImportacao";
 import SGAMapa from "@/components/sga/SGAMapa";
 import SGATabela from "@/components/sga/SGATabela";
@@ -357,6 +358,7 @@ export default function SGAInsights() {
         { id: "mapa", label: "Mapa Geográfico", icon: Map },
         { id: "tabela", label: "Dados Completos", icon: Database },
         { id: "importar", label: "Importar Dados", icon: Upload },
+        { id: "consulta-sga", label: "Consulta SGA", icon: Globe },
       ];
 
   const handlePortalLogout = async () => {
@@ -635,6 +637,15 @@ export default function SGAInsights() {
             <TabsContent value="importar">
               <SGAImportacao 
                 onImportSuccess={fetchEventos} 
+                corretoraId={selectedAssociacao}
+                corretoraNome={selectedAssociacaoNome}
+              />
+            </TabsContent>
+          )}
+
+          {!isPortalAccess && (
+            <TabsContent value="consulta-sga">
+              <SGAConsultaHinova
                 corretoraId={selectedAssociacao}
                 corretoraNome={selectedAssociacaoNome}
               />

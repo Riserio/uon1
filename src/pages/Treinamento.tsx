@@ -17,15 +17,6 @@ function ModuleCard({ mod, onClick }: { mod: HelpModule; onClick: () => void }) 
       onClick={onClick}
       className="text-left rounded-2xl border bg-card hover:bg-muted/40 transition-all duration-200 hover:shadow-md group overflow-hidden"
     >
-      {mod.image && (
-        <div className="w-full h-36 overflow-hidden">
-          <img
-            src={mod.image}
-            alt={mod.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-        </div>
-      )}
       <div className="p-5">
         <div className="flex items-start gap-4">
           <div className={cn("p-2.5 rounded-xl bg-muted/60 group-hover:bg-muted", mod.color)}>
@@ -57,15 +48,6 @@ function ModuleDetail({ mod, onBack }: { mod: HelpModule; onBack: () => void }) 
       </button>
 
       <div className="rounded-2xl border bg-card overflow-hidden">
-        {mod.image && (
-          <div className="w-full h-48 md:h-64 overflow-hidden">
-            <img
-              src={mod.image}
-              alt={mod.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
         <div className="flex items-center gap-4 p-5">
           <div className={cn("p-3 rounded-xl bg-muted/60", mod.color)}>
             <Icon className="h-6 w-6" />
