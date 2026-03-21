@@ -642,6 +642,15 @@ export default function SGAInsights() {
               />
             </TabsContent>
           )}
+
+          {!isPortalAccess && (
+            <TabsContent value="consulta-sga">
+              <SGAConsultaHinova
+                corretoraId={selectedAssociacao}
+                corretoraNome={selectedAssociacaoNome}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
