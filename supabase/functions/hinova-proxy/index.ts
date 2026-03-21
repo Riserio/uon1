@@ -196,43 +196,57 @@ async function fetchWithCookies(url: string, cookies: string, method = "GET", bo
 
 async function hinovaLogin(rawUrl: string, usuario: string, senha: string, codigoCliente: string): Promise<{ cookies: string; success: boolean; error?: string }> {
   const portalBase = derivePortalBaseUrl(rawUrl);
-  const loginCandidates = unique([
-    rawUrl,
-    `${portalBase}/v5/login.php`,
-    `${portalBase}/login.php`,
-    `${portalBase}/login/validar`,
-    `${portalBase}/v5/login/validar`,
-    `${portalBase}/login`,
-    `${portalBase}/v5/login`,
-    `${portalBase}/`,
-  ]);
-
-  const bodies = [
-    new URLSearchParams({ usuario, senha, codigo_cliente: codigoCliente }),
-    new URLSearchParams({ usuario, senha, codigo: codigoCliente }),
-    new URLSearchParams({ login: usuario, password: senha, codigo: codigoCliente }),
-    new URLSearchParams({ login: usuario, senha, codigo_cliente: codigoCliente }),
-  ];
+  const loginPageUrl = unique([rawUrl, `${portalBase}/v5/login.php`, `${portalBase}/login.php`])[0];
 
   try {
-    for (const loginUrl of loginCandidates) {
+    const loginPageResponse = await fetch(loginPageUrl, {
+      method: "GET",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+      redirect: "follow",
+    });
+
+    const loginHtml = await loginPageResponse.text();
+    const initialCookies = extractCookies(loginPageResponse);
+    const csrf = loginHtml.match(/name=["']hCsrf["'][^>]*value=["']([^"']+)/i)?.[1] || "";
+
+    const bodies = [
+      new URLSearchParams({ hCsrf: csrf, codigo_mobile: codigoCliente, usuario, senha, codigo_fma: "" }),
+      new URLSearchParams({ hCsrf: csrf, codigo_cliente: codigoCliente, usuario, senha, codigo_fma: "" }),
+      new URLSearchParams({ hCsrf: csrf, codigo: codigoCliente, usuario, senha, codigo_fma: "" }),
+    ];
+
+    const submitTargets = unique([
+      loginPageUrl,
+      `${portalBase}/v5/login.php`,
+      `${portalBase}/login.php`,
+      `${portalBase}/v5/login/validar`,
+      `${portalBase}/login/validar`,
+    ]);
+
+    for (const submitUrl of submitTargets) {
       for (const body of bodies) {
-        const response = await fetch(loginUrl, {
+        const response = await fetch(submitUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            Cookie: initialCookies,
+            Referer: loginPageUrl,
           },
           body: body.toString(),
           redirect: "manual",
         });
 
         const responseText = await response.text();
-        const cookieString = extractCookies(response);
+        const responseCookies = [initialCookies, extractCookies(response)].filter(Boolean).join("; ");
+        const location = response.headers.get("location") || "";
+        const loginStillVisible = isLoginPage(responseText) || /login/i.test(location);
 
-        if (cookieString && !isLoginPage(responseText)) {
-          console.info("Hinova login OK", { loginUrl, portalBase });
-          return { cookies: cookieString, success: true };
+        if (responseCookies && !loginStillVisible) {
+          console.info("Hinova login OK", { submitUrl, portalBase });
+          return { cookies: responseCookies, success: true };
         }
       }
     }
@@ -240,7 +254,7 @@ async function hinovaLogin(rawUrl: string, usuario: string, senha: string, codig
     return {
       cookies: "",
       success: false,
-      error: "Não foi possível obter cookies de sessão. Verifique as credenciais do Hinova.",
+      error: "Não foi possível autenticar no Hinova com as credenciais salvas.",
     };
   } catch (e) {
     return { cookies: "", success: false, error: `Erro de conexão: ${e instanceof Error ? e.message : String(e)}` };
