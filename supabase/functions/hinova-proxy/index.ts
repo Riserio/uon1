@@ -107,7 +107,29 @@ function parseHtmlTable(html: string): Record<string, string>[] {
   return rows;
 }
 
+function parseXmlResults(payload: string): Record<string, string>[] {
+  const results: Record<string, string>[] = [];
+  const rsRegex = /<rs[^>]*>([\s\S]*?)<\/rs>/gi;
+  let rsMatch: RegExpExecArray | null;
+  while ((rsMatch = rsRegex.exec(payload)) !== null) {
+    const block = rsMatch[0];
+    const id = block.match(/id=["']([^"']+)["']/i)?.[1] || "";
+    const info = block.match(/info=["']([^"']+)["']/i)?.[1] || "";
+    const text = stripHtml(rsMatch[1]);
+    if (text || info) {
+      results.push({ id: id || text, nome: text || info, info });
+    }
+  }
+  return results;
+}
+
 function parseAssociadoAutocomplete(payload: string, searchTerm: string): Record<string, string>[] {
+  // Try XML format first (Hinova returns <?xml ...><results><rs id="..." info="...">Name</rs></results>)
+  if (payload.includes("<results") || payload.includes("<rs")) {
+    const xmlResults = parseXmlResults(payload);
+    if (xmlResults.length > 0) return xmlResults;
+  }
+
   const normalizedSearch = normalizeText(searchTerm);
 
   try {
@@ -128,7 +150,7 @@ function parseAssociadoAutocomplete(payload: string, searchTerm: string): Record
         .filter((item): item is Record<string, string> => Boolean(item?.nome));
     }
   } catch {
-    // resposta não é JSON
+    // not JSON
   }
 
   const candidates: Record<string, string>[] = [];
@@ -146,33 +168,20 @@ function parseAssociadoAutocomplete(payload: string, searchTerm: string): Record
       rawBlock.match(/id=["']([^"']+)["']/i) ||
       rawBlock.match(/['"](\d{2,})['"]/);
 
-    candidates.push({
-      id: idMatch?.[1] || text,
-      nome: text,
-    });
+    candidates.push({ id: idMatch?.[1] || text, nome: text });
   }
 
   if (candidates.length === 0) {
-    const lines = payload
-      .split(/[\r\n]+/)
-      .map((line) => stripHtml(line))
-      .filter((line) => line.length >= 3);
-
-    for (const line of lines) {
-      candidates.push({ id: line, nome: line });
-    }
+    const lines = payload.split(/[\r\n]+/).map((l) => stripHtml(l)).filter((l) => l.length >= 3);
+    for (const line of lines) candidates.push({ id: line, nome: line });
   }
 
-  const deduped = unique(candidates.map((item) => `${item.id}|||${item.nome}`)).map((item) => {
-    const [id, nome] = item.split("|||");
+  const deduped = unique(candidates.map((i) => `${i.id}|||${i.nome}`)).map((i) => {
+    const [id, nome] = i.split("|||");
     return { id, nome };
   });
 
-  const filtered = deduped.filter((item) => {
-    if (!normalizedSearch) return true;
-    return normalizeText(item.nome).includes(normalizedSearch);
-  });
-
+  const filtered = deduped.filter((i) => !normalizedSearch || normalizeText(i.nome).includes(normalizedSearch));
   return filtered.length > 0 ? filtered : deduped;
 }
 
