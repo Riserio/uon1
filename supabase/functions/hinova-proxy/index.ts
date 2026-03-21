@@ -199,8 +199,7 @@ async function hinovaLogin(rawUrl: string, usuario: string, senha: string, codig
   const loginPageUrl = `${portalBase}/v5/login.php`;
 
   try {
-    // Step 1: GET login page to capture PHPSESSID
-    console.info("Hinova login: fetching login page", { loginPageUrl });
+    // Step 1: GET login page to capture PHPSESSID and CSRF
     const loginPageResponse = await fetch(loginPageUrl, {
       method: "GET",
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
@@ -211,84 +210,114 @@ async function hinovaLogin(rawUrl: string, usuario: string, senha: string, codig
     const initialCookies = extractCookies(loginPageResponse);
     const csrf = loginHtml.match(/name=["']hCsrf["'][^>]*value=["']([^"']+)/i)?.[1] || "";
 
-    // Step 2: POST login form to v5/login.php
-    const body = new URLSearchParams();
-    body.set("codigo_mobile", codigoCliente);
-    body.set("usuario", usuario);
-    body.set("senha", senha);
-    body.set("codigo_fma", "");
-    if (csrf) body.set("hCsrf", csrf);
+    // Step 2: Try multiple login approaches
+    const bodies: URLSearchParams[] = [];
+    
+    // Body 1: exact v5 form fields
+    const b1 = new URLSearchParams();
+    b1.set("codigo_mobile", codigoCliente);
+    b1.set("usuario", usuario);
+    b1.set("senha", senha);
+    b1.set("codigo_fma", "");
+    if (csrf) b1.set("hCsrf", csrf);
+    bodies.push(b1);
 
-    console.info("Hinova login: posting credentials", { loginPageUrl, hasCsrf: !!csrf, hasCookies: !!initialCookies });
+    // Body 2: without hCsrf
+    const b2 = new URLSearchParams();
+    b2.set("codigo_mobile", codigoCliente);
+    b2.set("usuario", usuario);
+    b2.set("senha", senha);
+    b2.set("codigo_fma", "");
+    bodies.push(b2);
 
-    const loginResponse = await fetch(loginPageUrl, {
-      method: "POST",
-      headers: {
+    // URLs to try
+    const submitUrls = [
+      loginPageUrl,
+      `${portalBase}/v5/login/validar`,
+      `${portalBase}/v5/actions.php`,
+      `${portalBase}/actions.php`,
+    ];
+
+    // Headers variants: regular form POST and AJAX-style
+    const headerVariants = [
+      {
         "Content-Type": "application/x-www-form-urlencoded",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         Cookie: initialCookies,
         Referer: loginPageUrl,
       },
-      body: body.toString(),
-      redirect: "manual",
-    });
+      {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        Cookie: initialCookies,
+        Referer: loginPageUrl,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    ];
 
-    const loginText = await loginResponse.text();
-    const loginCookies = [initialCookies, extractCookies(loginResponse)].filter(Boolean).join("; ");
-    const location = loginResponse.headers.get("location") || "";
-    const status = loginResponse.status;
+    for (const submitUrl of submitUrls) {
+      for (const headers of headerVariants) {
+        for (const body of bodies) {
+          try {
+            const response = await fetch(submitUrl, {
+              method: "POST",
+              headers,
+              body: body.toString(),
+              redirect: "manual",
+            });
 
-    console.info("Hinova login: POST result", {
-      status,
-      location: location || "none",
-      responseLen: loginText.length,
-      isLoginPage: isLoginPage(loginText),
-      locationHasLogin: /login/i.test(location),
-      responsePreview: stripHtml(loginText).slice(0, 300),
-    });
+            const responseText = await response.text();
+            const responseCookies = [initialCookies, extractCookies(response)].filter(Boolean).join("; ");
+            const location = response.headers.get("location") || "";
+            const status = response.status;
 
-    // If 302 redirect to non-login page → follow it
-    if (status >= 300 && status < 400 && location && !/login/i.test(location)) {
-      const fullUrl = location.startsWith("http") ? location : `${portalBase}${location.startsWith("/") ? "" : "/v5/"}${location}`;
-      const dashRes = await fetch(fullUrl, {
-        headers: { Cookie: loginCookies, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-        redirect: "follow",
-      });
-      const dashCookies = [loginCookies, extractCookies(dashRes)].filter(Boolean).join("; ");
-      await dashRes.text();
-      console.info("Hinova login OK (redirect)", { location });
-      return { cookies: dashCookies, success: true };
+            // Skip 404s silently
+            if (status === 404) continue;
+
+            const isXhr = !!headers["X-Requested-With"];
+            console.info("Hinova login attempt", {
+              submitUrl: submitUrl.replace(portalBase, ""),
+              status,
+              location: location || "none",
+              len: responseText.length,
+              isLogin: isLoginPage(responseText),
+              isXhr,
+              bodyKeys: [...body.keys()].join(","),
+              preview: stripHtml(responseText).slice(0, 200),
+            });
+
+            // Success: redirect to non-login page
+            if (status >= 300 && status < 400 && location && !/login/i.test(location)) {
+              const fullUrl = location.startsWith("http") ? location : `${portalBase}${location.startsWith("/") ? "" : "/v5/"}${location}`;
+              const dashRes = await fetch(fullUrl, {
+                headers: { Cookie: responseCookies, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+                redirect: "follow",
+              });
+              const dashCookies = [responseCookies, extractCookies(dashRes)].filter(Boolean).join("; ");
+              await dashRes.text();
+              console.info("Hinova login OK (redirect)", { location });
+              return { cookies: dashCookies, success: true };
+            }
+
+            // Success: 200 with non-login content (check AJAX JSON response too)
+            if (status === 200 && !isLoginPage(responseText) && responseText.trim().length > 0) {
+              // Verify session works
+              const verifyRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, responseCookies);
+              const verifyText = await verifyRes.text();
+              if (!isLoginPage(verifyText) && verifyText.trim().length > 0) {
+                console.info("Hinova login OK (verified)", { submitUrl: submitUrl.replace(portalBase, "") });
+                return { cookies: responseCookies, success: true };
+              }
+            }
+          } catch {
+            continue;
+          }
+        }
+      }
     }
 
-    // If 200 and not login page → might be authenticated
-    if (status === 200 && !isLoginPage(loginText)) {
-      console.info("Hinova login OK (200 non-login)");
-      return { cookies: loginCookies, success: true };
-    }
-
-    // Even if it looks like login page, test the session - some portals return login HTML but set session
-    console.info("Hinova login: verifying session with autocomplete");
-    const verifyRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, loginCookies);
-    const verifyText = await verifyRes.text();
-
-    console.info("Hinova login: verify result", {
-      verifyLen: verifyText.length,
-      verifyIsLogin: isLoginPage(verifyText),
-      verifyPreview: stripHtml(verifyText).slice(0, 300),
-    });
-
-    if (!isLoginPage(verifyText) && verifyText.trim().length > 0) {
-      console.info("Hinova login OK (session verified)");
-      return { cookies: loginCookies, success: true };
-    }
-
-    return {
-      cookies: "",
-      success: false,
-      error: `Login falhou. Status: ${status}, redirect: ${location || "none"}`,
-    };
+    return { cookies: "", success: false, error: "Não foi possível autenticar no Hinova. O portal pode exigir login via navegador." };
   } catch (e) {
-    console.error("Hinova login error:", e);
     return { cookies: "", success: false, error: `Erro de conexão: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
