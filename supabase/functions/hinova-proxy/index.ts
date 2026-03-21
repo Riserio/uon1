@@ -107,7 +107,29 @@ function parseHtmlTable(html: string): Record<string, string>[] {
   return rows;
 }
 
+function parseXmlResults(payload: string): Record<string, string>[] {
+  const results: Record<string, string>[] = [];
+  const rsRegex = /<rs[^>]*>([\s\S]*?)<\/rs>/gi;
+  let rsMatch: RegExpExecArray | null;
+  while ((rsMatch = rsRegex.exec(payload)) !== null) {
+    const block = rsMatch[0];
+    const id = block.match(/id=["']([^"']+)["']/i)?.[1] || "";
+    const info = block.match(/info=["']([^"']+)["']/i)?.[1] || "";
+    const text = stripHtml(rsMatch[1]);
+    if (text || info) {
+      results.push({ id: id || text, nome: text || info, info });
+    }
+  }
+  return results;
+}
+
 function parseAssociadoAutocomplete(payload: string, searchTerm: string): Record<string, string>[] {
+  // Try XML format first (Hinova returns <?xml ...><results><rs id="..." info="...">Name</rs></results>)
+  if (payload.includes("<results") || payload.includes("<rs")) {
+    const xmlResults = parseXmlResults(payload);
+    if (xmlResults.length > 0) return xmlResults;
+  }
+
   const normalizedSearch = normalizeText(searchTerm);
 
   try {
@@ -128,7 +150,7 @@ function parseAssociadoAutocomplete(payload: string, searchTerm: string): Record
         .filter((item): item is Record<string, string> => Boolean(item?.nome));
     }
   } catch {
-    // resposta não é JSON
+    // not JSON
   }
 
   const candidates: Record<string, string>[] = [];
@@ -146,33 +168,20 @@ function parseAssociadoAutocomplete(payload: string, searchTerm: string): Record
       rawBlock.match(/id=["']([^"']+)["']/i) ||
       rawBlock.match(/['"](\d{2,})['"]/);
 
-    candidates.push({
-      id: idMatch?.[1] || text,
-      nome: text,
-    });
+    candidates.push({ id: idMatch?.[1] || text, nome: text });
   }
 
   if (candidates.length === 0) {
-    const lines = payload
-      .split(/[\r\n]+/)
-      .map((line) => stripHtml(line))
-      .filter((line) => line.length >= 3);
-
-    for (const line of lines) {
-      candidates.push({ id: line, nome: line });
-    }
+    const lines = payload.split(/[\r\n]+/).map((l) => stripHtml(l)).filter((l) => l.length >= 3);
+    for (const line of lines) candidates.push({ id: line, nome: line });
   }
 
-  const deduped = unique(candidates.map((item) => `${item.id}|||${item.nome}`)).map((item) => {
-    const [id, nome] = item.split("|||");
+  const deduped = unique(candidates.map((i) => `${i.id}|||${i.nome}`)).map((i) => {
+    const [id, nome] = i.split("|||");
     return { id, nome };
   });
 
-  const filtered = deduped.filter((item) => {
-    if (!normalizedSearch) return true;
-    return normalizeText(item.nome).includes(normalizedSearch);
-  });
-
+  const filtered = deduped.filter((i) => !normalizedSearch || normalizeText(i.nome).includes(normalizedSearch));
   return filtered.length > 0 ? filtered : deduped;
 }
 
@@ -196,66 +205,55 @@ async function fetchWithCookies(url: string, cookies: string, method = "GET", bo
 
 async function hinovaLogin(rawUrl: string, usuario: string, senha: string, codigoCliente: string): Promise<{ cookies: string; success: boolean; error?: string }> {
   const portalBase = derivePortalBaseUrl(rawUrl);
-  const loginPageUrl = unique([rawUrl, `${portalBase}/v5/login.php`, `${portalBase}/login.php`])[0];
+  const loginPageUrl = `${portalBase}/v5/login.php`;
 
   try {
+    // Step 1: GET login page to capture PHPSESSID
     const loginPageResponse = await fetch(loginPageUrl, {
       method: "GET",
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
       redirect: "follow",
     });
-
     const loginHtml = await loginPageResponse.text();
     const initialCookies = extractCookies(loginPageResponse);
     const csrf = loginHtml.match(/name=["']hCsrf["'][^>]*value=["']([^"']+)/i)?.[1] || "";
 
-    const bodies = [
-      new URLSearchParams({ hCsrf: csrf, codigo_mobile: codigoCliente, usuario, senha, codigo_fma: "" }),
-      new URLSearchParams({ hCsrf: csrf, codigo_cliente: codigoCliente, usuario, senha, codigo_fma: "" }),
-      new URLSearchParams({ hCsrf: csrf, codigo: codigoCliente, usuario, senha, codigo_fma: "" }),
-    ];
+    // Step 2: POST login form
+    const body = new URLSearchParams();
+    body.set("codigo_mobile", codigoCliente);
+    body.set("usuario", usuario);
+    body.set("senha", senha);
+    body.set("codigo_fma", "");
+    if (csrf) body.set("hCsrf", csrf);
 
-    const submitTargets = unique([
-      loginPageUrl,
-      `${portalBase}/v5/login.php`,
-      `${portalBase}/login.php`,
-      `${portalBase}/v5/login/validar`,
-      `${portalBase}/login/validar`,
-    ]);
+    await fetch(loginPageUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        Cookie: initialCookies,
+        Referer: loginPageUrl,
+      },
+      body: body.toString(),
+      redirect: "follow",
+    }).then(r => r.text()); // consume body
 
-    for (const submitUrl of submitTargets) {
-      for (const body of bodies) {
-        const response = await fetch(submitUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            Cookie: initialCookies,
-            Referer: loginPageUrl,
-          },
-          body: body.toString(),
-          redirect: "manual",
-        });
+    // Step 3: Verify session by testing autocomplete endpoint
+    const verifyRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, initialCookies);
+    const verifyText = await verifyRes.text();
 
-        const responseText = await response.text();
-        const responseCookies = [initialCookies, extractCookies(response)].filter(Boolean).join("; ");
-        const location = response.headers.get("location") || "";
-        const loginStillVisible = isLoginPage(responseText) || /login/i.test(location);
+    console.info("Hinova login verify", {
+      verifyLen: verifyText.length,
+      isLogin: isLoginPage(verifyText),
+      rawPreview: verifyText.slice(0, 500),
+    });
 
-        if (responseCookies && !loginStillVisible) {
-          console.info("Hinova login OK", { submitUrl, portalBase });
-          return { cookies: responseCookies, success: true };
-        }
-      }
+    if (!isLoginPage(verifyText)) {
+      console.info("Hinova login OK");
+      return { cookies: initialCookies, success: true };
     }
 
-    return {
-      cookies: "",
-      success: false,
-      error: "Não foi possível autenticar no Hinova com as credenciais salvas.",
-    };
+    return { cookies: "", success: false, error: "Login falhou - sessão não autenticada" };
   } catch (e) {
     return { cookies: "", success: false, error: `Erro de conexão: ${e instanceof Error ? e.message : String(e)}` };
   }
@@ -330,6 +328,12 @@ serve(async (req) => {
 
         let autoCompleteResponse = await fetchWithCookies(autoCompleteUrl, cookies);
         let autoCompletePayload = await autoCompleteResponse.text();
+
+        console.info("Hinova autocomplete raw", {
+          searchTerm,
+          len: autoCompletePayload.length,
+          raw: autoCompletePayload.slice(0, 500),
+        });
 
         if (isLoginPage(autoCompletePayload)) {
           return new Response(JSON.stringify({ error: "Sessão expirada, faça login novamente", action: "session_expired" }), {
