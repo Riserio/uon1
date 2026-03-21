@@ -48,15 +48,6 @@ function ModuleDetail({ mod, onBack }: { mod: HelpModule; onBack: () => void }) 
       </button>
 
       <div className="rounded-2xl border bg-card overflow-hidden">
-        {mod.image && (
-          <div className="w-full h-48 md:h-64 overflow-hidden">
-            <img
-              src={mod.image}
-              alt={mod.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
         <div className="flex items-center gap-4 p-5">
           <div className={cn("p-3 rounded-xl bg-muted/60", mod.color)}>
             <Icon className="h-6 w-6" />
