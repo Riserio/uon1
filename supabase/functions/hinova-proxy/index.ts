@@ -249,18 +249,6 @@ async function hinovaLogin(rawUrl: string, usuario: string, senha: string, codig
     return { cookies: "", success: false, error: `Erro de conexão: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
-          } catch {
-            continue;
-          }
-        }
-      }
-    }
-
-    return { cookies: "", success: false, error: "Não foi possível autenticar no Hinova. O portal pode exigir login via navegador." };
-  } catch (e) {
-    return { cookies: "", success: false, error: `Erro de conexão: ${e instanceof Error ? e.message : String(e)}` };
-  }
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
