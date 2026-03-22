@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Search, Users, Car, Calendar, FileSpreadsheet, Download, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Search, Users, Car, Calendar, FileSpreadsheet, Download, Loader2, RefreshCw, AlertCircle, Wifi, WifiOff } from "lucide-react";
 
 interface SGAConsultaHinovaProps {
   corretoraId: string;
@@ -19,7 +19,9 @@ interface SGAConsultaHinovaProps {
 export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGAConsultaHinovaProps) {
   const [activeTab, setActiveTab] = useState("associados");
   const [loading, setLoading] = useState(false);
-  const [sessionCookies, setSessionCookies] = useState("");
+  const [sessionActive, setSessionActive] = useState<boolean | null>(null);
+  const [sessionUpdatedAt, setSessionUpdatedAt] = useState<string | null>(null);
+  const [refreshingSession, setRefreshingSession] = useState(false);
   const [error, setError] = useState("");
 
   // Associados
@@ -56,39 +58,56 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
         corretora_id: corretoraId,
         action,
         params,
-        session_cookies: sessionCookies,
       }),
     });
 
     const data = await response.json();
 
-    if (data.cookies) {
-      setSessionCookies(data.cookies);
-    }
-
     if (!response.ok) {
-      if (data.action === 'session_expired' || data.action === 'login_failed') {
-        setSessionCookies("");
+      if (data.action === 'session_expired' || data.action === 'no_session') {
+        setSessionActive(false);
       }
       throw new Error(data.error || 'Erro na operação');
     }
 
-    return data;
-  }, [corretoraId, sessionCookies]);
+    setSessionActive(true);
+    if (data.session_cookies_updated_at) {
+      setSessionUpdatedAt(data.session_cookies_updated_at);
+    }
 
-  const handleLogin = async () => {
+    return data;
+  }, [corretoraId]);
+
+  const handleCheckSession = async () => {
     setLoading(true);
     setError("");
     try {
       const result = await invokeProxy('login');
       if (result.success) {
-        toast.success("Conectado ao SGA com sucesso!");
+        toast.success("Sessão ativa no SGA!");
+        setSessionActive(true);
+      }
+    } catch (e: any) {
+      setError(e.message);
+      setSessionActive(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefreshSession = async () => {
+    setRefreshingSession(true);
+    setError("");
+    try {
+      const result = await invokeProxy('refresh-session');
+      if (result.success) {
+        toast.success(result.message || "Atualização de sessão disparada!");
       }
     } catch (e: any) {
       setError(e.message);
       toast.error(e.message);
     } finally {
-      setLoading(false);
+      setRefreshingSession(false);
     }
   };
 
@@ -171,7 +190,6 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
       const result = await invokeProxy('gerar-relatorio', params);
 
       if (result.file) {
-        // Decode base64 and download
         const byteCharacters = atob(result.file);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -231,6 +249,16 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
     );
   };
 
+  const formatSessionDate = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return null;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Status de conexão */}
@@ -238,29 +266,53 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${sessionCookies ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+              {sessionActive === true ? (
+                <Wifi className="h-5 w-5 text-primary" />
+              ) : sessionActive === false ? (
+                <WifiOff className="h-5 w-5 text-destructive" />
+              ) : (
+                <div className="w-3 h-3 rounded-full bg-muted-foreground/30" />
+              )}
               <div>
                 <p className="text-sm font-medium">
-                  {sessionCookies ? 'Conectado ao SGA' : 'Desconectado'}
+                  {sessionActive === true
+                    ? 'Conectado ao SGA'
+                    : sessionActive === false
+                    ? 'Sessão expirada'
+                    : 'Status desconhecido'}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {corretoraNome || 'Associação não selecionada'}
+                  {sessionUpdatedAt && (
+                    <span className="ml-2">· Sessão de {formatSessionDate(sessionUpdatedAt)}</span>
+                  )}
                 </p>
               </div>
             </div>
-            <Button
-              variant={sessionCookies ? "outline" : "default"}
-              size="sm"
-              onClick={handleLogin}
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              <span className="ml-2">{sessionCookies ? 'Reconectar' : 'Conectar'}</span>
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCheckSession}
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                <span className="ml-2 hidden sm:inline">Verificar</span>
+              </Button>
+              <Button
+                variant={sessionActive === false ? "default" : "outline"}
+                size="sm"
+                onClick={handleRefreshSession}
+                disabled={refreshingSession}
+              >
+                {refreshingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                <span className="ml-2">Atualizar Sessão</span>
+              </Button>
+            </div>
           </div>
           {error && (
             <div className="mt-3 flex items-center gap-2 text-destructive text-xs">
-              <AlertCircle className="h-4 w-4" />
+              <AlertCircle className="h-4 w-4 shrink-0" />
               {error}
             </div>
           )}

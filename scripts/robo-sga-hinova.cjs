@@ -2186,6 +2186,27 @@ async function main() {
       throw new Error(`Login falhou após ${LIMITS.MAX_LOGIN_RETRIES} tentativas`);
     }
 
+    // === SALVAR COOKIES NO BANCO PARA O PROXY INTERATIVO ===
+    try {
+      const browserCookies = await context.cookies();
+      const cookieString = browserCookies.map(c => `${c.name}=${c.value}`).join('; ');
+      if (cookieString && CONFIG.CORRETORA_ID) {
+        const supabaseUrl = process.env.WEBHOOK_URL ? new URL(process.env.WEBHOOK_URL).origin : null;
+        if (supabaseUrl) {
+          const serviceRoleKey = process.env.WEBHOOK_SECRET; // reuse existing secret for auth
+          // Save cookies via webhook with special action
+          await sendWebhook({
+            action: 'save_cookies',
+            corretora_id: CONFIG.CORRETORA_ID,
+            session_cookies: cookieString,
+          });
+          log(`Cookies de sessão salvos para proxy interativo (${browserCookies.length} cookies)`, LOG_LEVELS.SUCCESS);
+        }
+      }
+    } catch (cookieErr) {
+      log(`Aviso: não foi possível salvar cookies para proxy: ${cookieErr.message}`, LOG_LEVELS.WARN);
+    }
+
     await fecharPopups(page);
 
     const janelas = buildDateWindows(inicio, fim, LIMITS.INITIAL_WINDOW_DAYS);

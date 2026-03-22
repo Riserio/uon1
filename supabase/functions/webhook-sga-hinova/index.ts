@@ -155,6 +155,32 @@ serve(async (req) => {
     }
 
     const body = await req.json();
+
+    // === AÇÃO ESPECIAL: salvar cookies de sessão para proxy interativo ===
+    if (body.action === 'save_cookies' && body.corretora_id && body.session_cookies) {
+      console.log(`[Webhook SGA] Salvando cookies de sessão para corretora ${body.corretora_id}`);
+      const { error: cookieErr } = await supabase
+        .from('hinova_credenciais')
+        .update({
+          session_cookies: body.session_cookies,
+          session_cookies_updated_at: new Date().toISOString(),
+        })
+        .eq('corretora_id', body.corretora_id);
+
+      if (cookieErr) {
+        console.error(`[Webhook SGA] Erro ao salvar cookies: ${cookieErr.message}`);
+        return new Response(
+          JSON.stringify({ success: false, error: cookieErr.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Cookies salvos' }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { 
       corretora_id, 
       dados, 
