@@ -309,6 +309,7 @@ serve(async (req) => {
             const url = `${portalBase}/carrega/carregaAssociados.php?input=${encodeURIComponent(searchTerm)}`;
             const res = await fetchWithCookies(url, c);
             const text = await res.text();
+            console.info("Hinova autocomplete response", { searchTerm, len: text.length, status: res.status, preview: text.substring(0, 500) });
             return { text, status: res.status };
           },
           (r) => isLoginPage(r.text) || r.status === 302,
