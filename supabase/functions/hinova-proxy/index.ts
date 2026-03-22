@@ -193,20 +193,7 @@ serve(async (req) => {
 
     const portalBase = derivePortalBaseUrl(loginUrl);
 
-    // Use saved cookies from Playwright robot
-    const cookies = (creds.session_cookies || "").trim();
-    if (!cookies) {
-      return new Response(JSON.stringify({
-        error: "Sessão não disponível. Clique em 'Atualizar Sessão' para conectar ao portal via robô automatizado.",
-        action: "no_session",
-        session_cookies_updated_at: creds.session_cookies_updated_at,
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
-    }
-
-    // For refresh-session action, trigger GitHub Action to re-login
+    // For refresh-session action, trigger GitHub Action to re-login (before cookie check)
     if (action === "refresh-session") {
       const githubPat = Deno.env.get("GITHUB_PAT");
       const githubRepoOwner = Deno.env.get("GITHUB_REPO_OWNER");
@@ -219,7 +206,6 @@ serve(async (req) => {
         });
       }
 
-      // Dispatch a lightweight workflow just for login + cookie save
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const webhookUrl = `${supabaseUrl}/functions/v1/webhook-sga-hinova`;
 
@@ -241,7 +227,6 @@ serve(async (req) => {
               hinova_pass: creds.hinova_pass,
               hinova_codigo_cliente: creds.hinova_codigo_cliente || "",
               webhook_url: webhookUrl,
-              // Use today's date range (minimal work, just login + save cookies)
               data_inicio: new Date().toLocaleDateString("pt-BR"),
               data_fim: new Date().toLocaleDateString("pt-BR"),
             },
@@ -262,6 +247,19 @@ serve(async (req) => {
         message: "Atualização de sessão disparada. Aguarde ~2 minutos para a sessão ficar disponível.",
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Use saved cookies from Playwright robot
+    const cookies = (creds.session_cookies || "").trim();
+    if (!cookies) {
+      return new Response(JSON.stringify({
+        error: "Sessão não disponível. Clique em 'Atualizar Sessão' para conectar ao portal via robô automatizado.",
+        action: "no_session",
+        session_cookies_updated_at: creds.session_cookies_updated_at,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
       });
     }
 
