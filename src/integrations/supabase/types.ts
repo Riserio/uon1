@@ -2412,6 +2412,8 @@ export type Database = {
           layout_cobranca: string | null
           layout_eventos: string | null
           layout_mgf: string | null
+          session_cookies: string | null
+          session_cookies_updated_at: string | null
           updated_at: string
           url_cobranca: string | null
           url_eventos: string | null
@@ -2433,6 +2435,8 @@ export type Database = {
           layout_cobranca?: string | null
           layout_eventos?: string | null
           layout_mgf?: string | null
+          session_cookies?: string | null
+          session_cookies_updated_at?: string | null
           updated_at?: string
           url_cobranca?: string | null
           url_eventos?: string | null
@@ -2454,6 +2458,8 @@ export type Database = {
           layout_cobranca?: string | null
           layout_eventos?: string | null
           layout_mgf?: string | null
+          session_cookies?: string | null
+          session_cookies_updated_at?: string | null
           updated_at?: string
           url_cobranca?: string | null
           url_eventos?: string | null
