@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,13 +8,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Search, Users, Car, Calendar, FileSpreadsheet, Download, Loader2, RefreshCw, AlertCircle, Wifi, WifiOff } from "lucide-react";
+import { Search, Users, Car, Calendar, FileSpreadsheet, Download, Loader2, RefreshCw, AlertCircle, Wifi, WifiOff, CheckCircle2, Clock, Zap } from "lucide-react";
 
 interface SGAConsultaHinovaProps {
   corretoraId: string;
   corretoraNome?: string;
 }
+
+const POLL_INTERVAL = 10_000; // 10s
+const POLL_MAX_DURATION = 180_000; // 3min
 
 export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGAConsultaHinovaProps) {
   const [activeTab, setActiveTab] = useState("associados");
@@ -22,7 +27,11 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   const [sessionUpdatedAt, setSessionUpdatedAt] = useState<string | null>(null);
   const [refreshingSession, setRefreshingSession] = useState(false);
+  const [pollingSession, setPollingSession] = useState(false);
+  const [pollElapsed, setPollElapsed] = useState(0);
   const [error, setError] = useState("");
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollStartRef = useRef<number>(0);
 
   // Associados
   const [buscaAssociado, setBuscaAssociado] = useState("");
@@ -40,6 +49,13 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
   // Relatórios
   const [relatorioLayout, setRelatorioLayout] = useState("VANGARD");
   const [relatorioLoading, setRelatorioLoading] = useState(false);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
 
   const invokeProxy = useCallback(async (action: string, params?: Record<string, string>) => {
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
@@ -78,6 +94,44 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
     return data;
   }, [corretoraId]);
 
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    setPollingSession(false);
+    setPollElapsed(0);
+  }, []);
+
+  const startPolling = useCallback(() => {
+    stopPolling();
+    setPollingSession(true);
+    pollStartRef.current = Date.now();
+    setPollElapsed(0);
+
+    pollTimerRef.current = setInterval(async () => {
+      const elapsed = Date.now() - pollStartRef.current;
+      setPollElapsed(elapsed);
+
+      if (elapsed >= POLL_MAX_DURATION) {
+        stopPolling();
+        toast.error("Tempo limite atingido. Tente novamente.");
+        return;
+      }
+
+      try {
+        const result = await invokeProxy('login');
+        if (result.success) {
+          stopPolling();
+          setSessionActive(true);
+          toast.success("✅ Sessão ativa! Pronto para consultar.");
+        }
+      } catch {
+        // Still waiting...
+      }
+    }, POLL_INTERVAL);
+  }, [invokeProxy, stopPolling]);
+
   const handleCheckSession = async () => {
     setLoading(true);
     setError("");
@@ -101,7 +155,8 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
     try {
       const result = await invokeProxy('refresh-session');
       if (result.success) {
-        toast.success(result.message || "Atualização de sessão disparada!");
+        toast.info("🤖 Robô disparado! Verificando automaticamente quando a sessão estiver pronta...");
+        startPolling();
       }
     } catch (e: any) {
       setError(e.message);
@@ -259,28 +314,50 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
     }
   };
 
+  const pollProgress = Math.min((pollElapsed / POLL_MAX_DURATION) * 100, 100);
+  const pollSecondsRemaining = Math.max(0, Math.ceil((POLL_MAX_DURATION - pollElapsed) / 1000));
+
   return (
     <div className="space-y-6">
       {/* Status de conexão */}
       <Card className="bg-muted/40 rounded-2xl border-border/50">
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
               {sessionActive === true ? (
-                <Wifi className="h-5 w-5 text-primary" />
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                </div>
+              ) : pollingSession ? (
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-accent/50">
+                  <Loader2 className="h-5 w-5 text-accent-foreground animate-spin" />
+                </div>
               ) : sessionActive === false ? (
-                <WifiOff className="h-5 w-5 text-destructive" />
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10">
+                  <WifiOff className="h-5 w-5 text-destructive" />
+                </div>
               ) : (
-                <div className="w-3 h-3 rounded-full bg-muted-foreground/30" />
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-muted">
+                  <Wifi className="h-5 w-5 text-muted-foreground" />
+                </div>
               )}
               <div>
-                <p className="text-sm font-medium">
-                  {sessionActive === true
-                    ? 'Conectado ao SGA'
-                    : sessionActive === false
-                    ? 'Sessão expirada'
-                    : 'Status desconhecido'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold">
+                    {pollingSession
+                      ? 'Aguardando robô...'
+                      : sessionActive === true
+                      ? 'Conectado ao SGA'
+                      : sessionActive === false
+                      ? 'Sessão inativa'
+                      : 'Verificar conexão'}
+                  </p>
+                  {sessionActive === true && (
+                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                      Online
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {corretoraNome || 'Associação não selecionada'}
                   {sessionUpdatedAt && (
@@ -294,26 +371,52 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                 variant="outline"
                 size="sm"
                 onClick={handleCheckSession}
-                disabled={loading}
+                disabled={loading || pollingSession}
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
                 <span className="ml-2 hidden sm:inline">Verificar</span>
               </Button>
               <Button
-                variant={sessionActive === false ? "default" : "outline"}
+                variant={sessionActive === false && !pollingSession ? "default" : "outline"}
                 size="sm"
-                onClick={handleRefreshSession}
+                onClick={pollingSession ? stopPolling : handleRefreshSession}
                 disabled={refreshingSession}
               >
-                {refreshingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                <span className="ml-2">Atualizar Sessão</span>
+                {refreshingSession ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : pollingSession ? (
+                  <Clock className="h-4 w-4" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                <span className="ml-2">
+                  {pollingSession ? 'Cancelar' : 'Atualizar Sessão'}
+                </span>
               </Button>
             </div>
           </div>
-          {error && (
-            <div className="mt-3 flex items-center gap-2 text-destructive text-xs">
+
+          {/* Polling progress */}
+          {pollingSession && (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Robô fazendo login no portal... verificando a cada 10s
+                </span>
+                <span>{Math.floor(pollSecondsRemaining / 60)}:{String(pollSecondsRemaining % 60).padStart(2, '0')} restantes</span>
+              </div>
+              <Progress value={pollProgress} className="h-1.5" />
+              <p className="text-[11px] text-muted-foreground/70">
+                O robô está acessando o portal Hinova, fazendo login e salvando a sessão. Isso leva em média 1-2 minutos.
+              </p>
+            </div>
+          )}
+
+          {error && !pollingSession && (
+            <div className="mt-3 flex items-center gap-2 text-destructive text-xs bg-destructive/5 rounded-lg p-2.5">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              {error}
+              <span>{error}</span>
             </div>
           )}
         </CardContent>
@@ -344,7 +447,10 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
         <TabsContent value="associados" className="space-y-4">
           <Card className="bg-muted/40 rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Consultar Associado</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Consultar Associado
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -354,18 +460,27 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                   onChange={(e) => setBuscaAssociado(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleBuscarAssociado()}
                   className="flex-1"
+                  disabled={sessionActive !== true}
                 />
-                <Button onClick={handleBuscarAssociado} disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                <Button onClick={handleBuscarAssociado} disabled={loading || sessionActive !== true}>
+                  {loading && activeTab === 'associados' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   <span className="ml-2 hidden sm:inline">Buscar</span>
                 </Button>
               </div>
+              {sessionActive !== true && (
+                <p className="text-xs text-muted-foreground italic">Conecte-se ao SGA primeiro para realizar consultas.</p>
+              )}
               {loading && activeTab === 'associados' ? (
                 <div className="space-y-2">
                   {[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
                 </div>
               ) : (
-                renderTable(associados)
+                <>
+                  {associados.length > 0 && (
+                    <p className="text-xs text-muted-foreground">{associados.length} resultado(s)</p>
+                  )}
+                  {renderTable(associados)}
+                </>
               )}
             </CardContent>
           </Card>
@@ -375,7 +490,10 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
         <TabsContent value="veiculos" className="space-y-4">
           <Card className="bg-muted/40 rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Consultar Veículo</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Car className="h-4 w-4 text-primary" />
+                Consultar Veículo
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
@@ -385,18 +503,27 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                   onChange={(e) => setBuscaVeiculo(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleBuscarVeiculo()}
                   className="flex-1"
+                  disabled={sessionActive !== true}
                 />
-                <Button onClick={handleBuscarVeiculo} disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                <Button onClick={handleBuscarVeiculo} disabled={loading || sessionActive !== true}>
+                  {loading && activeTab === 'veiculos' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   <span className="ml-2 hidden sm:inline">Buscar</span>
                 </Button>
               </div>
+              {sessionActive !== true && (
+                <p className="text-xs text-muted-foreground italic">Conecte-se ao SGA primeiro para realizar consultas.</p>
+              )}
               {loading && activeTab === 'veiculos' ? (
                 <div className="space-y-2">
                   {[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
                 </div>
               ) : (
-                renderTable(veiculos)
+                <>
+                  {veiculos.length > 0 && (
+                    <p className="text-xs text-muted-foreground">{veiculos.length} resultado(s)</p>
+                  )}
+                  {renderTable(veiculos)}
+                </>
               )}
             </CardContent>
           </Card>
@@ -406,7 +533,10 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
         <TabsContent value="eventos" className="space-y-4">
           <Card className="bg-muted/40 rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Listar Eventos</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-primary" />
+                Listar Eventos
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-3 items-end">
@@ -417,6 +547,7 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                     value={eventosDataInicio}
                     onChange={(e) => setEventosDataInicio(e.target.value)}
                     className="w-40"
+                    disabled={sessionActive !== true}
                   />
                 </div>
                 <div className="space-y-1">
@@ -426,19 +557,28 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                     value={eventosDataFim}
                     onChange={(e) => setEventosDataFim(e.target.value)}
                     className="w-40"
+                    disabled={sessionActive !== true}
                   />
                 </div>
-                <Button onClick={handleListarEventos} disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                <Button onClick={handleListarEventos} disabled={loading || sessionActive !== true}>
+                  {loading && activeTab === 'eventos' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   <span className="ml-2">Buscar</span>
                 </Button>
               </div>
+              {sessionActive !== true && (
+                <p className="text-xs text-muted-foreground italic">Conecte-se ao SGA primeiro para realizar consultas.</p>
+              )}
               {loading && activeTab === 'eventos' ? (
                 <div className="space-y-2">
                   {[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
                 </div>
               ) : (
-                renderTable(eventosData)
+                <>
+                  {eventosData.length > 0 && (
+                    <p className="text-xs text-muted-foreground">{eventosData.length} resultado(s)</p>
+                  )}
+                  {renderTable(eventosData)}
+                </>
               )}
             </CardContent>
           </Card>
@@ -448,13 +588,16 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
         <TabsContent value="relatorios" className="space-y-4">
           <Card className="bg-muted/40 rounded-2xl border-border/50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Gerar Relatório em Excel</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-primary" />
+                Gerar Relatório em Excel
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-3 items-end">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Layout</Label>
-                  <Select value={relatorioLayout} onValueChange={setRelatorioLayout}>
+                  <Select value={relatorioLayout} onValueChange={setRelatorioLayout} disabled={sessionActive !== true}>
                     <SelectTrigger className="w-48">
                       <SelectValue />
                     </SelectTrigger>
@@ -472,6 +615,7 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                     value={eventosDataInicio}
                     onChange={(e) => setEventosDataInicio(e.target.value)}
                     className="w-40"
+                    disabled={sessionActive !== true}
                   />
                 </div>
                 <div className="space-y-1">
@@ -481,16 +625,21 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                     value={eventosDataFim}
                     onChange={(e) => setEventosDataFim(e.target.value)}
                     className="w-40"
+                    disabled={sessionActive !== true}
                   />
                 </div>
-                <Button onClick={handleGerarRelatorio} disabled={relatorioLoading} className="gap-2">
+                <Button onClick={handleGerarRelatorio} disabled={relatorioLoading || sessionActive !== true} className="gap-2">
                   {relatorioLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   Gerar Excel
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                O relatório será gerado diretamente do portal Hinova e baixado como arquivo Excel.
-              </p>
+              {sessionActive !== true ? (
+                <p className="text-xs text-muted-foreground italic">Conecte-se ao SGA primeiro para gerar relatórios.</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  O relatório será gerado diretamente do portal Hinova e baixado como arquivo Excel.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
