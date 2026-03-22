@@ -13,8 +13,8 @@ interface ProxyRequest {
 }
 
 // ── Constants ───────────────────────────────────────────────────────
-const FETCH_TIMEOUT = 10000; // 10s per external request
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes - trust cookies without verify
+const FETCH_TIMEOUT = 25000; // 25s per external request (Hinova is slow)
+const SESSION_TTL_MS = 15 * 60 * 1000; // 15 minutes - Hinova sessions expire fast
 
 // ── HTML / XML helpers ──────────────────────────────────────────────
 function stripHtml(value: string): string {
