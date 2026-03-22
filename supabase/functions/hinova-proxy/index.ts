@@ -8,13 +8,8 @@ const corsHeaders = {
 
 interface ProxyRequest {
   corretora_id: string;
-  action: "login" | "consultar-associado" | "consultar-veiculo" | "listar-eventos" | "gerar-relatorio";
+  action: "login" | "consultar-associado" | "consultar-veiculo" | "listar-eventos" | "gerar-relatorio" | "refresh-session";
   params?: Record<string, string>;
-  session_cookies?: string;
-}
-
-function unique<T>(items: T[]): T[] {
-  return [...new Set(items.filter(Boolean))];
 }
 
 function stripHtml(value: string): string {
@@ -32,36 +27,20 @@ function stripHtml(value: string): string {
     .trim();
 }
 
-function normalizeText(value: string): string {
-  return stripHtml(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
 function derivePortalBaseUrl(rawUrl: string): string {
   try {
     const parsed = new URL(rawUrl);
     let path = parsed.pathname.replace(/\/+$/, "");
-
     path = path
       .replace(/\/v5\/login\.php$/i, "")
       .replace(/\/login\.php$/i, "")
       .replace(/\/login\/validar$/i, "")
       .replace(/\/login$/i, "")
       .replace(/\/v5$/i, "");
-
     return `${parsed.origin}${path}`;
   } catch {
     return rawUrl.replace(/\/+$/, "");
   }
-}
-
-function extractCookies(response: Response): string {
-  const rawCookies = response.headers.getSetCookie?.() ?? [];
-  const fallbackCookie = response.headers.get("set-cookie");
-  const cookies = rawCookies.length > 0 ? rawCookies : fallbackCookie ? [fallbackCookie] : [];
-  return cookies.map((cookie) => cookie.split(";")[0]).filter(Boolean).join("; ");
 }
 
 function isLoginPage(html: string): boolean {
@@ -91,19 +70,14 @@ function parseHtmlTable(html: string): Record<string, string>[] {
       let tdMatch: RegExpExecArray | null;
       const row: Record<string, string> = {};
       let colIndex = 0;
-
       while ((tdMatch = tdRegex.exec(trMatch[1])) !== null) {
         const key = headers[colIndex] || `col_${colIndex}`;
         row[key] = stripHtml(tdMatch[1]);
         colIndex++;
       }
-
-      if (Object.keys(row).length > 0) {
-        rows.push(row);
-      }
+      if (Object.keys(row).length > 0) rows.push(row);
     }
   }
-
   return rows;
 }
 
@@ -124,13 +98,10 @@ function parseXmlResults(payload: string): Record<string, string>[] {
 }
 
 function parseAssociadoAutocomplete(payload: string, searchTerm: string): Record<string, string>[] {
-  // Try XML format first (Hinova returns <?xml ...><results><rs id="..." info="...">Name</rs></results>)
   if (payload.includes("<results") || payload.includes("<rs")) {
     const xmlResults = parseXmlResults(payload);
     if (xmlResults.length > 0) return xmlResults;
   }
-
-  const normalizedSearch = normalizeText(searchTerm);
 
   try {
     const parsed = JSON.parse(payload);
@@ -153,36 +124,22 @@ function parseAssociadoAutocomplete(payload: string, searchTerm: string): Record
     // not JSON
   }
 
+  // Fallback: parse HTML list items
   const candidates: Record<string, string>[] = [];
   const tagRegex = /<(li|option|a|div)[^>]*>([\s\S]*?)<\/\1>/gi;
   let tagMatch: RegExpExecArray | null;
-
   while ((tagMatch = tagRegex.exec(payload)) !== null) {
     const rawBlock = tagMatch[0];
     const text = stripHtml(tagMatch[2]);
     if (!text || text.length < 3) continue;
-
     const idMatch =
       rawBlock.match(/data-id=["']([^"']+)["']/i) ||
       rawBlock.match(/value=["']([^"']+)["']/i) ||
-      rawBlock.match(/id=["']([^"']+)["']/i) ||
-      rawBlock.match(/['"](\d{2,})['"]/);
-
+      rawBlock.match(/id=["']([^"']+)["']/i);
     candidates.push({ id: idMatch?.[1] || text, nome: text });
   }
 
-  if (candidates.length === 0) {
-    const lines = payload.split(/[\r\n]+/).map((l) => stripHtml(l)).filter((l) => l.length >= 3);
-    for (const line of lines) candidates.push({ id: line, nome: line });
-  }
-
-  const deduped = unique(candidates.map((i) => `${i.id}|||${i.nome}`)).map((i) => {
-    const [id, nome] = i.split("|||");
-    return { id, nome };
-  });
-
-  const filtered = deduped.filter((i) => !normalizedSearch || normalizeText(i.nome).includes(normalizedSearch));
-  return filtered.length > 0 ? filtered : deduped;
+  return candidates;
 }
 
 async function fetchWithCookies(url: string, cookies: string, method = "GET", body?: string): Promise<Response> {
@@ -190,73 +147,10 @@ async function fetchWithCookies(url: string, cookies: string, method = "GET", bo
     Cookie: cookies,
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   };
-
   if (body) {
     headers["Content-Type"] = "application/x-www-form-urlencoded";
   }
-
-  return await fetch(url, {
-    method,
-    headers,
-    body: body || undefined,
-    redirect: "follow",
-  });
-}
-
-async function hinovaLogin(rawUrl: string, usuario: string, senha: string, codigoCliente: string): Promise<{ cookies: string; success: boolean; error?: string }> {
-  const portalBase = derivePortalBaseUrl(rawUrl);
-  const loginPageUrl = `${portalBase}/v5/login.php`;
-
-  try {
-    // Step 1: GET login page to capture PHPSESSID
-    const loginPageResponse = await fetch(loginPageUrl, {
-      method: "GET",
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-      redirect: "follow",
-    });
-    const loginHtml = await loginPageResponse.text();
-    const initialCookies = extractCookies(loginPageResponse);
-    const csrf = loginHtml.match(/name=["']hCsrf["'][^>]*value=["']([^"']+)/i)?.[1] || "";
-
-    // Step 2: POST login form
-    const body = new URLSearchParams();
-    body.set("codigo_mobile", codigoCliente);
-    body.set("usuario", usuario);
-    body.set("senha", senha);
-    body.set("codigo_fma", "");
-    if (csrf) body.set("hCsrf", csrf);
-
-    await fetch(loginPageUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        Cookie: initialCookies,
-        Referer: loginPageUrl,
-      },
-      body: body.toString(),
-      redirect: "follow",
-    }).then(r => r.text()); // consume body
-
-    // Step 3: Verify session by testing autocomplete endpoint
-    const verifyRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, initialCookies);
-    const verifyText = await verifyRes.text();
-
-    console.info("Hinova login verify", {
-      verifyLen: verifyText.length,
-      isLogin: isLoginPage(verifyText),
-      rawPreview: verifyText.slice(0, 500),
-    });
-
-    if (!isLoginPage(verifyText)) {
-      console.info("Hinova login OK");
-      return { cookies: initialCookies, success: true };
-    }
-
-    return { cookies: "", success: false, error: "Login falhou - sessão não autenticada" };
-  } catch (e) {
-    return { cookies: "", success: false, error: `Erro de conexão: ${e instanceof Error ? e.message : String(e)}` };
-  }
+  return await fetch(url, { method, headers, body: body || undefined, redirect: "follow" });
 }
 
 serve(async (req) => {
@@ -265,7 +159,7 @@ serve(async (req) => {
   }
 
   try {
-    const { corretora_id, action, params, session_cookies } = (await req.json()) as ProxyRequest;
+    const { corretora_id, action, params } = (await req.json()) as ProxyRequest;
 
     if (!corretora_id || !action) {
       return new Response(JSON.stringify({ error: "corretora_id e action são obrigatórios" }), {
@@ -299,44 +193,124 @@ serve(async (req) => {
 
     const portalBase = derivePortalBaseUrl(loginUrl);
 
-    let cookies = session_cookies || "";
+    // Use saved cookies from Playwright robot
+    const cookies = (creds.session_cookies || "").trim();
     if (!cookies) {
-      const loginResult = await hinovaLogin(loginUrl, creds.hinova_user, creds.hinova_pass, creds.hinova_codigo_cliente || "");
-      if (!loginResult.success) {
-        return new Response(JSON.stringify({ error: loginResult.error, action: "login_failed" }), {
+      return new Response(JSON.stringify({
+        error: "Sessão não disponível. Clique em 'Atualizar Sessão' para conectar ao portal via robô automatizado.",
+        action: "no_session",
+        session_cookies_updated_at: creds.session_cookies_updated_at,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    // For refresh-session action, trigger GitHub Action to re-login
+    if (action === "refresh-session") {
+      const githubPat = Deno.env.get("GITHUB_PAT");
+      const githubRepoOwner = Deno.env.get("GITHUB_REPO_OWNER");
+      const githubRepoName = Deno.env.get("GITHUB_REPO_NAME");
+
+      if (!githubPat || !githubRepoOwner || !githubRepoName) {
+        return new Response(JSON.stringify({ error: "Configuração GitHub não encontrada" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
+          status: 500,
         });
       }
-      cookies = loginResult.cookies;
+
+      // Dispatch a lightweight workflow just for login + cookie save
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const webhookUrl = `${supabaseUrl}/functions/v1/webhook-sga-hinova`;
+
+      const ghResponse = await fetch(
+        `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/dispatches`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${githubPat}`,
+            Accept: "application/vnd.github.v3+json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ref: "main",
+            inputs: {
+              corretora_id: corretora_id,
+              hinova_url: creds.hinova_url,
+              hinova_user: creds.hinova_user,
+              hinova_pass: creds.hinova_pass,
+              hinova_codigo_cliente: creds.hinova_codigo_cliente || "",
+              webhook_url: webhookUrl,
+              // Use today's date range (minimal work, just login + save cookies)
+              data_inicio: new Date().toLocaleDateString("pt-BR"),
+              data_fim: new Date().toLocaleDateString("pt-BR"),
+            },
+          }),
+        }
+      );
+
+      if (!ghResponse.ok) {
+        const errText = await ghResponse.text();
+        return new Response(JSON.stringify({ error: `Erro ao disparar atualização: ${errText}` }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500,
+        });
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: "Atualização de sessão disparada. Aguarde ~2 minutos para a sessão ficar disponível.",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     console.info("Hinova proxy action", { action, corretora_id, portalBase });
 
-    let responseData: Record<string, unknown> = { cookies };
+    // Verify session is still valid
+    const verifyRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, cookies);
+    const verifyText = await verifyRes.text();
+
+    if (isLoginPage(verifyText) || verifyRes.status === 302) {
+      // Clear stale cookies
+      await supabase
+        .from("hinova_credenciais")
+        .update({ session_cookies: null, session_cookies_updated_at: null })
+        .eq("corretora_id", corretora_id);
+
+      return new Response(JSON.stringify({
+        error: "Sessão expirada. Clique em 'Atualizar Sessão' para reconectar.",
+        action: "session_expired",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    let responseData: Record<string, unknown> = {};
 
     switch (action) {
       case "login": {
-        responseData = { success: true, cookies, portalBase };
+        responseData = {
+          success: true,
+          portalBase,
+          session_cookies_updated_at: creds.session_cookies_updated_at,
+          message: "Sessão ativa",
+        };
         break;
       }
 
       case "consultar-associado": {
         const searchTerm = (params?.busca || "").trim();
         const autoCompleteUrl = `${portalBase}/carrega/carregaAssociados.php?input=${encodeURIComponent(searchTerm)}`;
-        const fallbackUrl = `${portalBase}/associado/consultarAssociado.php`;
 
-        let autoCompleteResponse = await fetchWithCookies(autoCompleteUrl, cookies);
-        let autoCompletePayload = await autoCompleteResponse.text();
+        const autoCompleteResponse = await fetchWithCookies(autoCompleteUrl, cookies);
+        const autoCompletePayload = await autoCompleteResponse.text();
 
-        console.info("Hinova autocomplete raw", {
-          searchTerm,
-          len: autoCompletePayload.length,
-          raw: autoCompletePayload.slice(0, 500),
-        });
+        console.info("Hinova autocomplete", { searchTerm, len: autoCompletePayload.length, preview: autoCompletePayload.slice(0, 300) });
 
         if (isLoginPage(autoCompletePayload)) {
-          return new Response(JSON.stringify({ error: "Sessão expirada, faça login novamente", action: "session_expired" }), {
+          return new Response(JSON.stringify({ error: "Sessão expirada", action: "session_expired" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: 401,
           });
@@ -344,61 +318,46 @@ serve(async (req) => {
 
         let data = parseAssociadoAutocomplete(autoCompletePayload, searchTerm);
 
+        // Fallback to full search page
         if (data.length === 0) {
-          const searchBody = new URLSearchParams({
-            input: searchTerm,
-            busca: searchTerm,
-            nome: searchTerm,
-            cpf: searchTerm,
-          });
-
+          const fallbackUrl = `${portalBase}/associado/consultarAssociado.php`;
+          const searchBody = new URLSearchParams({ input: searchTerm, busca: searchTerm, nome: searchTerm });
           const fallbackResponse = await fetchWithCookies(fallbackUrl, cookies, "POST", searchBody.toString());
           const fallbackHtml = await fallbackResponse.text();
-
-          if (isLoginPage(fallbackHtml)) {
-            return new Response(JSON.stringify({ error: "Sessão expirada, faça login novamente", action: "session_expired" }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 401,
-            });
-          }
-
-          data = parseHtmlTable(fallbackHtml);
-
-          if (data.length === 0) {
-            console.info("Hinova associado sem resultados", {
-              searchTerm,
-              autoCompleteUrl,
-              preview: stripHtml(autoCompletePayload).slice(0, 300),
-              fallbackPreview: stripHtml(fallbackHtml).slice(0, 300),
-            });
+          if (!isLoginPage(fallbackHtml)) {
+            data = parseHtmlTable(fallbackHtml);
           }
         }
 
-        responseData = { success: true, data, total: data.length, cookies };
+        responseData = { success: true, data, total: data.length };
         break;
       }
 
       case "consultar-veiculo": {
         const searchTerm = params?.busca || "";
-        const url = `${portalBase}/veiculo/consultarVeiculo.php`;
-        const searchBody = new URLSearchParams();
-        if (searchTerm) {
-          searchBody.set("busca", searchTerm);
-          searchBody.set("placa", searchTerm);
-        }
+        // Try autocomplete first
+        const autoUrl = `${portalBase}/carrega/carregaVeiculos.php?input=${encodeURIComponent(searchTerm)}`;
+        const autoRes = await fetchWithCookies(autoUrl, cookies);
+        const autoPayload = await autoRes.text();
 
-        const response = await fetchWithCookies(url, cookies, "POST", searchBody.toString());
-        const html = await response.text();
-
-        if (isLoginPage(html)) {
+        if (isLoginPage(autoPayload)) {
           return new Response(JSON.stringify({ error: "Sessão expirada", action: "session_expired" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: 401,
           });
         }
 
-        const data = parseHtmlTable(html);
-        responseData = { success: true, data, total: data.length, cookies };
+        let data = parseAssociadoAutocomplete(autoPayload, searchTerm);
+
+        if (data.length === 0) {
+          const url = `${portalBase}/veiculo/consultarVeiculo.php`;
+          const searchBody = new URLSearchParams({ busca: searchTerm, placa: searchTerm });
+          const response = await fetchWithCookies(url, cookies, "POST", searchBody.toString());
+          const html = await response.text();
+          if (!isLoginPage(html)) data = parseHtmlTable(html);
+        }
+
+        responseData = { success: true, data, total: data.length };
         break;
       }
 
@@ -421,10 +380,10 @@ serve(async (req) => {
 
         try {
           const jsonData = JSON.parse(html);
-          responseData = { success: true, data: Array.isArray(jsonData) ? jsonData : jsonData.data || [], cookies };
+          responseData = { success: true, data: Array.isArray(jsonData) ? jsonData : jsonData.data || [] };
         } catch {
           const data = parseHtmlTable(html);
-          responseData = { success: true, data, total: data.length, cookies };
+          responseData = { success: true, data, total: data.length };
         }
         break;
       }
@@ -450,10 +409,9 @@ serve(async (req) => {
           }
           const base64 = btoa(binary);
           const fileName = response.headers.get("content-disposition")?.match(/filename="?([^";\n]+)"?/)?.[1] || "relatorio.xls";
-          responseData = { success: true, file: base64, fileName, contentType, cookies };
+          responseData = { success: true, file: base64, fileName, contentType };
         } else {
           const html = await response.text();
-
           if (isLoginPage(html)) {
             return new Response(JSON.stringify({ error: "Sessão expirada", action: "session_expired" }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -468,20 +426,12 @@ serve(async (req) => {
             const arrayBuffer = await fileResponse.arrayBuffer();
             const uint8Array = new Uint8Array(arrayBuffer);
             let binary = "";
-            for (let i = 0; i < uint8Array.length; i++) {
-              binary += String.fromCharCode(uint8Array[i]);
-            }
+            for (let i = 0; i < uint8Array.length; i++) binary += String.fromCharCode(uint8Array[i]);
             const base64 = btoa(binary);
-            responseData = { success: true, file: base64, fileName: "relatorio.xls", cookies };
+            responseData = { success: true, file: base64, fileName: "relatorio.xls" };
           } else {
             const data = parseHtmlTable(html);
-            responseData = {
-              success: true,
-              data,
-              total: data.length,
-              cookies,
-              note: "Relatório retornado como dados (sem arquivo para download)",
-            };
+            responseData = { success: true, data, total: data.length, note: "Relatório retornado como tabela (Excel não disponível neste layout)" };
           }
         }
         break;
@@ -497,9 +447,9 @@ serve(async (req) => {
     return new Response(JSON.stringify(responseData), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error) {
-    console.error("Hinova proxy error:", error);
-    return new Response(JSON.stringify({ error: `Erro interno: ${error instanceof Error ? error.message : String(error)}` }), {
+  } catch (e) {
+    console.error("Hinova proxy error:", e);
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });
