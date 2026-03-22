@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface ProxyRequest {
@@ -12,42 +12,31 @@ interface ProxyRequest {
   params?: Record<string, string>;
 }
 
-// ── HTML / XML helpers ──────────────────────────────────────────────
+// ── Constants ───────────────────────────────────────────────────────
+const FETCH_TIMEOUT = 10000; // 10s per external request
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes - trust cookies without verify
 
+// ── HTML / XML helpers ──────────────────────────────────────────────
 function stripHtml(value: string): string {
-  return value
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/\s+/g, " ")
-    .trim();
+  return value.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">").replace(/\s+/g, " ").trim();
 }
 
 function derivePortalBaseUrl(rawUrl: string): string {
   try {
     const parsed = new URL(rawUrl);
     let path = parsed.pathname.replace(/\/+$/, "");
-    path = path
-      .replace(/\/v5\/login\.php$/i, "")
-      .replace(/\/login\.php$/i, "")
-      .replace(/\/login\/validar$/i, "")
-      .replace(/\/login$/i, "")
-      .replace(/\/v5$/i, "");
+    path = path.replace(/\/v5\/login\.php$/i, "").replace(/\/login\.php$/i, "")
+      .replace(/\/login\/validar$/i, "").replace(/\/login$/i, "").replace(/\/v5$/i, "");
     return `${parsed.origin}${path}`;
-  } catch {
-    return rawUrl.replace(/\/+$/, "");
-  }
+  } catch { return rawUrl.replace(/\/+$/, ""); }
 }
 
 function isLoginPage(html: string): boolean {
-  const normalized = html.toLowerCase();
-  return normalized.includes("senha") && normalized.includes("usuario") && normalized.includes("login");
+  const n = html.toLowerCase();
+  return n.includes("senha") && n.includes("usuario") && n.includes("login");
 }
 
 function parseHtmlTable(html: string): Record<string, string>[] {
@@ -56,24 +45,21 @@ function parseHtmlTable(html: string): Record<string, string>[] {
   const headers: string[] = [];
   if (headerMatch) {
     const thRegex = /<th[^>]*>([\s\S]*?)<\/th>/gi;
-    let thMatch: RegExpExecArray | null;
-    while ((thMatch = thRegex.exec(headerMatch[1])) !== null) {
-      headers.push(stripHtml(thMatch[1]));
-    }
+    let m: RegExpExecArray | null;
+    while ((m = thRegex.exec(headerMatch[1])) !== null) headers.push(stripHtml(m[1]));
   }
   const bodyMatch = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
   if (bodyMatch) {
     const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-    let trMatch: RegExpExecArray | null;
-    while ((trMatch = trRegex.exec(bodyMatch[1])) !== null) {
+    let trM: RegExpExecArray | null;
+    while ((trM = trRegex.exec(bodyMatch[1])) !== null) {
       const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-      let tdMatch: RegExpExecArray | null;
+      let tdM: RegExpExecArray | null;
       const row: Record<string, string> = {};
-      let colIndex = 0;
-      while ((tdMatch = tdRegex.exec(trMatch[1])) !== null) {
-        const key = headers[colIndex] || `col_${colIndex}`;
-        row[key] = stripHtml(tdMatch[1]);
-        colIndex++;
+      let ci = 0;
+      while ((tdM = tdRegex.exec(trM[1])) !== null) {
+        row[headers[ci] || `col_${ci}`] = stripHtml(tdM[1]);
+        ci++;
       }
       if (Object.keys(row).length > 0) rows.push(row);
     }
@@ -84,15 +70,12 @@ function parseHtmlTable(html: string): Record<string, string>[] {
 function parseXmlResults(payload: string): Record<string, string>[] {
   const results: Record<string, string>[] = [];
   const rsRegex = /<rs[^>]*>([\s\S]*?)<\/rs>/gi;
-  let rsMatch: RegExpExecArray | null;
-  while ((rsMatch = rsRegex.exec(payload)) !== null) {
-    const block = rsMatch[0];
-    const id = block.match(/id=["']([^"']+)["']/i)?.[1] || "";
-    const info = block.match(/info=["']([^"']+)["']/i)?.[1] || "";
-    const text = stripHtml(rsMatch[1]);
-    if (text || info) {
-      results.push({ id: id || text, nome: text || info, info });
-    }
+  let m: RegExpExecArray | null;
+  while ((m = rsRegex.exec(payload)) !== null) {
+    const id = m[0].match(/id=["']([^"']+)["']/i)?.[1] || "";
+    const info = m[0].match(/info=["']([^"']+)["']/i)?.[1] || "";
+    const text = stripHtml(m[1]);
+    if (text || info) results.push({ id: id || text, nome: text || info, info });
   }
   return results;
 }
@@ -105,60 +88,61 @@ function parseAssociadoAutocomplete(payload: string, _searchTerm: string): Recor
   try {
     const parsed = JSON.parse(payload);
     if (Array.isArray(parsed)) {
-      return parsed
-        .map((item, index) => {
-          if (typeof item === "string") return { id: String(index), nome: item };
-          if (item && typeof item === "object") {
-            const record = item as Record<string, unknown>;
-            return {
-              id: String(record.id ?? record.codigo ?? record.value ?? index),
-              nome: String(record.nome ?? record.label ?? record.text ?? record.value ?? ""),
-            };
-          }
-          return null;
-        })
-        .filter((item): item is Record<string, string> => Boolean(item?.nome));
+      return parsed.map((item, i) => {
+        if (typeof item === "string") return { id: String(i), nome: item };
+        if (item && typeof item === "object") {
+          const r = item as Record<string, unknown>;
+          return { id: String(r.id ?? r.codigo ?? r.value ?? i), nome: String(r.nome ?? r.label ?? r.text ?? r.value ?? "") };
+        }
+        return null;
+      }).filter((x): x is Record<string, string> => Boolean(x?.nome));
     }
   } catch { /* not JSON */ }
-
   const candidates: Record<string, string>[] = [];
   const tagRegex = /<(li|option|a|div)[^>]*>([\s\S]*?)<\/\1>/gi;
-  let tagMatch: RegExpExecArray | null;
-  while ((tagMatch = tagRegex.exec(payload)) !== null) {
-    const rawBlock = tagMatch[0];
-    const text = stripHtml(tagMatch[2]);
+  let m: RegExpExecArray | null;
+  while ((m = tagRegex.exec(payload)) !== null) {
+    const text = stripHtml(m[2]);
     if (!text || text.length < 3) continue;
-    const idMatch =
-      rawBlock.match(/data-id=["']([^"']+)["']/i) ||
-      rawBlock.match(/value=["']([^"']+)["']/i) ||
-      rawBlock.match(/id=["']([^"']+)["']/i);
+    const idMatch = m[0].match(/data-id=["']([^"']+)["']/i) || m[0].match(/value=["']([^"']+)["']/i) || m[0].match(/id=["']([^"']+)["']/i);
     candidates.push({ id: idMatch?.[1] || text, nome: text });
   }
   return candidates;
 }
 
-// ── HTTP helpers ────────────────────────────────────────────────────
-
+// ── HTTP helpers with timeout ───────────────────────────────────────
 function extractSetCookies(response: Response): string {
-  const cookieValues: string[] = [];
-  // Deno exposes multiple Set-Cookie via response.headers iteration
+  const vals: string[] = [];
   for (const [key, value] of response.headers.entries()) {
     if (key.toLowerCase() === "set-cookie") {
-      const cookiePart = value.split(";")[0];
-      if (cookiePart) cookieValues.push(cookiePart);
+      const p = value.split(";")[0];
+      if (p) vals.push(p);
     }
   }
-  // Also try getSetCookie if available (Deno 1.37+)
   try {
-    const setCookies = (response.headers as any).getSetCookie?.();
-    if (Array.isArray(setCookies)) {
-      for (const sc of setCookies) {
-        const part = sc.split(";")[0];
-        if (part && !cookieValues.includes(part)) cookieValues.push(part);
-      }
-    }
+    const sc = (response.headers as any).getSetCookie?.();
+    if (Array.isArray(sc)) for (const s of sc) { const p = s.split(";")[0]; if (p && !vals.includes(p)) vals.push(p); }
   } catch { /* older Deno */ }
-  return cookieValues.join("; ");
+  return vals.join("; ");
+}
+
+function mergeCookies(existing: string, incoming: string): string {
+  const merged = new Map<string, string>();
+  for (const c of [...(existing ? existing.split("; ") : []), ...(incoming ? incoming.split("; ") : [])]) {
+    const [name] = c.split("=");
+    if (name) merged.set(name, c);
+  }
+  return Array.from(merged.values()).join("; ");
+}
+
+async function timedFetch(url: string, init?: RequestInit, timeout = FETCH_TIMEOUT): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function fetchWithCookies(url: string, cookies: string, method = "GET", body?: string): Promise<Response> {
@@ -166,405 +150,270 @@ async function fetchWithCookies(url: string, cookies: string, method = "GET", bo
     Cookie: cookies,
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   };
-  if (body) {
-    headers["Content-Type"] = "application/x-www-form-urlencoded";
-  }
-  return await fetch(url, { method, headers, body: body || undefined, redirect: "manual" });
+  if (body) headers["Content-Type"] = "application/x-www-form-urlencoded";
+  return await timedFetch(url, { method, headers, body: body || undefined, redirect: "manual" });
 }
 
 // ── Direct HTTP login ───────────────────────────────────────────────
-
 async function performDirectLogin(
-  portalBase: string,
-  user: string,
-  pass: string,
-  codigoCliente: string,
+  portalBase: string, user: string, pass: string, codigoCliente: string,
 ): Promise<{ success: boolean; cookies: string; error?: string }> {
   console.info("Hinova direct login", { portalBase, user: user.substring(0, 3) + "***" });
-
-  // Try multiple login endpoints
-  const loginEndpoints = [
+  const endpoints = [
     `${portalBase}/v5/login/validar`,
     `${portalBase}/v5/login.php`,
     `${portalBase}/login.php`,
-    `${portalBase}/login/validar`,
   ];
-
   let allCookies = "";
-  let loginSuccess = false;
-
-  for (const endpoint of loginEndpoints) {
+  for (const endpoint of endpoints) {
     try {
       const formBody = new URLSearchParams();
       formBody.set("usuario", user);
       formBody.set("senha", pass);
       if (codigoCliente) formBody.set("codigo_cliente", codigoCliente);
 
-      const response = await fetch(endpoint, {
+      const response = await timedFetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
         body: formBody.toString(),
         redirect: "manual",
       });
 
       const newCookies = extractSetCookies(response);
-      if (newCookies) {
-        // Merge cookies
-        const existing = allCookies ? allCookies.split("; ") : [];
-        const incoming = newCookies.split("; ");
-        const merged = new Map<string, string>();
-        for (const c of [...existing, ...incoming]) {
-          const [name] = c.split("=");
-          if (name) merged.set(name, c);
-        }
-        allCookies = Array.from(merged.values()).join("; ");
-      }
+      if (newCookies) allCookies = mergeCookies(allCookies, newCookies);
 
-      // Follow redirects manually to collect all cookies
       const location = response.headers.get("location");
-      if (location && (response.status === 301 || response.status === 302 || response.status === 303)) {
+      if (location && [301, 302, 303].includes(response.status)) {
         const redirectUrl = location.startsWith("http") ? location : `${portalBase}/${location.replace(/^\//, "")}`;
-        const redirectRes = await fetch(redirectUrl, {
-          headers: {
-            Cookie: allCookies,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          },
+        const rRes = await timedFetch(redirectUrl, {
+          headers: { Cookie: allCookies, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
           redirect: "manual",
         });
-        const moreCookies = extractSetCookies(redirectRes);
-        if (moreCookies) {
-          const existing = allCookies ? allCookies.split("; ") : [];
-          const incoming = moreCookies.split("; ");
-          const merged = new Map<string, string>();
-          for (const c of [...existing, ...incoming]) {
-            const [name] = c.split("=");
-            if (name) merged.set(name, c);
-          }
-          allCookies = Array.from(merged.values()).join("; ");
-        }
+        const moreCookies = extractSetCookies(rRes);
+        if (moreCookies) allCookies = mergeCookies(allCookies, moreCookies);
       }
 
-      // Verify login worked by checking a protected endpoint
       if (allCookies) {
-        const verifyRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, allCookies);
-        const verifyText = await verifyRes.text();
-        if (!isLoginPage(verifyText) && verifyRes.status !== 302) {
-          loginSuccess = true;
-          console.info("Login success via", endpoint, "cookies length:", allCookies.length);
-          break;
+        // Quick verify
+        const vRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, allCookies);
+        const vText = await vRes.text();
+        if (!isLoginPage(vText) && vRes.status !== 302) {
+          console.info("Login success via", endpoint);
+          return { success: true, cookies: allCookies };
         }
       }
     } catch (err) {
-      console.warn("Login attempt failed for", endpoint, err);
-      continue;
+      console.warn("Login attempt failed", endpoint, err);
     }
   }
-
-  if (loginSuccess && allCookies) {
-    return { success: true, cookies: allCookies };
-  }
-
-  return { success: false, cookies: "", error: "Não foi possível fazer login no portal. Verifique as credenciais." };
+  return { success: false, cookies: "", error: "Não foi possível fazer login. Verifique as credenciais." };
 }
 
 // ── Main handler ────────────────────────────────────────────────────
-
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { corretora_id, action, params } = (await req.json()) as ProxyRequest;
-
     if (!corretora_id || !action) {
-      return new Response(JSON.stringify({ error: "corretora_id e action são obrigatórios" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      });
+      return new Response(JSON.stringify({ error: "corretora_id e action são obrigatórios" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
     }
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
-    const { data: creds, error: credsError } = await supabase
-      .from("hinova_credenciais")
-      .select("*")
-      .eq("corretora_id", corretora_id)
-      .single();
+    const { data: creds, error: credsError } = await supabase.from("hinova_credenciais").select("*").eq("corretora_id", corretora_id).single();
 
     if (credsError || !creds) {
-      return new Response(JSON.stringify({ error: "Credenciais Hinova não encontradas para esta associação" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 404,
-      });
+      return new Response(JSON.stringify({ error: "Credenciais Hinova não encontradas" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 });
     }
 
     const loginUrl = (creds.hinova_url || "").trim();
     if (!loginUrl) {
-      return new Response(JSON.stringify({ error: "URL do Hinova não configurada" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      });
+      return new Response(JSON.stringify({ error: "URL do Hinova não configurada" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
     }
 
     const portalBase = derivePortalBaseUrl(loginUrl);
 
-    // ── Obtain valid session cookies (auto-login if needed) ─────────
-
-    async function getValidCookies(): Promise<string> {
-      // Try existing cookies first
-      let cookies = (creds.session_cookies || "").trim();
-      if (cookies) {
-        try {
-          const verifyRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, cookies);
-          const verifyText = await verifyRes.text();
-          if (!isLoginPage(verifyText) && verifyRes.status !== 302) {
-            return cookies; // Existing session still valid
-          }
-        } catch {
-          // Session invalid, proceed to login
-        }
+    // ── refresh-session: force login ────────────────────────────────
+    if (action === "refresh-session") {
+      const lr = await performDirectLogin(portalBase, creds.hinova_user || "", creds.hinova_pass || "", creds.hinova_codigo_cliente || "");
+      if (!lr.success) {
+        return new Response(JSON.stringify({ error: lr.error }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 });
       }
-
-      // Auto-login with stored credentials
-      console.info("Session invalid or missing, performing direct login...");
-      const loginResult = await performDirectLogin(
-        portalBase,
-        creds.hinova_user || "",
-        creds.hinova_pass || "",
-        creds.hinova_codigo_cliente || "",
-      );
-
-      if (!loginResult.success) {
-        throw new Error(loginResult.error || "Falha no login automático");
-      }
-
-      // Save new cookies to DB
-      await supabase
-        .from("hinova_credenciais")
-        .update({
-          session_cookies: loginResult.cookies,
-          session_cookies_updated_at: new Date().toISOString(),
-        })
-        .eq("corretora_id", corretora_id);
-
-      return loginResult.cookies;
+      const now = new Date().toISOString();
+      await supabase.from("hinova_credenciais").update({ session_cookies: lr.cookies, session_cookies_updated_at: now }).eq("corretora_id", corretora_id);
+      return new Response(JSON.stringify({ success: true, message: "Sessão conectada!", session_cookies_updated_at: now }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // For refresh-session, force a fresh login regardless of existing cookies
-    if (action === "refresh-session") {
-      const loginResult = await performDirectLogin(
-        portalBase,
-        creds.hinova_user || "",
-        creds.hinova_pass || "",
-        creds.hinova_codigo_cliente || "",
-      );
-
-      if (!loginResult.success) {
-        return new Response(JSON.stringify({ error: loginResult.error || "Falha no login" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        });
-      }
-
-      await supabase
-        .from("hinova_credenciais")
-        .update({
-          session_cookies: loginResult.cookies,
-          session_cookies_updated_at: new Date().toISOString(),
-        })
-        .eq("corretora_id", corretora_id);
+    // ── login: fast check (no HTTP round-trip if cookies are fresh) ──
+    if (action === "login") {
+      const hasCookies = !!(creds.session_cookies || "").trim();
+      const updatedAt = creds.session_cookies_updated_at ? new Date(creds.session_cookies_updated_at).getTime() : 0;
+      const isFresh = Date.now() - updatedAt < SESSION_TTL_MS;
 
       return new Response(JSON.stringify({
-        success: true,
-        message: "Sessão atualizada com sucesso!",
-        session_cookies_updated_at: new Date().toISOString(),
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+        success: hasCookies && isFresh,
+        portalBase,
+        session_cookies_updated_at: creds.session_cookies_updated_at,
+        message: hasCookies && isFresh ? "Sessão ativa" : "Sessão expirada ou não disponível",
+        needs_refresh: !hasCookies || !isFresh,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Get valid cookies (auto-login if needed)
+    // ── Get valid cookies with auto-login ────────────────────────────
+    async function getValidCookies(): Promise<string> {
+      const cookies = (creds.session_cookies || "").trim();
+      const updatedAt = creds.session_cookies_updated_at ? new Date(creds.session_cookies_updated_at).getTime() : 0;
+      const isFresh = Date.now() - updatedAt < SESSION_TTL_MS;
+
+      // Trust fresh cookies without verifying
+      if (cookies && isFresh) return cookies;
+
+      // Need login
+      console.info("Session stale/missing, performing auto-login...");
+      const lr = await performDirectLogin(portalBase, creds.hinova_user || "", creds.hinova_pass || "", creds.hinova_codigo_cliente || "");
+      if (!lr.success) throw new Error(lr.error || "Falha no login automático");
+
+      await supabase.from("hinova_credenciais").update({ session_cookies: lr.cookies, session_cookies_updated_at: new Date().toISOString() }).eq("corretora_id", corretora_id);
+      return lr.cookies;
+    }
+
     let cookies: string;
     try {
       cookies = await getValidCookies();
     } catch (e) {
-      return new Response(JSON.stringify({
-        error: e instanceof Error ? e.message : "Falha ao obter sessão",
-        action: "login_failed",
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
+      return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Falha ao obter sessão", action: "login_failed" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 });
     }
 
-    console.info("Hinova proxy action", { action, corretora_id, portalBase });
+    // ── Helper: execute with auto-retry on session expired ───────────
+    async function executeWithRetry<T>(fn: (c: string) => Promise<T>, isExpired: (result: T) => boolean): Promise<T> {
+      const result = await fn(cookies);
+      if (!isExpired(result)) return result;
 
+      // Session expired mid-request, re-login and retry once
+      console.info("Session expired during request, re-logging...");
+      const lr = await performDirectLogin(portalBase, creds.hinova_user || "", creds.hinova_pass || "", creds.hinova_codigo_cliente || "");
+      if (!lr.success) throw new Error("Sessão expirou e não foi possível reconectar");
+      cookies = lr.cookies;
+      await supabase.from("hinova_credenciais").update({ session_cookies: lr.cookies, session_cookies_updated_at: new Date().toISOString() }).eq("corretora_id", corretora_id);
+      return await fn(cookies);
+    }
+
+    console.info("Hinova proxy", { action, corretora_id });
     let responseData: Record<string, unknown> = {};
 
     switch (action) {
-      case "login": {
-        responseData = {
-          success: true,
-          portalBase,
-          session_cookies_updated_at: creds.session_cookies_updated_at || new Date().toISOString(),
-          message: "Sessão ativa",
-        };
-        break;
-      }
-
       case "consultar-associado": {
         const searchTerm = (params?.busca || "").trim();
-        const autoCompleteUrl = `${portalBase}/carrega/carregaAssociados.php?input=${encodeURIComponent(searchTerm)}`;
-        const autoCompleteResponse = await fetchWithCookies(autoCompleteUrl, cookies);
-        const autoCompletePayload = await autoCompleteResponse.text();
-
-        console.info("Hinova autocomplete", { searchTerm, len: autoCompletePayload.length, preview: autoCompletePayload.slice(0, 300) });
-
-        if (isLoginPage(autoCompletePayload)) {
-          return new Response(JSON.stringify({ error: "Sessão expirada durante consulta", action: "session_expired" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 401,
-          });
-        }
-
-        let data = parseAssociadoAutocomplete(autoCompletePayload, searchTerm);
-
+        const result = await executeWithRetry(
+          async (c) => {
+            const url = `${portalBase}/carrega/carregaAssociados.php?input=${encodeURIComponent(searchTerm)}`;
+            const res = await fetchWithCookies(url, c);
+            const text = await res.text();
+            return { text, status: res.status };
+          },
+          (r) => isLoginPage(r.text) || r.status === 302,
+        );
+        let data = parseAssociadoAutocomplete(result.text, searchTerm);
         if (data.length === 0) {
-          const fallbackUrl = `${portalBase}/associado/consultarAssociado.php`;
-          const searchBody = new URLSearchParams({ input: searchTerm, busca: searchTerm, nome: searchTerm });
-          const fallbackResponse = await fetchWithCookies(fallbackUrl, cookies, "POST", searchBody.toString());
-          const fallbackHtml = await fallbackResponse.text();
-          if (!isLoginPage(fallbackHtml)) {
-            data = parseHtmlTable(fallbackHtml);
-          }
+          const fb = await fetchWithCookies(`${portalBase}/associado/consultarAssociado.php`, cookies, "POST", new URLSearchParams({ input: searchTerm, busca: searchTerm, nome: searchTerm }).toString());
+          const fbHtml = await fb.text();
+          if (!isLoginPage(fbHtml)) data = parseHtmlTable(fbHtml);
         }
-
         responseData = { success: true, data, total: data.length };
         break;
       }
 
       case "consultar-veiculo": {
         const searchTerm = params?.busca || "";
-        const autoUrl = `${portalBase}/carrega/carregaVeiculos.php?input=${encodeURIComponent(searchTerm)}`;
-        const autoRes = await fetchWithCookies(autoUrl, cookies);
-        const autoPayload = await autoRes.text();
-
-        if (isLoginPage(autoPayload)) {
-          return new Response(JSON.stringify({ error: "Sessão expirada", action: "session_expired" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 401,
-          });
-        }
-
-        let data = parseAssociadoAutocomplete(autoPayload, searchTerm);
-
+        const result = await executeWithRetry(
+          async (c) => {
+            const res = await fetchWithCookies(`${portalBase}/carrega/carregaVeiculos.php?input=${encodeURIComponent(searchTerm)}`, c);
+            const text = await res.text();
+            return { text, status: res.status };
+          },
+          (r) => isLoginPage(r.text) || r.status === 302,
+        );
+        let data = parseAssociadoAutocomplete(result.text, searchTerm);
         if (data.length === 0) {
-          const url = `${portalBase}/veiculo/consultarVeiculo.php`;
-          const searchBody = new URLSearchParams({ busca: searchTerm, placa: searchTerm });
-          const response = await fetchWithCookies(url, cookies, "POST", searchBody.toString());
-          const html = await response.text();
-          if (!isLoginPage(html)) data = parseHtmlTable(html);
+          const fb = await fetchWithCookies(`${portalBase}/veiculo/consultarVeiculo.php`, cookies, "POST", new URLSearchParams({ busca: searchTerm, placa: searchTerm }).toString());
+          const fbHtml = await fb.text();
+          if (!isLoginPage(fbHtml)) data = parseHtmlTable(fbHtml);
         }
-
         responseData = { success: true, data, total: data.length };
         break;
       }
 
       case "listar-eventos": {
-        const url = `${portalBase}/v5/Novoeventoitem/listar`;
         const searchBody = new URLSearchParams();
         if (params?.data_inicio) searchBody.set("data_inicio", params.data_inicio);
         if (params?.data_fim) searchBody.set("data_fim", params.data_fim);
         if (params?.situacao) searchBody.set("situacao", params.situacao);
 
-        const response = await fetchWithCookies(url, cookies, "POST", searchBody.toString());
-        const html = await response.text();
-
-        if (isLoginPage(html)) {
-          return new Response(JSON.stringify({ error: "Sessão expirada", action: "session_expired" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 401,
-          });
-        }
-
+        const result = await executeWithRetry(
+          async (c) => {
+            const res = await fetchWithCookies(`${portalBase}/v5/Novoeventoitem/listar`, c, "POST", searchBody.toString());
+            const text = await res.text();
+            return { text };
+          },
+          (r) => isLoginPage(r.text),
+        );
         try {
-          const jsonData = JSON.parse(html);
+          const jsonData = JSON.parse(result.text);
           responseData = { success: true, data: Array.isArray(jsonData) ? jsonData : jsonData.data || [] };
         } catch {
-          const data = parseHtmlTable(html);
-          responseData = { success: true, data, total: data.length };
+          responseData = { success: true, data: parseHtmlTable(result.text), total: parseHtmlTable(result.text).length };
         }
         break;
       }
 
       case "gerar-relatorio": {
         const layout = params?.layout || "VANGARD";
-        const url = `${portalBase}/v5/Novoeventoitem/listar`;
         const searchBody = new URLSearchParams();
         searchBody.set("layout", layout);
         searchBody.set("exportar", "excel");
         if (params?.data_inicio) searchBody.set("data_inicio", params.data_inicio);
         if (params?.data_fim) searchBody.set("data_fim", params.data_fim);
 
-        const response = await fetchWithCookies(url, cookies, "POST", searchBody.toString());
+        const response = await fetchWithCookies(`${portalBase}/v5/Novoeventoitem/listar`, cookies, "POST", searchBody.toString());
         const contentType = response.headers.get("content-type") || "";
 
         if (contentType.includes("spreadsheet") || contentType.includes("octet-stream") || contentType.includes("excel")) {
-          const arrayBuffer = await response.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-          let binary = "";
-          for (let i = 0; i < uint8Array.length; i++) {
-            binary += String.fromCharCode(uint8Array[i]);
-          }
-          const base64 = btoa(binary);
+          const ab = await response.arrayBuffer();
+          const u8 = new Uint8Array(ab);
+          let bin = "";
+          for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
           const fileName = response.headers.get("content-disposition")?.match(/filename="?([^";\n]+)"?/)?.[1] || "relatorio.xls";
-          responseData = { success: true, file: base64, fileName, contentType };
+          responseData = { success: true, file: btoa(bin), fileName, contentType };
         } else {
           const html = await response.text();
           if (isLoginPage(html)) {
-            return new Response(JSON.stringify({ error: "Sessão expirada", action: "session_expired" }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 401,
-            });
+            return new Response(JSON.stringify({ error: "Sessão expirada", action: "session_expired" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 });
           }
-
           const linkMatch = html.match(/href="([^"]*\.xls[^"]*)"/i);
           if (linkMatch) {
-            const downloadUrl = linkMatch[1].startsWith("http") ? linkMatch[1] : `${portalBase}/${linkMatch[1].replace(/^\//, "")}`;
-            const fileResponse = await fetchWithCookies(downloadUrl, cookies);
-            const arrayBuffer = await fileResponse.arrayBuffer();
-            const uint8Array = new Uint8Array(arrayBuffer);
-            let binary = "";
-            for (let i = 0; i < uint8Array.length; i++) binary += String.fromCharCode(uint8Array[i]);
-            const base64 = btoa(binary);
-            responseData = { success: true, file: base64, fileName: "relatorio.xls" };
+            const dlUrl = linkMatch[1].startsWith("http") ? linkMatch[1] : `${portalBase}/${linkMatch[1].replace(/^\//, "")}`;
+            const fRes = await fetchWithCookies(dlUrl, cookies);
+            const ab = await fRes.arrayBuffer();
+            const u8 = new Uint8Array(ab);
+            let bin = "";
+            for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+            responseData = { success: true, file: btoa(bin), fileName: "relatorio.xls" };
           } else {
             const data = parseHtmlTable(html);
-            responseData = { success: true, data, total: data.length, note: "Relatório retornado como tabela (Excel não disponível neste layout)" };
+            responseData = { success: true, data, total: data.length, note: "Relatório retornado como tabela" };
           }
         }
         break;
       }
 
       default:
-        return new Response(JSON.stringify({ error: `Ação desconhecida: ${action}` }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 400,
-        });
+        return new Response(JSON.stringify({ error: `Ação desconhecida: ${action}` }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
     }
 
-    return new Response(JSON.stringify(responseData), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify(responseData), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
-    console.error("Hinova proxy error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    const msg = e instanceof Error ? (e.name === "AbortError" ? "Timeout na conexão com o portal Hinova" : e.message) : String(e);
+    console.error("Hinova proxy error:", msg);
+    return new Response(JSON.stringify({ error: msg }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
   }
 });
