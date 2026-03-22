@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,29 +9,21 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Search, Users, Car, Calendar, FileSpreadsheet, Download, Loader2, RefreshCw, AlertCircle, Wifi, WifiOff, CheckCircle2, Clock, Zap } from "lucide-react";
+import { Search, Users, Car, Calendar, FileSpreadsheet, Download, Loader2, RefreshCw, AlertCircle, CheckCircle2, Zap } from "lucide-react";
 
 interface SGAConsultaHinovaProps {
   corretoraId: string;
   corretoraNome?: string;
 }
 
-const POLL_INTERVAL = 10_000; // 10s
-const POLL_MAX_DURATION = 180_000; // 3min
-
 export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGAConsultaHinovaProps) {
   const [activeTab, setActiveTab] = useState("associados");
   const [loading, setLoading] = useState(false);
   const [sessionActive, setSessionActive] = useState<boolean | null>(null);
   const [sessionUpdatedAt, setSessionUpdatedAt] = useState<string | null>(null);
-  const [refreshingSession, setRefreshingSession] = useState(false);
-  const [pollingSession, setPollingSession] = useState(false);
-  const [pollElapsed, setPollElapsed] = useState(0);
+  const [connectingSession, setConnectingSession] = useState(false);
   const [error, setError] = useState("");
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollStartRef = useRef<number>(0);
 
   // Associados
   const [buscaAssociado, setBuscaAssociado] = useState("");
@@ -49,13 +41,6 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
   // Relatórios
   const [relatorioLayout, setRelatorioLayout] = useState("VANGARD");
   const [relatorioLoading, setRelatorioLoading] = useState(false);
-
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-    };
-  }, []);
 
   const invokeProxy = useCallback(async (action: string, params?: Record<string, string>) => {
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
@@ -80,7 +65,7 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
     const data = await response.json();
 
     if (!response.ok) {
-      if (data.action === 'session_expired' || data.action === 'no_session') {
+      if (data.action === 'session_expired' || data.action === 'login_failed') {
         setSessionActive(false);
       }
       throw new Error(data.error || 'Erro na operação');
@@ -94,93 +79,55 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
     return data;
   }, [corretoraId]);
 
-  const stopPolling = useCallback(() => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-    setPollingSession(false);
-    setPollElapsed(0);
+  // Auto-check session on mount
+  useEffect(() => {
+    handleCheckSession();
   }, []);
 
-  const startPolling = useCallback(() => {
-    stopPolling();
-    setPollingSession(true);
-    pollStartRef.current = Date.now();
-    setPollElapsed(0);
-
-    pollTimerRef.current = setInterval(async () => {
-      const elapsed = Date.now() - pollStartRef.current;
-      setPollElapsed(elapsed);
-
-      if (elapsed >= POLL_MAX_DURATION) {
-        stopPolling();
-        toast.error("Tempo limite atingido. Tente novamente.");
-        return;
-      }
-
-      try {
-        const result = await invokeProxy('login');
-        if (result.success) {
-          stopPolling();
-          setSessionActive(true);
-          toast.success("✅ Sessão ativa! Pronto para consultar.");
-        }
-      } catch {
-        // Still waiting...
-      }
-    }, POLL_INTERVAL);
-  }, [invokeProxy, stopPolling]);
-
   const handleCheckSession = async () => {
-    setLoading(true);
+    setConnectingSession(true);
     setError("");
     try {
       const result = await invokeProxy('login');
       if (result.success) {
-        toast.success("Sessão ativa no SGA!");
         setSessionActive(true);
       }
     } catch (e: any) {
       setError(e.message);
       setSessionActive(false);
     } finally {
-      setLoading(false);
+      setConnectingSession(false);
     }
   };
 
   const handleRefreshSession = async () => {
-    setRefreshingSession(true);
+    setConnectingSession(true);
     setError("");
     try {
       const result = await invokeProxy('refresh-session');
       if (result.success) {
-        toast.info("🤖 Robô disparado! Verificando automaticamente quando a sessão estiver pronta...");
-        startPolling();
+        setSessionActive(true);
+        setSessionUpdatedAt(result.session_cookies_updated_at);
+        toast.success("✅ Sessão conectada com sucesso!");
       }
     } catch (e: any) {
       setError(e.message);
+      setSessionActive(false);
       toast.error(e.message);
     } finally {
-      setRefreshingSession(false);
+      setConnectingSession(false);
     }
   };
 
   const handleBuscarAssociado = async () => {
-    if (!buscaAssociado.trim()) {
-      toast.error("Digite um termo de busca");
-      return;
-    }
+    if (!buscaAssociado.trim()) { toast.error("Digite um termo de busca"); return; }
     setLoading(true);
     setError("");
     try {
       const result = await invokeProxy('consultar-associado', { busca: buscaAssociado });
       setAssociados(result.data || []);
-      if (result.data?.length === 0) {
-        toast.info("Nenhum associado encontrado");
-      } else {
-        toast.success(`${result.data.length} associado(s) encontrado(s)`);
-      }
+      if (result.data?.length === 0) toast.info("Nenhum associado encontrado");
+      else toast.success(`${result.data.length} associado(s) encontrado(s)`);
     } catch (e: any) {
       setError(e.message);
       toast.error(e.message);
@@ -190,20 +137,14 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
   };
 
   const handleBuscarVeiculo = async () => {
-    if (!buscaVeiculo.trim()) {
-      toast.error("Digite um termo de busca");
-      return;
-    }
+    if (!buscaVeiculo.trim()) { toast.error("Digite um termo de busca"); return; }
     setLoading(true);
     setError("");
     try {
       const result = await invokeProxy('consultar-veiculo', { busca: buscaVeiculo });
       setVeiculos(result.data || []);
-      if (result.data?.length === 0) {
-        toast.info("Nenhum veículo encontrado");
-      } else {
-        toast.success(`${result.data.length} veículo(s) encontrado(s)`);
-      }
+      if (result.data?.length === 0) toast.info("Nenhum veículo encontrado");
+      else toast.success(`${result.data.length} veículo(s) encontrado(s)`);
     } catch (e: any) {
       setError(e.message);
       toast.error(e.message);
@@ -221,11 +162,8 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
       if (eventosDataFim) params.data_fim = eventosDataFim;
       const result = await invokeProxy('listar-eventos', params);
       setEventosData(result.data || []);
-      if (result.data?.length === 0) {
-        toast.info("Nenhum evento encontrado");
-      } else {
-        toast.success(`${result.data.length} evento(s) encontrado(s)`);
-      }
+      if (result.data?.length === 0) toast.info("Nenhum evento encontrado");
+      else toast.success(`${result.data.length} evento(s) encontrado(s)`);
     } catch (e: any) {
       setError(e.message);
       toast.error(e.message);
@@ -241,15 +179,11 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
       const params: Record<string, string> = { layout: relatorioLayout };
       if (eventosDataInicio) params.data_inicio = eventosDataInicio;
       if (eventosDataFim) params.data_fim = eventosDataFim;
-
       const result = await invokeProxy('gerar-relatorio', params);
-
       if (result.file) {
         const byteCharacters = atob(result.file);
         const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
+        for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: result.contentType || 'application/vnd.ms-excel' });
         const url = URL.createObjectURL(blob);
@@ -282,9 +216,7 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
           <TableHeader>
             <TableRow>
               {columns.map(col => (
-                <TableHead key={col} className="whitespace-nowrap text-xs font-semibold">
-                  {col}
-                </TableHead>
+                <TableHead key={col} className="whitespace-nowrap text-xs font-semibold">{col}</TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -292,9 +224,7 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
             {data.map((row, i) => (
               <TableRow key={i}>
                 {columns.map(col => (
-                  <TableCell key={col} className="text-xs whitespace-nowrap">
-                    {row[col] || '-'}
-                  </TableCell>
+                  <TableCell key={col} className="text-xs whitespace-nowrap">{row[col] || '-'}</TableCell>
                 ))}
               </TableRow>
             ))}
@@ -307,15 +237,9 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
   const formatSessionDate = (dateStr: string | null) => {
     if (!dateStr) return null;
     try {
-      const d = new Date(dateStr);
-      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return null;
-    }
+      return new Date(dateStr).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch { return null; }
   };
-
-  const pollProgress = Math.min((pollElapsed / POLL_MAX_DURATION) * 100, 100);
-  const pollSecondsRemaining = Math.max(0, Math.ceil((POLL_MAX_DURATION - pollElapsed) / 1000));
 
   return (
     <div className="space-y-6">
@@ -324,45 +248,35 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
         <CardContent className="p-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
-              {sessionActive === true ? (
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                </div>
-              ) : pollingSession ? (
+              {connectingSession ? (
                 <div className="flex items-center justify-center w-10 h-10 rounded-full bg-accent/50">
                   <Loader2 className="h-5 w-5 text-accent-foreground animate-spin" />
                 </div>
-              ) : sessionActive === false ? (
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10">
-                  <WifiOff className="h-5 w-5 text-destructive" />
+              ) : sessionActive === true ? (
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
                 </div>
               ) : (
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-muted">
-                  <Wifi className="h-5 w-5 text-muted-foreground" />
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10">
+                  <AlertCircle className="h-5 w-5 text-destructive" />
                 </div>
               )}
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold">
-                    {pollingSession
-                      ? 'Aguardando robô...'
+                    {connectingSession
+                      ? 'Conectando ao portal...'
                       : sessionActive === true
                       ? 'Conectado ao SGA'
-                      : sessionActive === false
-                      ? 'Sessão inativa'
-                      : 'Verificar conexão'}
+                      : 'Desconectado'}
                   </p>
                   {sessionActive === true && (
-                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
-                      Online
-                    </Badge>
+                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">Online</Badge>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {corretoraNome || 'Associação não selecionada'}
-                  {sessionUpdatedAt && (
-                    <span className="ml-2">· Sessão de {formatSessionDate(sessionUpdatedAt)}</span>
-                  )}
+                  {sessionUpdatedAt && <span className="ml-2">· Sessão de {formatSessionDate(sessionUpdatedAt)}</span>}
                 </p>
               </div>
             </div>
@@ -371,49 +285,24 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                 variant="outline"
                 size="sm"
                 onClick={handleCheckSession}
-                disabled={loading || pollingSession}
+                disabled={connectingSession}
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                {connectingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
                 <span className="ml-2 hidden sm:inline">Verificar</span>
               </Button>
               <Button
-                variant={sessionActive === false && !pollingSession ? "default" : "outline"}
+                variant={sessionActive === false ? "default" : "outline"}
                 size="sm"
-                onClick={pollingSession ? stopPolling : handleRefreshSession}
-                disabled={refreshingSession}
+                onClick={handleRefreshSession}
+                disabled={connectingSession}
               >
-                {refreshingSession ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : pollingSession ? (
-                  <Clock className="h-4 w-4" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                <span className="ml-2">
-                  {pollingSession ? 'Cancelar' : 'Atualizar Sessão'}
-                </span>
+                {connectingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                <span className="ml-2">Reconectar</span>
               </Button>
             </div>
           </div>
 
-          {/* Polling progress */}
-          {pollingSession && (
-            <div className="mt-4 space-y-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Robô fazendo login no portal... verificando a cada 10s
-                </span>
-                <span>{Math.floor(pollSecondsRemaining / 60)}:{String(pollSecondsRemaining % 60).padStart(2, '0')} restantes</span>
-              </div>
-              <Progress value={pollProgress} className="h-1.5" />
-              <p className="text-[11px] text-muted-foreground/70">
-                O robô está acessando o portal Hinova, fazendo login e salvando a sessão. Isso leva em média 1-2 minutos.
-              </p>
-            </div>
-          )}
-
-          {error && !pollingSession && (
+          {error && !connectingSession && (
             <div className="mt-3 flex items-center gap-2 text-destructive text-xs bg-destructive/5 rounded-lg p-2.5">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
@@ -460,25 +349,17 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                   onChange={(e) => setBuscaAssociado(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleBuscarAssociado()}
                   className="flex-1"
-                  disabled={sessionActive !== true}
                 />
-                <Button onClick={handleBuscarAssociado} disabled={loading || sessionActive !== true}>
+                <Button onClick={handleBuscarAssociado} disabled={loading}>
                   {loading && activeTab === 'associados' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   <span className="ml-2 hidden sm:inline">Buscar</span>
                 </Button>
               </div>
-              {sessionActive !== true && (
-                <p className="text-xs text-muted-foreground italic">Conecte-se ao SGA primeiro para realizar consultas.</p>
-              )}
               {loading && activeTab === 'associados' ? (
-                <div className="space-y-2">
-                  {[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
-                </div>
+                <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
               ) : (
                 <>
-                  {associados.length > 0 && (
-                    <p className="text-xs text-muted-foreground">{associados.length} resultado(s)</p>
-                  )}
+                  {associados.length > 0 && <p className="text-xs text-muted-foreground">{associados.length} resultado(s)</p>}
                   {renderTable(associados)}
                 </>
               )}
@@ -503,25 +384,17 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                   onChange={(e) => setBuscaVeiculo(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleBuscarVeiculo()}
                   className="flex-1"
-                  disabled={sessionActive !== true}
                 />
-                <Button onClick={handleBuscarVeiculo} disabled={loading || sessionActive !== true}>
+                <Button onClick={handleBuscarVeiculo} disabled={loading}>
                   {loading && activeTab === 'veiculos' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   <span className="ml-2 hidden sm:inline">Buscar</span>
                 </Button>
               </div>
-              {sessionActive !== true && (
-                <p className="text-xs text-muted-foreground italic">Conecte-se ao SGA primeiro para realizar consultas.</p>
-              )}
               {loading && activeTab === 'veiculos' ? (
-                <div className="space-y-2">
-                  {[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
-                </div>
+                <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
               ) : (
                 <>
-                  {veiculos.length > 0 && (
-                    <p className="text-xs text-muted-foreground">{veiculos.length} resultado(s)</p>
-                  )}
+                  {veiculos.length > 0 && <p className="text-xs text-muted-foreground">{veiculos.length} resultado(s)</p>}
                   {renderTable(veiculos)}
                 </>
               )}
@@ -542,41 +415,22 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
               <div className="flex flex-wrap gap-3 items-end">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Data Início</Label>
-                  <Input
-                    type="date"
-                    value={eventosDataInicio}
-                    onChange={(e) => setEventosDataInicio(e.target.value)}
-                    className="w-40"
-                    disabled={sessionActive !== true}
-                  />
+                  <Input type="date" value={eventosDataInicio} onChange={(e) => setEventosDataInicio(e.target.value)} className="w-40" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Data Fim</Label>
-                  <Input
-                    type="date"
-                    value={eventosDataFim}
-                    onChange={(e) => setEventosDataFim(e.target.value)}
-                    className="w-40"
-                    disabled={sessionActive !== true}
-                  />
+                  <Input type="date" value={eventosDataFim} onChange={(e) => setEventosDataFim(e.target.value)} className="w-40" />
                 </div>
-                <Button onClick={handleListarEventos} disabled={loading || sessionActive !== true}>
+                <Button onClick={handleListarEventos} disabled={loading}>
                   {loading && activeTab === 'eventos' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   <span className="ml-2">Buscar</span>
                 </Button>
               </div>
-              {sessionActive !== true && (
-                <p className="text-xs text-muted-foreground italic">Conecte-se ao SGA primeiro para realizar consultas.</p>
-              )}
               {loading && activeTab === 'eventos' ? (
-                <div className="space-y-2">
-                  {[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
-                </div>
+                <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
               ) : (
                 <>
-                  {eventosData.length > 0 && (
-                    <p className="text-xs text-muted-foreground">{eventosData.length} resultado(s)</p>
-                  )}
+                  {eventosData.length > 0 && <p className="text-xs text-muted-foreground">{eventosData.length} resultado(s)</p>}
                   {renderTable(eventosData)}
                 </>
               )}
@@ -597,10 +451,8 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
               <div className="flex flex-wrap gap-3 items-end">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Layout</Label>
-                  <Select value={relatorioLayout} onValueChange={setRelatorioLayout} disabled={sessionActive !== true}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Select value={relatorioLayout} onValueChange={setRelatorioLayout}>
+                    <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="VANGARD">VANGARD</SelectItem>
                       <SelectItem value="PADRAO">PADRÃO</SelectItem>
@@ -610,36 +462,17 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Data Início</Label>
-                  <Input
-                    type="date"
-                    value={eventosDataInicio}
-                    onChange={(e) => setEventosDataInicio(e.target.value)}
-                    className="w-40"
-                    disabled={sessionActive !== true}
-                  />
+                  <Input type="date" value={eventosDataInicio} onChange={(e) => setEventosDataInicio(e.target.value)} className="w-40" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Data Fim</Label>
-                  <Input
-                    type="date"
-                    value={eventosDataFim}
-                    onChange={(e) => setEventosDataFim(e.target.value)}
-                    className="w-40"
-                    disabled={sessionActive !== true}
-                  />
+                  <Input type="date" value={eventosDataFim} onChange={(e) => setEventosDataFim(e.target.value)} className="w-40" />
                 </div>
-                <Button onClick={handleGerarRelatorio} disabled={relatorioLoading || sessionActive !== true} className="gap-2">
+                <Button onClick={handleGerarRelatorio} disabled={relatorioLoading}>
                   {relatorioLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  Gerar Excel
+                  <span className="ml-2">Gerar Excel</span>
                 </Button>
               </div>
-              {sessionActive !== true ? (
-                <p className="text-xs text-muted-foreground italic">Conecte-se ao SGA primeiro para gerar relatórios.</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  O relatório será gerado diretamente do portal Hinova e baixado como arquivo Excel.
-                </p>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
