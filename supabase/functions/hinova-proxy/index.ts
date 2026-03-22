@@ -159,12 +159,26 @@ async function performDirectLogin(
   portalBase: string, user: string, pass: string, codigoCliente: string,
 ): Promise<{ success: boolean; cookies: string; error?: string }> {
   console.info("Hinova direct login", { portalBase, user: user.substring(0, 3) + "***" });
-  const endpoints = [
-    `${portalBase}/v5/login/validar`,
-    `${portalBase}/v5/login.php`,
-    `${portalBase}/login.php`,
-  ];
   let allCookies = "";
+  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+  // Step 1: GET login page to get initial PHPSESSID
+  try {
+    const loginPageRes = await timedFetch(`${portalBase}/v5/login.php`, {
+      headers: { "User-Agent": UA },
+      redirect: "manual",
+    });
+    const initCookies = extractSetCookies(loginPageRes);
+    if (initCookies) allCookies = mergeCookies(allCookies, initCookies);
+    console.info("Step 1 - Login page cookies:", allCookies.length > 0 ? "obtained" : "none");
+  } catch (e) {
+    console.warn("Step 1 failed:", e);
+  }
+
+  // Step 2: POST login form
+  const endpoints = [`${portalBase}/v5/login/validar`, `${portalBase}/v5/login.php`];
+  let loginSuccess = false;
+
   for (const endpoint of endpoints) {
     try {
       const formBody = new URLSearchParams();
@@ -174,39 +188,87 @@ async function performDirectLogin(
 
       const response = await timedFetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA, Cookie: allCookies },
         body: formBody.toString(),
         redirect: "manual",
       });
 
       const newCookies = extractSetCookies(response);
       if (newCookies) allCookies = mergeCookies(allCookies, newCookies);
+      console.info("Step 2 - Login POST", { endpoint, status: response.status, hasCookies: !!newCookies });
 
-      const location = response.headers.get("location");
-      if (location && [301, 302, 303].includes(response.status)) {
+      // Follow ALL redirects to initialize session
+      let location = response.headers.get("location");
+      let redirectCount = 0;
+      while (location && redirectCount < 5) {
         const redirectUrl = location.startsWith("http") ? location : `${portalBase}/${location.replace(/^\//, "")}`;
+        console.info("Step 2 - Following redirect:", redirectUrl);
         const rRes = await timedFetch(redirectUrl, {
-          headers: { Cookie: allCookies, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+          headers: { Cookie: allCookies, "User-Agent": UA },
           redirect: "manual",
         });
         const moreCookies = extractSetCookies(rRes);
         if (moreCookies) allCookies = mergeCookies(allCookies, moreCookies);
+        location = rRes.headers.get("location");
+        redirectCount++;
+        
+        // If we landed on a non-redirect page, we're done
+        if (!location || ![301, 302, 303].includes(rRes.status)) break;
       }
 
-      if (allCookies) {
-        // Quick verify
-        const vRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=a`, allCookies);
-        const vText = await vRes.text();
-        if (!isLoginPage(vText) && vRes.status !== 302) {
-          console.info("Login success via", endpoint);
-          return { success: true, cookies: allCookies };
-        }
-      }
+      loginSuccess = true;
+      break;
     } catch (err) {
       console.warn("Login attempt failed", endpoint, err);
     }
   }
-  return { success: false, cookies: "", error: "Não foi possível fazer login. Verifique as credenciais." };
+
+  if (!loginSuccess || !allCookies) {
+    return { success: false, cookies: "", error: "Não foi possível fazer login. Verifique as credenciais." };
+  }
+
+  // Step 3: Navigate to main pages to warm up the session
+  const warmUpPages = [
+    `${portalBase}/v5/index.php`,
+    `${portalBase}/v5/home.php`,
+    `${portalBase}/v5/`,
+    `${portalBase}/`,
+  ];
+
+  for (const page of warmUpPages) {
+    try {
+      const res = await timedFetch(page, {
+        headers: { Cookie: allCookies, "User-Agent": UA },
+        redirect: "manual",
+      }, 8000);
+      const moreCookies = extractSetCookies(res);
+      if (moreCookies) allCookies = mergeCookies(allCookies, moreCookies);
+      
+      // Follow redirect if any
+      const loc = res.headers.get("location");
+      if (loc && [301, 302, 303].includes(res.status)) {
+        const rUrl = loc.startsWith("http") ? loc : `${portalBase}/${loc.replace(/^\//, "")}`;
+        const rr = await timedFetch(rUrl, { headers: { Cookie: allCookies, "User-Agent": UA }, redirect: "manual" }, 8000);
+        const rc = extractSetCookies(rr);
+        if (rc) allCookies = mergeCookies(allCookies, rc);
+      }
+    } catch { /* ignore warm-up failures */ }
+  }
+
+  // Step 4: Verify with autocomplete
+  try {
+    const vRes = await fetchWithCookies(`${portalBase}/carrega/carregaAssociados.php?input=teste`, allCookies);
+    const vText = await vRes.text();
+    console.info("Step 4 - Verify autocomplete", { len: vText.length, isLogin: isLoginPage(vText), preview: vText.substring(0, 200) });
+    if (isLoginPage(vText)) {
+      return { success: false, cookies: "", error: "Login realizado mas sessão não inicializou corretamente" };
+    }
+  } catch (e) {
+    console.warn("Verify failed:", e);
+  }
+
+  console.info("Login complete, cookies length:", allCookies.length);
+  return { success: true, cookies: allCookies };
 }
 
 // ── Main handler ────────────────────────────────────────────────────
