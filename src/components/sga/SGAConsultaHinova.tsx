@@ -267,7 +267,7 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {sessionActive === true ? (
-                <Wifi className="h-5 w-5 text-green-500" />
+                <Wifi className="h-5 w-5 text-primary" />
               ) : sessionActive === false ? (
                 <WifiOff className="h-5 w-5 text-destructive" />
               ) : (
