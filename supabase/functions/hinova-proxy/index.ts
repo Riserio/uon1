@@ -369,6 +369,12 @@ serve(async (req) => {
     switch (action) {
       case "consultar-associado": {
         const searchTerm = (params?.busca || "").trim();
+        
+        // Warm up: navigate to associado page to set PHP session context
+        try {
+          await fetchWithCookies(`${portalBase}/associado/consultarAssociado.php`, cookies);
+        } catch { /* ignore */ }
+        
         const result = await executeWithRetry(
           async (c) => {
             const url = `${portalBase}/carrega/carregaAssociados.php?input=${encodeURIComponent(searchTerm)}`;
@@ -381,8 +387,10 @@ serve(async (req) => {
         );
         let data = parseAssociadoAutocomplete(result.text, searchTerm);
         if (data.length === 0) {
+          // Fallback: POST search
           const fb = await fetchWithCookies(`${portalBase}/associado/consultarAssociado.php`, cookies, "POST", new URLSearchParams({ input: searchTerm, busca: searchTerm, nome: searchTerm }).toString());
           const fbHtml = await fb.text();
+          console.info("Hinova fallback search", { len: fbHtml.length, preview: fbHtml.substring(0, 500) });
           if (!isLoginPage(fbHtml)) data = parseHtmlTable(fbHtml);
         }
         responseData = { success: true, data, total: data.length };
