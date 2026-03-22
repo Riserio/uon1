@@ -91,6 +91,20 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
       const result = await invokeProxy('login');
       if (result.success) {
         setSessionActive(true);
+        if (result.session_cookies_updated_at) setSessionUpdatedAt(result.session_cookies_updated_at);
+      } else if (result.needs_refresh) {
+        // Auto-refresh if session is stale
+        setSessionActive(false);
+        try {
+          const refreshResult = await invokeProxy('refresh-session');
+          if (refreshResult.success) {
+            setSessionActive(true);
+            setSessionUpdatedAt(refreshResult.session_cookies_updated_at);
+            toast.success("Sessão conectada automaticamente!");
+          }
+        } catch (refreshErr: any) {
+          setError(refreshErr.message);
+        }
       }
     } catch (e: any) {
       setError(e.message);
