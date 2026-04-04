@@ -83,6 +83,7 @@ const OuvidoriaPublica = lazy(() => import("./pages/OuvidoriaPublica"));
 const OuvidoriaBackoffice = lazy(() => import("./pages/OuvidoriaBackoffice"));
 const OuvidoriaEmbed = lazy(() => import("./pages/OuvidoriaEmbed"));
 const Treinamento = lazy(() => import("./pages/Treinamento"));
+const DebitosVeiculares = lazy(() => import("./pages/DebitosVeiculares"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
