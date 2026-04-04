@@ -17,6 +17,7 @@ import {
   TrendingUp,
   DollarSign,
   MessageSquareWarning,
+  CarFront,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
