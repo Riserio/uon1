@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
