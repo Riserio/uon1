@@ -251,6 +251,19 @@ export default function MenuNav() {
         )}
 
         <DropdownMenuSeparator />
+        <DropdownMenuLabel>Veículos</DropdownMenuLabel>
+
+        {/* Débitos Veiculares */}
+        {canView("debitos_veiculares") && (
+          <DropdownMenuItem asChild>
+            <Link to="/debitos-veiculares" className="cursor-pointer">
+              <CarFront className="mr-2 h-4 w-4" />
+              <span>Débitos Veiculares</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSeparator />
         <DropdownMenuLabel>Ferramentas</DropdownMenuLabel>
 
         {/* Agenda */}
