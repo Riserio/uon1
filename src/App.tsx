@@ -288,6 +288,7 @@ const App = () => (
                 <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
                 <Route path="/ouvidoria-backoffice" element={<ProtectedRoute><OuvidoriaBackoffice /></ProtectedRoute>} />
                 <Route path="/ajuda" element={<ProtectedRoute><Treinamento /></ProtectedRoute>} />
+                <Route path="/debitos-veiculares" element={<ProtectedRoute><DebitosVeiculares /></ProtectedRoute>} />
                 <Route path="/talk" element={<Navigate to="/video" replace />} />
               </Route>
               
