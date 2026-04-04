@@ -83,6 +83,7 @@ const OuvidoriaPublica = lazy(() => import("./pages/OuvidoriaPublica"));
 const OuvidoriaBackoffice = lazy(() => import("./pages/OuvidoriaBackoffice"));
 const OuvidoriaEmbed = lazy(() => import("./pages/OuvidoriaEmbed"));
 const Treinamento = lazy(() => import("./pages/Treinamento"));
+const DebitosVeiculares = lazy(() => import("./pages/DebitosVeiculares"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -287,6 +288,7 @@ const App = () => (
                 <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
                 <Route path="/ouvidoria-backoffice" element={<ProtectedRoute><OuvidoriaBackoffice /></ProtectedRoute>} />
                 <Route path="/ajuda" element={<ProtectedRoute><Treinamento /></ProtectedRoute>} />
+                <Route path="/debitos-veiculares" element={<ProtectedRoute><DebitosVeiculares /></ProtectedRoute>} />
                 <Route path="/talk" element={<Navigate to="/video" replace />} />
               </Route>
               

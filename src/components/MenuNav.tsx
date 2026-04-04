@@ -17,6 +17,7 @@ import {
   TrendingUp,
   DollarSign,
   MessageSquareWarning,
+  CarFront,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -245,6 +246,19 @@ export default function MenuNav() {
             <Link to="/lancamentos-financeiros" className="cursor-pointer">
               <DollarSign className="mr-2 h-4 w-4" />
               <span>Lançamentos Financeiros</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Veículos</DropdownMenuLabel>
+
+        {/* Débitos Veiculares */}
+        {canView("debitos_veiculares") && (
+          <DropdownMenuItem asChild>
+            <Link to="/debitos-veiculares" className="cursor-pointer">
+              <CarFront className="mr-2 h-4 w-4" />
+              <span>Débitos Veiculares</span>
             </Link>
           </DropdownMenuItem>
         )}
