@@ -92,6 +92,7 @@ function useMenuItems() {
     { id: "talka", label: "Uon1 Talk", to: "/video", icon: Video, group: "ferramentas" },
     { id: "comunicados", label: "Comunicados", to: "/comunicados", icon: Megaphone, group: "ferramentas" },
     { id: "gestao", label: "Gestão", to: "/gestao", icon: Briefcase, group: "ferramentas" },
+    { id: "debitos_veiculares", label: "Débitos Veiculares", to: "/debitos-veiculares", icon: CarFront, group: "ferramentas" },
     { id: "ajuda", label: "Ajuda", to: "/ajuda", icon: HelpCircle, group: "ferramentas" },
     { id: "configuracoes", label: "Configurações", to: "/configuracoes", icon: Settings, group: "ferramentas" },
   ];
