@@ -115,8 +115,10 @@ Se preferir uma interface visual:
 O webhook está disponível em:
 
 ```
-POST https://mnoczwmqgignmylbvpgp.supabase.co/functions/v1/webhook-cobranca-hinova
+POST https://<PROJECT_REF>.supabase.co/functions/v1/webhook-cobranca-hinova
 ```
+
+> Substitua `<PROJECT_REF>` pelo ID do projeto Supabase (disponível nas variáveis de ambiente).
 
 ### Payload
 
