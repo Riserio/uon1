@@ -71,8 +71,8 @@ const CONFIG = {
   WEBHOOK_URL: process.env.WEBHOOK_URL || '',
   WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || '',
   
-  // Identificador da corretora - USE O ID DIRETO
-  CORRETORA_ID: process.env.CORRETORA_ID || 'a4931643-8bf1-4153-97b1-c64925f536eb',
+  // Identificador da corretora - CONFIGURE VIA VARIÁVEL DE AMBIENTE
+  CORRETORA_ID: process.env.CORRETORA_ID || '',
   
   // ID da execução (vindo do banco via GitHub Actions)
   EXECUCAO_ID: process.env.EXECUCAO_ID || '',

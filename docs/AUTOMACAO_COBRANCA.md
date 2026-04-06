@@ -124,7 +124,7 @@ POST https://<PROJECT_REF>.supabase.co/functions/v1/webhook-cobranca-hinova
 
 ```json
 {
-  "corretora_id": "a4931643-8bf1-4153-97b1-c64925f536eb",
+  "corretora_id": "<SEU_CORRETORA_ID>",
   "dados": [
     {
       "nome": "João Silva",
