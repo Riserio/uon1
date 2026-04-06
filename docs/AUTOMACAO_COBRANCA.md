@@ -38,10 +38,10 @@ playwright install chromium
 Edite o arquivo `scripts/robo-cobranca-hinova.py`:
 
 ```python
-HINOVA_URL = "https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php"
+HINOVA_URL = "https://eris.hinova.com.br/sga/sgav4_<CLIENTE>/v5/login.php"
 HINOVA_USER = "seu_usuario"
 HINOVA_PASS = "sua_senha"
-CORRETORA_ID = "a4931643-8bf1-4153-97b1-c64925f536eb"
+CORRETORA_ID = "<SEU_CORRETORA_ID>"
 ```
 
 Ou use variáveis de ambiente:
@@ -49,7 +49,7 @@ Ou use variáveis de ambiente:
 ```bash
 export HINOVA_USER="seu_usuario"
 export HINOVA_PASS="sua_senha"
-export CORRETORA_ID="a4931643-8bf1-4153-97b1-c64925f536eb"
+export CORRETORA_ID="<SEU_CORRETORA_ID>"
 ```
 
 #### Execução Manual
@@ -115,14 +115,16 @@ Se preferir uma interface visual:
 O webhook está disponível em:
 
 ```
-POST https://mnoczwmqgignmylbvpgp.supabase.co/functions/v1/webhook-cobranca-hinova
+POST https://<PROJECT_REF>.supabase.co/functions/v1/webhook-cobranca-hinova
 ```
+
+> Substitua `<PROJECT_REF>` pelo ID do projeto Supabase (disponível nas variáveis de ambiente).
 
 ### Payload
 
 ```json
 {
-  "corretora_id": "a4931643-8bf1-4153-97b1-c64925f536eb",
+  "corretora_id": "<SEU_CORRETORA_ID>",
   "dados": [
     {
       "nome": "João Silva",
