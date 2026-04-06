@@ -49,7 +49,7 @@ Ou use variáveis de ambiente:
 ```bash
 export HINOVA_USER="seu_usuario"
 export HINOVA_PASS="sua_senha"
-export CORRETORA_ID="a4931643-8bf1-4153-97b1-c64925f536eb"
+export CORRETORA_ID="<SEU_CORRETORA_ID>"
 ```
 
 #### Execução Manual
