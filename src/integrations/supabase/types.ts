@@ -977,36 +977,6 @@ export type Database = {
         }
         Relationships: []
       }
-      consultas_veiculo: {
-        Row: {
-          data_consulta: string
-          id: string
-          placa: string
-          renavam: string | null
-          resultado_json: Json | null
-          uf: string | null
-          usuario_id: string
-        }
-        Insert: {
-          data_consulta?: string
-          id?: string
-          placa: string
-          renavam?: string | null
-          resultado_json?: Json | null
-          uf?: string | null
-          usuario_id: string
-        }
-        Update: {
-          data_consulta?: string
-          id?: string
-          placa?: string
-          renavam?: string | null
-          resultado_json?: Json | null
-          uf?: string | null
-          usuario_id?: string
-        }
-        Relationships: []
-      }
       contatos: {
         Row: {
           cargo: string | null
