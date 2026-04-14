@@ -2,15 +2,17 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Download, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, ClipboardCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import RevistoriaInadimplenciaDialog from "./RevistoriaInadimplenciaDialog";
 
 interface CobrancaTabelaProps {
   boletos: any[];
   loading: boolean;
+  corretoraId?: string;
 }
 
 const formatCurrency = (value: number) => {
@@ -35,9 +37,10 @@ const formatDate = (dateStr: string | null) => {
 
 const ITEMS_PER_PAGE = 50;
 
-export default function CobrancaTabela({ boletos, loading }: CobrancaTabelaProps) {
+export default function CobrancaTabela({ boletos, loading, corretoraId }: CobrancaTabelaProps) {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [revistoriaOpen, setRevistoriaOpen] = useState(false);
   
   // Filtros individuais
   const [filtroDataPagamento, setFiltroDataPagamento] = useState("");
