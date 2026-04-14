@@ -101,6 +101,17 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
     setLoading(false);
   };
 
+  const fetchCentrosCusto = async () => {
+    let query = supabase.from("centros_custo").select("id, nome, cor").eq("ativo", true).order("nome");
+    if (corretoraId === "administradora") {
+      query = query.is("corretora_id", null);
+    } else {
+      query = query.eq("corretora_id", corretoraId);
+    }
+    const { data } = await query;
+    setCentrosCusto(data || []);
+  };
+
   const filterLancamentos = () => {
     let filtered = lancamentos;
 
