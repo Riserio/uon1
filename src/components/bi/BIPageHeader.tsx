@@ -49,6 +49,11 @@ const modules = [{
   icon: Database,
   path: '/estudo-base-insights'
 }, {
+  id: 'cadastro',
+  label: 'Cadastro',
+  icon: Database,
+  path: '/cadastro-insights'
+}, {
   id: 'acompanhamento-eventos',
   label: 'Acompanhamento',
   icon: KanbanSquare,
