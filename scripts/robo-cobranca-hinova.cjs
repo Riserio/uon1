@@ -2868,6 +2868,9 @@ async function enviarWebhook(dados, nomeArquivo, opcoes = {}) {
 async function rodarRobo() {
   setStep('VALIDACAO');
   
+  // Fetch credentials securely from edge function
+  await fetchCredentialsFromServer();
+  
   if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
     throw new Error('HINOVA_USER e HINOVA_PASS são obrigatórios');
   }
