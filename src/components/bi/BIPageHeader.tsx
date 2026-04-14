@@ -1,4 +1,4 @@
-import { Activity, DollarSign, CreditCard, Database, History, TrendingUp, KanbanSquare, BarChart3 } from "lucide-react";
+import { Activity, DollarSign, CreditCard, Database, History, TrendingUp, KanbanSquare, BarChart3, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -51,7 +51,7 @@ const modules = [{
 }, {
   id: 'cadastro',
   label: 'Cadastro',
-  icon: Database,
+  icon: Keyboard,
   path: '/cadastro-insights'
 }, {
   id: 'acompanhamento-eventos',
