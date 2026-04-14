@@ -14,7 +14,7 @@ import { ptBR } from "date-fns/locale";
 import {
   Building2, Users, Shield, ShieldOff, Loader2,
   CheckCircle, XCircle, Clock, AlertTriangle, Search,
-  RefreshCw, Activity, Zap, BarChart3, GitBranch
+  RefreshCw, Activity, Zap, BarChart3, GitBranch, PlayCircle
 } from "lucide-react";
 import BISyncButton from "./BISyncButton";
 import BIAdminAnalytics from "./BIAdminAnalytics";
@@ -105,6 +105,7 @@ export default function BIAdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("visao-geral");
   const [togglingUser, setTogglingUser] = useState<string | null>(null);
+  const [syncingAll, setSyncingAll] = useState(false);
 
   const STALE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes (detecta falhas de setup rapidamente)
 
@@ -341,6 +342,61 @@ export default function BIAdminDashboard() {
         <Button variant="outline" size="sm" onClick={loadData} className="gap-1.5">
           <RefreshCw className="h-3.5 w-3.5" />Atualizar
         </Button>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                size="sm"
+                className="gap-1.5"
+                disabled={syncingAll}
+                onClick={async () => {
+                  setSyncingAll(true);
+                  try {
+                    const schedulers = [
+                      "scheduler-cobranca-hinova",
+                      "scheduler-sga-hinova",
+                      "scheduler-mgf-hinova",
+                    ];
+                    const results = await Promise.allSettled(
+                      schedulers.map(fn =>
+                        supabase.functions.invoke(fn, { body: { force: true } })
+                      )
+                    );
+                    let totalDisparados = 0;
+                    let totalErros = 0;
+                    results.forEach((r, i) => {
+                      if (r.status === "fulfilled" && r.value.data) {
+                        totalDisparados += r.value.data.disparados || 0;
+                        totalErros += r.value.data.erros || 0;
+                      } else {
+                        totalErros++;
+                      }
+                    });
+                    if (totalDisparados > 0) {
+                      toast.success(`${totalDisparados} sincronizações iniciadas!`);
+                    } else if (totalErros > 0) {
+                      toast.error(`${totalErros} erros ao disparar sincronizações`);
+                    } else {
+                      toast.info("Nenhuma associação pendente para sincronizar");
+                    }
+                    setTimeout(loadData, 3000);
+                  } catch (e: any) {
+                    toast.error("Erro ao sincronizar: " + (e.message || "desconhecido"));
+                  } finally {
+                    setSyncingAll(false);
+                  }
+                }}
+              >
+                {syncingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
+                Sincronizar Todas
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Dispara sincronização de todas as associações ativas (cobrança, eventos e MGF)</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
