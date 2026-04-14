@@ -140,6 +140,10 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
 
   const hasFilters = search || filtroDataPagamento || filtroDiaVencimento || filtroRegional || filtroCooperativa || filtroVoluntario || filtroPlacas || filtroSituacao || filtroDataVencimento;
 
+  const inadimplentesAberto = useMemo(() => {
+    return filteredBoletos.filter(b => (b.situacao || "").toUpperCase() === "ABERTO" && b.placas);
+  }, [filteredBoletos]);
+
   // Determinar cor da linha baseado na situação
   const getRowClass = (situacao: string) => {
     if (!situacao) return "";
