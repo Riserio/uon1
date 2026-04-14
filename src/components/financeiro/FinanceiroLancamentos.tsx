@@ -73,7 +73,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
   }, [user]);
 
   useEffect(() => {
-    if (corretoraId) fetchLancamentos();
+    if (corretoraId) { fetchLancamentos(); fetchCentrosCusto(); }
   }, [corretoraId]);
 
   useEffect(() => {
@@ -144,6 +144,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
         categoria: formData.categoria,
         observacoes: formData.observacoes || null,
         corretora_id: corretoraId === "administradora" ? null : corretoraId,
+        centro_custo_id: formData.centro_custo_id || null,
       };
 
       if (editingId) {
@@ -204,6 +205,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
       data_competencia: lancamento.data_competencia,
       categoria: lancamento.categoria,
       observacoes: lancamento.observacoes || "",
+      centro_custo_id: lancamento.centro_custo_id || "",
     });
     setDialogOpen(true);
   };
@@ -278,6 +280,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
       data_competencia: format(new Date(), "yyyy-MM-dd"),
       categoria: "premio",
       observacoes: "",
+      centro_custo_id: "",
     });
   };
 
