@@ -60,6 +60,11 @@ export default function FinanceiroVisaoGeral({ corretoraId }: Props) {
       }
       const { data: lancamentos } = await query;
       if (!lancamentos || lancamentos.length === 0) {
+        setKpis({ receitaTotal: 0, despesaTotal: 0, saldoTotal: 0, receitasMes: 0, despesasMes: 0, ticketMedioReceita: 0, ticketMedioDespesa: 0, totalLancamentos: 0, taxaPendente: 0 });
+        setMonthlyData([]);
+        setCategoryData([]);
+        setStatusData([]);
+        setRecentLancamentos([]);
         setLoading(false);
         return;
       }
