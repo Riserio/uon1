@@ -8,11 +8,6 @@ const corsHeaders = {
 
 interface WorkflowInput {
   corretora_id: string;
-  hinova_url: string;
-  hinova_user: string;
-  hinova_pass: string;
-  hinova_codigo_cliente: string;
-  hinova_layout: string;
   execucao_id: string;
   webhook_url: string;
 }
@@ -202,14 +197,9 @@ serve(async (req) => {
         })
         .eq("id", config.id);
 
-      // Preparar inputs para o workflow
+      // Preparar inputs para o workflow (SEM credenciais - robô busca via edge function)
       const workflowInputs: WorkflowInput = {
         corretora_id: corretora_id,
-        hinova_url: config.hinova_url,
-        hinova_user: config.hinova_user,
-        hinova_pass: config.hinova_pass,
-        hinova_codigo_cliente: config.hinova_codigo_cliente || '',
-        hinova_layout: config.layout_relatorio || '',
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-cobranca-hinova`,
       };

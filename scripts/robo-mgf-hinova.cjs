@@ -30,39 +30,33 @@ const readline = require('readline');
 // ============================================
 
 // URL de LOGIN: usar variável de ambiente ou default
-const HINOVA_LOGIN_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
+const HINOVA_LOGIN_URL = process.env.HINOVA_URL || '';
 
-// Centros de Custo permitidos (EXATAMENTE esses)
 const CENTROS_CUSTO_PERMITIDOS = [
   'EVENTOS',
   'EVENTOS NAO PROVISIONADO',
   'EVENTOS RATEAVEIS',
 ];
 
-// Função para derivar URL do relatório MGF a partir da URL de login
 function deriveMGFRelatorioUrl(loginUrl) {
   try {
     const url = new URL(loginUrl);
-    // Extrai o caminho base (ex: /sga/sgav4_asspas/v5/login.php -> /sga/sgav4_asspas/)
     const pathParts = url.pathname.split('/').filter(p => 
       p && !p.includes('login') && !p.includes('Principal') && p !== 'v5'
     );
     const basePath = '/' + pathParts.join('/');
     return `${url.origin}${basePath}/v5/Sgfrelatorio/lancamento`;
   } catch (e) {
-    // Fallback
-    return 'https://sga.hinova.com.br/sga/sgav4_asspas/v5/Sgfrelatorio/lancamento';
+    return '';
   }
 }
 
 const CONFIG = {
-  // URL de login (dinâmica - vem da variável de ambiente)
   HINOVA_URL: HINOVA_LOGIN_URL,
-  // URL do relatório MGF derivada dinamicamente da URL de login
-  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || deriveMGFRelatorioUrl(HINOVA_LOGIN_URL),
+  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || (HINOVA_LOGIN_URL ? deriveMGFRelatorioUrl(HINOVA_LOGIN_URL) : ''),
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
-  HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '2363',
+  HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
   HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI VANGARD FINANCEIROS EVENTOS',
   
   WEBHOOK_URL: process.env.WEBHOOK_URL || '',
@@ -76,6 +70,49 @@ const CONFIG = {
   DOWNLOAD_BASE_DIR: process.env.DOWNLOAD_DIR || './downloads',
   DEBUG_DIR: process.env.DEBUG_DIR || './debug',
 };
+
+// ============================================
+// FETCH CREDENTIALS FROM EDGE FUNCTION (secure)
+// ============================================
+async function fetchCredentialsFromServer() {
+  const credentialsUrl = process.env.CREDENTIALS_URL;
+  const robotSecret = process.env.ROBOT_SECRET;
+  const module = process.env.ROBOT_MODULE || 'mgf';
+  
+  if (!credentialsUrl || !robotSecret || !CONFIG.CORRETORA_ID) {
+    console.log('[Credentials] No CREDENTIALS_URL/ROBOT_SECRET or CORRETORA_ID, using env vars');
+    return;
+  }
+  
+  try {
+    console.log(`[Credentials] Fetching credentials for ${module}/${CONFIG.CORRETORA_ID}...`);
+    const response = await axios.post(credentialsUrl, {
+      corretora_id: CONFIG.CORRETORA_ID,
+      module: module,
+    }, {
+      headers: { 'x-robot-secret': robotSecret, 'Content-Type': 'application/json' },
+      timeout: 15000,
+    });
+    
+    const creds = response.data;
+    if (creds.hinova_url) {
+      CONFIG.HINOVA_URL = creds.hinova_url;
+      CONFIG.HINOVA_RELATORIO_URL = creds.hinova_relatorio_url || deriveMGFRelatorioUrl(creds.hinova_url);
+    }
+    if (creds.hinova_user) CONFIG.HINOVA_USER = creds.hinova_user;
+    if (creds.hinova_pass) CONFIG.HINOVA_PASS = creds.hinova_pass;
+    if (creds.hinova_codigo_cliente) CONFIG.HINOVA_CODIGO_CLIENTE = creds.hinova_codigo_cliente;
+    if (creds.hinova_layout) CONFIG.HINOVA_LAYOUT = creds.hinova_layout;
+    
+    console.log('[Credentials] Successfully loaded from server');
+  } catch (err) {
+    console.error('[Credentials] Failed to fetch:', err.message);
+    if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
+      throw new Error('No credentials available - fetch failed and no env vars set');
+    }
+    console.log('[Credentials] Falling back to env vars');
+  }
+}
 
 // ============================================
 // LOGIN: helpers (mantidos próximos ao topo por reutilização)
@@ -2260,6 +2297,9 @@ async function enviarWebhook(dados, nomeArquivo) {
 // ============================================
 async function rodarRobo() {
   setStep('VALIDACAO');
+  
+  // Fetch credentials securely from edge function
+  await fetchCredentialsFromServer();
   
   if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
     throw new Error('HINOVA_USER e HINOVA_PASS são obrigatórios');

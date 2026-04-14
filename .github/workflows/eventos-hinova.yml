@@ -12,30 +12,6 @@ on:
         description: 'ID da corretora/associação'
         required: false
         type: string
-      hinova_url:
-        description: 'URL do portal Hinova'
-        required: false
-        type: string
-      hinova_relatorio_url:
-        description: 'URL direta do relatório de eventos'
-        required: false
-        type: string
-      hinova_user:
-        description: 'Usuário Hinova'
-        required: false
-        type: string
-      hinova_pass:
-        description: 'Senha Hinova'
-        required: false
-        type: string
-      hinova_codigo_cliente:
-        description: 'Código do cliente Hinova'
-        required: false
-        type: string
-      hinova_layout:
-        description: 'Nome do layout no relatório'
-        required: false
-        type: string
       data_inicio:
         description: 'Data inicial (DD/MM/YYYY) - padrão: 1º dia do mês'
         required: false
@@ -67,7 +43,6 @@ jobs:
         with:
           node-version: '20'
 
-      # Cache para módulos npm (economiza ~2-3 min por run)
       - name: Cache dependências npm
         uses: actions/cache@v4
         id: npm-cache
@@ -77,7 +52,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-eventos-
 
-      # Cache para binários do Playwright/Chromium (economiza ~3-5 min por run)
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         id: playwright-cache
@@ -101,12 +75,8 @@ jobs:
       
       - name: Executar robô de eventos
         env:
-          HINOVA_URL: ${{ inputs.hinova_url || secrets.HINOVA_URL }}
-          HINOVA_RELATORIO_URL: ${{ inputs.hinova_relatorio_url }}
-          HINOVA_CODIGO_CLIENTE: ${{ inputs.hinova_codigo_cliente || secrets.HINOVA_CODIGO_CLIENTE }}
-          HINOVA_USER: ${{ inputs.hinova_user || secrets.HINOVA_USER }}
-          HINOVA_PASS: ${{ inputs.hinova_pass || secrets.HINOVA_PASS }}
-          HINOVA_LAYOUT: ${{ inputs.hinova_layout }}
+          CREDENTIALS_URL: ${{ secrets.CREDENTIALS_URL }}
+          ROBOT_SECRET: ${{ secrets.ROBOT_SECRET }}
           DATA_INICIO: ${{ inputs.data_inicio }}
           DATA_FIM: ${{ inputs.data_fim }}
           WEBHOOK_URL: ${{ inputs.webhook_url || secrets.WEBHOOK_URL_SGA }}
@@ -115,6 +85,7 @@ jobs:
           EXECUCAO_ID: ${{ inputs.execucao_id }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ROBOT_MODULE: eventos
         run: node scripts/robo-sga-hinova.cjs
 
       - name: Notificar erro ao webhook (fallback)

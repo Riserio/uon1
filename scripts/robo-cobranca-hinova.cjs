@@ -53,40 +53,70 @@ function deriveRelatorioUrl(loginUrl) {
   }
 }
 
-const HINOVA_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
+const HINOVA_URL = process.env.HINOVA_URL || '';
 
 const CONFIG = {
   HINOVA_URL: HINOVA_URL,
-  // URL do relatório derivada dinamicamente da URL de login
-  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || deriveRelatorioUrl(HINOVA_URL),
+  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || (HINOVA_URL ? deriveRelatorioUrl(HINOVA_URL) : ''),
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
-
-  // Alguns ambientes exigem o código do cliente e/ou o perfil/layout selecionado no login.
-  // Mantém compatibilidade com o valor antigo (2363), mas permite sobrescrever por ENV.
-  HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '2363',
+  HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
   HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI - VANGARD COBRANÇA',
   
-  // URL do webhook
   WEBHOOK_URL: process.env.WEBHOOK_URL || '',
   WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || '',
   
-  // Identificador da corretora - CONFIGURE VIA VARIÁVEL DE AMBIENTE
   CORRETORA_ID: process.env.CORRETORA_ID || '',
-  
-  // ID da execução (vindo do banco via GitHub Actions)
   EXECUCAO_ID: process.env.EXECUCAO_ID || '',
-  
-  // GitHub Actions run info
   GITHUB_RUN_ID: process.env.GITHUB_RUN_ID || '',
   GITHUB_RUN_URL: process.env.GITHUB_RUN_URL || '',
   
-  // Diretório base para downloads
   DOWNLOAD_BASE_DIR: process.env.DOWNLOAD_DIR || './downloads',
-  
-  // Diretório para debug (screenshots e HTML)
   DEBUG_DIR: process.env.DEBUG_DIR || './debug',
 };
+
+// ============================================
+// FETCH CREDENTIALS FROM EDGE FUNCTION (secure)
+// ============================================
+async function fetchCredentialsFromServer() {
+  const credentialsUrl = process.env.CREDENTIALS_URL;
+  const robotSecret = process.env.ROBOT_SECRET;
+  const module = process.env.ROBOT_MODULE || 'cobranca';
+  
+  if (!credentialsUrl || !robotSecret || !CONFIG.CORRETORA_ID) {
+    console.log('[Credentials] No CREDENTIALS_URL/ROBOT_SECRET or CORRETORA_ID, using env vars');
+    return;
+  }
+  
+  try {
+    console.log(`[Credentials] Fetching credentials for ${module}/${CONFIG.CORRETORA_ID}...`);
+    const response = await axios.post(credentialsUrl, {
+      corretora_id: CONFIG.CORRETORA_ID,
+      module: module,
+    }, {
+      headers: { 'x-robot-secret': robotSecret, 'Content-Type': 'application/json' },
+      timeout: 15000,
+    });
+    
+    const creds = response.data;
+    if (creds.hinova_url) {
+      CONFIG.HINOVA_URL = creds.hinova_url;
+      CONFIG.HINOVA_RELATORIO_URL = creds.hinova_relatorio_url || deriveRelatorioUrl(creds.hinova_url);
+    }
+    if (creds.hinova_user) CONFIG.HINOVA_USER = creds.hinova_user;
+    if (creds.hinova_pass) CONFIG.HINOVA_PASS = creds.hinova_pass;
+    if (creds.hinova_codigo_cliente) CONFIG.HINOVA_CODIGO_CLIENTE = creds.hinova_codigo_cliente;
+    if (creds.hinova_layout) CONFIG.HINOVA_LAYOUT = creds.hinova_layout;
+    
+    console.log('[Credentials] Successfully loaded from server');
+  } catch (err) {
+    console.error('[Credentials] Failed to fetch:', err.message);
+    if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
+      throw new Error('No credentials available - fetch failed and no env vars set');
+    }
+    console.log('[Credentials] Falling back to env vars');
+  }
+}
 
 // ============================================
 // LOGIN: helpers (mantidos próximos ao topo por reutilização)
@@ -2837,6 +2867,9 @@ async function enviarWebhook(dados, nomeArquivo, opcoes = {}) {
 // ============================================
 async function rodarRobo() {
   setStep('VALIDACAO');
+  
+  // Fetch credentials securely from edge function
+  await fetchCredentialsFromServer();
   
   if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
     throw new Error('HINOVA_USER e HINOVA_PASS são obrigatórios');

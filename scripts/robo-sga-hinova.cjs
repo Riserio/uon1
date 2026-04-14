@@ -62,20 +62,18 @@ function deriveRelatorioUrl(loginUrl) {
   }
 }
 
-const HINOVA_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
+const HINOVA_URL = process.env.HINOVA_URL || '';
 
-// URL do relatório: prioridade para env HINOVA_RELATORIO_URL (vinda de hinova_credenciais.url_eventos)
 const HINOVA_RELATORIO_URL_ENV = process.env.HINOVA_RELATORIO_URL;
 
 const CONFIG = {
   HINOVA_URL: HINOVA_URL,
-  HINOVA_RELATORIO_URL: HINOVA_RELATORIO_URL_ENV || deriveRelatorioUrl(HINOVA_URL),
+  HINOVA_RELATORIO_URL: HINOVA_RELATORIO_URL_ENV || (HINOVA_URL ? deriveRelatorioUrl(HINOVA_URL) : ''),
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
   HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
   HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI - VANGARD',
   
-  // Datas - sempre o mês atual
   DATA_INICIO: process.env.DATA_INICIO || firstDayStr,
   DATA_FIM: process.env.DATA_FIM || lastDayStr,
   
@@ -90,6 +88,49 @@ const CONFIG = {
   DOWNLOAD_BASE_DIR: process.env.DOWNLOAD_DIR || './downloads',
   DEBUG_DIR: process.env.DEBUG_DIR || './debug',
 };
+
+// ============================================
+// FETCH CREDENTIALS FROM EDGE FUNCTION (secure)
+// ============================================
+async function fetchCredentialsFromServer() {
+  const credentialsUrl = process.env.CREDENTIALS_URL;
+  const robotSecret = process.env.ROBOT_SECRET;
+  const module = process.env.ROBOT_MODULE || 'eventos';
+  
+  if (!credentialsUrl || !robotSecret || !CONFIG.CORRETORA_ID) {
+    console.log('[Credentials] No CREDENTIALS_URL/ROBOT_SECRET or CORRETORA_ID, using env vars');
+    return;
+  }
+  
+  try {
+    console.log(`[Credentials] Fetching credentials for ${module}/${CONFIG.CORRETORA_ID}...`);
+    const response = await axios.post(credentialsUrl, {
+      corretora_id: CONFIG.CORRETORA_ID,
+      module: module,
+    }, {
+      headers: { 'x-robot-secret': robotSecret, 'Content-Type': 'application/json' },
+      timeout: 15000,
+    });
+    
+    const creds = response.data;
+    if (creds.hinova_url) {
+      CONFIG.HINOVA_URL = creds.hinova_url;
+      CONFIG.HINOVA_RELATORIO_URL = creds.hinova_relatorio_url || deriveRelatorioUrl(creds.hinova_url);
+    }
+    if (creds.hinova_user) CONFIG.HINOVA_USER = creds.hinova_user;
+    if (creds.hinova_pass) CONFIG.HINOVA_PASS = creds.hinova_pass;
+    if (creds.hinova_codigo_cliente) CONFIG.HINOVA_CODIGO_CLIENTE = creds.hinova_codigo_cliente;
+    if (creds.hinova_layout) CONFIG.HINOVA_LAYOUT = creds.hinova_layout;
+    
+    console.log('[Credentials] Successfully loaded from server');
+  } catch (err) {
+    console.error('[Credentials] Failed to fetch:', err.message);
+    if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
+      throw new Error('No credentials available - fetch failed and no env vars set');
+    }
+    console.log('[Credentials] Falling back to env vars');
+  }
+}
 
 // ============================================
 // CONSTANTES
@@ -2054,6 +2095,9 @@ async function main() {
   log('='.repeat(60), LOG_LEVELS.INFO);
   log('INICIANDO ROBÔ SGA HINOVA - EVENTOS', LOG_LEVELS.INFO);
   log('='.repeat(60), LOG_LEVELS.INFO);
+
+  // Fetch credentials securely from edge function
+  await fetchCredentialsFromServer();
 
   if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
     throw new Error('HINOVA_USER e HINOVA_PASS são obrigatórios');
