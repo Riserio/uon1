@@ -191,6 +191,12 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
                 Limpar Filtros
               </Button>
             )}
+            {corretoraId && inadimplentesAberto.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setRevistoriaOpen(true)} className="gap-1.5">
+                <ClipboardCheck className="h-4 w-4" />
+                Revistoria ({inadimplentesAberto.length})
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" />
               Exportar
