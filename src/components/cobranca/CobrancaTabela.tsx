@@ -181,6 +181,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
