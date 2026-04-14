@@ -157,7 +157,14 @@ serve(async (req) => {
         );
       }
 
-      if (!config.hinova_user || !config.hinova_pass) {
+      // Verificar credenciais (prioriza hinova_credenciais, fallback para config)
+      const { data: credCheck } = await supabase
+        .from("hinova_credenciais")
+        .select("hinova_user, hinova_pass")
+        .eq("corretora_id", corretora_id)
+        .maybeSingle();
+      
+      if (!credCheck?.hinova_user && !config.hinova_user) {
         return new Response(
           JSON.stringify({ success: false, message: "Credenciais Hinova não configuradas" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
