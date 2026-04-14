@@ -315,86 +315,92 @@ export default function PPR() {
           </div>
 
           {/* Sprint columns layout */}
-          <div className="overflow-x-auto -mx-4 px-4">
-            <div className="min-w-[900px]">
-              {/* Header row */}
-              <div className="grid gap-1 mb-2" style={{ gridTemplateColumns: "200px repeat(6, 1fr)" }}>
-                <div className="text-xs font-semibold text-muted-foreground p-2">ÁREA</div>
-                {SPRINTS.map(s => (
-                  <div key={s.id} className="text-xs font-semibold text-center text-muted-foreground p-2 bg-muted/30 rounded-lg">
-                    {s.label}
-                  </div>
-                ))}
-              </div>
-
-              {/* Area rows */}
-              {AREAS_PPR.map(area => {
-                const areaProgress = getAreaProgress(area);
-                return (
-                  <div key={area} className="grid gap-1 mb-1" style={{ gridTemplateColumns: "200px repeat(6, 1fr)" }}>
-                    {/* Area label */}
-                    <div className="flex flex-col justify-center p-2 bg-muted/20 rounded-lg">
-                      <span className="text-xs font-medium leading-tight">{area}</span>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Progress value={areaProgress} className="h-1 flex-1" />
-                        <span className="text-[10px] text-muted-foreground">{areaProgress}%</span>
-                      </div>
+          <Card className="rounded-2xl overflow-hidden border">
+            <div className="overflow-x-auto">
+              <div className="min-w-[1000px]">
+                {/* Sticky header row */}
+                <div className="grid border-b bg-muted/30" style={{ gridTemplateColumns: "220px repeat(6, 1fr)" }}>
+                  <div className="text-xs font-semibold text-muted-foreground p-3 uppercase tracking-wider">Área</div>
+                  {SPRINTS.map(s => (
+                    <div key={s.id} className="text-xs font-semibold text-center text-muted-foreground p-3 uppercase tracking-wider border-l border-border/40">
+                      {s.label}
                     </div>
+                  ))}
+                </div>
 
-                    {/* Sprint cells */}
-                    {SPRINTS.map(sprint => {
-                      const cellTasks = tarefas.filter(t => t.area === area && t.sprint === sprint.id);
-                      return (
-                        <div key={sprint.id} className="min-h-[60px] p-1 bg-muted/10 rounded-lg space-y-1">
-                          {cellTasks.map(task => {
-                            const cfg = STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pendente;
-                            const Icon = cfg.icon;
-                            return (
-                              <div
-                                key={task.id}
-                                className={`group relative p-1.5 rounded-lg text-[11px] leading-tight cursor-pointer transition-all hover:shadow-sm ${cfg.bg} border border-transparent hover:border-border`}
-                                onClick={() => toggleStatus(task)}
-                              >
-                                <div className="flex items-start gap-1">
-                                  <Icon className={`h-3 w-3 mt-0.5 shrink-0 ${cfg.color}`} />
-                                  <span className="line-clamp-2">{task.titulo}</span>
-                                </div>
-                                {task.responsavel && (
-                                  <span className="text-[9px] text-muted-foreground block mt-0.5 ml-4">{task.responsavel}</span>
-                                )}
-                                {/* Edit/Delete on hover */}
-                                <div className="absolute top-0.5 right-0.5 hidden group-hover:flex gap-0.5">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setEditTask(task); setIsNew(false); setDialogOpen(true); }}
-                                    className="p-0.5 rounded bg-background/80 hover:bg-background"
-                                  >
-                                    <Pencil className="h-2.5 w-2.5" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); deletarTarefa(task.id); }}
-                                    className="p-0.5 rounded bg-background/80 hover:bg-destructive/20"
-                                  >
-                                    <Trash2 className="h-2.5 w-2.5 text-destructive" />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
+                {/* Area rows */}
+                {AREAS_PPR.map((area, idx) => {
+                  const areaProgress = getAreaProgress(area);
+                  return (
+                    <div
+                      key={area}
+                      className={`grid border-b last:border-b-0 transition-colors hover:bg-muted/5 ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"}`}
+                      style={{ gridTemplateColumns: "220px repeat(6, 1fr)" }}
+                    >
+                      {/* Area label */}
+                      <div className="flex flex-col justify-center p-3 border-r border-border/30">
+                        <span className="text-sm font-medium leading-tight">{area}</span>
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <Progress value={areaProgress} className="h-1.5 flex-1" />
+                          <span className="text-[10px] font-medium text-muted-foreground tabular-nums">{areaProgress}%</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+                      </div>
+
+                      {/* Sprint cells */}
+                      {SPRINTS.map(sprint => {
+                        const cellTasks = tarefas.filter(t => t.area === area && t.sprint === sprint.id);
+                        return (
+                          <div key={sprint.id} className="min-h-[72px] p-2 border-l border-border/20 flex flex-col gap-1.5">
+                            {cellTasks.map(task => {
+                              const cfg = STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pendente;
+                              const Icon = cfg.icon;
+                              return (
+                                <div
+                                  key={task.id}
+                                  className={`group relative p-2 rounded-xl text-xs leading-snug cursor-pointer transition-all hover:shadow-md ${cfg.bg} border border-border/30 hover:border-border`}
+                                  onClick={() => toggleStatus(task)}
+                                >
+                                  <div className="flex items-start gap-1.5">
+                                    <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${cfg.color}`} />
+                                    <span className="line-clamp-3 text-foreground/90">{task.titulo}</span>
+                                  </div>
+                                  {task.responsavel && (
+                                    <span className="text-[10px] text-muted-foreground block mt-1 ml-5">{task.responsavel}</span>
+                                  )}
+                                  {/* Edit/Delete on hover */}
+                                  <div className="absolute top-1 right-1 hidden group-hover:flex gap-0.5">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setEditTask(task); setIsNew(false); setDialogOpen(true); }}
+                                      className="p-1 rounded-lg bg-background shadow-sm hover:bg-muted"
+                                    >
+                                      <Pencil className="h-3 w-3 text-muted-foreground" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); deletarTarefa(task.id); }}
+                                      className="p-1 rounded-lg bg-background shadow-sm hover:bg-destructive/10"
+                                    >
+                                      <Trash2 className="h-3 w-3 text-destructive" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          </Card>
 
           {/* Legend */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><Circle className="h-3 w-3" /> Pendente</span>
-            <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-amber-600" /> Em Andamento</span>
-            <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-600" /> Concluído</span>
-            <span className="ml-auto">Clique na tarefa para alternar status</span>
+          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground px-1">
+            <span className="flex items-center gap-1.5"><Circle className="h-3.5 w-3.5" /> Pendente</span>
+            <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-amber-600" /> Em Andamento</span>
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Concluído</span>
+            <span className="ml-auto italic">Clique na tarefa para alternar status</span>
           </div>
         </>
       )}
