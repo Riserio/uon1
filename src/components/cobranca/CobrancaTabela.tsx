@@ -359,5 +359,15 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
         )}
       </CardContent>
     </Card>
+
+    {corretoraId && (
+      <RevistoriaInadimplenciaDialog
+        open={revistoriaOpen}
+        onOpenChange={setRevistoriaOpen}
+        inadimplentes={inadimplentesAberto}
+        corretoraId={corretoraId}
+      />
+    )}
+    </>
   );
 }
