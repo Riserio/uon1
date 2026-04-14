@@ -672,6 +672,7 @@ export default function CobrancaInsights() {
             <CobrancaTabela 
               boletos={filteredBoletos} 
               loading={loading}
+              corretoraId={selectedAssociacao}
             />
           </TabsContent>
 
