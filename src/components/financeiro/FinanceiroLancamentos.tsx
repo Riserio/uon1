@@ -52,6 +52,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [userNome, setUserNome] = useState("");
+  const [centrosCusto, setCentrosCusto] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     tipo_lancamento: "receita",
     descricao: "",
@@ -61,6 +62,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
     data_competencia: format(new Date(), "yyyy-MM-dd"),
     categoria: "premio",
     observacoes: "",
+    centro_custo_id: "",
   });
 
   useEffect(() => {
