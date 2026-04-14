@@ -8,10 +8,6 @@ const corsHeaders = {
 
 interface WorkflowInput {
   corretora_id: string;
-  hinova_url: string;
-  hinova_user: string;
-  hinova_pass: string;
-  hinova_codigo_cliente: string;
   execucao_id: string;
   webhook_url: string;
 }
@@ -230,13 +226,9 @@ serve(async (req) => {
             })
             .eq("id", config.id);
 
-          // Preparar inputs para o workflow
+          // Preparar inputs para o workflow (credenciais buscadas pelo robô via edge function)
           const workflowInputs = {
             corretora_id: config.corretora_id,
-            hinova_url: config.hinova_url,
-            hinova_user: config.hinova_user,
-            hinova_pass: config.hinova_pass,
-            hinova_codigo_cliente: config.hinova_codigo_cliente || '',
             execucao_id: novaExecucao.id,
             webhook_url: `${supabaseUrl}/functions/v1/webhook-mgf-hinova`,
           };
@@ -360,8 +352,14 @@ serve(async (req) => {
         continue;
       }
 
-      // Verificar credenciais
-      if (!config.hinova_user || !config.hinova_pass) {
+      // Verificar credenciais em hinova_credenciais
+      const { data: credCheck } = await supabase
+        .from("hinova_credenciais")
+        .select("hinova_user, hinova_pass")
+        .eq("corretora_id", config.corretora_id)
+        .maybeSingle();
+      
+      if (!credCheck?.hinova_user && !config.hinova_user) {
         console.warn(`[Scheduler MGF] ${config.corretora?.nome || config.corretora_id} sem credenciais configuradas`);
         continue;
       }
@@ -403,13 +401,9 @@ serve(async (req) => {
           })
           .eq("id", config.id);
 
-        // Preparar inputs para o workflow
+        // Preparar inputs para o workflow (credenciais buscadas pelo robô via edge function)
         const workflowInputs: WorkflowInput = {
           corretora_id: config.corretora_id,
-          hinova_url: config.hinova_url,
-          hinova_user: config.hinova_user,
-          hinova_pass: config.hinova_pass,
-          hinova_codigo_cliente: config.hinova_codigo_cliente || '',
           execucao_id: execucao.id,
           webhook_url: `${supabaseUrl}/functions/v1/webhook-mgf-hinova`,
         };

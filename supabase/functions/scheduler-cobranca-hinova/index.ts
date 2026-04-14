@@ -8,11 +8,6 @@ const corsHeaders = {
 
 interface WorkflowInput {
   corretora_id: string;
-  hinova_url: string;
-  hinova_user: string;
-  hinova_pass: string;
-  hinova_codigo_cliente: string;
-  hinova_layout: string;
   execucao_id: string;
   webhook_url: string;
 }
@@ -231,14 +226,9 @@ serve(async (req) => {
             })
             .eq("id", config.id);
 
-          // Preparar inputs para o workflow
+          // Preparar inputs para o workflow (credenciais buscadas pelo robô via edge function)
           const workflowInputs = {
             corretora_id: config.corretora_id,
-            hinova_url: config.hinova_url,
-            hinova_user: config.hinova_user,
-            hinova_pass: config.hinova_pass,
-            hinova_codigo_cliente: config.hinova_codigo_cliente || '',
-            hinova_layout: config.layout_relatorio || '',
             execucao_id: novaExecucao.id,
             webhook_url: `${supabaseUrl}/functions/v1/webhook-cobranca-hinova`,
           };
@@ -362,10 +352,19 @@ serve(async (req) => {
         continue;
       }
 
-      // Verificar credenciais
-      if (!config.hinova_user || !config.hinova_pass) {
-        console.warn(`[Scheduler] ${config.corretora?.nome || config.corretora_id} sem credenciais configuradas`);
-        continue;
+      // Verificar credenciais (agora em hinova_credenciais, não mais em cobranca_automacao_config)
+      const { data: credCheck } = await supabase
+        .from("hinova_credenciais")
+        .select("hinova_user, hinova_pass")
+        .eq("corretora_id", config.corretora_id)
+        .maybeSingle();
+      
+      if (!credCheck?.hinova_user || !credCheck?.hinova_pass) {
+        // Fallback: verificar em cobranca_automacao_config
+        if (!config.hinova_user || !config.hinova_pass) {
+          console.warn(`[Scheduler] ${config.corretora?.nome || config.corretora_id} sem credenciais configuradas`);
+          continue;
+        }
       }
 
       const horaAgendadaConfig = config.hora_agendada || "09:00:00";
@@ -405,14 +404,9 @@ serve(async (req) => {
           })
           .eq("id", config.id);
 
-        // Preparar inputs para o workflow
+        // Preparar inputs para o workflow (credenciais são buscadas pelo robô via edge function)
         const workflowInputs: WorkflowInput = {
           corretora_id: config.corretora_id,
-          hinova_url: config.hinova_url,
-          hinova_user: config.hinova_user,
-          hinova_pass: config.hinova_pass,
-          hinova_codigo_cliente: config.hinova_codigo_cliente || '',
-          hinova_layout: config.layout_relatorio || '',
           execucao_id: execucao.id,
           webhook_url: `${supabaseUrl}/functions/v1/webhook-cobranca-hinova`,
         };
