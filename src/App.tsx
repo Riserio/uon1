@@ -61,6 +61,7 @@ const SGAInsights = lazy(() => import("./pages/SGAInsights"));
 const MGFInsights = lazy(() => import("./pages/MGFInsights"));
 const CobrancaInsights = lazy(() => import("./pages/CobrancaInsights"));
 const EstudoBaseInsights = lazy(() => import("./pages/EstudoBaseInsights"));
+const CadastroInsights = lazy(() => import("./pages/CadastroInsights"));
 const AcompanhamentoEventos = lazy(() => import("./pages/AcompanhamentoEventos"));
 const BILayout = lazy(() => import("./components/bi/BILayout"));
 const Landing = lazy(() => import("./pages/Landing"));
@@ -281,6 +282,7 @@ const App = () => (
                   <Route path="/mgf-insights" element={<MGFInsights />} />
                   <Route path="/cobranca-insights" element={<CobrancaInsights />} />
                   <Route path="/estudo-base-insights" element={<EstudoBaseInsights />} />
+                  <Route path="/cadastro-insights" element={<CadastroInsights />} />
                   <Route path="/acompanhamento-eventos" element={<AcompanhamentoEventos />} />
                 </Route>
                 <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
