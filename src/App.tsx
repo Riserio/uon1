@@ -63,6 +63,7 @@ const CobrancaInsights = lazy(() => import("./pages/CobrancaInsights"));
 const EstudoBaseInsights = lazy(() => import("./pages/EstudoBaseInsights"));
 const CadastroInsights = lazy(() => import("./pages/CadastroInsights"));
 const AcompanhamentoEventos = lazy(() => import("./pages/AcompanhamentoEventos"));
+const PPR = lazy(() => import("./pages/PPR"));
 const BILayout = lazy(() => import("./components/bi/BILayout"));
 const Landing = lazy(() => import("./pages/Landing"));
 const PoliticaPrivacidade = lazy(() => import("./pages/PoliticaPrivacidade"));
@@ -285,6 +286,7 @@ const App = () => (
                   <Route path="/cadastro-insights" element={<CadastroInsights />} />
                   <Route path="/acompanhamento-eventos" element={<AcompanhamentoEventos />} />
                 </Route>
+                <Route path="/ppr" element={<ProtectedRoute><PPR /></ProtectedRoute>} />
                 <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
                 <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
                 <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
