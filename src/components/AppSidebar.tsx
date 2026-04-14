@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront, ClipboardCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -92,6 +92,7 @@ function useMenuItems() {
     { id: "talka", label: "Uon1 Talk", to: "/video", icon: Video, group: "ferramentas" },
     { id: "comunicados", label: "Comunicados", to: "/comunicados", icon: Megaphone, group: "ferramentas" },
     { id: "gestao", label: "Gestão", to: "/gestao", icon: Briefcase, group: "ferramentas" },
+    { id: "ppr", label: "PPR", to: "/ppr", icon: ClipboardCheck, group: "ferramentas" },
     { id: "debitos_veiculares", label: "Débitos Veiculares", to: "/debitos-veiculares", icon: CarFront, group: "ferramentas" },
     { id: "ajuda", label: "Ajuda", to: "/ajuda", icon: HelpCircle, group: "ferramentas" },
     { id: "configuracoes", label: "Configurações", to: "/configuracoes", icon: Settings, group: "ferramentas" },
