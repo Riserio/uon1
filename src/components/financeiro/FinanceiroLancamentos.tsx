@@ -509,6 +509,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
                 <TableHead>Tipo</TableHead>
                 <TableHead>Descrição</TableHead>
                 <TableHead>Categoria</TableHead>
+                <TableHead>Centro Custo</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
@@ -534,6 +535,17 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{l.categoria}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {l.centro_custo_id ? (() => {
+                      const cc = centrosCusto.find(c => c.id === l.centro_custo_id);
+                      return cc ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: cc.cor }} />
+                          <span className="text-xs">{cc.nome}</span>
+                        </div>
+                      ) : <span className="text-xs text-muted-foreground">—</span>;
+                    })() : <span className="text-xs text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>
                     {format(parseISO(l.data_lancamento), "dd/MM/yyyy", { locale: ptBR })}
