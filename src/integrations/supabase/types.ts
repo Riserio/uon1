@@ -4747,6 +4747,100 @@ export type Database = {
           },
         ]
       }
+      ppr_programas: {
+        Row: {
+          corretora_id: string
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          corretora_id: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          corretora_id?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ppr_programas_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ppr_tarefas: {
+        Row: {
+          area: string
+          created_at: string
+          descricao: string | null
+          id: string
+          observacoes: string | null
+          ordem: number
+          programa_id: string
+          responsavel: string | null
+          sprint: number
+          status: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          area: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          observacoes?: string | null
+          ordem?: number
+          programa_id: string
+          responsavel?: string | null
+          sprint: number
+          status?: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          observacoes?: string | null
+          ordem?: number
+          programa_id?: string
+          responsavel?: string | null
+          sprint?: number
+          status?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ppr_tarefas_programa_id_fkey"
+            columns: ["programa_id"]
+            isOneToOne: false
+            referencedRelation: "ppr_programas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       producao_financeira: {
         Row: {
           competencia: string
