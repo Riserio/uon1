@@ -426,6 +426,68 @@ serve(async (req) => {
 
       const isLastChunk = !total_chunks || chunk_atual === total_chunks;
 
+      // Auto-mapear status importados para gestao_associacao_status_config
+      try {
+        // Coletar status únicos deste lote
+        const uniqueStatuses = [...new Set(records.map((r: any) => r.situacao_evento).filter(Boolean))] as string[];
+        
+        if (uniqueStatuses.length > 0) {
+          // Buscar status já existentes para esta corretora
+          const { data: existingConfigs } = await supabase
+            .from("gestao_associacao_status_config")
+            .select("nome")
+            .eq("corretora_id", corretora_id);
+          
+          const existingNames = new Set((existingConfigs || []).map((c: any) => c.nome));
+          const newStatuses = uniqueStatuses.filter(s => !existingNames.has(s));
+          
+          if (newStatuses.length > 0) {
+            // Buscar maior ordem existente
+            const { data: maxOrdemData } = await supabase
+              .from("gestao_associacao_status_config")
+              .select("ordem")
+              .eq("corretora_id", corretora_id)
+              .order("ordem", { ascending: false })
+              .limit(1);
+            
+            let nextOrdem = (maxOrdemData?.[0]?.ordem || 0) + 1;
+            
+            // Cores automáticas por padrão de nome
+            const getAutoColor = (nome: string): string => {
+              const upper = nome.toUpperCase();
+              if (upper.includes("FINALIZADO") || upper.includes("CONCLU")) return "#22c55e";
+              if (upper.includes("NEGADO") || upper.includes("CANCEL")) return "#ef4444";
+              if (upper.includes("ANDAMENTO") || upper.includes("REPARO")) return "#f59e0b";
+              if (upper.includes("ABERTO") || upper.includes("ABERTURA")) return "#3b82f6";
+              if (upper.includes("PENDENTE") || upper.includes("AGUARD")) return "#8b5cf6";
+              if (upper.includes("ENTREGUE") || upper.includes("PAGO")) return "#10b981";
+              if (upper.includes("ANALISE") || upper.includes("COMITE")) return "#6366f1";
+              return "#64748b";
+            };
+            
+            const inserts = newStatuses.map(nome => ({
+              nome,
+              cor: getAutoColor(nome),
+              ordem: nextOrdem++,
+              ativo: true,
+              corretora_id,
+            }));
+            
+            const { error: insertError } = await supabase
+              .from("gestao_associacao_status_config")
+              .insert(inserts);
+            
+            if (insertError) {
+              console.error("[Webhook SGA] Erro ao auto-criar status:", insertError);
+            } else {
+              console.log(`[Webhook SGA] Auto-criados ${newStatuses.length} status: ${newStatuses.join(", ")}`);
+            }
+          }
+        }
+      } catch (statusMapError) {
+        console.error("[Webhook SGA] Erro no auto-mapeamento de status:", statusMapError);
+      }
+
       // Finalizar apenas no último chunk
       if (execucao_id && isLastChunk) {
         const durationSeconds = Math.round((Date.now() - startTime) / 1000);
