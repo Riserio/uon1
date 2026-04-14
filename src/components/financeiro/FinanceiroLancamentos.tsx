@@ -459,6 +459,28 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
                 </div>
               </div>
               <div>
+                <Label>Centro de Custo</Label>
+                <Select
+                  value={formData.centro_custo_id}
+                  onValueChange={(v) => setFormData({ ...formData, centro_custo_id: v === "nenhum" ? "" : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhum">Nenhum</SelectItem>
+                    {centrosCusto.map((cc) => (
+                      <SelectItem key={cc.id} value={cc.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: cc.cor }} />
+                          {cc.nome}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>Observações</Label>
                 <Textarea 
                   value={formData.observacoes}
