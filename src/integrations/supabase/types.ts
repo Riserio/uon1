@@ -583,6 +583,47 @@ export type Database = {
           },
         ]
       }
+      centros_custo: {
+        Row: {
+          ativo: boolean
+          cor: string
+          corretora_id: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string
+          corretora_id?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string
+          corretora_id?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "centros_custo_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cobranca_automacao_config: {
         Row: {
           ativo: boolean
@@ -2571,6 +2612,7 @@ export type Database = {
           banco_conta: string | null
           banco_favorecido: string | null
           categoria: string
+          centro_custo_id: string | null
           conciliado: boolean | null
           conciliado_por: string | null
           corretora_id: string | null
@@ -2611,6 +2653,7 @@ export type Database = {
           banco_conta?: string | null
           banco_favorecido?: string | null
           categoria: string
+          centro_custo_id?: string | null
           conciliado?: boolean | null
           conciliado_por?: string | null
           corretora_id?: string | null
@@ -2651,6 +2694,7 @@ export type Database = {
           banco_conta?: string | null
           banco_favorecido?: string | null
           categoria?: string
+          centro_custo_id?: string | null
           conciliado?: boolean | null
           conciliado_por?: string | null
           corretora_id?: string | null
@@ -2688,6 +2732,13 @@ export type Database = {
             columns: ["aprovado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_financeiros_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "centros_custo"
             referencedColumns: ["id"]
           },
           {
