@@ -12,26 +12,6 @@ on:
         description: 'ID da corretora/associação'
         required: false
         type: string
-      hinova_url:
-        description: 'URL do portal Hinova'
-        required: false
-        type: string
-      hinova_user:
-        description: 'Usuário Hinova'
-        required: false
-        type: string
-      hinova_pass:
-        description: 'Senha Hinova'
-        required: false
-        type: string
-      hinova_codigo_cliente:
-        description: 'Código do cliente Hinova'
-        required: false
-        type: string
-      hinova_layout:
-        description: 'Layout do relatório'
-        required: false
-        type: string
       execucao_id:
         description: 'ID da execução no banco'
         required: false
@@ -89,17 +69,15 @@ jobs:
       
       - name: Executar robô de cobrança
         env:
-          HINOVA_URL: ${{ inputs.hinova_url || secrets.HINOVA_URL }}
-          HINOVA_CODIGO_CLIENTE: ${{ inputs.hinova_codigo_cliente || secrets.HINOVA_CODIGO_CLIENTE }}
-          HINOVA_USER: ${{ inputs.hinova_user || secrets.HINOVA_USER }}
-          HINOVA_PASS: ${{ inputs.hinova_pass || secrets.HINOVA_PASS }}
-          HINOVA_LAYOUT: ${{ inputs.hinova_layout || secrets.HINOVA_LAYOUT }}
+          CREDENTIALS_URL: ${{ secrets.CREDENTIALS_URL }}
+          ROBOT_SECRET: ${{ secrets.ROBOT_SECRET }}
           WEBHOOK_URL: ${{ inputs.webhook_url || secrets.WEBHOOK_URL }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           CORRETORA_ID: ${{ inputs.corretora_id || secrets.CORRETORA_ID }}
           EXECUCAO_ID: ${{ inputs.execucao_id }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ROBOT_MODULE: cobranca
         run: node scripts/robo-cobranca-hinova.cjs
 
       - name: Notificar erro ao webhook (fallback)
