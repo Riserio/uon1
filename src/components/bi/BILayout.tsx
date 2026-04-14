@@ -3,7 +3,7 @@ import BIPageHeader from "./BIPageHeader";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { BILayoutProvider, useBILayout } from "@/contexts/BILayoutContext";
 
-type BIModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'admin';
+type BIModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'cadastro' | 'acompanhamento-eventos' | 'admin';
 
 const moduleMap: Record<string, BIModule> = {
   '/pid': 'indicadores',
@@ -11,6 +11,7 @@ const moduleMap: Record<string, BIModule> = {
   '/mgf-insights': 'mgf',
   '/cobranca-insights': 'cobranca',
   '/estudo-base-insights': 'estudo-base',
+  '/cadastro-insights': 'cadastro',
   '/acompanhamento-eventos': 'acompanhamento-eventos',
 };
 
@@ -20,6 +21,7 @@ const titleMap: Record<BIModule, { title: string; subtitle: string }> = {
   mgf: { title: 'BI - MGF', subtitle: 'Business Intelligence de MGF' },
   cobranca: { title: 'BI - Cobrança', subtitle: 'Business Intelligence de Cobrança' },
   'estudo-base': { title: 'BI - Estudo de Base', subtitle: 'Business Intelligence de Estudo de Base' },
+  cadastro: { title: 'BI - Cadastro', subtitle: 'Business Intelligence de Cadastro de Associados' },
   'acompanhamento-eventos': { title: 'Acompanhamento de Eventos', subtitle: 'Kanban de acompanhamento dos eventos da associação' },
   admin: { title: 'BI - Administradora', subtitle: 'Visão consolidada de todas as associações, automações e acessos' },
 };
@@ -32,6 +34,7 @@ const auditModuleMap: Record<BIModule, AuditModule> = {
   mgf: 'mgf_insights',
   cobranca: 'cobranca_insights',
   'estudo-base': 'estudo_base',
+  cadastro: 'bi_indicadores',
   'acompanhamento-eventos': 'sga_insights',
   admin: 'bi_indicadores',
 };

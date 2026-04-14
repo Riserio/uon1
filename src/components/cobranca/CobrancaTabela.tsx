@@ -2,15 +2,17 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Download, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, ClipboardCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import RevistoriaInadimplenciaDialog from "./RevistoriaInadimplenciaDialog";
 
 interface CobrancaTabelaProps {
   boletos: any[];
   loading: boolean;
+  corretoraId?: string;
 }
 
 const formatCurrency = (value: number) => {
@@ -35,9 +37,10 @@ const formatDate = (dateStr: string | null) => {
 
 const ITEMS_PER_PAGE = 50;
 
-export default function CobrancaTabela({ boletos, loading }: CobrancaTabelaProps) {
+export default function CobrancaTabela({ boletos, loading, corretoraId }: CobrancaTabelaProps) {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [revistoriaOpen, setRevistoriaOpen] = useState(false);
   
   // Filtros individuais
   const [filtroDataPagamento, setFiltroDataPagamento] = useState("");
@@ -137,6 +140,10 @@ export default function CobrancaTabela({ boletos, loading }: CobrancaTabelaProps
 
   const hasFilters = search || filtroDataPagamento || filtroDiaVencimento || filtroRegional || filtroCooperativa || filtroVoluntario || filtroPlacas || filtroSituacao || filtroDataVencimento;
 
+  const inadimplentesAberto = useMemo(() => {
+    return filteredBoletos.filter(b => (b.situacao || "").toUpperCase() === "ABERTO" && b.placas);
+  }, [filteredBoletos]);
+
   // Determinar cor da linha baseado na situação
   const getRowClass = (situacao: string) => {
     if (!situacao) return "";
@@ -174,6 +181,7 @@ export default function CobrancaTabela({ boletos, loading }: CobrancaTabelaProps
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -182,6 +190,12 @@ export default function CobrancaTabela({ boletos, loading }: CobrancaTabelaProps
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 Limpar Filtros
+              </Button>
+            )}
+            {corretoraId && inadimplentesAberto.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setRevistoriaOpen(true)} className="gap-1.5">
+                <ClipboardCheck className="h-4 w-4" />
+                Revistoria ({inadimplentesAberto.length})
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={handleExport}>
@@ -346,5 +360,15 @@ export default function CobrancaTabela({ boletos, loading }: CobrancaTabelaProps
         )}
       </CardContent>
     </Card>
+
+    {corretoraId && (
+      <RevistoriaInadimplenciaDialog
+        open={revistoriaOpen}
+        onOpenChange={setRevistoriaOpen}
+        inadimplentes={inadimplentesAberto}
+        corretoraId={corretoraId}
+      />
+    )}
+    </>
   );
 }

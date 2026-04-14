@@ -52,6 +52,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [userNome, setUserNome] = useState("");
+  const [centrosCusto, setCentrosCusto] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     tipo_lancamento: "receita",
     descricao: "",
@@ -61,6 +62,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
     data_competencia: format(new Date(), "yyyy-MM-dd"),
     categoria: "premio",
     observacoes: "",
+    centro_custo_id: "",
   });
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
   }, [user]);
 
   useEffect(() => {
-    if (corretoraId) fetchLancamentos();
+    if (corretoraId) { fetchLancamentos(); fetchCentrosCusto(); }
   }, [corretoraId]);
 
   useEffect(() => {
@@ -97,6 +99,17 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
       setLancamentos(data);
     }
     setLoading(false);
+  };
+
+  const fetchCentrosCusto = async () => {
+    let query = supabase.from("centros_custo").select("id, nome, cor").eq("ativo", true).order("nome");
+    if (corretoraId === "administradora") {
+      query = query.is("corretora_id", null);
+    } else {
+      query = query.eq("corretora_id", corretoraId);
+    }
+    const { data } = await query;
+    setCentrosCusto(data || []);
   };
 
   const filterLancamentos = () => {
@@ -142,6 +155,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
         categoria: formData.categoria,
         observacoes: formData.observacoes || null,
         corretora_id: corretoraId === "administradora" ? null : corretoraId,
+        centro_custo_id: formData.centro_custo_id || null,
       };
 
       if (editingId) {
@@ -202,6 +216,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
       data_competencia: lancamento.data_competencia,
       categoria: lancamento.categoria,
       observacoes: lancamento.observacoes || "",
+      centro_custo_id: lancamento.centro_custo_id || "",
     });
     setDialogOpen(true);
   };
@@ -276,6 +291,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
       data_competencia: format(new Date(), "yyyy-MM-dd"),
       categoria: "premio",
       observacoes: "",
+      centro_custo_id: "",
     });
   };
 
@@ -443,6 +459,28 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
                 </div>
               </div>
               <div>
+                <Label>Centro de Custo</Label>
+                <Select
+                  value={formData.centro_custo_id}
+                  onValueChange={(v) => setFormData({ ...formData, centro_custo_id: v === "nenhum" ? "" : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhum">Nenhum</SelectItem>
+                    {centrosCusto.map((cc) => (
+                      <SelectItem key={cc.id} value={cc.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: cc.cor }} />
+                          {cc.nome}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>Observações</Label>
                 <Textarea 
                   value={formData.observacoes}
@@ -471,6 +509,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
                 <TableHead>Tipo</TableHead>
                 <TableHead>Descrição</TableHead>
                 <TableHead>Categoria</TableHead>
+                <TableHead>Centro Custo</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
@@ -496,6 +535,17 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{l.categoria}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {l.centro_custo_id ? (() => {
+                      const cc = centrosCusto.find(c => c.id === l.centro_custo_id);
+                      return cc ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: cc.cor }} />
+                          <span className="text-xs">{cc.nome}</span>
+                        </div>
+                      ) : <span className="text-xs text-muted-foreground">—</span>;
+                    })() : <span className="text-xs text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>
                     {format(parseISO(l.data_lancamento), "dd/MM/yyyy", { locale: ptBR })}
@@ -536,7 +586,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
               ))}
               {filteredLancamentos.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     Nenhum lançamento encontrado
                   </TableCell>
                 </TableRow>

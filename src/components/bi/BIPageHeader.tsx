@@ -14,7 +14,7 @@ type BIPageHeaderProps = {
   selectedAssociacao: string;
   onAssociacaoChange: (id: string) => void;
   loadingAssociacoes?: boolean;
-  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'admin';
+  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'cadastro' | 'acompanhamento-eventos' | 'admin';
   showHistorico?: boolean;
   onHistoricoClick?: () => void;
   recordCount?: number;

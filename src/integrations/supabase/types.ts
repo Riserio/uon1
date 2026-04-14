@@ -583,6 +583,156 @@ export type Database = {
           },
         ]
       }
+      cadastro_importacoes: {
+        Row: {
+          ativo: boolean | null
+          corretora_id: string | null
+          created_at: string
+          id: string
+          nome_arquivo: string
+          total_registros: number | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string
+          id?: string
+          nome_arquivo: string
+          total_registros?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string
+          id?: string
+          nome_arquivo?: string
+          total_registros?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cadastro_importacoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cadastro_registros: {
+        Row: {
+          ano_veiculo: string | null
+          cidade: string | null
+          cooperativa: string | null
+          cpf: string | null
+          created_at: string
+          dados_extras: Json | null
+          data_adesao: string | null
+          data_cadastro: string | null
+          estado: string | null
+          id: string
+          importacao_id: string
+          marca_veiculo: string | null
+          modelo_veiculo: string | null
+          nome: string | null
+          placa: string | null
+          regional: string | null
+          situacao: string | null
+          valor_protegido: number | null
+        }
+        Insert: {
+          ano_veiculo?: string | null
+          cidade?: string | null
+          cooperativa?: string | null
+          cpf?: string | null
+          created_at?: string
+          dados_extras?: Json | null
+          data_adesao?: string | null
+          data_cadastro?: string | null
+          estado?: string | null
+          id?: string
+          importacao_id: string
+          marca_veiculo?: string | null
+          modelo_veiculo?: string | null
+          nome?: string | null
+          placa?: string | null
+          regional?: string | null
+          situacao?: string | null
+          valor_protegido?: number | null
+        }
+        Update: {
+          ano_veiculo?: string | null
+          cidade?: string | null
+          cooperativa?: string | null
+          cpf?: string | null
+          created_at?: string
+          dados_extras?: Json | null
+          data_adesao?: string | null
+          data_cadastro?: string | null
+          estado?: string | null
+          id?: string
+          importacao_id?: string
+          marca_veiculo?: string | null
+          modelo_veiculo?: string | null
+          nome?: string | null
+          placa?: string | null
+          regional?: string | null
+          situacao?: string | null
+          valor_protegido?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cadastro_registros_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: false
+            referencedRelation: "cadastro_importacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      centros_custo: {
+        Row: {
+          ativo: boolean
+          cor: string
+          corretora_id: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string
+          corretora_id?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string
+          corretora_id?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "centros_custo_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cobranca_automacao_config: {
         Row: {
           ativo: boolean
@@ -2571,6 +2721,7 @@ export type Database = {
           banco_conta: string | null
           banco_favorecido: string | null
           categoria: string
+          centro_custo_id: string | null
           conciliado: boolean | null
           conciliado_por: string | null
           corretora_id: string | null
@@ -2611,6 +2762,7 @@ export type Database = {
           banco_conta?: string | null
           banco_favorecido?: string | null
           categoria: string
+          centro_custo_id?: string | null
           conciliado?: boolean | null
           conciliado_por?: string | null
           corretora_id?: string | null
@@ -2651,6 +2803,7 @@ export type Database = {
           banco_conta?: string | null
           banco_favorecido?: string | null
           categoria?: string
+          centro_custo_id?: string | null
           conciliado?: boolean | null
           conciliado_por?: string | null
           corretora_id?: string | null
@@ -2688,6 +2841,13 @@ export type Database = {
             columns: ["aprovado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_financeiros_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "centros_custo"
             referencedColumns: ["id"]
           },
           {
