@@ -167,6 +167,7 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
         horario_saida: horarioSaida,
         horario_almoco_inicio: horarioAlmocoInicio,
         horario_almoco_fim: horarioAlmocoFim,
+        tolerancia_atraso_minutos: parseInt(toleranciaAtraso) || 0,
         corretora_id: corretoraId || null,
         endereco: { cep, rua, numero, bairro, cidade, estado },
         dados_bancarios: { banco, agencia, conta, pix },
