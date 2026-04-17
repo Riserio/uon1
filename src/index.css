@@ -17,7 +17,7 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 247 52% 35%;
+    --primary: 247 51% 35%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 14% 96%;
@@ -34,7 +34,7 @@ All colors MUST be HSL.
 
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 247 52% 35%;
+    --ring: 247 51% 35%;
 
     --radius: 1.5rem;
 
@@ -155,9 +155,9 @@ All colors MUST be HSL.
 
 /* Portal do Parceiro - tema roxo */
 .portal-theme {
-  --primary: 249 51% 35%;
+  --primary: 247 51% 35%;
   --primary-foreground: 0 0% 100%;
-  --ring: 249 51% 35%;
+  --ring: 247 51% 35%;
 }
 
 /* Hide scrollbar utility */

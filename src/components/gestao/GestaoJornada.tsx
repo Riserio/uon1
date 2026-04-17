@@ -490,6 +490,8 @@ export default function GestaoJornada() {
 
     // Logo Vangard (canto superior direito) — estilo limpo inspirado no modelo Sólides
     const logoVangard = await loadImageAsDataURL("/images/vangard-logo.png");
+    // Logo UON1 (rodapé canto direito)
+    const logoUon1 = await loadImageAsDataURL("/images/logo-full.png");
 
     const drawHeader = () => {
       // Título "Folha de Ponto" — preto, à esquerda
@@ -563,12 +565,6 @@ export default function GestaoJornada() {
         cursorY,
       );
       doc.text(`Função: ${(f.cargo || "-").toUpperCase()}`, pageWidth / 2, cursorY);
-      cursorY += 5;
-      doc.text(
-        `Centro de Custo: ${f.departamento || "-"}    Jornada: ${f.carga_horaria_semanal || 44}h/sem    Tolerância: ${detailedStats?.tolerancia ?? 10}min`,
-        margin,
-        cursorY,
-      );
       cursorY += 7;
 
       // Quadro de Horários
@@ -737,6 +733,34 @@ export default function GestaoJornada() {
         margin,
         pageHeight - 8,
       );
+
+      // Rodapé direito — Desenvolvido por UON1 + logo
+      const footerY = pageHeight - 10;
+      doc.setFontSize(7);
+      doc.setTextColor(120, 120, 120);
+      const devText = "Desenvolvido por";
+      const logoUonW = 14;
+      const logoUonH = 5;
+      const textWidth = doc.getTextWidth(devText);
+      const totalRightW = textWidth + 2 + logoUonW;
+      const startX = pageWidth - margin - totalRightW;
+      doc.text(devText, startX, footerY + 1.5);
+      if (logoUon1) {
+        try {
+          doc.addImage(
+            logoUon1,
+            "PNG",
+            startX + textWidth + 2,
+            footerY - 2,
+            logoUonW,
+            logoUonH,
+          );
+        } catch (e) {
+          doc.text("UON1", startX + textWidth + 2, footerY + 1.5);
+        }
+      } else {
+        doc.text("UON1", startX + textWidth + 2, footerY + 1.5);
+      }
     } else {
       // Modo "todos os funcionários" — fallback registros brutos
       const dataToExport = individual ? registros : allRegistros;
