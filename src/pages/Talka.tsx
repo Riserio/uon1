@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Video, Plus, Copy, ExternalLink, Trash2, Calendar, Users, Clock, Phone, X, CalendarPlus, CheckCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toUTC, toDateTimeLocal } from "@/utils/dateUtils";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Reuniao {
   id: string;

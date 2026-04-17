@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Megaphone, Pencil, Trash2, Eye, EyeOff, Plus, ExternalLink, Calendar } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { toast } from "@/hooks/use-toast";
 import { Comunicado } from "@/types/comunicado";
 import { format } from "date-fns";
@@ -191,26 +192,19 @@ export default function Comunicados() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Megaphone className="h-7 w-7 text-primary" />
-              </div>
-              Comunicados
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Gerencie e publique comunicados para toda a equipe
-            </p>
-          </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={resetForm} size="lg" className="gap-2 shadow-lg">
-                <Plus className="h-5 w-5" />
-                Novo Comunicado
-              </Button>
-            </DialogTrigger>
+        <PageHeader
+          icon={Megaphone}
+          title="Comunicados"
+          subtitle="Gerencie e publique comunicados para toda a equipe"
+          actions={
+            <Button onClick={() => { resetForm(); setDialogOpen(true); }} size="lg" className="gap-2 shadow-sm rounded-xl">
+              <Plus className="h-5 w-5" />
+              Novo Comunicado
+            </Button>
+          }
+        />
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild><span className="hidden" /></DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle className="text-2xl">

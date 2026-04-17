@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Link as LinkIcon, Upload, Download, Trash2, ExternalLink, Pencil, Search, File, Image, FileSpreadsheet, FileArchive, FolderOpen, Globe } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Documento {
   id: string;
@@ -270,18 +271,11 @@ export default function Documentos() {
   return (
     <div className="min-h-screen">
       <div className="p-4 sm:p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-primary/10">
-              <FileText className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Documentos e Links</h1>
-              <p className="text-sm text-muted-foreground">Gerencie documentos e links úteis</p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          icon={FileText}
+          title="Documentos e Links"
+          subtitle="Gerencie documentos e links úteis"
+        />
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

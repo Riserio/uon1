@@ -12,6 +12,7 @@ import {
   Monitor, Moon, Sun, Upload, RotateCcw, Save, Eye,
   Globe, Lock, Mail, Smartphone
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface ConfigColors {
   primary: string;
@@ -142,16 +143,11 @@ export default function Configuracoes() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-4 sm:p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-            <Settings className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Configurações</h1>
-            <p className="text-sm text-muted-foreground">Personalize e controle o sistema</p>
-          </div>
-        </div>
+        <PageHeader
+          icon={Settings}
+          title="Configurações"
+          subtitle="Personalize e controle o sistema"
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
           {/* Sidebar Navigation */}
