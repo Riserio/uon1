@@ -1380,6 +1380,68 @@ export default function GestaoJornada() {
           {/* RELATORIO VIEW */}
           {activeView === "relatorio" && (
             <div className="space-y-4">
+              {/* Banner de Saldo Mensal — destaque */}
+              {detailedStats && (
+                <Card
+                  className={cn(
+                    "rounded-2xl border-2",
+                    detailedStats.totalSaldoMinutos < 0
+                      ? "border-red-200 dark:border-red-800/60 bg-gradient-to-r from-red-500/5 to-transparent"
+                      : detailedStats.totalSaldoMinutos > 0
+                        ? "border-emerald-200 dark:border-emerald-800/60 bg-gradient-to-r from-emerald-500/5 to-transparent"
+                        : "border-border/50",
+                  )}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between flex-wrap gap-4">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={cn(
+                            "h-14 w-14 rounded-2xl flex items-center justify-center",
+                            detailedStats.totalSaldoMinutos < 0
+                              ? "bg-red-500/10"
+                              : detailedStats.totalSaldoMinutos > 0
+                                ? "bg-emerald-500/10"
+                                : "bg-muted",
+                          )}
+                        >
+                          {detailedStats.totalSaldoMinutos < 0 ? (
+                            <TrendingDown className="h-7 w-7 text-red-600" />
+                          ) : (
+                            <TrendingUp className="h-7 w-7 text-emerald-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                            Saldo do Mês
+                          </p>
+                          <p
+                            className={cn(
+                              "text-3xl font-bold leading-tight",
+                              detailedStats.totalSaldoMinutos < 0
+                                ? "text-red-600"
+                                : detailedStats.totalSaldoMinutos > 0
+                                  ? "text-emerald-600"
+                                  : "",
+                            )}
+                          >
+                            {formatSaldoMinutos(detailedStats.totalSaldoMinutos)}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            +{formatSaldoMinutos(detailedStats.totalOvertimeMinutes).replace("+", "")} extras • −
+                            {formatSaldoMinutos(detailedStats.totalLateDiscountedMinutes).replace(/[+-]/, "")} atrasos
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] text-muted-foreground">Tolerância CLT aplicada</p>
+                        <p className="text-sm font-semibold">{detailedStats.tolerancia} min/dia</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Stats Cards */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 {[
@@ -1412,7 +1474,7 @@ export default function GestaoJornada() {
                     bg: "bg-purple-500/10",
                   },
                   {
-                    label: "Atrasos",
+                    label: `Atrasos (>${detailedStats?.tolerancia ?? 10}min)`,
                     value: detailedStats?.lateCount || 0,
                     icon: AlertCircle,
                     color: detailedStats?.lateCount ? "text-red-600" : "text-muted-foreground",
