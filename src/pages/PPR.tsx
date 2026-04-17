@@ -472,12 +472,19 @@ export default function PPR() {
           {view === "kanban" && (
             <div className="overflow-x-auto pb-4 -mx-2 px-2">
               <div className="flex gap-4" style={{ minWidth: `${kanbanColumns.length * 320}px` }}>
-                {kanbanColumns.map(col => (
+                {kanbanColumns.map(col => {
+                  const isDropTarget = draggedId !== null;
+                  return (
                   <div
                     key={col.key}
-                    className="w-[300px] flex-shrink-0 flex flex-col rounded-2xl bg-muted/40 backdrop-blur border border-border/50 overflow-hidden"
-                    onDragOver={e => e.preventDefault()}
-                    onDrop={() => handleDrop(col.target as any)}
+                    className={cn(
+                      "w-[300px] flex-shrink-0 flex flex-col rounded-2xl border overflow-hidden transition-all",
+                      "bg-background border-border/50",
+                      isDropTarget && "border-dashed"
+                    )}
+                    onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("ring-2","ring-primary/40","bg-primary/5"); }}
+                    onDragLeave={e => { e.currentTarget.classList.remove("ring-2","ring-primary/40","bg-primary/5"); }}
+                    onDrop={(e) => { e.currentTarget.classList.remove("ring-2","ring-primary/40","bg-primary/5"); handleDrop(col.target as any); }}
                   >
                     <div
                       className="px-4 py-3 flex items-center justify-between border-b border-border/40 bg-background/50"
