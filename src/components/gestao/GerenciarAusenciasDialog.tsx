@@ -32,6 +32,8 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   funcionarioId: string;
   funcionarioNome?: string;
+  /** Se true, renderiza apenas o conteúdo (sem o wrapper Dialog) — para uso embutido em outro dialog. */
+  embedded?: boolean;
 }
 
 const TIPOS = [
@@ -41,7 +43,7 @@ const TIPOS = [
   { value: "feriado", label: "Feriado individual", icon: PartyPopper, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
 ] as const;
 
-export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionarioId, funcionarioNome }: Props) {
+export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionarioId, funcionarioNome, embedded = false }: Props) {
   const qc = useQueryClient();
   const [tipoAbono, setTipoAbono] = useState<"dia" | "hora">("dia");
   const [tipo, setTipo] = useState<string>("abono");
