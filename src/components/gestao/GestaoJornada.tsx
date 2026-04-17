@@ -257,6 +257,47 @@ export default function GestaoJornada() {
     enabled: canExport,
   });
 
+  // Ausências/abonos/folgas/férias do período (para PDF/Excel e histórico)
+  const { data: ausenciasPeriodo } = useQuery({
+    queryKey: ["ausencias_funcionario_periodo_jornada", funcionarioId, mes, ano],
+    queryFn: async () => {
+      if (!funcionarioId) return [];
+      const dim = getDaysInMonth(new Date(ano, mes - 1));
+      const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
+      const fim = `${ano}-${String(mes).padStart(2, "0")}-${String(dim).padStart(2, "0")}`;
+      const { data, error } = await (supabase as any)
+        .from("ausencias_funcionario")
+        .select("data_inicio, data_fim, tipo, tipo_abono, horas_abonadas, motivo")
+        .eq("funcionario_id", funcionarioId)
+        .lte("data_inicio", fim)
+        .gte("data_fim", inicio);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!funcionarioId,
+  });
+
+  // Mapa data -> info de ausência (cobre intervalos)
+  const ausenciasPorDia = useMemo(() => {
+    const map: Record<string, { tipo: string; tipo_abono?: string; horas?: number; motivo?: string }> = {};
+    (ausenciasPeriodo || []).forEach((a: any) => {
+      const start = parseISO(a.data_inicio);
+      const end = parseISO(a.data_fim);
+      const cur = new Date(start);
+      while (cur <= end) {
+        const key = format(cur, "yyyy-MM-dd");
+        map[key] = {
+          tipo: a.tipo,
+          tipo_abono: a.tipo_abono,
+          horas: a.horas_abonadas,
+          motivo: a.motivo,
+        };
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+    return map;
+  }, [ausenciasPeriodo]);
+
   const todayRecords = useMemo(() => {
     if (!registros) return [];
     const today = format(new Date(), "yyyy-MM-dd");
@@ -614,6 +655,9 @@ export default function GestaoJornada() {
       const previstaPadrao = formatHoursMinutes(
         ((funcionarioSelecionado.carga_horaria_semanal || 44) / 5),
       );
+      const feriadosList = getFeriadosBH(ano);
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
 
       const body: any[] = [];
       for (let dia = 1; dia <= totalDiasMes; dia++) {
@@ -621,31 +665,54 @@ export default function GestaoJornada() {
         const dateStr = format(date, "yyyy-MM-dd");
         const dayName = format(date, "EEEE", { locale: ptBR });
         const isWE = isWeekend(date);
+        const isHoliday = feriadosList.includes(dateStr);
+        const isFuture = date.getTime() > hoje.getTime();
+        const ausencia = ausenciasPorDia[dateStr];
         const d = daysMap[dateStr];
 
         if (d) {
           const pontos = [d.entrada, d.saidaAlmoco, d.voltaAlmoco, d.saida]
             .filter(Boolean)
             .join(" | ");
+          const abonoTxt = ausencia
+            ? ausencia.tipo_abono === "horas" && ausencia.horas
+              ? `${ausencia.tipo.toUpperCase()} ${ausencia.horas}h`
+              : ausencia.tipo.toUpperCase()
+            : "";
           body.push([
             format(date, "dd/MM"),
             dayName,
             pontos || "-",
             formatHoursMinutes(d.hoursWorked),
-            "",
+            abonoTxt,
             previstaPadrao,
             formatSaldoMinutos(d.saldoMinutos),
           ]);
-        } else {
+        } else if (isFuture) {
+          // Dia futuro: não exibir como falta
+          body.push([format(date, "dd/MM"), dayName, "-", "", "", isWE || isHoliday ? "" : previstaPadrao, ""]);
+        } else if (isHoliday) {
+          body.push([format(date, "dd/MM"), dayName, "FERIADO", "", "", "", ""]);
+        } else if (isWE) {
+          body.push([format(date, "dd/MM"), dayName, "-", "", "", "", ""]);
+        } else if (ausencia) {
+          // Falta justificada por abono/folga/férias (sem pontos)
+          const label = (ausencia.tipo || "abono").toUpperCase();
+          const detalhe =
+            ausencia.tipo_abono === "horas" && ausencia.horas
+              ? `${label} ${ausencia.horas}h`
+              : label;
           body.push([
             format(date, "dd/MM"),
             dayName,
-            isWE ? "-" : "FALTA",
+            detalhe,
             "",
-            "",
-            isWE ? "" : previstaPadrao,
+            detalhe,
+            previstaPadrao,
             "",
           ]);
+        } else {
+          body.push([format(date, "dd/MM"), dayName, "FALTA", "", "", previstaPadrao, ""]);
         }
       }
 
@@ -668,7 +735,23 @@ export default function GestaoJornada() {
         didParseCell: (data: any) => {
           if (data.section === "body") {
             const rowDay = (data.row.raw?.[1] || "").toString().toLowerCase();
-            if (rowDay.includes("sábado") || rowDay.includes("domingo")) {
+            const pontosCell = (data.row.raw?.[2] || "").toString().toUpperCase();
+            if (pontosCell === "FERIADO") {
+              data.cell.styles.fillColor = [254, 243, 199];
+              data.cell.styles.textColor = [146, 64, 14];
+            } else if (pontosCell === "FALTA") {
+              data.cell.styles.fillColor = [254, 226, 226];
+              data.cell.styles.textColor = [185, 28, 28];
+            } else if (
+              pontosCell.startsWith("ABONO") ||
+              pontosCell.startsWith("FOLGA") ||
+              pontosCell.startsWith("FERIAS") ||
+              pontosCell.startsWith("FÉRIAS") ||
+              pontosCell.startsWith("ATESTADO")
+            ) {
+              data.cell.styles.fillColor = [219, 234, 254];
+              data.cell.styles.textColor = [30, 64, 175];
+            } else if (rowDay.includes("sábado") || rowDay.includes("domingo")) {
               data.cell.styles.fillColor = [248, 248, 252];
               data.cell.styles.textColor = [120, 120, 130];
             }
