@@ -79,11 +79,14 @@ function parseHorario(h: string | null, base: Date): Date | null {
 }
 
 export default function AnaliseFuncionario() {
+  const { userRole } = useAuth();
+  const canManage = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
   const [funcionarioId, setFuncionarioId] = useState<string>("");
   const [mesOffset, setMesOffset] = useState(0); // 0 = mês atual
   const [feedback, setFeedback] = useState("");
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [feedbackLoaded, setFeedbackLoaded] = useState(false);
+  const [ausenciasOpen, setAusenciasOpen] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const periodo = useMemo(() => {
