@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { signInSchema, signUpSchema } from "@/lib/validationSchemas";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { ShieldCheck, ArrowLeft, QrCode } from "lucide-react";
+import { ShieldCheck, ArrowLeft, QrCode, Eye, EyeOff } from "lucide-react";
 
 
 type Step = "CREDENTIALS" | "TOTP" | "TOTP_SETUP";
@@ -34,6 +34,7 @@ export default function Auth() {
   const [qrCodeUri, setQrCodeUri] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loginPhase, setLoginPhase] = useState<LoginPhase>("idle");
+  const [showPassword, setShowPassword] = useState(false);
 
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const { config } = useAppConfig();
@@ -437,15 +438,26 @@ export default function Auth() {
                 <Label htmlFor="password" className="text-sm font-medium">
                   Password
                 </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="h-11"
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    placeholder="••••••••"
+                    className="h-11 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((s) => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               <Button
