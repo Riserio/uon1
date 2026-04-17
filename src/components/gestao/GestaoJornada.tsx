@@ -181,7 +181,7 @@ export default function GestaoJornada() {
   const [anexosOpen, setAnexosOpen] = useState(false);
   const [fechamentoOpen, setFechamentoOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
-  const [ausenciasOpen, setAusenciasOpen] = useState(false);
+  // Anexos & Abonos foram unificados num único dialog (setAnexosOpen)
   const [registroParaAjuste, setRegistroParaAjuste] = useState<any>(null);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
