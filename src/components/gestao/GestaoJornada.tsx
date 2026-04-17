@@ -188,6 +188,19 @@ export default function GestaoJornada() {
   const canExport = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
   const isLimitedUser = userRole === "lider" || userRole === "comercial";
 
+  const { data: jornadaConfig } = useQuery({
+    queryKey: ["jornada_config"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("jornada_config")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: funcionarios } = useQuery({
     queryKey: ["funcionarios", user?.id, isLimitedUser],
     queryFn: async () => {
@@ -312,7 +325,7 @@ export default function GestaoJornada() {
       if (!registrosPorDia[dia]) registrosPorDia[dia] = [];
       registrosPorDia[dia].push(r);
     });
-    const tolerancia = funcionarioSelecionado.tolerancia_atraso_minutos ?? 10;
+    const tolerancia = jornadaConfig?.tolerancia_atraso_minutos ?? funcionarioSelecionado.tolerancia_atraso_minutos ?? 10;
     const workedDays: Array<{
       date: string;
       dayName: string;
