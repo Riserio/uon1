@@ -488,55 +488,40 @@ export default function GestaoJornada() {
       "dd/MM/yyyy",
     );
 
-    // Logos — estilo convites Uon1 Talk (Uon1 + Vangard lado a lado)
-    const [logoUon1, logoVangard] = await Promise.all([
-      loadImageAsDataURL("/images/logo-full.png"),
-      loadImageAsDataURL("/images/vangard-logo.png"),
-    ]);
+    // Logo Vangard (canto superior direito) — estilo limpo inspirado no modelo Sólides
+    const logoVangard = await loadImageAsDataURL("/images/vangard-logo.png");
 
     const drawHeader = () => {
-      // Faixa dark gradiente (estilo convites Talk by Uon1)
-      const headerH = 32;
-      // Fundo dark slate
-      doc.setFillColor(15, 23, 42); // slate-900
-      doc.rect(0, 0, pageWidth, headerH, "F");
-      // Faixa de acento purple/blue inferior
-      doc.setFillColor(99, 102, 241); // indigo-500
-      doc.rect(0, headerH, pageWidth, 1.2, "F");
+      // Título "Folha de Ponto" — preto, à esquerda
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(22);
+      doc.setTextColor(20, 20, 20);
+      doc.text("Folha de Ponto", margin, 18);
 
-      // Logos lado a lado (esquerda) com divisor vertical
-      let logoX = margin;
-      const logoY = 7;
-      const logoH = 18;
-      if (logoUon1) {
-        try {
-          doc.addImage(logoUon1, "PNG", logoX, logoY, 30, logoH, undefined, "FAST");
-          logoX += 32;
-        } catch {}
-      }
-      // Divisor vertical sutil
-      doc.setDrawColor(71, 85, 105); // slate-600
-      doc.setLineWidth(0.4);
-      doc.line(logoX, logoY + 2, logoX, logoY + logoH - 2);
-      logoX += 3;
-      if (logoVangard) {
-        try {
-          doc.addImage(logoVangard, "PNG", logoX, logoY, 30, logoH, undefined, "FAST");
-        } catch {}
-      }
-
-      // Título à direita
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(15);
-      doc.setTextColor(255, 255, 255);
-      doc.text("Folha de Ponto", pageWidth - margin, 16, { align: "right" });
+      // Período abaixo do título
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
-      doc.setTextColor(148, 163, 184); // slate-400
-      doc.text(`${periodoInicio} a ${periodoFim}`, pageWidth - margin, 22, { align: "right" });
-      doc.setFontSize(7);
-      doc.setTextColor(99, 102, 241);
-      doc.text("VANGARD · UON1", pageWidth - margin, 27, { align: "right" });
+      doc.setTextColor(90, 90, 90);
+      doc.text(`${periodoInicio}  a  ${periodoFim}`, margin, 25);
+
+      // Logo Vangard — canto superior direito
+      if (logoVangard) {
+        try {
+          // Proporção 2:1 (268x136) → 38mm × 19mm
+          const logoW = 38;
+          const logoH = 19;
+          doc.addImage(
+            logoVangard,
+            "PNG",
+            pageWidth - margin - logoW,
+            7,
+            logoW,
+            logoH,
+            undefined,
+            "FAST",
+          );
+        } catch {}
+      }
     };
 
     drawHeader();
