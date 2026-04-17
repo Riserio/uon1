@@ -79,12 +79,70 @@ export default function AnaliseFuncionario() {
   const [funcionarioId, setFuncionarioId] = useState<string>("");
   const [mesOffset, setMesOffset] = useState(0); // 0 = mês atual
   const [feedback, setFeedback] = useState("");
+  const [savingFeedback, setSavingFeedback] = useState(false);
+  const [feedbackLoaded, setFeedbackLoaded] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const periodo = useMemo(() => {
     const ref = new Date();
     ref.setMonth(ref.getMonth() - mesOffset);
     return { inicio: startOfMonth(ref), fim: endOfMonth(ref), ref };
   }, [mesOffset]);
+
+  const periodoAno = periodo.ref.getFullYear();
+  const periodoMes = periodo.ref.getMonth() + 1;
+
+  // Carrega anotações salvas ao trocar funcionário/mês
+  useEffect(() => {
+    let cancel = false;
+    setFeedbackLoaded(false);
+    setFeedback("");
+    if (!funcionarioId) {
+      setFeedbackLoaded(true);
+      return;
+    }
+    (async () => {
+      const { data, error } = await (supabase as any)
+        .from("funcionario_feedback_notas")
+        .select("observacoes")
+        .eq("funcionario_id", funcionarioId)
+        .eq("ano", periodoAno)
+        .eq("mes", periodoMes)
+        .maybeSingle();
+      if (cancel) return;
+      if (!error && data) setFeedback(data.observacoes || "");
+      setFeedbackLoaded(true);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [funcionarioId, periodoAno, periodoMes]);
+
+  // Salva com debounce
+  useEffect(() => {
+    if (!funcionarioId || !feedbackLoaded) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      setSavingFeedback(true);
+      const { error } = await (supabase as any)
+        .from("funcionario_feedback_notas")
+        .upsert(
+          {
+            funcionario_id: funcionarioId,
+            ano: periodoAno,
+            mes: periodoMes,
+            observacoes: feedback,
+          },
+          { onConflict: "funcionario_id,ano,mes" }
+        );
+      setSavingFeedback(false);
+      if (error) toast.error("Erro ao salvar anotação");
+    }, 800);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [feedback, funcionarioId, periodoAno, periodoMes, feedbackLoaded]);
+
 
   const { data: funcionarios } = useQuery({
     queryKey: ["analise_funcionarios"],
