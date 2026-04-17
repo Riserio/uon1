@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import CriarReuniaoDialog from "@/components/CriarReuniaoDialog";
 import EditarReuniaoDialog from "@/components/EditarReuniaoDialog";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface MeetingRoom {
   id: string;
@@ -278,21 +279,16 @@ export default function VideoRooms() {
   return (
     <div className="min-h-screen">
       <div className="container mx-auto p-4 sm:p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-primary/10">
-              <Video className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Uon1 Talk</h1>
-              <p className="text-sm text-muted-foreground">Videoconferências</p>
-            </div>
-          </div>
-          <Button onClick={() => setCreateOpen(true)} size="lg" className="gap-2 rounded-xl shadow-md">
-            <Plus className="h-4 w-4" /> Nova Sala
-          </Button>
-        </div>
+        <PageHeader
+          icon={Video}
+          title="Uon1 Talk"
+          subtitle="Videoconferências"
+          actions={
+            <Button onClick={() => setCreateOpen(true)} size="lg" className="gap-2 rounded-xl shadow-sm">
+              <Plus className="h-4 w-4" /> Nova Sala
+            </Button>
+          }
+        />
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="rounded-xl bg-muted/50 p-1">

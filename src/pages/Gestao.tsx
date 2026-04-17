@@ -4,6 +4,7 @@ import { Clock, UserCircle, Briefcase, Users, CalendarClock, Shield } from "luci
 import GestaoJornada from "@/components/gestao/GestaoJornada";
 import Usuarios from "@/pages/Usuarios";
 import { useAuth } from "@/hooks/useAuth";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default function Gestao() {
   const { userRole } = useAuth();
@@ -25,16 +26,11 @@ export default function Gestao() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-6 px-4 sm:px-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-            <Briefcase className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Gestão</h1>
-            <p className="text-sm text-muted-foreground">Central de gerenciamento do sistema</p>
-          </div>
-        </div>
+        <PageHeader
+          icon={Briefcase}
+          title="Gestão"
+          subtitle="Central de gerenciamento do sistema"
+        />
 
         {/* Navigation Cards - Widget Style */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

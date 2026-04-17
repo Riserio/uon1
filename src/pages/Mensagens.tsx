@@ -27,6 +27,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { PageHeader } from '@/components/ui/page-header';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
@@ -395,23 +396,17 @@ export default function Mensagens() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <MessageSquare className="h-7 w-7 text-primary" />
-              </div>
-              Mensagens
-            </h1>
-            <p className="text-muted-foreground mt-1">Comunicação interna entre usuários</p>
-          </div>
-          
-          <Button onClick={() => setDialogOpen(true)} size="lg" className="gap-2">
-            <Send className="h-4 w-4" />
-            Nova Mensagem
-          </Button>
-        </div>
+        <PageHeader
+          icon={MessageSquare}
+          title="Mensagens"
+          subtitle="Comunicação interna entre usuários"
+          actions={
+            <Button onClick={() => setDialogOpen(true)} size="lg" className="gap-2 rounded-xl">
+              <Send className="h-4 w-4" />
+              Nova Mensagem
+            </Button>
+          }
+        />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-3 gap-3">

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { TrendingUp, TrendingDown, DollarSign, FileText, Clock, CheckCircle, XCircle, BarChart3, ArrowLeft } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatCurrency } from "@/lib/formatters";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
 import { useNavigate } from "react-router-dom";
@@ -265,39 +266,30 @@ export default function DashboardFinanceiro() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto p-6 space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <BarChart3 className="h-7 w-7 text-primary" />
-              </div>
-              Dashboard Financeiro
-            </h1>
-            <p className="text-muted-foreground mt-1">Visão geral dos lançamentos e performance</p>
-          </div>
-          <div className="flex items-end gap-2">
-            <div className="w-full md:w-64">
-              <Label>Filtrar por Corretora</Label>
+        <PageHeader
+          icon={BarChart3}
+          title="Dashboard Financeiro"
+          subtitle="Visão geral dos lançamentos e performance"
+          actions={
+            <>
               <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full md:w-56 rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todas as Corretoras</SelectItem>
                   {corretoras.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
-                    </SelectItem>
+                    <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <Button variant="outline" onClick={() => navigate("/lancamentos-financeiros")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar
-            </Button>
-          </div>
-        </div>
+              <Button variant="outline" onClick={() => navigate("/lancamentos-financeiros")} className="rounded-xl">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar
+              </Button>
+            </>
+          }
+        />
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card className="border-2 hover:border-primary/40 transition-colors">

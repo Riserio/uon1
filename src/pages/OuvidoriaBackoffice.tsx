@@ -20,6 +20,7 @@ import { format, differenceInMinutes, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import OuvidoriaConfigDialog from "@/components/ouvidoria/OuvidoriaConfigDialog";
 import { OuvidoriaWidgets } from "@/components/ouvidoria/OuvidoriaWidgets";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   DndContext,
   DragOverlay,
@@ -522,21 +523,16 @@ export default function OuvidoriaBackoffice() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-            <MessageSquareWarning className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Ouvidoria</h1>
-            <p className="text-muted-foreground">Gestão de manifestações</p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
-          <Settings2 className="h-4 w-4 mr-1" /> Configurar
-        </Button>
-      </div>
+      <PageHeader
+        icon={MessageSquareWarning}
+        title="Ouvidoria"
+        subtitle="Gestão de manifestações"
+        actions={
+          <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)} className="rounded-xl">
+            <Settings2 className="h-4 w-4 mr-1" /> Configurar
+          </Button>
+        }
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
