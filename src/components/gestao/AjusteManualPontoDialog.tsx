@@ -72,7 +72,7 @@ export default function AjusteManualPontoDialog({
             ajustado: true,
             ajustado_por: user?.id,
             ajustado_em: new Date().toISOString(),
-            motivo_ajuste: motivo,
+            motivo_ajuste: motivo.trim() || "Ajuste sem justificativa",
           })
           .eq("id", registroExistente.id);
 
