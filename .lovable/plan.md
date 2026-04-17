@@ -1,95 +1,60 @@
 
+The user wants:
+1. Move "Gerenciar Ausências" button from Análise de Funcionário → Jornada de Trabalho.
+2. Allow abonar **horas** (not just days) — accessible from:
+   - Registro manual de ponto (the "+" / manual entry dialog)
+   - Pencil/edit on history items
+3. In Anexos de Ponto, when type = atestado → allow abonar **dias OU horas**.
+4. Análise de Funcionário must still consume these abono records (already does for days; needs to discount hours from "atrasos" or add to saldo).
 
-## Plano: Acesso Nativo ao SGA Hinova + Correção de Build
+## Plan
 
-Duas ações independentes neste plano.
+### 1. Database — extend abono support to hours
+- Add to `ausencias_funcionario`:
+  - `tipo_abono` (`dia` | `hora`) default `dia`
+  - `horas_abonadas` (numeric, default 0) — used when `tipo_abono = 'hora'`
+  - `data_referencia` (date) — single date when it's an hour-abono
+- Add to `anexos_ponto`:
+  - `horas_abonadas` (numeric, default 0) — already has `dias_abonados`
 
----
+### 2. Move "Gerenciar Ausências" to Jornada de Trabalho
+- Remove the button from `AnaliseFuncionario.tsx`.
+- Add it to `GestaoJornada.tsx` header (visible only to admin/administrativo/superintendente), opening `GerenciarAusenciasDialog`.
 
-### 1. Corrigir erro de build (cache stale)
+### 3. Extend `GerenciarAusenciasDialog`
+- Add toggle: "Abonar dia(s) inteiro(s)" vs "Abonar horas"
+- When "horas": show single date + hours input (instead of date range).
+- List view: show "X horas abonadas em DD/MM" for hour-type entries.
 
-O arquivo `src/data/treinamentoContent.ts` esta limpo — as referências a `imgPainel` etc. nao existem mais no código. O erro persiste por cache do bundler. A correção é um micro-edit: remover o campo `image?: string` da interface `HelpModule` (não é usado) para forçar invalidação do cache.
+### 4. Hour abono in `AjusteManualPontoDialog`
+- Add a new mode/checkbox: "Registrar abono de horas" (instead of a clock-in record).
+- When checked: hides tipo/hora fields, shows hours input → on save, inserts into `ausencias_funcionario` as `tipo_abono='hora'`.
+- When editing existing register (pencil): keep current behavior, but if the underlying record is an abono, allow editing hours.
 
-| Arquivo | Alteração |
-|---|---|
-| `src/data/treinamentoContent.ts` | Remover `image?: string` da interface `HelpModule` |
+### 5. Anexos de Ponto — atestado with hours
+- In `AnexosPontoDialog.tsx`, when `tipo === 'atestado'`:
+  - Add radio: "Abonar dias" | "Abonar horas"
+  - Show `dias_abonados` OR `horas_abonadas` accordingly.
+- Update insert logic.
+- History: show both metrics per anexo.
 
----
+### 6. Análise de Funcionário — consume hour abonos
+- Already adds full days to `abonadosSet` (skip lateness/absence).
+- For hour-abonos: subtract `horas_abonadas` from total `atrasoMin` (or add to `saldo`) for that date.
+- Pull `horas_abonadas` from both `ausencias_funcionario` (tipo='hora') and `anexos_ponto` (atestado).
 
-### 2. Proxy HTTP nativo para o SGA Hinova
+### Files to modify
+- New migration: schema changes on `ausencias_funcionario` and `anexos_ponto`.
+- `src/components/gestao/GerenciarAusenciasDialog.tsx` — add hours mode.
+- `src/components/gestao/GestaoJornada.tsx` — add gerenciar ausências button.
+- `src/components/gestao/AnaliseFuncionario.tsx` — remove button; consume horas_abonadas.
+- `src/components/gestao/AjusteManualPontoDialog.tsx` — add abono-de-horas mode.
+- `src/components/gestao/AnexosPontoDialog.tsx` — atestado: dias OU horas.
 
-Criar uma Edge Function que faz login no portal Hinova via HTTP (POST de formulário), captura cookies de sessão e executa operações nas URLs fornecidas. Isso permite consultar associados, veículos, eventos e gerar relatórios diretamente pela nossa interface, sem navegador headless.
+### Access control
+All abono-related actions remain restricted to `admin`, `administrativo`, `superintendente`.
 
-**URLs mapeadas pelo usuário (exemplo Valecar):**
-
-```text
-Base: https://eris.hinova.com.br/sga/sgav4_valecar/
-├── v5/Novoeventoitem/listar       → Eventos + Relatórios
-├── veiculo/consultarVeiculo.php   → Consulta Veículos
-└── associado/consultarAssociado.php → Consulta Associados
-```
-
-Cada associação tem sua própria URL base (ex: `sgav4_valecar`, `sgav4_outra`), credenciais já armazenadas em `hinova_credenciais`.
-
-**Arquitetura:**
-
-```text
-┌──────────────┐     ┌──────────────────────┐     ┌──────────────┐
-│  Interface   │────►│  Edge Function        │────►│ Portal       │
-│  (React)     │     │  hinova-proxy         │     │ Hinova SGA   │
-│              │◄────│  (fetch + cookies)    │◄────│              │
-└──────────────┘     └──────────────────────┘     └──────────────┘
-```
-
-#### Componentes
-
-**A. Edge Function `supabase/functions/hinova-proxy/index.ts`**
-
-Recebe operações via POST:
-- `action: "login"` — Faz POST no formulário de login do Hinova, retorna cookies de sessão
-- `action: "consultar-associado"` — GET/POST na URL de consulta com parâmetros (nome, CPF, placa)
-- `action: "consultar-veiculo"` — GET/POST na URL de consulta de veículos
-- `action: "listar-eventos"` — GET na URL de listagem de eventos com filtros
-- `action: "gerar-relatorio"` — POST para gerar relatório Excel, retorna dados parseados ou arquivo
-
-Fluxo interno:
-1. Recebe `corretora_id` + `action` + parâmetros
-2. Busca credenciais em `hinova_credenciais` (usando service role)
-3. Faz login HTTP (POST form-encoded com usuario/senha/codigo_cliente)
-4. Captura cookies `Set-Cookie` da resposta
-5. Executa a ação solicitada enviando cookies no header
-6. Parseia a resposta HTML (regex/string parsing) e retorna JSON estruturado
-
-**B. UI `src/components/sga/SGAConsultaHinova.tsx`**
-
-Novo componente com abas:
-- **Associados** — Campo de busca (nome/CPF) + tabela de resultados
-- **Veículos** — Campo de busca (placa/modelo) + tabela de resultados
-- **Eventos** — Filtros (data, situação) + tabela de eventos
-- **Relatórios** — Seletor de layout + botão "Gerar em Excel" + download direto
-
-Design seguindo padrão widget moderno (rounded-2xl, bg-muted/40).
-
-**C. Integração no módulo SGA existente**
-
-Adicionar nova aba "Consulta SGA" no componente de insights/dashboard do SGA, disponível quando a associação tem credenciais Hinova configuradas.
-
-#### Arquivos a criar/modificar
-
-| Arquivo | Ação |
-|---|---|
-| `supabase/functions/hinova-proxy/index.ts` | Criar — Edge Function proxy HTTP |
-| `src/components/sga/SGAConsultaHinova.tsx` | Criar — Interface de consultas |
-| `src/pages/SGAInsights.tsx` | Modificar — Adicionar aba "Consulta SGA" |
-| `src/data/treinamentoContent.ts` | Modificar — Micro-edit para invalidar cache |
-| `supabase/config.toml` | Adicionar `verify_jwt = false` para `hinova-proxy` |
-
-#### Riscos e limitações
-
-1. **Parsing HTML** — Se o Hinova mudar a estrutura das páginas, o parsing quebra. Mitigação: parsing resiliente com fallbacks.
-2. **Sessão** — Cookies podem expirar rapidamente. Mitigação: re-login automático em caso de 401/302.
-3. **Captcha/Rate-limit** — Se o Hinova implementar captcha, a abordagem HTTP pura não funciona. Nesse cenário, seria necessário voltar ao Playwright.
-4. **Performance** — Cada operação requer login + request, ~3-8 segundos. Aceitável para consultas interativas.
-
-Nenhuma migração de banco necessária — usa tabela `hinova_credenciais` existente.
-
+<lov-actions>
+<lov-suggestion message="Aprovar o plano e implementar tudo">Aprovar e implementar</lov-suggestion>
+<lov-suggestion message="Após implementar, teste registrando um abono de horas e verifique se o atraso é descontado corretamente na Análise">Testar fluxo de abono de horas</lov-suggestion>
+</lov-actions>
