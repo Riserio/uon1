@@ -239,6 +239,7 @@ export type Database = {
         Row: {
           colors: Json | null
           created_at: string | null
+          header_logo_url: string | null
           id: string
           login_image_url: string | null
           logo_url: string | null
@@ -248,6 +249,7 @@ export type Database = {
         Insert: {
           colors?: Json | null
           created_at?: string | null
+          header_logo_url?: string | null
           id?: string
           login_image_url?: string | null
           logo_url?: string | null
@@ -257,6 +259,7 @@ export type Database = {
         Update: {
           colors?: Json | null
           created_at?: string | null
+          header_logo_url?: string | null
           id?: string
           login_image_url?: string | null
           logo_url?: string | null
