@@ -563,12 +563,6 @@ export default function GestaoJornada() {
         cursorY,
       );
       doc.text(`Função: ${(f.cargo || "-").toUpperCase()}`, pageWidth / 2, cursorY);
-      cursorY += 5;
-      doc.text(
-        `Centro de Custo: ${f.departamento || "-"}    Jornada: ${f.carga_horaria_semanal || 44}h/sem    Tolerância: ${detailedStats?.tolerancia ?? 10}min`,
-        margin,
-        cursorY,
-      );
       cursorY += 7;
 
       // Quadro de Horários
