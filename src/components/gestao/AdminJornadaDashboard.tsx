@@ -176,6 +176,7 @@ export default function AdminJornadaDashboard() {
           "id, nome, cargo, foto_url, horario_entrada, horario_almoco_inicio, horario_almoco_fim, horario_saida, tolerancia_atraso_minutos, ativo"
         )
         .eq("ativo", true)
+        .eq("bate_ponto", true)
         .order("nome");
       if (error) throw error;
       return (data || []) as Funcionario[];

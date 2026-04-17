@@ -95,6 +95,7 @@ export default function AnaliseFuncionario() {
           "id, nome, cargo, foto_url, horario_entrada, horario_almoco_inicio, horario_almoco_fim, horario_saida, carga_horaria_semanal, tolerancia_atraso_minutos"
         )
         .eq("ativo", true)
+        .eq("bate_ponto", true)
         .order("nome");
       if (error) throw error;
       return (data || []) as Funcionario[];
