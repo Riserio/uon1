@@ -276,6 +276,22 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
                 onChange={(e) => setMotivo(e.target.value)}
               />
             </div>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-2">
+                <Paperclip className="h-3.5 w-3.5" />
+                Anexar documento <span className="text-xs text-muted-foreground">(opcional)</span>
+              </Label>
+              <Input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
+              {file && (
+                <p className="text-xs text-muted-foreground truncate">{file.name}</p>
+              )}
+            </div>
+
             <div className="flex justify-end">
               <Button onClick={handleSave} disabled={saving}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -321,6 +337,18 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
                         </div>
                         {a.motivo && (
                           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.motivo}</p>
+                        )}
+                        {a.arquivo_url && (
+                          <a
+                            href={a.arquivo_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                          >
+                            <Paperclip className="h-3 w-3" />
+                            {a.arquivo_nome || "Documento anexado"}
+                            <Download className="h-3 w-3" />
+                          </a>
                         )}
                       </div>
                       <Button
