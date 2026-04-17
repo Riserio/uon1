@@ -36,29 +36,26 @@ export default function ResetPassword() {
 
     try {
       forgotPasswordSchema.parse({ email });
-      
+
       const redirectTo = `${window.location.origin}/reset-password?type=recovery`;
+
+      // Gera o link real de recuperação via Supabase (envia também o email padrão)
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,
       });
 
       if (error) throw error;
 
-      // Send custom email via Resend if configured
-      const { data: resendConfig } = await supabase
-        .from('resend_config')
-        .select('from_email, from_name')
-        .single();
+      // Sempre dispara o template customizado (SMTP → Resend fallback)
+      const { error: fnError } = await supabase.functions.invoke('enviar-email-recuperacao', {
+        body: {
+          to: email,
+          resetLink: redirectTo,
+        },
+      });
 
-      if (resendConfig) {
-        await supabase.functions.invoke('enviar-email-recuperacao', {
-          body: {
-            to: email,
-            resetLink: redirectTo,
-            fromEmail: resendConfig.from_email,
-            fromName: resendConfig.from_name,
-          },
-        });
+      if (fnError) {
+        console.error('Erro ao enviar template customizado:', fnError);
       }
 
       toast.success('Email de recuperação enviado! Verifique sua caixa de entrada.');

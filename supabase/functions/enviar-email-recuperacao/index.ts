@@ -25,7 +25,24 @@ const handler = async (req: Request): Promise<Response> => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { to, resetLink, fromEmail, fromName }: RecuperacaoEmailRequest = await req.json();
+    const { to, resetLink: redirectTo, fromEmail, fromName }: RecuperacaoEmailRequest = await req.json();
+
+    // Gera link real de recuperação (com token) via Admin API
+    let resetLink = redirectTo;
+    try {
+      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+        type: "recovery",
+        email: to,
+        options: { redirectTo },
+      });
+      if (linkError) {
+        console.error("generateLink error:", linkError.message);
+      } else if (linkData?.properties?.action_link) {
+        resetLink = linkData.properties.action_link;
+      }
+    } catch (e: any) {
+      console.error("generateLink exception:", e.message);
+    }
 
     const emailHtml = `
       <!DOCTYPE html>
