@@ -136,6 +136,7 @@ export default function Usuarios() {
 
   const [logs, setLogs] = useState<UserLog[]>([]);
   const [isFuncionario, setIsFuncionario] = useState(false);
+  const [batePonto, setBatePonto] = useState(false);
   const [createdFuncionarioId, setCreatedFuncionarioId] = useState<string | null>(null);
   const [funcionarioFormData, setFuncionarioFormData] = useState<FuncionarioFormData>(defaultFuncionarioFormData);
   const [selectedModulosBI, setSelectedModulosBI] = useState<string[]>(['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
@@ -447,6 +448,7 @@ export default function Usuarios() {
                 conta: funcionarioFormData.conta,
                 pix: funcionarioFormData.pix,
               },
+              bate_ponto: batePonto,
               created_by: user.id,
             })
             .select()
@@ -597,6 +599,7 @@ export default function Usuarios() {
             conta: funcionarioFormData.conta,
             pix: funcionarioFormData.pix,
           },
+          bate_ponto: batePonto,
           created_by: user.id,
         })
         .select()
@@ -642,6 +645,7 @@ export default function Usuarios() {
             conta: funcionarioFormData.conta,
             pix: funcionarioFormData.pix,
           },
+          bate_ponto: batePonto,
           updated_at: new Date().toISOString(),
         })
         .eq("id", createdFuncionarioId);
@@ -790,6 +794,7 @@ export default function Usuarios() {
       
       setIsFuncionario(!!funcionarioData);
       setCreatedFuncionarioId(funcionarioData?.id || null);
+      setBatePonto(!!(funcionarioData as any)?.bate_ponto);
       
       if (funcionarioData) {
         const endereco = funcionarioData.endereco as any || {};
@@ -827,6 +832,7 @@ export default function Usuarios() {
       setSelectedEquipes([]);
       setTempPassword("");
       setIsFuncionario(false);
+      setBatePonto(false);
       setCreatedFuncionarioId(null);
       setFuncionarioFormData(defaultFuncionarioFormData);
       setSelectedModulosBI(['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
