@@ -26,6 +26,7 @@ interface ConfigColors {
 interface ImageUploadState {
   logo: string;
   login: string;
+  header: string;
 }
 
 interface ConfiguracoesDialogProps {
@@ -52,7 +53,8 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
   const [tempColors, setTempColors] = useState<ConfigColors>(config.colors);
   const [imageUrls, setImageUrls] = useState<ImageUploadState>({
     logo: config.logo_url || '',
-    login: ''
+    login: '',
+    header: config.header_logo_url || ''
   });
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
 
       const { data, error } = await supabase
         .from('app_config')
-        .select('logo_url, login_image_url')
+        .select('logo_url, login_image_url, header_logo_url')
         .eq('user_id', user.id)
         .maybeSingle();
       
@@ -80,14 +82,15 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
       
       setImageUrls({
         logo: data?.logo_url || '',
-        login: data?.login_image_url || ''
+        login: data?.login_image_url || '',
+        header: (data as any)?.header_logo_url || ''
       });
     } catch (error) {
       console.error('Error in loadImages:', error);
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'login') => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'login' | 'header') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -104,7 +107,8 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
 
       const fileExt = file.name.split('.').pop();
       const fileName = `${type}-${Date.now()}.${fileExt}`;
-      const filePath = `${type === 'logo' ? 'logos' : 'login-images'}/${fileName}`;
+      const folder = type === 'logo' ? 'logos' : type === 'login' ? 'login-images' : 'header-logos';
+      const filePath = `${folder}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('app-assets')
@@ -131,9 +135,10 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
 
       setImageUrls(prev => ({ ...prev, [type]: publicUrl }));
       
-      const configKey = type === 'logo' ? 'logo_url' : 'login_image_url';
+      const configKey = type === 'logo' ? 'logo_url' : type === 'login' ? 'login_image_url' : 'header_logo_url';
       await saveConfig({ [configKey]: publicUrl });
-      toast({ title: `${type === 'logo' ? 'Logo' : 'Imagem de login'} salvo com sucesso!` });
+      const labelMap = { logo: 'Logo', login: 'Imagem de login', header: 'Logo do cabeçalho' };
+      toast({ title: `${labelMap[type]} salvo com sucesso!` });
     } catch (error: any) {
       console.error('Erro ao fazer upload:', error);
       toast({ 
@@ -177,6 +182,20 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
               />
               {imageUrls.logo && (
                 <img src={imageUrls.logo} alt="Logo" className="h-16 object-contain" />
+              )}
+            </div>
+            <div className="space-y-3">
+              <Label>Logo do Cabeçalho (canto superior direito)</Label>
+              <p className="text-xs text-muted-foreground">Exibida no canto superior direito de todas as páginas. Recomendado: PNG transparente.</p>
+              <Input 
+                type="file" 
+                accept="image/*" 
+                onChange={(e) => handleImageUpload(e, 'header')} 
+              />
+              {imageUrls.header ? (
+                <img src={imageUrls.header} alt="Logo cabeçalho" className="h-12 object-contain bg-muted/30 rounded p-2" />
+              ) : (
+                <img src="/images/logo-vg.png" alt="Logo cabeçalho padrão" className="h-12 object-contain bg-muted/30 rounded p-2" />
               )}
             </div>
             <div className="space-y-3">
