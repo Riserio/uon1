@@ -217,6 +217,23 @@ export default function AnaliseFuncionario() {
     enabled: !!funcionarioId,
   });
 
+  // Ausências (abonos manuais, folgas, férias, feriados individuais)
+  const { data: ausencias } = useQuery({
+    queryKey: ["ausencias_funcionario_periodo", funcionarioId, periodo.inicio.toISOString()],
+    queryFn: async () => {
+      if (!funcionarioId) return [];
+      const { data, error } = await (supabase as any)
+        .from("ausencias_funcionario")
+        .select("data_inicio, data_fim, tipo")
+        .eq("funcionario_id", funcionarioId)
+        .lte("data_inicio", format(periodo.fim, "yyyy-MM-dd"))
+        .gte("data_fim", format(periodo.inicio, "yyyy-MM-dd"));
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    enabled: !!funcionarioId,
+  });
+
   // Agrupar por dia e calcular métricas
   const analise = useMemo(() => {
     if (!funcionario || !registros) return null;
