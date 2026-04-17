@@ -49,10 +49,9 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import ConfigurarAlertasDialog from "./ConfigurarAlertasDialog";
 import AjusteManualPontoDialog from "./AjusteManualPontoDialog";
-import AnexosPontoDialog from "./AnexosPontoDialog";
+import AnexosAbonosDialog from "./AnexosAbonosDialog";
 import FechamentoMensalDialog from "./FechamentoMensalDialog";
 import JornadaConfigDialog from "./JornadaConfigDialog";
-import GerenciarAusenciasDialog from "./GerenciarAusenciasDialog";
 
 import { Settings } from "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
@@ -182,7 +181,7 @@ export default function GestaoJornada() {
   const [anexosOpen, setAnexosOpen] = useState(false);
   const [fechamentoOpen, setFechamentoOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
-  const [ausenciasOpen, setAusenciasOpen] = useState(false);
+  // Anexos & Abonos foram unificados num único dialog (setAnexosOpen)
   const [registroParaAjuste, setRegistroParaAjuste] = useState<any>(null);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
@@ -366,7 +365,13 @@ export default function GestaoJornada() {
     const expectedDayMinutes =
       (expectedSaidaHour * 60 + expectedSaidaMinute) - (expectedHour * 60 + expectedMinute) - defaultAlmocoMinutes;
 
+    // "Hoje" só é contabilizado depois do fim do expediente — antes disso o
+    // colaborador ainda pode bater ponto, então não consideramos atraso/saldo negativo.
+    const agora = new Date();
     Object.entries(registrosPorDia).forEach(([dia, regs]) => {
+      const cutoffDia = new Date(`${dia}T00:00:00`);
+      cutoffDia.setHours(expectedSaidaHour, expectedSaidaMinute, 0, 0);
+      if (agora.getTime() < cutoffDia.getTime()) return; // Dia atual ainda em andamento
       const entrada = regs.find((r: any) => r.tipo === "entrada");
       const saida = regs.find((r: any) => r.tipo === "saida");
       const saidaAlmoco = regs.find((r: any) => r.tipo === "saida_almoco");
@@ -1056,7 +1061,7 @@ export default function GestaoJornada() {
             <div className="flex gap-1.5">
               {funcionarioId && (
                 <>
-                  <Button variant="outline" size="icon" onClick={() => setAnexosOpen(true)} title="Anexos">
+                  <Button variant="outline" size="icon" onClick={() => setAnexosOpen(true)} title="Anexos & Abonos / Folgas / Férias">
                     <Paperclip className="h-4 w-4" />
                   </Button>
                   <Button
@@ -1072,9 +1077,6 @@ export default function GestaoJornada() {
                   </Button>
                   <Button variant="outline" size="icon" onClick={() => setFechamentoOpen(true)} title="Fechamento">
                     <Lock className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="icon" onClick={() => setAusenciasOpen(true)} title="Abonos / Folgas / Férias">
-                    <CalendarOff className="h-4 w-4" />
                   </Button>
                 </>
               )}
@@ -1937,7 +1939,7 @@ export default function GestaoJornada() {
         />
       )}
       {canManageAll && funcionarioId && (
-        <AnexosPontoDialog
+        <AnexosAbonosDialog
           open={anexosOpen}
           onOpenChange={setAnexosOpen}
           funcionarioId={funcionarioId}
@@ -1951,14 +1953,6 @@ export default function GestaoJornada() {
           funcionarioId={funcionarioId}
           funcionarioNome={funcionarioSelecionado?.nome || ""}
           funcionarioProfileId={funcionarioSelecionado?.profile_id}
-        />
-      )}
-      {canManageAll && funcionarioId && (
-        <GerenciarAusenciasDialog
-          open={ausenciasOpen}
-          onOpenChange={setAusenciasOpen}
-          funcionarioId={funcionarioId}
-          funcionarioNome={funcionarioSelecionado?.nome}
         />
       )}
     </div>

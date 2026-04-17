@@ -262,8 +262,12 @@ export default function AnaliseFuncionario() {
     const evolucaoDiaria: { dia: string; saldo: number; horas: number }[] = [];
     const distribuicaoEntrada: Record<string, number> = {};
 
-    const hoje = new Date();
-    hoje.setHours(23, 59, 59, 999);
+    // "hoje" = momento atual real. Dias só são avaliáveis após o fim do expediente
+    // (horario_saida). Antes disso, o colaborador ainda pode bater ponto, então não
+    // devemos considerar falta/atraso/saldo negativo. Para dias passados, usa o fim do dia.
+    const agora = new Date();
+    const fimExpedienteHHMM = funcionario.horario_saida || "18:00";
+    const [fimExpHH, fimExpMM] = fimExpedienteHHMM.split(":").map(Number);
 
     const feriadosSet = new Set((feriados || []).map((f: any) => f.data));
     const abonadosSet = new Set<string>();
@@ -305,8 +309,12 @@ export default function AnaliseFuncionario() {
 
     dias.forEach((dia) => {
       const isWE = isWeekend(dia);
-      const isFuturo = dia.getTime() > hoje.getTime();
-      if (isFuturo) return; // Não contabiliza dias futuros
+      // Cutoff por dia: só avaliamos o dia DEPOIS do fim do expediente (horário comercial).
+      // Antes disso o colaborador ainda pode bater ponto — não considerar falta nem atraso.
+      const cutoffDia = new Date(dia);
+      cutoffDia.setHours(fimExpHH || 18, fimExpMM || 0, 0, 0);
+      const isFuturo = agora.getTime() < cutoffDia.getTime();
+      if (isFuturo) return; // Não contabiliza dias futuros nem o dia atual antes do expediente terminar
       const key = format(dia, "yyyy-MM-dd");
       const isFeriado = feriadosSet.has(key);
       const isAbonado = abonadosSet.has(key);
