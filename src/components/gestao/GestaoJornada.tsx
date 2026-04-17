@@ -647,7 +647,7 @@ export default function GestaoJornada() {
         theme: "striped",
         styles: { fontSize: 7.5, halign: "center", cellPadding: 1.8 },
         headStyles: {
-          fillColor: [102, 51, 153],
+          fillColor: [54, 44, 137],
           textColor: 255,
           fontStyle: "bold",
           halign: "center",
@@ -784,7 +784,7 @@ export default function GestaoJornada() {
           body: individual ? tableData.map((row) => row.slice(1)) : tableData,
           theme: "striped",
           styles: { fontSize: 8 },
-          headStyles: { fillColor: [102, 51, 153] },
+          headStyles: { fillColor: [54, 44, 137] },
           didDrawPage: () => drawHeader(),
           margin: { top: 34, left: margin, right: margin },
         });
