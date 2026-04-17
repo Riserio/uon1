@@ -20,6 +20,7 @@ import GerenciarParceirosDialog from '@/components/GerenciarParceirosDialog';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
 import { useCepLookup } from '@/hooks/useCepLookup';
+import { PageHeader } from '@/components/ui/page-header';
 
 interface Corretora {
   id: string;
@@ -141,34 +142,29 @@ export default function Corretoras() {
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-primary/10">
-            <Building2 className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Associações</h1>
-            <p className="text-sm text-muted-foreground">Gerencie suas associações</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/administradora">
-            <Button variant="outline" className="rounded-xl gap-1.5">
-              <Building2 className="h-4 w-4" /> Administradora
+      <PageHeader
+        icon={Building2}
+        title="Associações"
+        subtitle="Gerencie suas associações"
+        actions={
+          <>
+            <Link to="/administradora">
+              <Button variant="outline" className="rounded-xl gap-1.5">
+                <Building2 className="h-4 w-4" /> Administradora
+              </Button>
+            </Link>
+            <UploadCorretorasDialog onSuccess={fetchCorretoras} />
+            {selectedCorretoras.length > 0 && (
+              <Button variant="outline" className="rounded-xl gap-1.5" onClick={() => setEmailDialogOpen(true)}>
+                <Mail className="h-4 w-4" /> E-mail ({selectedCorretoras.length})
+              </Button>
+            )}
+            <Button onClick={() => { setEditingItem(null); setFormData({}); setDialogOpen(true); }} className="rounded-xl gap-1.5 shadow-sm">
+              <Plus className="h-4 w-4" /> Nova Associação
             </Button>
-          </Link>
-          <UploadCorretorasDialog onSuccess={fetchCorretoras} />
-          {selectedCorretoras.length > 0 && (
-            <Button variant="outline" className="rounded-xl gap-1.5" onClick={() => setEmailDialogOpen(true)}>
-              <Mail className="h-4 w-4" /> E-mail ({selectedCorretoras.length})
-            </Button>
-          )}
-          <Button onClick={() => { setEditingItem(null); setFormData({}); setDialogOpen(true); }} className="rounded-xl gap-1.5 shadow-sm">
-            <Plus className="h-4 w-4" /> Nova Associação
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

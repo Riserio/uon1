@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Building2, Upload, ArrowLeft } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
+import { Button as UIButton } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import InputMask from 'react-input-mask';
 
@@ -133,13 +135,16 @@ export default function Administradora() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/corretoras')}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar
-        </Button>
-        <h1 className="text-3xl font-bold">Administradora</h1>
-      </div>
+      <PageHeader
+        icon={Building2}
+        title="Administradora"
+        subtitle="Dados cadastrais da administradora"
+        actions={
+          <Button variant="outline" onClick={() => navigate('/corretoras')} className="rounded-xl gap-1.5">
+            <ArrowLeft className="h-4 w-4" /> Voltar
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">

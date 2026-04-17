@@ -28,6 +28,7 @@ import {
   ShieldAlert
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { PageHeader } from "@/components/ui/page-header";
 
 import FinanceiroVisaoGeral from "@/components/financeiro/FinanceiroVisaoGeral";
 import FinanceiroContasReceber from "@/components/financeiro/FinanceiroContasReceber";
