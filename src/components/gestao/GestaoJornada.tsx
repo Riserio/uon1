@@ -1474,9 +1474,12 @@ export default function GestaoJornada() {
                               <Badge
                                 variant="destructive"
                                 className="text-[10px] px-1.5 py-0"
-                                title={`Atraso de ${day.lateMinutes}min (excedente: ${day.lateMinutesDiscounted}min após tolerância)`}
+                                title={`Atraso real: ${day.lateMinutes}min — ${detailedStats?.tolerancia ?? 10}min abonados (tolerância) → ${day.lateMinutesDiscounted}min descontados`}
                               >
-                                Atraso {day.lateMinutes}min
+                                −{day.lateMinutesDiscounted}min
+                                <span className="ml-1 opacity-70">
+                                  (de {day.lateMinutes})
+                                </span>
                               </Badge>
                             )}
                             {day.hasOvertime && (
