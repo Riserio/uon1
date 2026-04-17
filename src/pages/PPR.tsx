@@ -17,6 +17,7 @@ import {
   User as UserIcon, Filter, Search, MoreVertical, Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
 
 const AREAS_PPR = [
   "Rateio",
@@ -325,31 +326,22 @@ export default function PPR() {
 
   return (
     <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {/* Hero header */}
-      <div className="rounded-3xl border border-border/50 bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 backdrop-blur">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-2xl bg-primary/15 flex items-center justify-center shadow-sm">
-              <Sparkles className="h-7 w-7 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">PPR · Programa Preparatório</h1>
-              <p className="text-sm text-muted-foreground">Gerencie sprints, áreas e tarefas no estilo board moderno</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Select value={selectedAssociacao} onValueChange={setSelectedAssociacao}>
-              <SelectTrigger className="w-56 h-10 text-sm rounded-2xl bg-background/80 backdrop-blur">
-                <Building2 className="h-4 w-4 mr-1 opacity-60" />
-                <SelectValue placeholder="Selecione associação..." />
-              </SelectTrigger>
-              <SelectContent>
-                {associacoes.map(a => <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={Sparkles}
+        title="PPR · Programa Preparatório"
+        subtitle="Gerencie sprints, áreas e tarefas no estilo board moderno"
+        actions={
+          <Select value={selectedAssociacao} onValueChange={setSelectedAssociacao}>
+            <SelectTrigger className="w-56 h-9 text-sm rounded-xl">
+              <Building2 className="h-4 w-4 mr-1 opacity-60" />
+              <SelectValue placeholder="Selecione associação..." />
+            </SelectTrigger>
+            <SelectContent>
+              {associacoes.map(a => <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        }
+      />
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-muted-foreground">Carregando...</div>

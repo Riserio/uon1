@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { formatPhone } from '@/lib/validators';
+import { useAppConfig } from '@/hooks/useAppConfig';
 
 interface Contact {
   id: string;

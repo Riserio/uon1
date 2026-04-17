@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import BISyncButton from "./BISyncButton";
+import { useAppConfig } from "@/hooks/useAppConfig";
 
 type BIPageHeaderProps = {
   title: string;
@@ -76,6 +77,8 @@ export default function BIPageHeader({
   showAdminOption
 }: BIPageHeaderProps) {
   const navigate = useNavigate();
+  const { config } = useAppConfig();
+  const headerLogo = config.header_logo_url || "/images/logo-vg.png";
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome;
 
   return (
@@ -120,6 +123,8 @@ export default function BIPageHeader({
               <span className="hidden sm:inline text-xs">Histórico</span>
             </Button>
           )}
+
+          <img src={headerLogo} alt="Logo" className="h-8 w-auto opacity-90 shrink-0 object-contain ml-1" />
         </div>
       </div>
 
