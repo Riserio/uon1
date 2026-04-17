@@ -2658,6 +2658,54 @@ export type Database = {
           },
         ]
       }
+      jornada_config: {
+        Row: {
+          created_at: string
+          horario_entrada_padrao: string
+          horario_saida_almoco_padrao: string
+          horario_saida_padrao: string
+          horario_volta_almoco_padrao: string
+          id: string
+          lembretes_automaticos_ativos: boolean
+          mensagem_entrada: string
+          mensagem_saida: string
+          mensagem_saida_almoco: string
+          mensagem_volta_almoco: string
+          tolerancia_atraso_minutos: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          horario_entrada_padrao?: string
+          horario_saida_almoco_padrao?: string
+          horario_saida_padrao?: string
+          horario_volta_almoco_padrao?: string
+          id?: string
+          lembretes_automaticos_ativos?: boolean
+          mensagem_entrada?: string
+          mensagem_saida?: string
+          mensagem_saida_almoco?: string
+          mensagem_volta_almoco?: string
+          tolerancia_atraso_minutos?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          horario_entrada_padrao?: string
+          horario_saida_almoco_padrao?: string
+          horario_saida_padrao?: string
+          horario_volta_almoco_padrao?: string
+          id?: string
+          lembretes_automaticos_ativos?: boolean
+          mensagem_entrada?: string
+          mensagem_saida?: string
+          mensagem_saida_almoco?: string
+          mensagem_volta_almoco?: string
+          tolerancia_atraso_minutos?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       justificativas_ausencia: {
         Row: {
           aprovado_em: string | null

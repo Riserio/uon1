@@ -50,6 +50,8 @@ import ConfigurarAlertasDialog from "./ConfigurarAlertasDialog";
 import AjusteManualPontoDialog from "./AjusteManualPontoDialog";
 import AnexosPontoDialog from "./AnexosPontoDialog";
 import FechamentoMensalDialog from "./FechamentoMensalDialog";
+import JornadaConfigDialog from "./JornadaConfigDialog";
+import { Settings } from "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
@@ -176,6 +178,7 @@ export default function GestaoJornada() {
   const [ajusteOpen, setAjusteOpen] = useState(false);
   const [anexosOpen, setAnexosOpen] = useState(false);
   const [fechamentoOpen, setFechamentoOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const [registroParaAjuste, setRegistroParaAjuste] = useState<any>(null);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
@@ -184,6 +187,19 @@ export default function GestaoJornada() {
   const canManageAll = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
   const canExport = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
   const isLimitedUser = userRole === "lider" || userRole === "comercial";
+
+  const { data: jornadaConfig } = useQuery({
+    queryKey: ["jornada_config"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("jornada_config")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: funcionarios } = useQuery({
     queryKey: ["funcionarios", user?.id, isLimitedUser],
@@ -309,7 +325,7 @@ export default function GestaoJornada() {
       if (!registrosPorDia[dia]) registrosPorDia[dia] = [];
       registrosPorDia[dia].push(r);
     });
-    const tolerancia = funcionarioSelecionado.tolerancia_atraso_minutos ?? 10;
+    const tolerancia = jornadaConfig?.tolerancia_atraso_minutos ?? funcionarioSelecionado.tolerancia_atraso_minutos ?? 10;
     const workedDays: Array<{
       date: string;
       dayName: string;
@@ -994,27 +1010,38 @@ export default function GestaoJornada() {
               ))}
             </SelectContent>
           </Select>
-          {canManageAll && funcionarioId && (
+          {canManageAll && (
             <div className="flex gap-1.5">
-              <Button variant="outline" size="icon" onClick={() => setAnexosOpen(true)} title="Anexos">
-                <Paperclip className="h-4 w-4" />
-              </Button>
+              {funcionarioId && (
+                <>
+                  <Button variant="outline" size="icon" onClick={() => setAnexosOpen(true)} title="Anexos">
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      setRegistroParaAjuste(null);
+                      setAjusteOpen(true);
+                    }}
+                    title="Ajuste Manual"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => setFechamentoOpen(true)} title="Fechamento">
+                    <Lock className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
               <Button
-                variant="outline"
-                size="icon"
-                onClick={() => {
-                  setRegistroParaAjuste(null);
-                  setAjusteOpen(true);
-                }}
-                title="Ajuste Manual"
+                variant="default"
+                size="sm"
+                onClick={() => setConfigOpen(true)}
+                title="Configurações da Jornada"
+                className="gap-2"
               >
-                <Plus className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => setFechamentoOpen(true)} title="Fechamento">
-                <Lock className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => setAlertasOpen(true)} title="Alertas">
-                <Bell className="h-4 w-4" />
+                <Settings className="h-4 w-4" />
+                Configurações
               </Button>
             </div>
           )}
@@ -1850,6 +1877,9 @@ export default function GestaoJornada() {
           funcionarioId={funcionarioId}
           funcionarioNome={funcionarioSelecionado?.nome}
         />
+      )}
+      {canManageAll && (
+        <JornadaConfigDialog open={configOpen} onOpenChange={setConfigOpen} />
       )}
       {canManageAll && funcionarioId && (
         <AjusteManualPontoDialog
