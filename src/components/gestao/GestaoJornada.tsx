@@ -365,7 +365,13 @@ export default function GestaoJornada() {
     const expectedDayMinutes =
       (expectedSaidaHour * 60 + expectedSaidaMinute) - (expectedHour * 60 + expectedMinute) - defaultAlmocoMinutes;
 
+    // "Hoje" só é contabilizado depois do fim do expediente — antes disso o
+    // colaborador ainda pode bater ponto, então não consideramos atraso/saldo negativo.
+    const agora = new Date();
     Object.entries(registrosPorDia).forEach(([dia, regs]) => {
+      const cutoffDia = new Date(`${dia}T00:00:00`);
+      cutoffDia.setHours(expectedSaidaHour, expectedSaidaMinute, 0, 0);
+      if (agora.getTime() < cutoffDia.getTime()) return; // Dia atual ainda em andamento
       const entrada = regs.find((r: any) => r.tipo === "entrada");
       const saida = regs.find((r: any) => r.tipo === "saida");
       const saidaAlmoco = regs.find((r: any) => r.tipo === "saida_almoco");
