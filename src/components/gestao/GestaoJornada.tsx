@@ -205,7 +205,7 @@ export default function GestaoJornada() {
   const { data: funcionarios } = useQuery({
     queryKey: ["funcionarios", user?.id, isLimitedUser],
     queryFn: async () => {
-      let query = supabase.from("funcionarios").select("*").eq("ativo", true).order("nome");
+      let query = supabase.from("funcionarios").select("*").eq("ativo", true).eq("bate_ponto", true).order("nome");
       if (isLimitedUser && user?.id) query = query.eq("profile_id", user.id);
       const { data, error } = await query;
       if (error) throw error;
