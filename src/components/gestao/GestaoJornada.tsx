@@ -735,7 +735,23 @@ export default function GestaoJornada() {
         didParseCell: (data: any) => {
           if (data.section === "body") {
             const rowDay = (data.row.raw?.[1] || "").toString().toLowerCase();
-            if (rowDay.includes("sábado") || rowDay.includes("domingo")) {
+            const pontosCell = (data.row.raw?.[2] || "").toString().toUpperCase();
+            if (pontosCell === "FERIADO") {
+              data.cell.styles.fillColor = [254, 243, 199];
+              data.cell.styles.textColor = [146, 64, 14];
+            } else if (pontosCell === "FALTA") {
+              data.cell.styles.fillColor = [254, 226, 226];
+              data.cell.styles.textColor = [185, 28, 28];
+            } else if (
+              pontosCell.startsWith("ABONO") ||
+              pontosCell.startsWith("FOLGA") ||
+              pontosCell.startsWith("FERIAS") ||
+              pontosCell.startsWith("FÉRIAS") ||
+              pontosCell.startsWith("ATESTADO")
+            ) {
+              data.cell.styles.fillColor = [219, 234, 254];
+              data.cell.styles.textColor = [30, 64, 175];
+            } else if (rowDay.includes("sábado") || rowDay.includes("domingo")) {
               data.cell.styles.fillColor = [248, 248, 252];
               data.cell.styles.textColor = [120, 120, 130];
             }
