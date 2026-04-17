@@ -1455,7 +1455,10 @@ export default function Usuarios() {
                             </div>
                           </div>
                         )}
-                    {editingItem && (
+                      </div>
+                    )}
+
+                    {/* PERFIL E FUNCIONÁRIO - EDIÇÃO */}
                       <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                         <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                           Perfil de Acesso
