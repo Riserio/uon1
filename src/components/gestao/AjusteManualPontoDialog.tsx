@@ -55,8 +55,9 @@ export default function AjusteManualPontoDialog({
 
   const ajustarPonto = useMutation({
     mutationFn: async () => {
-      if (!motivo.trim()) {
-        throw new Error("Informe o motivo do ajuste");
+      // Motivo é obrigatório apenas para registros novos. Para edição, é opcional.
+      if (!registroExistente && !motivo.trim()) {
+        throw new Error("Informe o motivo do registro manual");
       }
 
       const dataHora = new Date(`${data}T${hora}:00`);
