@@ -335,6 +335,8 @@ export default function AnaliseFuncionario() {
       qtdAlmocosLongos,
       qtdAjustes,
       qtdSaidasAntecipadas,
+      qtdFeriados,
+      qtdAbonados,
       evolucaoDiaria,
       distribuicaoArr,
       pontualidadeScore,
@@ -345,7 +347,7 @@ export default function AnaliseFuncionario() {
       scoreGeral,
       horasEsperadasMes: diasUteis * horasEsperadasDia,
     };
-  }, [registros, funcionario, periodo]);
+  }, [registros, funcionario, periodo, feriados, abonados]);
 
   const initials = (nome: string) =>
     nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
