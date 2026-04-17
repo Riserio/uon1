@@ -362,6 +362,20 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
                   onChange={(e) => setHorarioAlmocoFim(e.target.value)}
                 />
               </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Tolerância de Atraso (minutos)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={toleranciaAtraso}
+                  onChange={(e) => setToleranciaAtraso(e.target.value)}
+                  placeholder="10"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Atrasos diários até este limite são desconsiderados no saldo (padrão CLT: 10 min).
+                </p>
+              </div>
             </div>
 
             {/* Seção de Alertas de Lembrete */}
