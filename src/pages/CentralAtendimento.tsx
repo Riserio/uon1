@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { formatPhone } from '@/lib/validators';
+import { useAppConfig } from '@/hooks/useAppConfig';
 
 interface Contact {
   id: string;
@@ -54,6 +55,8 @@ interface Message {
 
 export default function CentralAtendimento({ embedded }: { embedded?: boolean }) {
   const { user } = useAuth();
+  const { config } = useAppConfig();
+  const headerLogo = config.header_logo_url || "/images/logo-vg.png";
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -296,16 +299,17 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
         {/* Header */}
         <div className="p-3 border-b border-border/50 space-y-2.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <div className="p-1.5 rounded-xl bg-primary/10">
                 <MessageCircle className="h-4 w-4 text-primary" />
               </div>
-              <h2 className="font-semibold text-sm">Central WhatsApp</h2>
+              <h2 className="font-semibold text-sm truncate">Central WhatsApp</h2>
               {totalUnread > 0 && (
                 <Badge className="bg-emerald-500 text-white h-5 min-w-5 text-[10px] rounded-full px-1.5">{totalUnread}</Badge>
               )}
             </div>
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-1">
+              <img src={headerLogo} alt="Logo" className="h-6 w-auto opacity-80 object-contain mr-1" />
               <Dialog open={showNewConversation} onOpenChange={(open) => { setShowNewConversation(open); if (open) loadContatosList(); }}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" title="Nova Conversa">

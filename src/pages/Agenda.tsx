@@ -49,6 +49,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { PageHeader } from '@/components/ui/page-header';
 
 interface Evento {
   id: string;
@@ -380,137 +381,132 @@ export default function Agenda() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-4 md:p-6 space-y-4">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-primary/10">
-                <CalendarDays className="h-5 w-5 text-primary" />
-              </div>
-              Agenda
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Eventos e compromissos</p>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* View Switcher */}
-            <div className="flex items-center rounded-xl border bg-card p-0.5 gap-0.5">
-              {viewButtons.map(v => (
-                <button
-                  key={v.value}
-                  onClick={() => changeView(v.value)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    activeView === v.value
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                  }`}
-                >
-                  {v.icon}
-                  <span className="hidden sm:inline">{v.label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Sync Management */}
-            <Popover open={syncPopoverOpen} onOpenChange={setSyncPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 rounded-xl">
-                  <Settings2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Google</span>
-                  {integrations.length > 0 && (
-                    <Badge variant="secondary" className="h-5 min-w-5 px-1 rounded-full text-[10px]">
-                      {integrations.filter(i => i.ativo).length}
-                    </Badge>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 p-0 rounded-2xl" align="end">
-                <div className="p-4 border-b">
-                  <h3 className="font-semibold text-sm">Contas Google Calendar</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">Gerencie suas sincronizações</p>
-                </div>
-
-                <div className="max-h-64 overflow-y-auto">
-                  {integrations.length === 0 ? (
-                    <div className="p-6 text-center">
-                      <CalendarIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
-                      <p className="text-sm text-muted-foreground">Nenhuma conta conectada</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y">
-                      {integrations.map(integration => (
-                        <div key={integration.id} className="p-3 flex items-center gap-3">
-                          <div className={`p-1.5 rounded-lg ${integration.ativo ? 'bg-primary/10' : 'bg-muted'}`}>
-                            <Mail className={`h-3.5 w-3.5 ${integration.ativo ? 'text-primary' : 'text-muted-foreground'}`} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">
-                              {integration.google_email || 'Conta Google'}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {integration.last_sync_at
-                                ? `Sync: ${new Date(integration.last_sync_at).toLocaleDateString('pt-BR')}`
-                                : 'Nunca sincronizado'}
-                            </p>
-                          </div>
-                          <Switch
-                            checked={integration.ativo}
-                            onCheckedChange={(checked) => toggleAccount(integration.id, checked)}
-                            className="scale-75"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            title="Desconectar"
-                            onClick={() => handleDisconnectClick(integration.id, integration.google_email || 'Conta Google')}
-                          >
-                            <Unlink2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-3 border-t space-y-2">
-                  <Button
-                    onClick={connectGoogleCalendar}
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-2 rounded-xl"
+        <PageHeader
+          icon={CalendarDays}
+          title="Agenda"
+          subtitle="Eventos e compromissos"
+          actions={
+            <>
+              {/* View Switcher */}
+              <div className="flex items-center rounded-xl border bg-card p-0.5 gap-0.5">
+                {viewButtons.map(v => (
+                  <button
+                    key={v.value}
+                    onClick={() => changeView(v.value)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      activeView === v.value
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
                   >
-                    <Link2 className="h-3.5 w-3.5" />
-                    Conectar nova conta
+                    {v.icon}
+                    <span className="hidden sm:inline">{v.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Sync Management */}
+              <Popover open={syncPopoverOpen} onOpenChange={setSyncPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 rounded-xl">
+                    <Settings2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Google</span>
+                    {integrations.length > 0 && (
+                      <Badge variant="secondary" className="h-5 min-w-5 px-1 rounded-full text-[10px]">
+                        {integrations.filter(i => i.ativo).length}
+                      </Badge>
+                    )}
                   </Button>
-                  {integrations.some(i => i.ativo) && (
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0 rounded-2xl" align="end">
+                  <div className="p-4 border-b">
+                    <h3 className="font-semibold text-sm">Contas Google Calendar</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Gerencie suas sincronizações</p>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto">
+                    {integrations.length === 0 ? (
+                      <div className="p-6 text-center">
+                        <CalendarIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
+                        <p className="text-sm text-muted-foreground">Nenhuma conta conectada</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {integrations.map(integration => (
+                          <div key={integration.id} className="p-3 flex items-center gap-3">
+                            <div className={`p-1.5 rounded-lg ${integration.ativo ? 'bg-primary/10' : 'bg-muted'}`}>
+                              <Mail className={`h-3.5 w-3.5 ${integration.ativo ? 'text-primary' : 'text-muted-foreground'}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {integration.google_email || 'Conta Google'}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {integration.last_sync_at
+                                  ? `Sync: ${new Date(integration.last_sync_at).toLocaleDateString('pt-BR')}`
+                                  : 'Nunca sincronizado'}
+                              </p>
+                            </div>
+                            <Switch
+                              checked={integration.ativo}
+                              onCheckedChange={(checked) => toggleAccount(integration.id, checked)}
+                              className="scale-75"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              title="Desconectar"
+                              onClick={() => handleDisconnectClick(integration.id, integration.google_email || 'Conta Google')}
+                            >
+                              <Unlink2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 border-t space-y-2">
                     <Button
-                      onClick={() => { setSyncPopoverOpen(false); syncWithGoogle(); }}
+                      onClick={connectGoogleCalendar}
+                      variant="outline"
                       size="sm"
-                      disabled={syncing}
                       className="w-full gap-2 rounded-xl"
                     >
-                      <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                      Sincronizar tudo
+                      <Link2 className="h-3.5 w-3.5" />
+                      Conectar nova conta
                     </Button>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
+                    {integrations.some(i => i.ativo) && (
+                      <Button
+                        onClick={() => { setSyncPopoverOpen(false); syncWithGoogle(); }}
+                        size="sm"
+                        disabled={syncing}
+                        className="w-full gap-2 rounded-xl"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                        Sincronizar tudo
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
-            <Button
-              onClick={() => {
-                setEditingEvento(null);
-                setFormData({ tipo: 'reuniao', cor: '#3b82f6', lembrete_minutos: [15, 30] });
-                setDialogOpen(true);
-              }}
-              size="sm"
-              className="gap-2 rounded-xl"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Novo Evento</span>
-            </Button>
-          </div>
-        </div>
+              <Button
+                onClick={() => {
+                  setEditingEvento(null);
+                  setFormData({ tipo: 'reuniao', cor: '#3b82f6', lembrete_minutos: [15, 30] });
+                  setDialogOpen(true);
+                }}
+                size="sm"
+                className="gap-2 rounded-xl"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Novo Evento</span>
+              </Button>
+            </>
+          }
+        />
 
         {/* Stats Widgets */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
