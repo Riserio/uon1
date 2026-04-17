@@ -280,6 +280,15 @@ export default function AnaliseFuncionario() {
         abonadosSet.add(format(d, "yyyy-MM-dd"));
       }
     });
+    // Ausências (abonos manuais, folgas, férias, feriados individuais)
+    (ausencias || []).forEach((a: any) => {
+      if (!a.data_inicio || !a.data_fim) return;
+      const ini = parseISO(a.data_inicio);
+      const fim = parseISO(a.data_fim);
+      for (let d = new Date(ini); d.getTime() <= fim.getTime(); d.setDate(d.getDate() + 1)) {
+        abonadosSet.add(format(d, "yyyy-MM-dd"));
+      }
+    });
     let qtdAbonados = 0;
     let qtdFeriados = 0;
 
