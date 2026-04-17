@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import GerenciarAusenciasDialog from "./GerenciarAusenciasDialog";
+import { CalendarOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -76,11 +79,14 @@ function parseHorario(h: string | null, base: Date): Date | null {
 }
 
 export default function AnaliseFuncionario() {
+  const { userRole } = useAuth();
+  const canManage = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
   const [funcionarioId, setFuncionarioId] = useState<string>("");
   const [mesOffset, setMesOffset] = useState(0); // 0 = mês atual
   const [feedback, setFeedback] = useState("");
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [feedbackLoaded, setFeedbackLoaded] = useState(false);
+  const [ausenciasOpen, setAusenciasOpen] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const periodo = useMemo(() => {
@@ -211,6 +217,23 @@ export default function AnaliseFuncionario() {
     enabled: !!funcionarioId,
   });
 
+  // Ausências (abonos manuais, folgas, férias, feriados individuais)
+  const { data: ausencias } = useQuery({
+    queryKey: ["ausencias_funcionario_periodo", funcionarioId, periodo.inicio.toISOString()],
+    queryFn: async () => {
+      if (!funcionarioId) return [];
+      const { data, error } = await (supabase as any)
+        .from("ausencias_funcionario")
+        .select("data_inicio, data_fim, tipo")
+        .eq("funcionario_id", funcionarioId)
+        .lte("data_inicio", format(periodo.fim, "yyyy-MM-dd"))
+        .gte("data_fim", format(periodo.inicio, "yyyy-MM-dd"));
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    enabled: !!funcionarioId,
+  });
+
   // Agrupar por dia e calcular métricas
   const analise = useMemo(() => {
     if (!funcionario || !registros) return null;
@@ -254,6 +277,15 @@ export default function AnaliseFuncionario() {
       for (let i = 0; i < dias; i++) {
         const d = new Date(base);
         d.setDate(base.getDate() + i);
+        abonadosSet.add(format(d, "yyyy-MM-dd"));
+      }
+    });
+    // Ausências (abonos manuais, folgas, férias, feriados individuais)
+    (ausencias || []).forEach((a: any) => {
+      if (!a.data_inicio || !a.data_fim) return;
+      const ini = parseISO(a.data_inicio);
+      const fim = parseISO(a.data_fim);
+      for (let d = new Date(ini); d.getTime() <= fim.getTime(); d.setDate(d.getDate() + 1)) {
         abonadosSet.add(format(d, "yyyy-MM-dd"));
       }
     });
@@ -405,7 +437,7 @@ export default function AnaliseFuncionario() {
       scoreGeral,
       horasEsperadasMes: diasUteis * horasEsperadasDia,
     };
-  }, [registros, funcionario, periodo, feriados, abonados]);
+  }, [registros, funcionario, periodo, feriados, abonados, ausencias]);
 
   const initials = (nome: string) =>
     nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
@@ -519,8 +551,23 @@ ${feedback ? `Observações do gestor:\n${feedback}` : ""}`;
               })}
             </SelectContent>
           </Select>
+          {canManage && funcionarioId && (
+            <Button variant="outline" onClick={() => setAusenciasOpen(true)} className="gap-2">
+              <CalendarOff className="h-4 w-4" />
+              Abonos / Folgas / Férias
+            </Button>
+          )}
         </div>
       </div>
+
+      {canManage && funcionarioId && (
+        <GerenciarAusenciasDialog
+          open={ausenciasOpen}
+          onOpenChange={setAusenciasOpen}
+          funcionarioId={funcionarioId}
+          funcionarioNome={funcionario?.nome}
+        />
+      )}
 
       {!funcionario ? (
         <Card className="rounded-2xl border-dashed">
