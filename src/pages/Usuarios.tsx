@@ -1593,6 +1593,27 @@ export default function Usuarios() {
                             </p>
                           </div>
                         </div>
+
+                        {/* Flag Bate Ponto - edição */}
+                        {isFuncionario && (
+                          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <input
+                              type="checkbox"
+                              id="bate_ponto_edit"
+                              checked={batePonto}
+                              onChange={(e) => setBatePonto(e.target.checked)}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <div className="flex-1">
+                              <Label htmlFor="bate_ponto_edit" className="text-sm font-medium cursor-pointer">
+                                Registra jornada de trabalho (bate ponto)
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                Se marcado, aparecerá no dashboard e na lista de controle de ponto
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
