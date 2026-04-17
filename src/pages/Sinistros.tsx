@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from "recharts";
 import { openWhatsApp } from "@/utils/whatsapp";
+import { PageHeader } from "@/components/ui/page-header";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--destructive))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
@@ -190,26 +191,21 @@ export default function Sinistros() {
 
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-primary/10">
-            <AlertTriangle className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Sinistros</h1>
-            <p className="text-sm text-muted-foreground">Gestão integrada de sinistros e vistorias</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => navigate("/vistorias/nova/manual")} className="rounded-xl gap-1.5 shadow-sm">
-            <Plus className="h-4 w-4" /> Abertura Manual
-          </Button>
-          <Button onClick={() => navigate("/vistorias/nova/digital")} variant="outline" className="rounded-xl gap-1.5">
-            <Plus className="h-4 w-4" /> Abertura Digital
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={AlertTriangle}
+        title="Sinistros"
+        subtitle="Gestão integrada de sinistros e vistorias"
+        actions={
+          <>
+            <Button onClick={() => navigate("/vistorias/nova/manual")} className="rounded-xl gap-1.5 shadow-sm">
+              <Plus className="h-4 w-4" /> Abertura Manual
+            </Button>
+            <Button onClick={() => navigate("/vistorias/nova/digital")} variant="outline" className="rounded-xl gap-1.5">
+              <Plus className="h-4 w-4" /> Abertura Digital
+            </Button>
+          </>
+        }
+      />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)}>

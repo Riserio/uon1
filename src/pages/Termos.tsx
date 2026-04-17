@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { Plus, Edit, Trash2, FileText, Upload, ExternalLink, Check, ChevronsUpDown, Shield, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/ui/page-header';
 
 const TIPOS_SINISTRO = ['Colisão', 'Roubo/Furto', 'Incêndio', 'Enchente/Alagamento', 'Danos a Terceiros', 'Quebra de Vidros', 'Outros', 'Todos'];
 
@@ -127,21 +128,16 @@ export default function Termos() {
 
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-primary/10">
-            <Shield className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Termos de Aceite</h1>
-            <p className="text-sm text-muted-foreground">Gerencie os termos exibidos nas vistorias</p>
-          </div>
-        </div>
-        <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="rounded-xl gap-1.5 shadow-sm">
-          <Plus className="h-4 w-4" /> Novo Termo
-        </Button>
-      </div>
+      <PageHeader
+        icon={Shield}
+        title="Termos de Aceite"
+        subtitle="Gerencie os termos exibidos nas vistorias"
+        actions={
+          <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="rounded-xl gap-1.5 shadow-sm">
+            <Plus className="h-4 w-4" /> Novo Termo
+          </Button>
+        }
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

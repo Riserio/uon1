@@ -17,6 +17,7 @@ import { EnviarEmailSMTPDialog } from '@/components/EnviarEmailSMTPDialog';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
 import { openWhatsApp } from '@/utils/whatsapp';
+import { PageHeader } from '@/components/ui/page-header';
 
 interface Contato {
   id: string; nome: string; email?: string; telefone?: string; cargo?: string;
@@ -91,31 +92,26 @@ export default function Contatos() {
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-primary/10">
-            <UsersIcon className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Contatos</h1>
-            <p className="text-sm text-muted-foreground">Gerencie seus contatos</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {selectedContatos.length > 0 && (
-            <Button variant="outline" className="rounded-xl gap-1.5" onClick={() => {
-              if (getSelectedEmails().length === 0) { toast.error('Nenhum email'); return; }
-              setEmailDialogOpen(true);
-            }}>
-              <Mail className="h-4 w-4" /> E-mail ({selectedContatos.length})
+      <PageHeader
+        icon={UsersIcon}
+        title="Contatos"
+        subtitle="Gerencie seus contatos"
+        actions={
+          <>
+            {selectedContatos.length > 0 && (
+              <Button variant="outline" className="rounded-xl gap-1.5" onClick={() => {
+                if (getSelectedEmails().length === 0) { toast.error('Nenhum email'); return; }
+                setEmailDialogOpen(true);
+              }}>
+                <Mail className="h-4 w-4" /> E-mail ({selectedContatos.length})
+              </Button>
+            )}
+            <Button onClick={() => openDialog()} className="rounded-xl gap-1.5 shadow-sm">
+              <Plus className="h-4 w-4" /> Novo Contato
             </Button>
-          )}
-          <Button onClick={() => openDialog()} className="rounded-xl gap-1.5 shadow-sm">
-            <Plus className="h-4 w-4" /> Novo Contato
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

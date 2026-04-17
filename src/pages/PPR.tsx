@@ -479,7 +479,7 @@ export default function PPR() {
                     key={col.key}
                     className={cn(
                       "w-[300px] flex-shrink-0 flex flex-col rounded-2xl border overflow-hidden transition-all",
-                      "bg-background border-border/50",
+                      "bg-card border-border/50 shadow-sm",
                       isDropTarget && "border-dashed"
                     )}
                     onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("ring-2","ring-primary/40","bg-primary/5"); }}
@@ -487,7 +487,7 @@ export default function PPR() {
                     onDrop={(e) => { e.currentTarget.classList.remove("ring-2","ring-primary/40","bg-primary/5"); handleDrop(col.target as any); }}
                   >
                     <div
-                      className="px-4 py-3 flex items-center justify-between border-b border-border/40 bg-background/50"
+                      className="px-4 py-3 flex items-center justify-between border-b border-border/40 bg-card"
                       style={{ borderTop: `3px solid ${col.color}` }}
                     >
                       <div className="flex items-center gap-2">
@@ -528,7 +528,7 @@ export default function PPR() {
                             onDragStart={() => handleDragStart(task.id)}
                             onDragEnd={handleDragEnd}
                             className={cn(
-                              "group relative bg-background rounded-xl p-3 border border-border/50 cursor-grab active:cursor-grabbing transition-all hover:shadow-md hover:-translate-y-0.5",
+                              "group relative bg-card rounded-xl p-3 border border-border/50 cursor-grab active:cursor-grabbing transition-all hover:shadow-md hover:-translate-y-0.5 hover:border-primary/40",
                               draggedId === task.id && "opacity-40"
                             )}
                           >

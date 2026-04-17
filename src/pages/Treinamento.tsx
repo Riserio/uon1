@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { HELP_MODULES, HelpModule } from "@/data/treinamentoContent";
 import { Search, Lightbulb, ArrowLeft, BookOpen } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import {
   Accordion,
@@ -122,19 +123,12 @@ export default function Treinamento() {
     : null;
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-2">
-        <div className="p-2.5 rounded-xl bg-primary/10">
-          <BookOpen className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Ajuda</h1>
-          <p className="text-sm text-muted-foreground">
-            Aprenda a usar cada área do sistema com guias passo a passo
-          </p>
-        </div>
-      </div>
+    <div className="min-h-screen bg-background p-4 md:p-8 space-y-6">
+      <PageHeader
+        icon={BookOpen}
+        title="Central de Ajuda"
+        subtitle="Aprenda a usar cada área do sistema com guias passo a passo"
+      />
 
       {/* Search */}
       {!selectedModule && (

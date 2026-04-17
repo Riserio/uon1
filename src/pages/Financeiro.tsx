@@ -28,6 +28,7 @@ import {
   ShieldAlert
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { PageHeader } from "@/components/ui/page-header";
 
 import FinanceiroVisaoGeral from "@/components/financeiro/FinanceiroVisaoGeral";
 import FinanceiroContasReceber from "@/components/financeiro/FinanceiroContasReceber";
@@ -129,51 +130,40 @@ export default function Financeiro() {
   return (
     <div className="min-h-screen bg-background">
       <div className="p-4 sm:p-6 space-y-5 max-w-[1600px] mx-auto">
-        {/* Header - Conta Azul style */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-              <Wallet className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Financeiro</h1>
-                <Badge variant="outline" className="text-xs font-normal hidden sm:flex">
-                  {selectedCorretoraName}
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">Gestão financeira completa</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
-              <SelectTrigger className="w-56 h-9 rounded-xl text-sm border-border/60 bg-card">
-                <Building2 className="h-4 w-4 mr-2 text-muted-foreground shrink-0" />
-                <SelectValue placeholder="Associação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="administradora" className="font-semibold">
-                  <div className="flex items-center gap-2">
-                    <ShieldAlert className="h-3.5 w-3.5 text-primary" />
-                    ADMINISTRADORA
-                  </div>
-                </SelectItem>
-                {corretoras.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button 
-              variant="outline" 
-              size="icon"
-              className="rounded-xl shrink-0 h-9 w-9 border-border/60"
-              onClick={() => { fetchSummary(); toast.success("Dados atualizados!"); }}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={Wallet}
+          title="Financeiro"
+          subtitle={`Gestão financeira completa · ${selectedCorretoraName || 'Selecione uma associação'}`}
+          actions={
+            <>
+              <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
+                <SelectTrigger className="w-56 h-9 rounded-xl text-sm border-border/60 bg-card">
+                  <Building2 className="h-4 w-4 mr-2 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Associação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="administradora" className="font-semibold">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="h-3.5 w-3.5 text-primary" />
+                      ADMINISTRADORA
+                    </div>
+                  </SelectItem>
+                  {corretoras.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-xl shrink-0 h-9 w-9 border-border/60"
+                onClick={() => { fetchSummary(); toast.success("Dados atualizados!"); }}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </>
+          }
+        />
 
         {/* Main KPI Widget - Conta Azul inspired */}
         <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">

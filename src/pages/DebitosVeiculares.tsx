@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Search, Car, AlertTriangle, CreditCard, Loader2, FileText, DollarSign } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface VehicleInfo {
   license_plate: string;
@@ -170,18 +171,19 @@ export default function DebitosVeiculares() {
     .reduce((sum: number, d: any) => sum + (d.amount || d.valor || 0), 0);
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Débitos Veiculares</h1>
-          <p className="text-muted-foreground">Consulte débitos por placa e simule parcelamento</p>
-        </div>
-        {step !== "search" && (
-          <Button variant="outline" onClick={resetConsulta}>
-            Nova Consulta
-          </Button>
-        )}
-      </div>
+    <div className="p-4 md:p-6 space-y-6">
+      <PageHeader
+        icon={Car}
+        title="Débitos Veiculares"
+        subtitle="Consulte débitos por placa e simule parcelamento"
+        actions={
+          step !== "search" ? (
+            <Button variant="outline" onClick={resetConsulta} className="rounded-xl">
+              Nova Consulta
+            </Button>
+          ) : null
+        }
+      />
 
       {/* Search */}
       <Card>
