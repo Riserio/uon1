@@ -3,21 +3,35 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Bell } from "lucide-react";
 
 export function usePontoAlertas() {
   const { user } = useAuth();
   const lastCheckedRef = useRef<string | null>(null);
   const shownAlertsRef = useRef<Set<string>>(new Set());
 
-  // Buscar funcionário vinculado ao usuário
+  // Configuração global de jornada
+  const { data: config } = useQuery({
+    queryKey: ["jornada_config"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("jornada_config")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 5 * 60_000,
+  });
+
+  // Funcionário vinculado ao usuário
   const { data: funcionario } = useQuery({
     queryKey: ["funcionario_by_profile", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       const { data, error } = await supabase
         .from("funcionarios")
-        .select("id, nome")
+        .select("id, nome, horario_entrada, horario_saida, horario_almoco_inicio, horario_almoco_fim")
         .eq("profile_id", user.id)
         .eq("ativo", true)
         .maybeSingle();
@@ -27,85 +41,72 @@ export function usePontoAlertas() {
     enabled: !!user?.id,
   });
 
-  // Buscar alertas ativos do funcionário
-  const { data: alertas } = useQuery({
-    queryKey: ["alertas_ponto_ativos", funcionario?.id],
-    queryFn: async () => {
-      if (!funcionario?.id) return [];
-      const { data, error } = await supabase
-        .from("alertas_ponto")
-        .select("*")
-        .eq("funcionario_id", funcionario.id)
-        .eq("ativo", true);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!funcionario?.id,
-    refetchInterval: 60000, // Refetch every minute
-  });
-
-  // Verificar alertas a cada minuto
   useEffect(() => {
-    if (!alertas || alertas.length === 0) return;
+    if (!config?.lembretes_automaticos_ativos) return;
+    if (!funcionario) return;
+
+    const buildAlerts = () => {
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      // segunda a sexta apenas (1-5)
+      if (dayOfWeek === 0 || dayOfWeek === 6) return [];
+
+      const horarios = [
+        {
+          tipo: "entrada",
+          time: (funcionario.horario_entrada || config.horario_entrada_padrao || "08:00").substring(0, 5),
+          mensagem: config.mensagem_entrada || "Hora de bater o ponto de entrada!",
+          desc: "Hora de registrar a entrada!",
+        },
+        {
+          tipo: "saida_almoco",
+          time: (funcionario.horario_almoco_inicio || config.horario_saida_almoco_padrao || "12:00").substring(0, 5),
+          mensagem: config.mensagem_saida_almoco || "Horário de almoço!",
+          desc: "Não esqueça de bater o ponto de saída para almoço.",
+        },
+        {
+          tipo: "volta_almoco",
+          time: (funcionario.horario_almoco_fim || config.horario_volta_almoco_padrao || "13:00").substring(0, 5),
+          mensagem: config.mensagem_volta_almoco || "Bom retorno!",
+          desc: "Bata o ponto de volta do almoço.",
+        },
+        {
+          tipo: "saida",
+          time: (funcionario.horario_saida || config.horario_saida_padrao || "18:00").substring(0, 5),
+          mensagem: config.mensagem_saida || "Fim do expediente!",
+          desc: "Bata o ponto de saída.",
+        },
+      ];
+      return horarios;
+    };
 
     const checkAlerts = () => {
       const now = new Date();
-      const currentDay = now.getDay();
       const currentTime = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
       const currentMinuteKey = `${now.toDateString()}-${currentTime}`;
 
-      // Evitar verificar múltiplas vezes no mesmo minuto
       if (lastCheckedRef.current === currentMinuteKey) return;
       lastCheckedRef.current = currentMinuteKey;
 
-      alertas.forEach((alerta: any) => {
-        // Verificar se é o dia correto
-        if (!alerta.dias_semana?.includes(currentDay)) return;
+      const alerts = buildAlerts();
+      alerts.forEach((alerta) => {
+        if (alerta.time !== currentTime) return;
+        const key = `${alerta.tipo}-${now.toDateString()}`;
+        if (shownAlertsRef.current.has(key)) return;
+        shownAlertsRef.current.add(key);
 
-        // Verificar horário
-        const alertaTime = alerta.horario_programado?.substring(0, 5);
-        if (alertaTime !== currentTime) return;
-
-        // Verificar se já exibiu este alerta hoje
-        const alertaKey = `${alerta.id}-${now.toDateString()}`;
-        if (shownAlertsRef.current.has(alertaKey)) return;
-        shownAlertsRef.current.add(alertaKey);
-
-        // Exibir toast
-        toast(alerta.mensagem || "Lembrete de Ponto!", {
-          description: getAlertaDescription(alerta.tipo),
-          duration: 10000,
+        toast(alerta.mensagem, {
+          description: alerta.desc,
+          duration: 12000,
           icon: "🔔",
         });
-
-        // Marcar como enviado no banco
-        supabase
-          .from("alertas_ponto")
-          .update({ enviado_em: new Date().toISOString() })
-          .eq("id", alerta.id)
-          .then(() => {});
       });
     };
 
-    // Verificar imediatamente e depois a cada 30 segundos
     checkAlerts();
-    const interval = setInterval(checkAlerts, 30000);
-
+    const interval = setInterval(checkAlerts, 30_000);
     return () => clearInterval(interval);
-  }, [alertas]);
+  }, [config, funcionario]);
 
-  return { funcionario, alertas };
-}
-
-function getAlertaDescription(tipo: string): string {
-  switch (tipo) {
-    case "lembrete_entrada":
-      return "Hora de registrar a entrada!";
-    case "lembrete_saida":
-      return "Hora de registrar a saída!";
-    case "lembrete_almoco":
-      return "Lembrete do horário de almoço!";
-    default:
-      return "Lembrete de ponto";
-  }
+  return { funcionario, config };
 }
