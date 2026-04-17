@@ -593,7 +593,8 @@ export default function PPR() {
                       })}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
