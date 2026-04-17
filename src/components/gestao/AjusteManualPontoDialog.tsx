@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -40,6 +41,8 @@ export default function AjusteManualPontoDialog({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
+  // modo: "ponto" = registro de ponto comum | "abono_horas" = abono de horas
+  const [modo, setModo] = useState<"ponto" | "abono_horas">("ponto");
   const [tipo, setTipo] = useState(registroExistente?.tipo || "entrada");
   const [data, setData] = useState(
     registroExistente 
@@ -51,10 +54,35 @@ export default function AjusteManualPontoDialog({
       ? format(new Date(registroExistente.data_hora), "HH:mm") 
       : "08:00"
   );
+  const [horasAbonadas, setHorasAbonadas] = useState("1");
   const [motivo, setMotivo] = useState("");
 
   const ajustarPonto = useMutation({
     mutationFn: async () => {
+      // Modo abono de horas → grava em ausencias_funcionario
+      if (modo === "abono_horas") {
+        const horasNum = parseFloat(horasAbonadas);
+        if (!horasNum || horasNum <= 0) {
+          throw new Error("Informe a quantidade de horas a abonar");
+        }
+        if (!motivo.trim()) {
+          throw new Error("Informe o motivo do abono de horas");
+        }
+        const { error } = await (supabase as any).from("ausencias_funcionario").insert({
+          funcionario_id: funcionarioId,
+          tipo: "abono",
+          tipo_abono: "hora",
+          horas_abonadas: horasNum,
+          data_referencia: data,
+          data_inicio: data,
+          data_fim: data,
+          motivo: motivo.trim(),
+          created_by: user?.id,
+        });
+        if (error) throw error;
+        return;
+      }
+
       // Motivo é obrigatório apenas para registros novos. Para edição, é opcional.
       if (!registroExistente && !motivo.trim()) {
         throw new Error("Informe o motivo do registro manual");
@@ -97,12 +125,21 @@ export default function AjusteManualPontoDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["registros_ponto"] });
-      toast.success(registroExistente ? "Ponto ajustado com sucesso!" : "Ponto manual registrado!");
+      queryClient.invalidateQueries({ queryKey: ["ausencias_funcionario"] });
+      queryClient.invalidateQueries({ queryKey: ["ausencias_funcionario_periodo"] });
+      queryClient.invalidateQueries({ queryKey: ["analise_registros"] });
+      toast.success(
+        modo === "abono_horas"
+          ? "Abono de horas registrado!"
+          : registroExistente ? "Ponto ajustado com sucesso!" : "Ponto manual registrado!"
+      );
       onOpenChange(false);
       // Reset form
+      setModo("ponto");
       setTipo("entrada");
       setData(format(new Date(), "yyyy-MM-dd"));
       setHora("08:00");
+      setHorasAbonadas("1");
       setMotivo("");
     },
     onError: (error) => {
@@ -110,12 +147,18 @@ export default function AjusteManualPontoDialog({
     },
   });
 
+  const isAbonoHoras = modo === "abono_horas";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {registroExistente ? "Ajustar Ponto" : "Registro Manual de Ponto"}
+            {registroExistente
+              ? "Ajustar Ponto"
+              : isAbonoHoras
+                ? "Abonar Horas"
+                : "Registro Manual de Ponto"}
           </DialogTitle>
         </DialogHeader>
 
@@ -124,21 +167,51 @@ export default function AjusteManualPontoDialog({
             <p className="text-sm font-medium">{funcionarioNome}</p>
           </div>
 
-          <div className="space-y-2">
-            <Label>Tipo de Registro</Label>
-            <Select value={tipo} onValueChange={setTipo}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {tiposPonto.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Toggle modo apenas em criação (não edição) */}
+          {!registroExistente && (
+            <RadioGroup
+              value={modo}
+              onValueChange={(v) => setModo(v as "ponto" | "abono_horas")}
+              className="grid grid-cols-2 gap-2"
+            >
+              <Label
+                htmlFor="modo-ponto"
+                className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition ${
+                  !isAbonoHoras ? "border-primary bg-primary/5" : "border-border"
+                }`}
+              >
+                <RadioGroupItem value="ponto" id="modo-ponto" />
+                <span className="text-sm">Registro de ponto</span>
+              </Label>
+              <Label
+                htmlFor="modo-abono"
+                className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition ${
+                  isAbonoHoras ? "border-primary bg-primary/5" : "border-border"
+                }`}
+              >
+                <RadioGroupItem value="abono_horas" id="modo-abono" />
+                <span className="text-sm">Abono de horas</span>
+              </Label>
+            </RadioGroup>
+          )}
+
+          {!isAbonoHoras && (
+            <div className="space-y-2">
+              <Label>Tipo de Registro</Label>
+              <Select value={tipo} onValueChange={setTipo}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {tiposPonto.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -149,27 +222,43 @@ export default function AjusteManualPontoDialog({
                 onChange={(e) => setData(e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Hora</Label>
-              <Input
-                type="time"
-                value={hora}
-                onChange={(e) => setHora(e.target.value)}
-              />
-            </div>
+            {isAbonoHoras ? (
+              <div className="space-y-2">
+                <Label>Horas a abonar</Label>
+                <Input
+                  type="number"
+                  step="0.25"
+                  min="0.25"
+                  value={horasAbonadas}
+                  onChange={(e) => setHorasAbonadas(e.target.value)}
+                  placeholder="Ex.: 1.5"
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Hora</Label>
+                <Input
+                  type="time"
+                  value={hora}
+                  onChange={(e) => setHora(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label>
-              Motivo {registroExistente ? "(opcional)" : "*"}
+              Motivo {registroExistente && !isAbonoHoras ? "(opcional)" : "*"}
             </Label>
             <Textarea
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
               placeholder={
-                registroExistente
-                  ? "Opcional: descreva o motivo da edição..."
-                  : "Descreva o motivo do registro manual..."
+                isAbonoHoras
+                  ? "Justifique o abono de horas (ex.: consulta médica, deslocamento autorizado...)"
+                  : registroExistente
+                    ? "Opcional: descreva o motivo da edição..."
+                    : "Descreva o motivo do registro manual..."
               }
               rows={3}
             />

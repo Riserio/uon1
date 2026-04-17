@@ -19,9 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarOff, Plus, Trash2, Plane, Coffee, FileCheck2, PartyPopper } from "lucide-react";
+import { CalendarOff, Plus, Trash2, Plane, Coffee, FileCheck2, PartyPopper, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -42,17 +43,21 @@ const TIPOS = [
 
 export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionarioId, funcionarioNome }: Props) {
   const qc = useQueryClient();
+  const [tipoAbono, setTipoAbono] = useState<"dia" | "hora">("dia");
   const [tipo, setTipo] = useState<string>("abono");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
+  const [horas, setHoras] = useState("1");
   const [motivo, setMotivo] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) {
+      setTipoAbono("dia");
       setTipo("abono");
       setDataInicio("");
       setDataFim("");
+      setHoras("1");
       setMotivo("");
     }
   }, [open]);
@@ -73,36 +78,64 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
 
   const handleSave = async () => {
     if (!dataInicio) {
-      toast.error("Informe a data de início");
-      return;
-    }
-    const fim = dataFim || dataInicio;
-    if (fim < dataInicio) {
-      toast.error("Data fim não pode ser anterior à data início");
+      toast.error("Informe a data");
       return;
     }
     setSaving(true);
     const { data: userData } = await supabase.auth.getUser();
-    const { error } = await (supabase as any).from("ausencias_funcionario").insert({
-      funcionario_id: funcionarioId,
-      tipo,
-      data_inicio: dataInicio,
-      data_fim: fim,
-      motivo: motivo || null,
-      created_by: userData.user?.id,
-    });
+
+    let payload: any;
+    if (tipoAbono === "hora") {
+      const horasNum = parseFloat(horas);
+      if (!horasNum || horasNum <= 0) {
+        toast.error("Informe a quantidade de horas");
+        setSaving(false);
+        return;
+      }
+      payload = {
+        funcionario_id: funcionarioId,
+        tipo: "abono",
+        tipo_abono: "hora",
+        horas_abonadas: horasNum,
+        data_referencia: dataInicio,
+        data_inicio: dataInicio,
+        data_fim: dataInicio,
+        motivo: motivo || null,
+        created_by: userData.user?.id,
+      };
+    } else {
+      const fim = dataFim || dataInicio;
+      if (fim < dataInicio) {
+        toast.error("Data fim não pode ser anterior à data início");
+        setSaving(false);
+        return;
+      }
+      payload = {
+        funcionario_id: funcionarioId,
+        tipo,
+        tipo_abono: "dia",
+        data_inicio: dataInicio,
+        data_fim: fim,
+        motivo: motivo || null,
+        created_by: userData.user?.id,
+      };
+    }
+
+    const { error } = await (supabase as any).from("ausencias_funcionario").insert(payload);
     setSaving(false);
     if (error) {
       toast.error("Erro ao registrar: " + error.message);
       return;
     }
-    toast.success("Ausência registrada");
+    toast.success("Registro salvo");
     setDataInicio("");
     setDataFim("");
+    setHoras("1");
     setMotivo("");
     refetch();
     qc.invalidateQueries({ queryKey: ["abonados"] });
     qc.invalidateQueries({ queryKey: ["analise_registros"] });
+    qc.invalidateQueries({ queryKey: ["ausencias_funcionario_periodo"] });
   };
 
   const handleDelete = async (id: string) => {
@@ -116,6 +149,7 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
     refetch();
     qc.invalidateQueries({ queryKey: ["abonados"] });
     qc.invalidateQueries({ queryKey: ["analise_registros"] });
+    qc.invalidateQueries({ queryKey: ["ausencias_funcionario_periodo"] });
   };
 
   const tipoMeta = (t: string) => TIPOS.find((x) => x.value === t) || TIPOS[0];
@@ -136,38 +170,87 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
         <div className="space-y-4 overflow-y-auto pr-1">
           {/* Form */}
           <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Tipo</Label>
-                <Select value={tipo} onValueChange={setTipo}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIPOS.map((t) => {
-                      const Icon = t.icon;
-                      return (
-                        <SelectItem key={t.value} value={t.value}>
-                          <span className="flex items-center gap-2">
-                            <Icon className="h-4 w-4" />
-                            {t.label}
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+            {/* Toggle dia / hora */}
+            <RadioGroup
+              value={tipoAbono}
+              onValueChange={(v) => setTipoAbono(v as "dia" | "hora")}
+              className="grid grid-cols-2 gap-2"
+            >
+              <Label
+                htmlFor="abono-dia"
+                className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition ${
+                  tipoAbono === "dia" ? "border-primary bg-primary/5" : "border-border"
+                }`}
+              >
+                <RadioGroupItem value="dia" id="abono-dia" />
+                <span className="text-sm">Dia(s) inteiro(s)</span>
+              </Label>
+              <Label
+                htmlFor="abono-hora"
+                className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition ${
+                  tipoAbono === "hora" ? "border-primary bg-primary/5" : "border-border"
+                }`}
+              >
+                <RadioGroupItem value="hora" id="abono-hora" />
+                <span className="text-sm">Abonar horas</span>
+              </Label>
+            </RadioGroup>
+
+            {tipoAbono === "dia" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Tipo</Label>
+                  <Select value={tipo} onValueChange={setTipo}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS.map((t) => {
+                        const Icon = t.icon;
+                        return (
+                          <SelectItem key={t.value} value={t.value}>
+                            <span className="flex items-center gap-2">
+                              <Icon className="h-4 w-4" />
+                              {t.label}
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="hidden sm:block" />
+                <div className="space-y-1.5">
+                  <Label>Data início</Label>
+                  <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Data fim <span className="text-xs text-muted-foreground">(opcional)</span></Label>
+                  <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
+                </div>
               </div>
-              <div className="hidden sm:block" />
-              <div className="space-y-1.5">
-                <Label>Data início</Label>
-                <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+            )}
+
+            {tipoAbono === "hora" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Data</Label>
+                  <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Horas a abonar</Label>
+                  <Input
+                    type="number"
+                    step="0.25"
+                    min="0.25"
+                    value={horas}
+                    onChange={(e) => setHoras(e.target.value)}
+                    placeholder="Ex.: 1.5"
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Data fim <span className="text-xs text-muted-foreground">(opcional)</span></Label>
-                <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
-              </div>
-            </div>
+            )}
+
             <div className="space-y-1.5">
               <Label>Motivo / observação</Label>
               <Textarea
@@ -196,21 +279,28 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
                   </div>
                 )}
                 {(ausencias || []).map((a) => {
+                  const isHora = a.tipo_abono === "hora";
                   const meta = tipoMeta(a.tipo);
-                  const Icon = meta.icon;
+                  const Icon = isHora ? Clock : meta.icon;
                   const sameDay = a.data_inicio === a.data_fim;
                   return (
                     <div key={a.id} className="flex items-start gap-3 p-3">
-                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${meta.color}`}>
+                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
+                        isHora ? "bg-primary/10 text-primary" : meta.color
+                      }`}>
                         <Icon className="h-4 w-4" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="secondary" className="font-normal">{meta.label}</Badge>
+                          <Badge variant="secondary" className="font-normal">
+                            {isHora ? `${a.horas_abonadas}h abonadas` : meta.label}
+                          </Badge>
                           <span className="text-sm font-medium">
-                            {sameDay
-                              ? format(parseISO(a.data_inicio), "dd 'de' MMM yyyy", { locale: ptBR })
-                              : `${format(parseISO(a.data_inicio), "dd/MM/yyyy")} → ${format(parseISO(a.data_fim), "dd/MM/yyyy")}`}
+                            {isHora && a.data_referencia
+                              ? format(parseISO(a.data_referencia), "dd 'de' MMM yyyy", { locale: ptBR })
+                              : sameDay
+                                ? format(parseISO(a.data_inicio), "dd 'de' MMM yyyy", { locale: ptBR })
+                                : `${format(parseISO(a.data_inicio), "dd/MM/yyyy")} → ${format(parseISO(a.data_fim), "dd/MM/yyyy")}`}
                           </span>
                         </div>
                         {a.motivo && (
