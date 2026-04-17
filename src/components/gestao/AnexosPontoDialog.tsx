@@ -21,6 +21,8 @@ interface AnexosPontoDialogProps {
   onOpenChange: (open: boolean) => void;
   funcionarioId: string;
   funcionarioNome: string;
+  /** Se true, renderiza apenas o conteúdo (sem o wrapper Dialog) — para uso embutido em outro dialog. */
+  embedded?: boolean;
 }
 
 const tiposAnexo = [
@@ -34,6 +36,7 @@ export default function AnexosPontoDialog({
   onOpenChange,
   funcionarioId,
   funcionarioNome,
+  embedded = false,
 }: AnexosPontoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -142,17 +145,8 @@ export default function AnexosPontoDialog({
     return tiposAnexo.find((t) => t.value === tipoValue) || tiposAnexo[2];
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Anexos de Ponto - {funcionarioNome}
-          </DialogTitle>
-        </DialogHeader>
-
-        <Tabs defaultValue="upload" className="w-full">
+  const body = (
+    <Tabs defaultValue="upload" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="upload">Enviar Anexo</TabsTrigger>
             <TabsTrigger value="historico">Histórico ({anexos?.length || 0})</TabsTrigger>
