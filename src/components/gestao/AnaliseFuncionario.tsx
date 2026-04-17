@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import GerenciarAusenciasDialog from "./GerenciarAusenciasDialog";
-import { CalendarOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -86,7 +84,6 @@ export default function AnaliseFuncionario() {
   const [feedback, setFeedback] = useState("");
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [feedbackLoaded, setFeedbackLoaded] = useState(false);
-  const [ausenciasOpen, setAusenciasOpen] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const periodo = useMemo(() => {
@@ -199,32 +196,32 @@ export default function AnaliseFuncionario() {
     },
   });
 
-  // Dias abonados (atestados / abonos com dias_abonados)
+  // Dias abonados (atestados / abonos com dias_abonados ou horas)
   const { data: abonados } = useQuery({
     queryKey: ["abonados", funcionarioId, periodo.inicio.toISOString()],
     queryFn: async () => {
       if (!funcionarioId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("anexos_ponto")
-        .select("data_referencia, dias_abonados, tipo")
+        .select("data_referencia, dias_abonados, horas_abonadas, tipo")
         .eq("funcionario_id", funcionarioId)
         .not("data_referencia", "is", null)
         .gte("data_referencia", format(periodo.inicio, "yyyy-MM-dd"))
         .lte("data_referencia", format(periodo.fim, "yyyy-MM-dd"));
       if (error) throw error;
-      return data || [];
+      return (data || []) as any[];
     },
     enabled: !!funcionarioId,
   });
 
-  // Ausências (abonos manuais, folgas, férias, feriados individuais)
+  // Ausências (abonos manuais, folgas, férias, feriados individuais — dia ou hora)
   const { data: ausencias } = useQuery({
     queryKey: ["ausencias_funcionario_periodo", funcionarioId, periodo.inicio.toISOString()],
     queryFn: async () => {
       if (!funcionarioId) return [];
       const { data, error } = await (supabase as any)
         .from("ausencias_funcionario")
-        .select("data_inicio, data_fim, tipo")
+        .select("data_inicio, data_fim, tipo, tipo_abono, horas_abonadas, data_referencia")
         .eq("funcionario_id", funcionarioId)
         .lte("data_inicio", format(periodo.fim, "yyyy-MM-dd"))
         .gte("data_fim", format(periodo.inicio, "yyyy-MM-dd"));
@@ -270,8 +267,17 @@ export default function AnaliseFuncionario() {
 
     const feriadosSet = new Set((feriados || []).map((f: any) => f.data));
     const abonadosSet = new Set<string>();
+    // Mapa de horas abonadas por dia (yyyy-MM-dd → minutos)
+    const horasAbonadasPorDia: Record<string, number> = {};
+
     (abonados || []).forEach((a: any) => {
       if (!a.data_referencia) return;
+      const horas = Number(a.horas_abonadas || 0);
+      if (horas > 0) {
+        const key = format(parseISO(a.data_referencia), "yyyy-MM-dd");
+        horasAbonadasPorDia[key] = (horasAbonadasPorDia[key] || 0) + horas * 60;
+        return;
+      }
       const dias = Math.max(1, a.dias_abonados || 1);
       const base = parseISO(a.data_referencia);
       for (let i = 0; i < dias; i++) {
@@ -282,6 +288,11 @@ export default function AnaliseFuncionario() {
     });
     // Ausências (abonos manuais, folgas, férias, feriados individuais)
     (ausencias || []).forEach((a: any) => {
+      if (a.tipo_abono === "hora" && a.data_referencia) {
+        const key = format(parseISO(a.data_referencia), "yyyy-MM-dd");
+        horasAbonadasPorDia[key] = (horasAbonadasPorDia[key] || 0) + Number(a.horas_abonadas || 0) * 60;
+        return;
+      }
       if (!a.data_inicio || !a.data_fim) return;
       const ini = parseISO(a.data_inicio);
       const fim = parseISO(a.data_fim);
