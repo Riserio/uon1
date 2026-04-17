@@ -300,15 +300,21 @@ export default function GestaoJornada() {
       if (!registrosPorDia[dia]) registrosPorDia[dia] = [];
       registrosPorDia[dia].push(r);
     });
+    const tolerancia = funcionarioSelecionado.tolerancia_atraso_minutos ?? 10;
     const workedDays: Array<{
       date: string;
       dayName: string;
       hoursWorked: number;
+      expectedMinutes: number;
       isLate: boolean;
       lateMinutes: number;
+      lateMinutesDiscounted: number;
       hasOvertime: boolean;
       overtimeMinutes: number;
+      saldoMinutos: number;
       entrada?: string;
+      saidaAlmoco?: string;
+      voltaAlmoco?: string;
       saida?: string;
       almocoMinutes: number;
       almocoRegistrado: boolean;
@@ -317,6 +323,8 @@ export default function GestaoJornada() {
     let lateCount = 0;
     let overtimeCount = 0;
     let totalOvertimeMinutes = 0;
+    let totalLateDiscountedMinutes = 0;
+    let totalSaldoMinutos = 0;
     const expectedEntrada = funcionarioSelecionado.horario_entrada || "08:00";
     const expectedSaida = funcionarioSelecionado.horario_saida || "18:00";
     const almocoInicio = funcionarioSelecionado.horario_almoco_inicio || "12:00";
@@ -326,6 +334,8 @@ export default function GestaoJornada() {
     const [almocoInicioHour, almocoInicioMinute] = almocoInicio.split(":").map(Number);
     const [almocoFimHour, almocoFimMinute] = almocoFim.split(":").map(Number);
     const defaultAlmocoMinutes = almocoFimHour * 60 + almocoFimMinute - (almocoInicioHour * 60 + almocoInicioMinute);
+    const expectedDayMinutes =
+      (expectedSaidaHour * 60 + expectedSaidaMinute) - (expectedHour * 60 + expectedMinute) - defaultAlmocoMinutes;
 
     Object.entries(registrosPorDia).forEach(([dia, regs]) => {
       const entrada = regs.find((r: any) => r.tipo === "entrada");
@@ -335,6 +345,7 @@ export default function GestaoJornada() {
       let hoursWorked = 0,
         isLate = false,
         lateMinutes = 0,
+        lateMinutesDiscounted = 0,
         hasOvertime = false,
         overtimeMinutes = 0;
       let almocoMinutes = defaultAlmocoMinutes,
@@ -345,9 +356,12 @@ export default function GestaoJornada() {
         const expectedDate = new Date(entradaDate);
         expectedDate.setHours(expectedHour, expectedMinute, 0, 0);
         const diffMinutes = differenceInMinutes(entradaDate, expectedDate);
-        if (diffMinutes > 10) {
+        if (diffMinutes > tolerancia) {
           isLate = true;
           lateMinutes = diffMinutes;
+          // Desconta apenas o que excede a tolerância (CLT: até 10min é "perdoado")
+          lateMinutesDiscounted = diffMinutes - tolerancia;
+          totalLateDiscountedMinutes += lateMinutesDiscounted;
           lateCount++;
         }
       }
@@ -356,11 +370,11 @@ export default function GestaoJornada() {
         const expectedSaidaDate = new Date(saidaDate);
         expectedSaidaDate.setHours(expectedSaidaHour, expectedSaidaMinute, 0, 0);
         const diffMinutesSaida = differenceInMinutes(saidaDate, expectedSaidaDate);
-        if (diffMinutesSaida > 10) {
+        if (diffMinutesSaida > tolerancia) {
           hasOvertime = true;
-          overtimeMinutes = diffMinutesSaida;
+          overtimeMinutes = diffMinutesSaida - tolerancia;
           overtimeCount++;
-          totalOvertimeMinutes += diffMinutesSaida;
+          totalOvertimeMinutes += overtimeMinutes;
         }
       }
       if (entrada && saida) {
@@ -375,15 +389,25 @@ export default function GestaoJornada() {
         hoursWorked = Math.max(0, totalMinutes / 60);
         totalMinutesWorked += totalMinutes;
       }
+      // Saldo do dia = horas trabalhadas - horas esperadas (em minutos)
+      const workedMinutesDay = hoursWorked * 60;
+      const saldoMinutos = entrada && saida ? Math.round(workedMinutesDay - expectedDayMinutes) : 0;
+      totalSaldoMinutos += saldoMinutos;
+
       workedDays.push({
         date: dia,
         dayName: format(parseISO(dia), "EEEE", { locale: ptBR }),
         hoursWorked,
+        expectedMinutes: expectedDayMinutes,
         isLate,
         lateMinutes,
+        lateMinutesDiscounted,
         hasOvertime,
         overtimeMinutes,
+        saldoMinutos,
         entrada: entrada ? format(new Date(entrada.data_hora), "HH:mm") : undefined,
+        saidaAlmoco: saidaAlmoco ? format(new Date(saidaAlmoco.data_hora), "HH:mm") : undefined,
+        voltaAlmoco: voltaAlmoco ? format(new Date(voltaAlmoco.data_hora), "HH:mm") : undefined,
         saida: saida ? format(new Date(saida.data_hora), "HH:mm") : undefined,
         almocoMinutes,
         almocoRegistrado,
@@ -397,6 +421,9 @@ export default function GestaoJornada() {
       lateCount,
       overtimeCount,
       totalOvertimeMinutes,
+      totalLateDiscountedMinutes,
+      totalSaldoMinutos,
+      tolerancia,
     };
   }, [registros, funcionarioSelecionado, ano, mes]);
 
