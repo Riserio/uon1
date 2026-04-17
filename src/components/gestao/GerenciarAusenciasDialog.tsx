@@ -22,7 +22,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarOff, Plus, Trash2, Plane, Coffee, FileCheck2, PartyPopper, Clock } from "lucide-react";
+import { CalendarOff, Plus, Trash2, Plane, Coffee, FileCheck2, PartyPopper, Clock, Paperclip, Download } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -51,6 +51,7 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
   const [dataFim, setDataFim] = useState("");
   const [horas, setHoras] = useState("1");
   const [motivo, setMotivo] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -61,6 +62,7 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
       setDataFim("");
       setHoras("1");
       setMotivo("");
+      setFile(null);
     }
   }, [open]);
 
@@ -86,6 +88,25 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
     setSaving(true);
     const { data: userData } = await supabase.auth.getUser();
 
+    // Upload opcional do arquivo (atestado, comprovante, etc.)
+    let arquivo_url: string | null = null;
+    let arquivo_nome: string | null = null;
+    if (file) {
+      const ext = file.name.split(".").pop();
+      const path = `${funcionarioId}/ausencias/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("ponto-documentos")
+        .upload(path, file);
+      if (upErr) {
+        toast.error("Erro ao enviar arquivo: " + upErr.message);
+        setSaving(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from("ponto-documentos").getPublicUrl(path);
+      arquivo_url = urlData.publicUrl;
+      arquivo_nome = file.name;
+    }
+
     let payload: any;
     if (tipoAbono === "hora") {
       const horasNum = parseFloat(horas);
@@ -103,6 +124,8 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
         data_inicio: dataInicio,
         data_fim: dataInicio,
         motivo: motivo || null,
+        arquivo_url,
+        arquivo_nome,
         created_by: userData.user?.id,
       };
     } else {
@@ -119,6 +142,8 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
         data_inicio: dataInicio,
         data_fim: fim,
         motivo: motivo || null,
+        arquivo_url,
+        arquivo_nome,
         created_by: userData.user?.id,
       };
     }
@@ -134,6 +159,7 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
     setDataFim("");
     setHoras("1");
     setMotivo("");
+    setFile(null);
     refetch();
     qc.invalidateQueries({ queryKey: ["abonados"] });
     qc.invalidateQueries({ queryKey: ["analise_registros"] });
