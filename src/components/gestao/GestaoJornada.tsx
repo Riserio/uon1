@@ -1849,61 +1849,147 @@ export default function GestaoJornada() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  {detailedStats?.workedDays && detailedStats.workedDays.length > 0 ? (
-                    <div className="space-y-1.5">
-                      {detailedStats.workedDays.map((day) => (
-                        <div
-                          key={day.date}
-                          className={cn(
-                            "flex items-center justify-between p-3 rounded-xl transition-colors",
-                            day.isLate
-                              ? "bg-red-500/5 border border-red-200/50 dark:border-red-800/50"
-                              : day.hasOvertime
-                                ? "bg-emerald-500/5 border border-emerald-200/50 dark:border-emerald-800/50"
-                                : "bg-muted/30",
-                          )}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="flex flex-col items-center shrink-0 w-10">
-                              <span className="text-lg font-bold leading-none">{format(parseISO(day.date), "dd")}</span>
-                              <span className="text-[10px] text-muted-foreground uppercase">
-                                {format(parseISO(day.date), "EEE", { locale: ptBR })}
-                              </span>
+                  {(() => {
+                    if (!detailedStats) {
+                      return (
+                        <p className="text-center text-muted-foreground text-sm py-6">
+                          Selecione um funcionário para visualizar o histórico
+                        </p>
+                      );
+                    }
+                    // Monta lista completa do mês incluindo sábados, domingos e feriados
+                    const feriados = getFeriadosBH(ano);
+                    const daysInMonth = getDaysInMonth(new Date(ano, mes - 1));
+                    const workedMap: Record<string, typeof detailedStats.workedDays[number]> = {};
+                    detailedStats.workedDays.forEach((d) => {
+                      workedMap[d.date] = d;
+                    });
+                    const allDays: Array<
+                      | { type: "worked"; date: string; data: typeof detailedStats.workedDays[number] }
+                      | { type: "weekend" | "holiday"; date: string; label: string }
+                    > = [];
+                    for (let d = 1; d <= daysInMonth; d++) {
+                      const dateStr = `${ano}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                      const dateObj = new Date(ano, mes - 1, d);
+                      const isHoliday = feriados.includes(dateStr);
+                      const isSat = dateObj.getDay() === 6;
+                      const isSun = dateObj.getDay() === 0;
+                      if (workedMap[dateStr]) {
+                        allDays.push({ type: "worked", date: dateStr, data: workedMap[dateStr] });
+                      } else if (isHoliday) {
+                        allDays.push({ type: "holiday", date: dateStr, label: "Feriado" });
+                      } else if (isSat) {
+                        allDays.push({ type: "weekend", date: dateStr, label: "Sábado" });
+                      } else if (isSun) {
+                        allDays.push({ type: "weekend", date: dateStr, label: "Domingo" });
+                      }
+                    }
+                    // Ordena decrescente (mais recente primeiro)
+                    allDays.sort((a, b) => b.date.localeCompare(a.date));
+                    if (allDays.length === 0) {
+                      return (
+                        <p className="text-center text-muted-foreground text-sm py-6">
+                          Nenhum dia neste período
+                        </p>
+                      );
+                    }
+                    return (
+                      <div className="space-y-1.5">
+                        {allDays.map((item) => {
+                          if (item.type === "worked") {
+                            const day = item.data;
+                            return (
+                              <div
+                                key={day.date}
+                                className={cn(
+                                  "flex items-center justify-between p-3 rounded-xl transition-colors",
+                                  day.isLate
+                                    ? "bg-red-500/5 border border-red-200/50 dark:border-red-800/50"
+                                    : day.hasOvertime
+                                      ? "bg-emerald-500/5 border border-emerald-200/50 dark:border-emerald-800/50"
+                                      : "bg-muted/30",
+                                )}
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="flex flex-col items-center shrink-0 w-10">
+                                    <span className="text-lg font-bold leading-none">{format(parseISO(day.date), "dd")}</span>
+                                    <span className="text-[10px] text-muted-foreground uppercase">
+                                      {format(parseISO(day.date), "EEE", { locale: ptBR })}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-xs flex-wrap">
+                                    <span className="font-mono">
+                                      <span className="text-muted-foreground">E:</span> {day.entrada || "-"}
+                                    </span>
+                                    <span className="font-mono">
+                                      <span className="text-muted-foreground">S:</span> {day.saida || "-"}
+                                    </span>
+                                    <span className="font-mono">
+                                      <span className="text-muted-foreground">Alm:</span>{" "}
+                                      {formatHoursMinutes(day.almocoMinutes / 60)}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-sm font-semibold">{formatHoursMinutes(day.hoursWorked)}</span>
+                                  {day.isLate && (
+                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                                      -{day.lateMinutesDiscounted}min
+                                    </Badge>
+                                  )}
+                                  {day.hasOvertime && (
+                                    <Badge className="text-[10px] px-1.5 py-0 bg-emerald-600">
+                                      +{day.overtimeMinutes}min
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+                          // Weekend or Holiday row (não-útil)
+                          const isHoliday = item.type === "holiday";
+                          return (
+                            <div
+                              key={item.date}
+                              className={cn(
+                                "flex items-center justify-between p-3 rounded-xl border border-dashed",
+                                isHoliday
+                                  ? "bg-amber-500/5 border-amber-300/40 dark:border-amber-700/40"
+                                  : "bg-muted/20 border-border/40",
+                              )}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="flex flex-col items-center shrink-0 w-10 opacity-70">
+                                  <span className="text-lg font-bold leading-none">{format(parseISO(item.date), "dd")}</span>
+                                  <span className="text-[10px] text-muted-foreground uppercase">
+                                    {format(parseISO(item.date), "EEE", { locale: ptBR })}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                  <CalendarOff className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span className="text-muted-foreground font-medium">{item.label}</span>
+                                  <span className="text-muted-foreground/70">— Não útil</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "text-[10px] px-1.5 py-0",
+                                    isHoliday
+                                      ? "border-amber-400/50 text-amber-700 dark:text-amber-400"
+                                      : "border-border/60 text-muted-foreground",
+                                  )}
+                                >
+                                  {isHoliday ? "Feriado" : "Folga"}
+                                </Badge>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 text-xs flex-wrap">
-                              <span className="font-mono">
-                                <span className="text-muted-foreground">E:</span> {day.entrada || "-"}
-                              </span>
-                              <span className="font-mono">
-                                <span className="text-muted-foreground">S:</span> {day.saida || "-"}
-                              </span>
-                              <span className="font-mono">
-                                <span className="text-muted-foreground">Alm:</span>{" "}
-                                {formatHoursMinutes(day.almocoMinutes / 60)}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-sm font-semibold">{formatHoursMinutes(day.hoursWorked)}</span>
-                            {day.isLate && (
-                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                                -{day.lateMinutesDiscounted}min
-                              </Badge>
-                            )}
-                            {day.hasOvertime && (
-                              <Badge className="text-[10px] px-1.5 py-0 bg-emerald-600">
-                                +{day.overtimeMinutes}min
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground text-sm py-6">
-                      Nenhum dia trabalhado neste período
-                    </p>
-                  )}
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             </div>
