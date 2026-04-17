@@ -1087,6 +1087,13 @@ export default function GestaoJornada() {
         </div>
       </div>
 
+      {/* Admin Realtime Dashboard - sempre visível para admins, abaixo do header */}
+      {canManageAll && (
+        <div className="rounded-2xl border border-border/50 bg-gradient-to-br from-primary/5 via-card to-card p-4 sm:p-5">
+          <AdminJornadaDashboard />
+        </div>
+      )}
+
       {funcionarioId && (
         <>
           {/* View navigation pills */}
