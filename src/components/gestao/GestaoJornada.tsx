@@ -443,80 +443,227 @@ export default function GestaoJornada() {
     return acc;
   }, {});
 
-  // Export functions — Espelho de ponto estilo Sólides (individual)
-  const exportToPDF = (individual: boolean) => {
+  // Carrega imagem como dataURL (para embutir no PDF)
+  const loadImageAsDataURL = async (url: string): Promise<string | null> => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  // Folha de Ponto — layout inspirado no espelho da Sólides
+  const exportToPDF = async (individual: boolean) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
-    const periodLabel = format(new Date(ano, mes - 1), "MMMM 'de' yyyy", { locale: ptBR });
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const periodoInicio = format(new Date(ano, mes - 1, 1), "dd/MM/yyyy");
+    const periodoFim = format(
+      new Date(ano, mes - 1, getDaysInMonth(new Date(ano, mes - 1))),
+      "dd/MM/yyyy",
+    );
 
-    // Cabeçalho
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text("Espelho de Ponto", 14, 18);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Período: ${periodLabel}`, 14, 25);
+    // Logo Vangard (canto superior direito)
+    const logoData = await loadImageAsDataURL("/images/vangard-logo.png");
+
+    const drawHeader = () => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(30, 30, 30);
+      doc.text("Folha de Ponto", margin, 18);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(90, 90, 90);
+      doc.text(`${periodoInicio} a ${periodoFim}`, margin, 25);
+      if (logoData) {
+        try {
+          doc.addImage(logoData, "PNG", pageWidth - margin - 38, 8, 38, 18, undefined, "FAST");
+        } catch {}
+      }
+      // Linha separadora
+      doc.setDrawColor(220, 220, 220);
+      doc.line(margin, 30, pageWidth - margin, 30);
+    };
+
+    drawHeader();
+
+    let cursorY = 36;
 
     if (individual && funcionarioSelecionado) {
-      doc.text(`Funcionário: ${funcionarioSelecionado.nome}`, 14, 31);
-      doc.text(
-        `Cargo: ${funcionarioSelecionado.cargo || "-"} • Jornada: ${funcionarioSelecionado.carga_horaria_semanal || 44}h/sem • Tolerância: ${detailedStats?.tolerancia ?? 10}min`,
-        14,
-        37,
-      );
-    }
+      // DADOS DO EMPREGADOR
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(30, 30, 30);
+      doc.text("DADOS DO EMPREGADOR", margin, cursorY);
+      cursorY += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(60, 60, 60);
+      doc.text("Nome: Vangard Gestão de Negócios S.A.", margin, cursorY);
+      doc.text("CNPJ: 49.195.646/0001-60", pageWidth / 2, cursorY);
+      cursorY += 5;
+      doc.text("Endereço: Rua Jacuí, 1273, Concórdia, Belo Horizonte - MG", margin, cursorY);
+      cursorY += 7;
 
-    if (individual && detailedStats && detailedStats.workedDays.length > 0) {
-      // Tabela diária com saldo
-      const days = [...detailedStats.workedDays].sort((a, b) => a.date.localeCompare(b.date));
-      const body = days.map((d) => [
-        format(parseISO(d.date), "dd/MM"),
-        format(parseISO(d.date), "EEE", { locale: ptBR }),
-        d.entrada || "--:--",
-        d.saidaAlmoco || "--:--",
-        d.voltaAlmoco || "--:--",
-        d.saida || "--:--",
-        formatHoursMinutes(d.hoursWorked),
-        formatSaldoMinutos(d.saldoMinutos),
-      ]);
+      // DADOS DO COLABORADOR
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(30, 30, 30);
+      doc.text("DADOS DO COLABORADOR", margin, cursorY);
+      cursorY += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(60, 60, 60);
+      const f: any = funcionarioSelecionado;
+      doc.text(`Nome: ${(f.nome || "").toUpperCase()}`, margin, cursorY);
+      doc.text(`CPF: ${f.cpf || "-"}`, pageWidth / 2, cursorY);
+      cursorY += 5;
+      doc.text(
+        `Admissão: ${f.data_admissao ? format(parseISO(f.data_admissao), "dd/MM/yyyy") : "-"}`,
+        margin,
+        cursorY,
+      );
+      doc.text(`Função: ${(f.cargo || "-").toUpperCase()}`, pageWidth / 2, cursorY);
+      cursorY += 5;
+      doc.text(
+        `Centro de Custo: ${f.departamento || "-"}    Jornada: ${f.carga_horaria_semanal || 44}h/sem    Tolerância: ${detailedStats?.tolerancia ?? 10}min`,
+        margin,
+        cursorY,
+      );
+      cursorY += 7;
+
+      // Quadro de Horários
+      const entrada = f.horario_entrada || "08:00";
+      const saidaAlmoco = f.horario_almoco_inicio || "12:00";
+      const voltaAlmoco = f.horario_almoco_fim || "13:00";
+      const saida = f.horario_saida || "18:00";
+      const totalDia = (() => {
+        const [eh, em] = entrada.split(":").map(Number);
+        const [sah, sam] = saidaAlmoco.split(":").map(Number);
+        const [vah, vam] = voltaAlmoco.split(":").map(Number);
+        const [sh, sm] = saida.split(":").map(Number);
+        const m = sah * 60 + sam - (eh * 60 + em) + (sh * 60 + sm - (vah * 60 + vam));
+        return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+      })();
 
       autoTable(doc, {
-        startY: 44,
-        head: [["Data", "Dia", "Entrada", "S.Almoço", "V.Almoço", "Saída", "Trabalhado", "Saldo"]],
-        body,
-        theme: "striped",
-        styles: { fontSize: 8, halign: "center" },
-        headStyles: { fillColor: [102, 51, 153], textColor: 255, fontStyle: "bold" },
-        columnStyles: {
-          7: { fontStyle: "bold" },
-        },
-        didParseCell: (data: any) => {
-          if (data.section === "body" && data.column.index === 7) {
-            const txt = data.cell.raw as string;
-            if (txt?.startsWith("-")) data.cell.styles.textColor = [220, 38, 38];
-            else if (txt?.startsWith("+")) data.cell.styles.textColor = [22, 163, 74];
-          }
-        },
+        startY: cursorY,
+        head: [["Quadro de Horários", "Período 1", "Período 2", "Total"]],
+        body: [
+          ["Segunda a Sexta", `${entrada} às ${saidaAlmoco}`, `${voltaAlmoco} às ${saida}`, totalDia],
+        ],
+        theme: "grid",
+        styles: { fontSize: 8, halign: "center", cellPadding: 2 },
+        headStyles: { fillColor: [241, 245, 249], textColor: [30, 30, 30], fontStyle: "bold" },
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 6;
+    }
+
+    if (individual && detailedStats && funcionarioSelecionado) {
+      // Tabela diária — Data | Dia | Pontos | Trabalhadas | Abono | Previstas | Saldo
+      const daysMap: Record<string, any> = {};
+      detailedStats.workedDays.forEach((d) => {
+        daysMap[d.date] = d;
       });
 
-      // Resumo do mês
-      const finalY = (doc as any).lastAutoTable.finalY + 8;
+      const totalDiasMes = getDaysInMonth(new Date(ano, mes - 1));
+      const previstaPadrao = formatHoursMinutes(
+        ((funcionarioSelecionado.carga_horaria_semanal || 44) / 5),
+      );
+
+      const body: any[] = [];
+      for (let dia = 1; dia <= totalDiasMes; dia++) {
+        const date = new Date(ano, mes - 1, dia);
+        const dateStr = format(date, "yyyy-MM-dd");
+        const dayName = format(date, "EEEE", { locale: ptBR });
+        const isWE = isWeekend(date);
+        const d = daysMap[dateStr];
+
+        if (d) {
+          const pontos = [d.entrada, d.saidaAlmoco, d.voltaAlmoco, d.saida]
+            .filter(Boolean)
+            .join(" | ");
+          body.push([
+            format(date, "dd/MM"),
+            dayName,
+            pontos || "-",
+            formatHoursMinutes(d.hoursWorked),
+            "",
+            previstaPadrao,
+            formatSaldoMinutos(d.saldoMinutos),
+          ]);
+        } else {
+          body.push([
+            format(date, "dd/MM"),
+            dayName,
+            isWE ? "-" : "FALTA",
+            "",
+            "",
+            isWE ? "" : previstaPadrao,
+            "",
+          ]);
+        }
+      }
+
+      autoTable(doc, {
+        startY: cursorY,
+        head: [["Data", "Dia", "Pontos", "Trabalhadas", "Abono", "Previstas", "Saldo"]],
+        body,
+        theme: "striped",
+        styles: { fontSize: 7.5, halign: "center", cellPadding: 1.8 },
+        headStyles: {
+          fillColor: [102, 51, 153],
+          textColor: 255,
+          fontStyle: "bold",
+          halign: "center",
+        },
+        columnStyles: {
+          2: { halign: "left", cellWidth: 60 },
+          6: { fontStyle: "bold" },
+        },
+        didParseCell: (data: any) => {
+          if (data.section === "body") {
+            const rowDay = (data.row.raw?.[1] || "").toString().toLowerCase();
+            if (rowDay.includes("sábado") || rowDay.includes("domingo")) {
+              data.cell.styles.fillColor = [248, 248, 252];
+              data.cell.styles.textColor = [120, 120, 130];
+            }
+            if (data.column.index === 6) {
+              const txt = (data.cell.raw as string) || "";
+              if (txt.startsWith("-")) data.cell.styles.textColor = [220, 38, 38];
+              else if (txt.startsWith("+")) data.cell.styles.textColor = [22, 163, 74];
+            }
+          }
+        },
+        didDrawPage: () => drawHeader(),
+        margin: { top: 34, left: margin, right: margin },
+      });
+
+      // Totais
+      const finalY = (doc as any).lastAutoTable.finalY + 4;
       const saldo = detailedStats.totalSaldoMinutos;
       const extras = detailedStats.totalOvertimeMinutes;
       const atrasos = detailedStats.totalLateDiscountedMinutes;
 
       autoTable(doc, {
         startY: finalY,
-        head: [["Resumo do Mês", "Valor"]],
         body: [
-          ["Dias trabalhados", `${detailedStats.workedDaysCount} de ${detailedStats.businessDays}`],
-          ["Horas trabalhadas", formatHoursMinutes(detailedStats.totalHoursWorked)],
-          ["Horas extras", `+${formatSaldoMinutos(extras).replace("+", "")}`],
-          ["Atrasos descontados", `-${formatSaldoMinutos(atrasos).replace(/[+-]/, "")}`],
           [
-            { content: "Saldo do mês", styles: { fontStyle: "bold" } },
+            { content: "TOTAIS", styles: { fontStyle: "bold", halign: "left" } },
+            { content: `Trabalhadas: ${formatHoursMinutes(detailedStats.totalHoursWorked)}` },
+            { content: `Extras: +${formatSaldoMinutos(extras).replace(/[+-]/, "")}` },
+            { content: `Atrasos: -${formatSaldoMinutos(atrasos).replace(/[+-]/, "")}` },
             {
-              content: formatSaldoMinutos(saldo),
+              content: `Saldo: ${formatSaldoMinutos(saldo)}`,
               styles: {
                 fontStyle: "bold",
                 textColor: saldo < 0 ? [220, 38, 38] : saldo > 0 ? [22, 163, 74] : [60, 60, 60],
@@ -525,23 +672,46 @@ export default function GestaoJornada() {
           ],
         ],
         theme: "grid",
-        styles: { fontSize: 9 },
-        headStyles: { fillColor: [241, 245, 249], textColor: [30, 30, 30], fontStyle: "bold" },
-        columnStyles: { 0: { cellWidth: 80 }, 1: { halign: "right" } },
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [241, 245, 249] },
       });
 
-      doc.setFontSize(8);
-      doc.setTextColor(120, 120, 120);
+      // Assinatura
+      const sigY = (doc as any).lastAutoTable.finalY + 18;
+      if (sigY < pageHeight - 30) {
+        doc.setDrawColor(120, 120, 120);
+        doc.line(margin + 30, sigY, pageWidth - margin - 30, sigY);
+        doc.setFontSize(9);
+        doc.setTextColor(60, 60, 60);
+        doc.text(
+          (funcionarioSelecionado.nome || "").toUpperCase(),
+          pageWidth / 2,
+          sigY + 5,
+          { align: "center" },
+        );
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        doc.text(
+          "Reconheço a exatidão e confirmo a frequência constante deste cartão.",
+          pageWidth / 2,
+          sigY + 11,
+          { align: "center" },
+        );
+      }
+
+      // Rodapé
+      doc.setFontSize(7);
+      doc.setTextColor(150, 150, 150);
       doc.text(
-        `Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
-        14,
-        doc.internal.pageSize.getHeight() - 10,
+        `Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}  •  (m) = ponto ajustado manualmente`,
+        margin,
+        pageHeight - 8,
       );
     } else {
-      // Modo "todos os funcionários" ou sem dados consolidados — fallback registros brutos
+      // Modo "todos os funcionários" — fallback registros brutos
       const dataToExport = individual ? registros : allRegistros;
       if (!dataToExport || dataToExport.length === 0) {
-        doc.text("Nenhum registro encontrado", 14, 50);
+        doc.text("Nenhum registro encontrado", margin, cursorY + 10);
       } else {
         const tableData = dataToExport.map((r: any) => [
           individual ? "" : r.funcionarios?.nome || "N/A",
@@ -551,18 +721,24 @@ export default function GestaoJornada() {
           tiposPonto.find((t) => t.value === r.tipo)?.label || r.tipo,
         ]);
         autoTable(doc, {
-          startY: 44,
-          head: [individual ? ["Data", "Dia", "Hora", "Tipo"] : ["Funcionário", "Data", "Dia", "Hora", "Tipo"]],
+          startY: cursorY,
+          head: [
+            individual
+              ? ["Data", "Dia", "Hora", "Tipo"]
+              : ["Funcionário", "Data", "Dia", "Hora", "Tipo"],
+          ],
           body: individual ? tableData.map((row) => row.slice(1)) : tableData,
           theme: "striped",
           styles: { fontSize: 8 },
           headStyles: { fillColor: [102, 51, 153] },
+          didDrawPage: () => drawHeader(),
+          margin: { top: 34, left: margin, right: margin },
         });
       }
     }
 
     doc.save(
-      `espelho_ponto_${individual ? funcionarioSelecionado?.nome?.replace(/\s+/g, "_") : "todos"}_${mes}_${ano}.pdf`,
+      `folha_ponto_${individual ? funcionarioSelecionado?.nome?.replace(/\s+/g, "_") : "todos"}_${mes}_${ano}.pdf`,
     );
     toast.success("PDF exportado com sucesso!");
   };
