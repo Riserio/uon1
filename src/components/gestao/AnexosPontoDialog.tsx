@@ -349,9 +349,26 @@ export default function AnexosPontoDialog({
                 })}
               </div>
             )}
-          </TabsContent>
-        </Tabs>
+        </TabsContent>
+      </Tabs>
+  );
+
+  if (embedded) {
+    return <div className="px-4 pb-4">{body}</div>;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Anexos de Ponto - {funcionarioNome}
+          </DialogTitle>
+        </DialogHeader>
+        {body}
       </DialogContent>
     </Dialog>
   );
 }
+
