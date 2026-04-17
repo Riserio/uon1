@@ -297,6 +297,13 @@ export default function Configuracoes() {
               </div>
             )}
 
+            {/* USUÁRIOS */}
+            {activeSection === "usuarios" && canManageUsers && (
+              <div className="rounded-2xl border border-border/50 bg-card p-2 sm:p-3">
+                <Usuarios />
+              </div>
+            )}
+
             {/* SEGURANÇA */}
             {activeSection === "seguranca" && (
               <div className="rounded-2xl border border-border/50 bg-card p-5 sm:p-6 space-y-6">
