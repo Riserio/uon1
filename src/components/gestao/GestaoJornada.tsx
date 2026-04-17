@@ -1471,8 +1471,12 @@ export default function GestaoJornada() {
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-sm font-semibold">{formatHoursMinutes(day.hoursWorked)}</span>
                             {day.isLate && (
-                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                                -{day.lateMinutesDiscounted}min
+                              <Badge
+                                variant="destructive"
+                                className="text-[10px] px-1.5 py-0"
+                                title={`Atraso de ${day.lateMinutes}min (excedente: ${day.lateMinutesDiscounted}min após tolerância)`}
+                              >
+                                Atraso {day.lateMinutes}min
                               </Badge>
                             )}
                             {day.hasOvertime && (
