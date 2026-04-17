@@ -160,11 +160,17 @@ export default function AjusteManualPontoDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Motivo do Ajuste *</Label>
+            <Label>
+              Motivo {registroExistente ? "(opcional)" : "*"}
+            </Label>
             <Textarea
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Descreva o motivo do ajuste ou registro manual..."
+              placeholder={
+                registroExistente
+                  ? "Opcional: descreva o motivo da edição..."
+                  : "Descreva o motivo do registro manual..."
+              }
               rows={3}
             />
           </div>
