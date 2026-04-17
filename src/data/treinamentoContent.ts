@@ -2,7 +2,8 @@ import {
   LayoutDashboard, ClipboardList, Building2, FileText, Users,
   AlertTriangle, DollarSign, Calendar, FolderOpen, Headset,
   MessageCircle, TrendingUp, MessageSquareWarning, FileSignature,
-  Video, Megaphone, Briefcase, Settings, HelpCircle
+  Video, Megaphone, Briefcase, Settings, HelpCircle, Sparkles,
+  CalendarClock, Car, BarChart3
 } from "lucide-react";
 
 export interface HelpTopic {
