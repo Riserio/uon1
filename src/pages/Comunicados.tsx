@@ -289,7 +289,7 @@ export default function Comunicados() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
+
 
         {/* Grid de Cards */}
         {loading ? (
