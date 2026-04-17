@@ -99,6 +99,7 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
       setHorarioSaida(funcionario.horario_saida || "18:00");
       setHorarioAlmocoInicio(funcionario.horario_almoco_inicio || "12:00");
       setHorarioAlmocoFim(funcionario.horario_almoco_fim || "13:00");
+      setToleranciaAtraso(funcionario.tolerancia_atraso_minutos?.toString() ?? "10");
       setCorretoraId(funcionario.corretora_id || "");
 
       const endereco = funcionario.endereco || {};
