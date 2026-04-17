@@ -551,8 +551,23 @@ ${feedback ? `Observações do gestor:\n${feedback}` : ""}`;
               })}
             </SelectContent>
           </Select>
+          {canManage && funcionarioId && (
+            <Button variant="outline" onClick={() => setAusenciasOpen(true)} className="gap-2">
+              <CalendarOff className="h-4 w-4" />
+              Abonos / Folgas / Férias
+            </Button>
+          )}
         </div>
       </div>
+
+      {canManage && funcionarioId && (
+        <GerenciarAusenciasDialog
+          open={ausenciasOpen}
+          onOpenChange={setAusenciasOpen}
+          funcionarioId={funcionarioId}
+          funcionarioNome={funcionario?.nome}
+        />
+      )}
 
       {!funcionario ? (
         <Card className="rounded-2xl border-dashed">
