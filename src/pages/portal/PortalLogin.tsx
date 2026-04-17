@@ -40,15 +40,19 @@ export default function PortalLogin() {
       if (data.needsTotp && !data.token) {
         setNeedsTotp(true);
         setUserId(data.userId);
-        toast.info("Configure o Google Authenticator");
 
-        // Buscar QR Code
-        const { data: totpData } = await supabase.functions.invoke("portal-auth/configure-totp", {
-          body: { userId: data.userId },
-        });
+        if (data.requiresSetup) {
+          toast.info("Configure o Google Authenticator");
+          const { data: totpData } = await supabase.functions.invoke("portal-auth/configure-totp", {
+            body: { userId: data.userId },
+          });
 
-        if (totpData) {
-          setQrCodeUri(totpData.qrCodeUri);
+          if (totpData) {
+            setQrCodeUri(totpData.qrCodeUri);
+          }
+        } else {
+          setQrCodeUri("");
+          toast.info("Digite o código do Google Authenticator");
         }
       } else if (data.token) {
         login(data.token, data.corretora);
@@ -112,7 +116,7 @@ export default function PortalLogin() {
             </form>
           ) : (
             <div className="space-y-4">
-              {qrCodeUri && (
+              {qrCodeUri ? (
                 <div className="flex flex-col items-center space-y-4">
                   <div className="p-4 bg-white rounded-lg">
                     <img
@@ -125,6 +129,10 @@ export default function PortalLogin() {
                     Escaneie o código QR com o Google Authenticator
                   </p>
                 </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center">
+                  Digite o código de 6 dígitos gerado no Google Authenticator para concluir o acesso
+                </p>
               )}
 
               <form onSubmit={handleLogin} className="space-y-4">
