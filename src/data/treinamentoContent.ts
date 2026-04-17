@@ -957,7 +957,7 @@ export const HELP_MODULES: HelpModule[] = [
           "Configure jornada padrão, tolerância e dias úteis em 'Configurações da Jornada'.",
           "Lembretes automáticos de bater ponto são enviados a todos os usuários ativos — apenas habilite/desabilite."
         ],
-        tip: "O Espelho de Ponto (PDF) tem cabeçalho dual Uon1 + Vangard com cores da marca (#362c89)."
+        tip: "O Espelho de Ponto (PDF) segue o padrão clean — título à esquerda e logo Vangard no canto superior direito."
       }
     ]
   }
