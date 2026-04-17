@@ -156,20 +156,8 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
 
   const tipoMeta = (t: string) => TIPOS.find((x) => x.value === t) || TIPOS[0];
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarOff className="h-5 w-5 text-primary" />
-            Abonos, folgas e férias
-          </DialogTitle>
-          <DialogDescription>
-            {funcionarioNome ? `Gerenciando ausências de ${funcionarioNome}` : "Selecione o tipo e o período da ausência."}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 overflow-y-auto pr-1">
+  const body = (
+    <div className="space-y-4 overflow-y-auto pr-1">
           {/* Form */}
           <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
             {/* Toggle dia / hora */}
