@@ -155,9 +155,9 @@ All colors MUST be HSL.
 
 /* Portal do Parceiro - tema roxo */
 .portal-theme {
-  --primary: 249 51% 35%;
+  --primary: 247 51% 35%;
   --primary-foreground: 0 0% 100%;
-  --ring: 249 51% 35%;
+  --ring: 247 51% 35%;
 }
 
 /* Hide scrollbar utility */
