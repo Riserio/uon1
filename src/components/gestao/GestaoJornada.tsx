@@ -1055,7 +1055,7 @@ export default function GestaoJornada() {
             <div className="flex gap-1.5">
               {funcionarioId && (
                 <>
-                  <Button variant="outline" size="icon" onClick={() => setAnexosOpen(true)} title="Anexos">
+                  <Button variant="outline" size="icon" onClick={() => setAnexosOpen(true)} title="Anexos & Abonos / Folgas / Férias">
                     <Paperclip className="h-4 w-4" />
                   </Button>
                   <Button
@@ -1071,9 +1071,6 @@ export default function GestaoJornada() {
                   </Button>
                   <Button variant="outline" size="icon" onClick={() => setFechamentoOpen(true)} title="Fechamento">
                     <Lock className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="icon" onClick={() => setAusenciasOpen(true)} title="Abonos / Folgas / Férias">
-                    <CalendarOff className="h-4 w-4" />
                   </Button>
                 </>
               )}
@@ -1936,7 +1933,7 @@ export default function GestaoJornada() {
         />
       )}
       {canManageAll && funcionarioId && (
-        <AnexosPontoDialog
+        <AnexosAbonosDialog
           open={anexosOpen}
           onOpenChange={setAnexosOpen}
           funcionarioId={funcionarioId}
@@ -1950,14 +1947,6 @@ export default function GestaoJornada() {
           funcionarioId={funcionarioId}
           funcionarioNome={funcionarioSelecionado?.nome || ""}
           funcionarioProfileId={funcionarioSelecionado?.profile_id}
-        />
-      )}
-      {canManageAll && funcionarioId && (
-        <GerenciarAusenciasDialog
-          open={ausenciasOpen}
-          onOpenChange={setAusenciasOpen}
-          funcionarioId={funcionarioId}
-          funcionarioNome={funcionarioSelecionado?.nome}
         />
       )}
     </div>
