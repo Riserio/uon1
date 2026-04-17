@@ -437,7 +437,7 @@ export default function AnaliseFuncionario() {
       scoreGeral,
       horasEsperadasMes: diasUteis * horasEsperadasDia,
     };
-  }, [registros, funcionario, periodo, feriados, abonados]);
+  }, [registros, funcionario, periodo, feriados, abonados, ausencias]);
 
   const initials = (nome: string) =>
     nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
