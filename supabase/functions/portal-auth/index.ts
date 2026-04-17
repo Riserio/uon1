@@ -82,107 +82,119 @@ async function validateTOTP(secret: string, token: string, window = 1): Promise<
 }
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     const url = new URL(req.url);
-    const action = url.pathname.split('/').pop();
+    const action = url.pathname.split("/").pop();
 
-    if (action === 'login') {
+    if (action === "login") {
       const { slug, email, password, totpCode } = await req.json();
 
       const { data: corretora } = await supabaseClient
-        .from('corretoras')
-        .select('id, nome, slug')
-        .eq('slug', slug)
+        .from("corretoras")
+        .select("id, nome, slug")
+        .eq("slug", slug)
         .single();
 
       if (!corretora) {
-        return new Response(
-          JSON.stringify({ error: 'Corretora não encontrada' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
-        );
+        return new Response(JSON.stringify({ error: "Corretora não encontrada" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 404,
+        });
       }
 
-      const normalizedEmail = String(email ?? '').trim().toLowerCase();
+      const normalizedEmail = String(email ?? "").trim().toLowerCase();
 
       const { data: usuario } = await supabaseClient
-        .from('corretora_usuarios')
-        .select('*')
-        .eq('corretora_id', corretora.id)
-        .eq('email', normalizedEmail)
-        .eq('ativo', true)
+        .from("corretora_usuarios")
+        .select("*")
+        .eq("corretora_id", corretora.id)
+        .eq("email", normalizedEmail)
+        .eq("ativo", true)
         .single();
 
       if (!usuario) {
-        return new Response(
-          JSON.stringify({ error: 'Credenciais inválidas' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-        );
+        return new Response(JSON.stringify({ error: "Credenciais inválidas" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        });
       }
 
       const senhaValida = compareSync(password, usuario.senha_hash);
       if (!senhaValida) {
-        return new Response(
-          JSON.stringify({ error: 'Credenciais inválidas' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-        );
+        return new Response(JSON.stringify({ error: "Credenciais inválidas" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        });
       }
 
       await supabaseClient
-        .from('corretora_usuarios')
+        .from("corretora_usuarios")
         .update({ ultimo_acesso: new Date().toISOString() })
-        .eq('id', usuario.id);
+        .eq("id", usuario.id);
 
       if (!usuario.totp_configurado) {
         return new Response(
-          JSON.stringify({ 
+          JSON.stringify({
             needsTotp: true,
+            requiresSetup: true,
             userId: usuario.id,
-            message: 'Configure o Google Authenticator primeiro' 
+            message: "Configure o Google Authenticator primeiro",
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          }
         );
       }
 
       if (!totpCode) {
         return new Response(
-          JSON.stringify({ error: 'Código TOTP obrigatório' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+          JSON.stringify({
+            needsTotp: true,
+            requiresSetup: false,
+            userId: usuario.id,
+            message: "Informe o código do Google Authenticator",
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          }
         );
       }
 
       const totpValido = await validateTOTP(usuario.totp_secret, String(totpCode));
 
       if (!totpValido) {
-        return new Response(
-          JSON.stringify({ error: 'Código TOTP inválido' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-        );
+        return new Response(JSON.stringify({ error: "Código TOTP inválido" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        });
       }
 
-      const jwtSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      const jwtSecret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
       const encoder = new TextEncoder();
       const keyData = encoder.encode(jwtSecret);
 
       const key = await crypto.subtle.importKey(
-        'raw',
+        "raw",
         keyData,
-        { name: 'HMAC', hash: 'SHA-512' },
+        { name: "HMAC", hash: "SHA-512" },
         false,
-        ['sign', 'verify']
+        ["sign", "verify"]
       );
 
       const jwt = await create(
@@ -191,7 +203,7 @@ serve(async (req) => {
           userId: usuario.id,
           corretoraId: corretora.id,
           slug: corretora.slug,
-          exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
+          exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
         },
         key
       );
@@ -205,64 +217,63 @@ serve(async (req) => {
             slug: corretora.slug,
           },
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (action === 'configure-totp') {
+    if (action === "configure-totp") {
       const { userId } = await req.json();
 
       const { data: usuario } = await supabaseClient
-        .from('corretora_usuarios')
-        .select('*')
-        .eq('id', userId)
+        .from("corretora_usuarios")
+        .select("*")
+        .eq("id", userId)
         .single();
 
       if (!usuario) {
-        return new Response(
-          JSON.stringify({ error: 'Usuário não encontrado' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
-        );
+        return new Response(JSON.stringify({ error: "Usuário não encontrado" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 404,
+        });
       }
 
       const secret = generateTOTPSecret();
 
       const { data: corretora } = await supabaseClient
-        .from('corretoras')
-        .select('nome')
-        .eq('id', usuario.corretora_id)
+        .from("corretoras")
+        .select("nome")
+        .eq("id", usuario.corretora_id)
         .single();
 
-      const issuer = corretora?.nome || 'Portal PID';
+      const issuer = corretora?.nome || "Portal PID";
       const qrCodeUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(usuario.email)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
 
       await supabaseClient
-        .from('corretora_usuarios')
-        .update({ 
+        .from("corretora_usuarios")
+        .update({
           totp_secret: secret,
-          totp_configurado: true 
+          totp_configurado: true,
         })
-        .eq('id', userId);
+        .eq("id", userId);
 
       return new Response(
         JSON.stringify({
           secret,
           qrCodeUri,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    return new Response(
-      JSON.stringify({ error: 'Ação não encontrada' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
-    );
-
+    return new Response(JSON.stringify({ error: "Ação não encontrada" }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 404,
+    });
   } catch (error) {
-    console.error('Error:', error);
+    console.error("Error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      JSON.stringify({ error: error instanceof Error ? error.message : "Erro desconhecido" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });
