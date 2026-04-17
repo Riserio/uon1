@@ -754,9 +754,14 @@ ${feedback ? `Observações do gestor:\n${feedback}` : ""}`;
 
             <Card className="rounded-2xl border-border/50">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-primary" />
-                  Anotações para feedback
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 justify-between">
+                  <span className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-primary" />
+                    Anotações para feedback
+                  </span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {savingFeedback ? "Salvando..." : feedbackLoaded && funcionarioId ? "Salvo automaticamente" : ""}
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
