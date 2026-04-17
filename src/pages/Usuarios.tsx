@@ -1053,14 +1053,13 @@ export default function Usuarios() {
     return profile?.nome || "-";
   };
 
-  // Stats widgets
-  const userStats = useMemo(() => {
-    const total = profiles.length;
-    const ativos = profiles.filter((p) => p.ativo).length;
-    const pendentes = pendingProfiles.length;
-    const equipesCount = equipes.length;
-    return { total, ativos, pendentes, equipesCount };
-  }, [profiles, pendingProfiles, equipes]);
+  // Stats widgets (calculados sem hooks pois ficam após early return acima)
+  const userStats = {
+    total: profiles.length,
+    ativos: profiles.filter((p) => p.ativo).length,
+    pendentes: pendingProfiles.length,
+    equipesCount: equipes.length,
+  };
 
   const tabsConfig = [
     { id: "lista", label: "Lista", icon: UsersIcon, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
