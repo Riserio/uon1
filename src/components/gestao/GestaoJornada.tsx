@@ -50,6 +50,8 @@ import ConfigurarAlertasDialog from "./ConfigurarAlertasDialog";
 import AjusteManualPontoDialog from "./AjusteManualPontoDialog";
 import AnexosPontoDialog from "./AnexosPontoDialog";
 import FechamentoMensalDialog from "./FechamentoMensalDialog";
+import JornadaConfigDialog from "./JornadaConfigDialog";
+import { Settings } from "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
@@ -176,6 +178,7 @@ export default function GestaoJornada() {
   const [ajusteOpen, setAjusteOpen] = useState(false);
   const [anexosOpen, setAnexosOpen] = useState(false);
   const [fechamentoOpen, setFechamentoOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const [registroParaAjuste, setRegistroParaAjuste] = useState<any>(null);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
