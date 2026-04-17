@@ -1,26 +1,23 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { Clock, UserCircle, Briefcase, Users, CalendarClock, Shield } from "lucide-react";
+import { CalendarClock, Briefcase, Activity } from "lucide-react";
 import GestaoJornada from "@/components/gestao/GestaoJornada";
-import Usuarios from "@/pages/Usuarios";
+import AnaliseFuncionario from "@/components/gestao/AnaliseFuncionario";
 import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/ui/page-header";
 
 export default function Gestao() {
   const { userRole } = useAuth();
-  const canManageUsers = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
-  const defaultTab = canManageUsers ? "usuarios" : "jornada";
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  const canSeeAnalise = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
+  const [activeTab, setActiveTab] = useState("jornada");
 
   useEffect(() => {
-    if (activeTab !== "jornada" && activeTab !== "usuarios") {
-      setActiveTab(defaultTab);
-    }
-  }, [activeTab, defaultTab]);
+    if (activeTab === "analise" && !canSeeAnalise) setActiveTab("jornada");
+  }, [activeTab, canSeeAnalise]);
 
   const tabs = [
-    { id: "usuarios", label: "Usuários", icon: UserCircle, visible: canManageUsers, description: "Gerenciar usuários, permissões e acessos", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
     { id: "jornada", label: "Jornada de Trabalho", icon: CalendarClock, visible: true, description: "Controle de ponto e banco de horas", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+    { id: "analise", label: "Análise de Funcionário", icon: Activity, visible: canSeeAnalise, description: "Desempenho e feedback individual", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
   ].filter(tab => tab.visible);
 
   return (
@@ -32,7 +29,6 @@ export default function Gestao() {
           subtitle="Central de gerenciamento do sistema"
         />
 
-        {/* Navigation Cards - Widget Style */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -67,7 +63,6 @@ export default function Gestao() {
           })}
         </div>
 
-        {/* Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsContent value="jornada" className="mt-0">
             <div className="rounded-2xl border border-border/50 bg-card p-4 sm:p-6">
@@ -75,10 +70,10 @@ export default function Gestao() {
             </div>
           </TabsContent>
 
-          {canManageUsers && (
-            <TabsContent value="usuarios" className="mt-0">
+          {canSeeAnalise && (
+            <TabsContent value="analise" className="mt-0">
               <div className="rounded-2xl border border-border/50 bg-card p-4 sm:p-6">
-                <Usuarios />
+                <AnaliseFuncionario />
               </div>
             </TabsContent>
           )}
