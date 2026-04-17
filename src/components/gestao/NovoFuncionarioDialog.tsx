@@ -52,6 +52,7 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
   const [horarioSaida, setHorarioSaida] = useState("18:00");
   const [horarioAlmocoInicio, setHorarioAlmocoInicio] = useState("12:00");
   const [horarioAlmocoFim, setHorarioAlmocoFim] = useState("13:00");
+  const [toleranciaAtraso, setToleranciaAtraso] = useState("10");
   const [corretoraId, setCorretoraId] = useState("");
 
   // Endereço
