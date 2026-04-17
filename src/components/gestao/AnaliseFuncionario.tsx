@@ -150,8 +150,13 @@ export default function AnaliseFuncionario() {
     const evolucaoDiaria: { dia: string; saldo: number; horas: number }[] = [];
     const distribuicaoEntrada: Record<string, number> = {};
 
+    const hoje = new Date();
+    hoje.setHours(23, 59, 59, 999);
+
     dias.forEach((dia) => {
       const isWE = isWeekend(dia);
+      const isFuturo = dia.getTime() > hoje.getTime();
+      if (isFuturo) return; // Não contabiliza dias futuros
       if (!isWE) diasUteis++;
       const key = format(dia, "yyyy-MM-dd");
       const reg = porDia[key];
