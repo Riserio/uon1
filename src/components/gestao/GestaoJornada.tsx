@@ -443,42 +443,171 @@ export default function GestaoJornada() {
     return acc;
   }, {});
 
-  // Export functions
+  // Export functions — Espelho de ponto estilo Sólides (individual)
   const exportToPDF = (individual: boolean) => {
     const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const periodLabel = format(new Date(ano, mes - 1), "MMMM 'de' yyyy", { locale: ptBR });
+
+    // Cabeçalho
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.text("Relatório de Ponto", 20, 20);
+    doc.text("Espelho de Ponto", 14, 18);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(`Período: ${format(new Date(ano, mes - 1), "MMMM 'de' yyyy", { locale: ptBR })}`, 20, 28);
-    if (individual && funcionarioSelecionado) doc.text(`Funcionário: ${funcionarioSelecionado.nome}`, 20, 34);
-    const dataToExport = individual ? registros : allRegistros;
-    if (!dataToExport || dataToExport.length === 0) {
-      doc.text("Nenhum registro encontrado", 20, 50);
-    } else {
-      const tableData = dataToExport.map((r: any) => [
-        individual ? "" : r.funcionarios?.nome || "N/A",
-        format(new Date(r.data_hora), "dd/MM/yyyy"),
-        format(new Date(r.data_hora), "EEEE", { locale: ptBR }),
-        format(new Date(r.data_hora), "HH:mm"),
-        tiposPonto.find((t) => t.value === r.tipo)?.label || r.tipo,
-      ]);
-      (doc as any).autoTable({
-        startY: 40,
-        head: [individual ? ["Data", "Dia", "Hora", "Tipo"] : ["Funcionário", "Data", "Dia", "Hora", "Tipo"]],
-        body: individual ? tableData.map((row) => row.slice(1)) : tableData,
-        theme: "striped",
-        headStyles: { fillColor: [102, 51, 153] },
-      });
+    doc.text(`Período: ${periodLabel}`, 14, 25);
+
+    if (individual && funcionarioSelecionado) {
+      doc.text(`Funcionário: ${funcionarioSelecionado.nome}`, 14, 31);
+      doc.text(
+        `Cargo: ${funcionarioSelecionado.cargo || "-"} • Jornada: ${funcionarioSelecionado.carga_horaria_semanal || 44}h/sem • Tolerância: ${detailedStats?.tolerancia ?? 10}min`,
+        14,
+        37,
+      );
     }
+
+    if (individual && detailedStats && detailedStats.workedDays.length > 0) {
+      // Tabela diária com saldo
+      const days = [...detailedStats.workedDays].sort((a, b) => a.date.localeCompare(b.date));
+      const body = days.map((d) => [
+        format(parseISO(d.date), "dd/MM"),
+        format(parseISO(d.date), "EEE", { locale: ptBR }),
+        d.entrada || "--:--",
+        d.saidaAlmoco || "--:--",
+        d.voltaAlmoco || "--:--",
+        d.saida || "--:--",
+        formatHoursMinutes(d.hoursWorked),
+        formatSaldoMinutos(d.saldoMinutos),
+      ]);
+
+      autoTable(doc, {
+        startY: 44,
+        head: [["Data", "Dia", "Entrada", "S.Almoço", "V.Almoço", "Saída", "Trabalhado", "Saldo"]],
+        body,
+        theme: "striped",
+        styles: { fontSize: 8, halign: "center" },
+        headStyles: { fillColor: [102, 51, 153], textColor: 255, fontStyle: "bold" },
+        columnStyles: {
+          7: { fontStyle: "bold" },
+        },
+        didParseCell: (data: any) => {
+          if (data.section === "body" && data.column.index === 7) {
+            const txt = data.cell.raw as string;
+            if (txt?.startsWith("-")) data.cell.styles.textColor = [220, 38, 38];
+            else if (txt?.startsWith("+")) data.cell.styles.textColor = [22, 163, 74];
+          }
+        },
+      });
+
+      // Resumo do mês
+      const finalY = (doc as any).lastAutoTable.finalY + 8;
+      const saldo = detailedStats.totalSaldoMinutos;
+      const extras = detailedStats.totalOvertimeMinutes;
+      const atrasos = detailedStats.totalLateDiscountedMinutes;
+
+      autoTable(doc, {
+        startY: finalY,
+        head: [["Resumo do Mês", "Valor"]],
+        body: [
+          ["Dias trabalhados", `${detailedStats.workedDaysCount} de ${detailedStats.businessDays}`],
+          ["Horas trabalhadas", formatHoursMinutes(detailedStats.totalHoursWorked)],
+          ["Horas extras", `+${formatSaldoMinutos(extras).replace("+", "")}`],
+          ["Atrasos descontados", `-${formatSaldoMinutos(atrasos).replace(/[+-]/, "")}`],
+          [
+            { content: "Saldo do mês", styles: { fontStyle: "bold" } },
+            {
+              content: formatSaldoMinutos(saldo),
+              styles: {
+                fontStyle: "bold",
+                textColor: saldo < 0 ? [220, 38, 38] : saldo > 0 ? [22, 163, 74] : [60, 60, 60],
+              },
+            },
+          ],
+        ],
+        theme: "grid",
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [241, 245, 249], textColor: [30, 30, 30], fontStyle: "bold" },
+        columnStyles: { 0: { cellWidth: 80 }, 1: { halign: "right" } },
+      });
+
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      doc.text(
+        `Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
+        14,
+        doc.internal.pageSize.getHeight() - 10,
+      );
+    } else {
+      // Modo "todos os funcionários" ou sem dados consolidados — fallback registros brutos
+      const dataToExport = individual ? registros : allRegistros;
+      if (!dataToExport || dataToExport.length === 0) {
+        doc.text("Nenhum registro encontrado", 14, 50);
+      } else {
+        const tableData = dataToExport.map((r: any) => [
+          individual ? "" : r.funcionarios?.nome || "N/A",
+          format(new Date(r.data_hora), "dd/MM/yyyy"),
+          format(new Date(r.data_hora), "EEEE", { locale: ptBR }),
+          format(new Date(r.data_hora), "HH:mm"),
+          tiposPonto.find((t) => t.value === r.tipo)?.label || r.tipo,
+        ]);
+        autoTable(doc, {
+          startY: 44,
+          head: [individual ? ["Data", "Dia", "Hora", "Tipo"] : ["Funcionário", "Data", "Dia", "Hora", "Tipo"]],
+          body: individual ? tableData.map((row) => row.slice(1)) : tableData,
+          theme: "striped",
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [102, 51, 153] },
+        });
+      }
+    }
+
     doc.save(
-      `relatorio_ponto_${individual ? funcionarioSelecionado?.nome?.replace(/\s+/g, "_") : "todos"}_${mes}_${ano}.pdf`,
+      `espelho_ponto_${individual ? funcionarioSelecionado?.nome?.replace(/\s+/g, "_") : "todos"}_${mes}_${ano}.pdf`,
     );
     toast.success("PDF exportado com sucesso!");
   };
 
   const exportToExcel = (individual: boolean) => {
+    if (individual && detailedStats && detailedStats.workedDays.length > 0) {
+      // Espelho de ponto detalhado por dia
+      const days = [...detailedStats.workedDays].sort((a, b) => a.date.localeCompare(b.date));
+      const excelData = days.map((d) => ({
+        Data: format(parseISO(d.date), "dd/MM/yyyy"),
+        Dia: format(parseISO(d.date), "EEEE", { locale: ptBR }),
+        Entrada: d.entrada || "",
+        "Saída Almoço": d.saidaAlmoco || "",
+        "Volta Almoço": d.voltaAlmoco || "",
+        Saída: d.saida || "",
+        "Horas Trabalhadas": formatHoursMinutes(d.hoursWorked),
+        "Atraso (min)": d.lateMinutesDiscounted || 0,
+        "Hora Extra (min)": d.overtimeMinutes || 0,
+        "Saldo do dia": formatSaldoMinutos(d.saldoMinutos),
+      }));
+      // Linha de totais
+      excelData.push({
+        Data: "TOTAIS",
+        Dia: "",
+        Entrada: "",
+        "Saída Almoço": "",
+        "Volta Almoço": "",
+        Saída: "",
+        "Horas Trabalhadas": formatHoursMinutes(detailedStats.totalHoursWorked),
+        "Atraso (min)": detailedStats.totalLateDiscountedMinutes,
+        "Hora Extra (min)": detailedStats.totalOvertimeMinutes,
+        "Saldo do dia": formatSaldoMinutos(detailedStats.totalSaldoMinutos),
+      } as any);
+
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Espelho de Ponto");
+      XLSX.writeFile(
+        wb,
+        `espelho_ponto_${funcionarioSelecionado?.nome?.replace(/\s+/g, "_")}_${mes}_${ano}.xlsx`,
+      );
+      toast.success("Excel exportado com sucesso!");
+      return;
+    }
+
     const dataToExport = individual ? registros : allRegistros;
     if (!dataToExport || dataToExport.length === 0) {
       toast.error("Nenhum registro para exportar");
