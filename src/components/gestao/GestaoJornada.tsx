@@ -51,6 +51,7 @@ import AjusteManualPontoDialog from "./AjusteManualPontoDialog";
 import AnexosPontoDialog from "./AnexosPontoDialog";
 import FechamentoMensalDialog from "./FechamentoMensalDialog";
 import JornadaConfigDialog from "./JornadaConfigDialog";
+import AdminJornadaDashboard from "./AdminJornadaDashboard";
 import { Settings } from "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import { cn } from "@/lib/utils";
@@ -1017,6 +1018,13 @@ export default function GestaoJornada() {
 
   return (
     <div className="space-y-6">
+      {/* Admin Realtime Dashboard */}
+      {canManageAll && (
+        <div className="rounded-2xl border border-border/50 bg-gradient-to-br from-primary/5 via-card to-card p-4 sm:p-5">
+          <AdminJornadaDashboard />
+        </div>
+      )}
+
       {/* Header with Employee Selector */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end justify-between">
         <div className="flex items-center gap-3">
