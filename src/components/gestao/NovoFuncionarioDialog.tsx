@@ -133,6 +133,7 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
     setHorarioSaida("18:00");
     setHorarioAlmocoInicio("12:00");
     setHorarioAlmocoFim("13:00");
+    setToleranciaAtraso("10");
     setCorretoraId("");
     setCep("");
     setRua("");
