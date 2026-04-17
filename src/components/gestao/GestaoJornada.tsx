@@ -49,10 +49,9 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import ConfigurarAlertasDialog from "./ConfigurarAlertasDialog";
 import AjusteManualPontoDialog from "./AjusteManualPontoDialog";
-import AnexosPontoDialog from "./AnexosPontoDialog";
+import AnexosAbonosDialog from "./AnexosAbonosDialog";
 import FechamentoMensalDialog from "./FechamentoMensalDialog";
 import JornadaConfigDialog from "./JornadaConfigDialog";
-import GerenciarAusenciasDialog from "./GerenciarAusenciasDialog";
 
 import { Settings } from "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
