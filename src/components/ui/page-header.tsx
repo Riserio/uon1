@@ -11,30 +11,31 @@ interface PageHeaderProps {
 }
 
 /**
- * Cabeçalho padrão moderno do sistema (estilo PPR).
- * Faixa rounded-3xl com gradiente da cor primária, ícone em badge e ações à direita.
+ * Cabeçalho padrão do sistema — estilo limpo e sóbrio.
+ * Ícone + título à esquerda, ações no meio e logo Vangard fixa no canto superior direito.
  */
 export function PageHeader({ icon: Icon, title, subtitle, actions, className }: PageHeaderProps) {
   return (
-    <div
-      className={cn(
-        "rounded-3xl border border-border/50 bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 backdrop-blur",
-        className,
-      )}
-    >
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          {Icon && (
-            <div className="h-14 w-14 rounded-2xl bg-primary/15 flex items-center justify-center shadow-sm shrink-0">
-              <Icon className="h-7 w-7 text-primary" />
-            </div>
-          )}
-          <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">{title}</h1>
-            {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+    <div className={cn("flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-4 border-b border-border/60", className)}>
+      <div className="flex items-center gap-3 min-w-0">
+        {Icon && (
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <Icon className="h-5 w-5 text-primary" />
           </div>
+        )}
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">{title}</h1>
+          {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
         </div>
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap lg:justify-end">
         {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
+        <img
+          src="/images/logo-vg.png"
+          alt="Vangard"
+          className="h-8 w-auto opacity-90 shrink-0"
+        />
       </div>
     </div>
   );
