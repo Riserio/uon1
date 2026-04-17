@@ -799,5 +799,166 @@ export const HELP_MODULES: HelpModule[] = [
         ]
       }
     ]
+  },
+  {
+    id: "ppr",
+    title: "PPR · Programa Preparatório",
+    description: "Acompanhe a conformidade da associação para regulamentação em sprints e áreas com Kanban moderno.",
+    icon: Sparkles,
+    color: "text-violet-500",
+    topics: [
+      {
+        title: "Visões Kanban, Board e Matriz",
+        steps: [
+          "Use o seletor para alternar entre Kanban (cards arrastáveis), Board (visão por área com progresso) e Matriz (grade compacta).",
+          "No Kanban, agrupe por Sprint, Status ou Área usando o seletor 'Agrupar'.",
+          "Arraste e solte os cards entre colunas para mover sprint/status/área automaticamente."
+        ],
+        tip: "O Board é ideal para apresentações executivas; a Matriz é ótima para conferir cobertura por área."
+      },
+      {
+        title: "Criar e editar tarefas",
+        steps: [
+          "Clique em '+ Nova tarefa' (no topo) ou no '+' dentro de uma coluna para já vincular ao agrupamento.",
+          "Defina título, descrição, área, sprint e responsável.",
+          "Passe o mouse sobre um card para editar (lápis) ou excluir (lixeira)."
+        ]
+      }
+    ]
+  },
+  {
+    id: "uon1sign-help",
+    title: "Uon1 Sign (Assinatura Digital)",
+    description: "Gestão de contratos com assinatura eletrônica, templates e link público para o signatário.",
+    icon: FileSignature,
+    color: "text-amber-500",
+    topics: [
+      {
+        title: "Criar contrato",
+        steps: [
+          "Clique em '+ Novo Contrato' e escolha um template ou crie em branco.",
+          "Preencha as variáveis (nome, CPF, valor) — substituídas automaticamente.",
+          "Adicione signatários (com ordem) e envie o link por e-mail."
+        ]
+      },
+      {
+        title: "Acompanhamento",
+        steps: [
+          "Status: Rascunho, Aguardando, Assinado, Cancelado.",
+          "Cada assinatura registra IP, geolocalização, hash do documento e timestamp para validade jurídica.",
+          "Contratos totalmente assinados mudam para 'Assinado' e geram PDF final."
+        ]
+      }
+    ]
+  },
+  {
+    id: "debitos-veiculares",
+    title: "Débitos Veiculares",
+    description: "Consulta de IPVA, multas e licenciamento por placa, com simulação de parcelamento (Zapay).",
+    icon: Car,
+    color: "text-orange-500",
+    topics: [
+      {
+        title: "Consultar débitos",
+        steps: [
+          "Informe a placa (ABC-1234 ou ABC1D23) e clique em 'Consultar'.",
+          "O sistema retorna dados do veículo e lista de débitos pendentes.",
+          "Selecione os débitos para simular parcelamento."
+        ]
+      },
+      {
+        title: "Simular parcelamento",
+        steps: [
+          "Clique em 'Simular Parcelamento' após selecionar débitos.",
+          "Veja todas as opções de parcelas (valores e taxas) ofertadas pela Zapay.",
+          "Para finalizar pagamento, é necessário ter as credenciais de produção configuradas."
+        ]
+      }
+    ]
+  },
+  {
+    id: "bi-help",
+    title: "BI · Indicadores e Visão Administradora",
+    description: "Dashboards de Indicadores, Eventos (SGA), MGF, Cobrança, Estudo de Base e Cadastro com sync Hinova.",
+    icon: BarChart3,
+    color: "text-indigo-500",
+    topics: [
+      {
+        title: "Selecionar associação ou Visão Administradora",
+        steps: [
+          "Use o seletor no topo para escolher uma associação ou a 'Visão Administradora' (consolida todas).",
+          "Na Visão Administradora, o botão 'Sincronizar Todas' atualiza simultaneamente MGF, SGA e Cobrança."
+        ]
+      },
+      {
+        title: "Sincronização automática (Hinova)",
+        steps: [
+          "Cada módulo importa dados diretamente da Hinova via automação configurável por associação.",
+          "Configure URL, usuário, senha, código do cliente e horário agendado.",
+          "Limite de 1 sincronização bem-sucedida por dia por módulo."
+        ],
+        tip: "Resumos operacionais via WhatsApp são disparados automaticamente após cada sync."
+      }
+    ]
+  },
+  {
+    id: "agenda-help",
+    title: "Agenda (Google Calendar)",
+    description: "Agenda integrada com múltiplas contas Google e visões dia/semana/mês.",
+    icon: CalendarClock,
+    color: "text-teal-500",
+    topics: [
+      {
+        title: "Conectar e gerenciar contas Google",
+        steps: [
+          "Clique em 'Google' no topo e em 'Conectar conta'.",
+          "Várias contas Google podem ser conectadas simultaneamente — cada evento mostra a origem.",
+          "Eventos criados são sincronizados imediatamente no Google Calendar conectado."
+        ]
+      }
+    ]
+  },
+  {
+    id: "talk-help",
+    title: "Uon1 Talk (Videoconferência)",
+    description: "Reuniões online com salas persistentes, link de convite e reuniões instantâneas.",
+    icon: Video,
+    color: "text-rose-500",
+    topics: [
+      {
+        title: "Criar reunião agendada ou instantânea",
+        steps: [
+          "Clique em 'Nova Reunião' para agendar com data/hora e participantes.",
+          "Use 'Reunião Instantânea' para abrir uma sala imediatamente, sem agendamento.",
+          "Convidados externos recebem template HTML 'Talk by Uon1'."
+        ]
+      }
+    ]
+  },
+  {
+    id: "gestao-jornada",
+    title: "Gestão · Usuários e Jornada",
+    description: "Controle de usuários, permissões e jornada de trabalho com banco de horas e folha de ponto.",
+    icon: Briefcase,
+    color: "text-blue-500",
+    topics: [
+      {
+        title: "Aba Usuários",
+        steps: [
+          "Em Gestão > Usuários você gerencia todos os usuários, permissões e acessos no estilo widget moderno.",
+          "Aprove cadastros pendentes, defina cargos (Admin, Administrativo, Comercial, Líder, Superintendente).",
+          "Vínculo bidirecional: ao cadastrar usuário pode marcar 'É funcionário' (cria registro na Jornada)."
+        ]
+      },
+      {
+        title: "Jornada de Trabalho",
+        steps: [
+          "Dashboard com dias trabalhados, horas acumuladas, atrasos e banco de horas.",
+          "Configure jornada padrão, tolerância e dias úteis em 'Configurações da Jornada'.",
+          "Lembretes automáticos de bater ponto são enviados a todos os usuários ativos — apenas habilite/desabilite."
+        ],
+        tip: "O Espelho de Ponto (PDF) tem cabeçalho dual Uon1 + Vangard com cores da marca (#362c89)."
+      }
+    ]
   }
 ];
