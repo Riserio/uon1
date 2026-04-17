@@ -186,16 +186,54 @@ export default function AnexosPontoDialog({
               </div>
               {tipo === "atestado" && (
                 <div className="space-y-2">
-                  <Label>Dias Abonados</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={diasAbonados}
-                    onChange={(e) => setDiasAbonados(e.target.value)}
-                  />
+                  <Label>{tipoAbono === "dia" ? "Dias Abonados" : "Horas Abonadas"}</Label>
+                  {tipoAbono === "dia" ? (
+                    <Input
+                      type="number"
+                      min="0"
+                      value={diasAbonados}
+                      onChange={(e) => setDiasAbonados(e.target.value)}
+                    />
+                  ) : (
+                    <Input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      value={horasAbonadas}
+                      onChange={(e) => setHorasAbonadas(e.target.value)}
+                      placeholder="Ex.: 1.5"
+                    />
+                  )}
                 </div>
               )}
             </div>
+
+            {tipo === "atestado" && (
+              <RadioGroup
+                value={tipoAbono}
+                onValueChange={(v) => setTipoAbono(v as "dia" | "hora")}
+                className="grid grid-cols-2 gap-2"
+              >
+                <Label
+                  htmlFor="anexo-abono-dia"
+                  className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition ${
+                    tipoAbono === "dia" ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <RadioGroupItem value="dia" id="anexo-abono-dia" />
+                  <span className="text-sm">Abonar dias</span>
+                </Label>
+                <Label
+                  htmlFor="anexo-abono-hora"
+                  className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition ${
+                    tipoAbono === "hora" ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <RadioGroupItem value="hora" id="anexo-abono-hora" />
+                  <span className="text-sm">Abonar horas</span>
+                </Label>
+              </RadioGroup>
+            )}
 
             <div className="space-y-2">
               <Label>Arquivo</Label>
@@ -276,6 +314,12 @@ export default function AnexosPontoDialog({
                             {anexo.tipo === "atestado" && anexo.dias_abonados > 0 && (
                               <Badge variant="secondary" className="text-xs">
                                 {anexo.dias_abonados} dia(s) abonados
+                              </Badge>
+                            )}
+                            {anexo.tipo === "atestado" && anexo.horas_abonadas > 0 && (
+                              <Badge variant="secondary" className="text-xs gap-1">
+                                <Clock className="h-3 w-3" />
+                                {anexo.horas_abonadas}h abonadas
                               </Badge>
                             )}
                           </div>
