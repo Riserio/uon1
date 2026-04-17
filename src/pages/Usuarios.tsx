@@ -1053,30 +1053,48 @@ export default function Usuarios() {
     return profile?.nome || "-";
   };
 
+  // Stats widgets
+  const userStats = useMemo(() => {
+    const total = profiles.length;
+    const ativos = profiles.filter((p) => p.ativo).length;
+    const pendentes = pendingProfiles.length;
+    const equipesCount = equipes.length;
+    return { total, ativos, pendentes, equipesCount };
+  }, [profiles, pendingProfiles, equipes]);
+
+  const tabsConfig = [
+    { id: "lista", label: "Lista", icon: UsersIcon, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+    { id: "pendentes", label: "Pendentes", icon: UserPlus, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400", badge: pendingProfiles.length },
+    { id: "equipes", label: "Equipes", icon: UsersRound, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+    { id: "hierarquia", label: "Hierarquia", icon: Network, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
+    { id: "permissoes", label: "Permissões", icon: Shield, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
+    { id: "logs", label: "Logs", icon: Briefcase, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400" },
+  ];
+
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <UsersIcon className="h-6 w-6 text-primary" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10">
+            <UsersIcon className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold">Usuários</h1>
-            <p className="text-sm text-muted-foreground">
-              Gerencie usuários, equipes, permissões e acompanhe o histórico de ações
+            <h2 className="text-xl font-bold tracking-tight">Usuários</h2>
+            <p className="text-xs text-muted-foreground">
+              Gerencie usuários, equipes, permissões e o histórico de ações
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {activeTab === "equipes" && (
-            <Button onClick={() => openEquipeDialog()} className="gap-2">
+            <Button onClick={() => openEquipeDialog()} className="gap-2 rounded-xl">
               <UsersRound className="h-4 w-4" />
               Nova Equipe
             </Button>
           )}
-
           {activeTab === "lista" && (
-            <Button onClick={() => openDialog()} className="gap-2">
+            <Button onClick={() => openDialog()} className="gap-2 rounded-xl">
               <UserPlus className="h-4 w-4" />
               Novo Usuário
             </Button>
@@ -1084,17 +1102,71 @@ export default function Usuarios() {
         </div>
       </div>
 
+      {/* Stat Widgets */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total de usuários", value: userStats.total, icon: UsersIcon, color: "bg-primary/10 text-primary" },
+          { label: "Ativos", value: userStats.ativos, icon: UserCircle, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+          { label: "Pendentes", value: userStats.pendentes, icon: UserPlus, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+          { label: "Equipes", value: userStats.equipesCount, icon: UsersRound, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+        ].map((w) => {
+          const Icon = w.icon;
+          return (
+            <div
+              key={w.label}
+              className="rounded-2xl border border-border/50 bg-card p-4 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${w.color}`}>
+                  <Icon className="h-4 w-4" />
+                </div>
+                <span className="text-2xl font-bold tracking-tight">{w.value}</span>
+              </div>
+              <p className="text-xs text-muted-foreground font-medium">{w.label}</p>
+            </div>
+          );
+        })}
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList>
+        {/* Widget-style tab navigation */}
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
+          {tabsConfig.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative text-left rounded-xl border p-3 transition-all duration-200 ${
+                  isActive
+                    ? "border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/20"
+                    : "border-border/50 bg-card hover:border-border hover:shadow-sm"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    isActive ? "bg-primary text-primary-foreground" : tab.color
+                  }`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <span className={`text-xs font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>
+                    {tab.label}
+                  </span>
+                </div>
+                {tab.badge && tab.badge > 0 ? (
+                  <Badge variant="destructive" className="absolute -top-1.5 -right-1.5 h-5 min-w-5 px-1 text-[10px]">
+                    {tab.badge}
+                  </Badge>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+
+        <TabsList className="hidden">
           <TabsTrigger value="lista">Lista</TabsTrigger>
-          <TabsTrigger value="pendentes">
-            Pendentes
-            {pendingProfiles.length > 0 && (
-              <Badge variant="destructive" className="ml-2">
-                {pendingProfiles.length}
-              </Badge>
-            )}
-          </TabsTrigger>
+          <TabsTrigger value="pendentes">Pendentes</TabsTrigger>
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
           <TabsTrigger value="hierarquia">Hierarquia</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
