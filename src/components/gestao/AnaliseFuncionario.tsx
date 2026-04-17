@@ -347,14 +347,19 @@ export default function AnaliseFuncionario() {
       const va = reg.volta_almoco ? parseISO(reg.volta_almoco) : null;
       const saida = reg.saida ? parseISO(reg.saida) : null;
 
+      // Minutos abonados (horas) para este dia
+      const minutosAbonadosDia = horasAbonadasPorDia[key] || 0;
+
       // Atraso
       if (entrada && funcionario.horario_entrada) {
         const esperado = parseHorario(funcionario.horario_entrada, dia);
         if (esperado) {
           const diff = differenceInMinutes(entrada, esperado);
-          if (diff > tolerancia) {
+          // Desconta horas abonadas do atraso
+          const diffAjustado = Math.max(0, diff - minutosAbonadosDia);
+          if (diffAjustado > tolerancia) {
             qtdAtrasos++;
-            totalAtrasoMin += diff;
+            totalAtrasoMin += diffAjustado;
           }
           // bucket de hora
           const bucket = format(entrada, "HH:00");
@@ -365,8 +370,14 @@ export default function AnaliseFuncionario() {
       // Saída antecipada
       if (saida && funcionario.horario_saida) {
         const esperadoSaida = parseHorario(funcionario.horario_saida, dia);
-        if (esperadoSaida && differenceInMinutes(esperadoSaida, saida) > tolerancia) {
-          qtdSaidasAntecipadas++;
+        if (esperadoSaida) {
+          const diffSaida = differenceInMinutes(esperadoSaida, saida);
+          // Desconta horas abonadas (caso não tenham sido usadas para atraso)
+          const restanteAbono = Math.max(0, minutosAbonadosDia - (entrada && funcionario.horario_entrada ? Math.max(0, differenceInMinutes(entrada, parseHorario(funcionario.horario_entrada, dia)!)) : 0));
+          const diffSaidaAjustado = Math.max(0, diffSaida - restanteAbono);
+          if (diffSaidaAjustado > tolerancia) {
+            qtdSaidasAntecipadas++;
+          }
         }
       }
 
@@ -376,12 +387,13 @@ export default function AnaliseFuncionario() {
         if (dur > 75) qtdAlmocosLongos++;
       }
 
-      // Horas trabalhadas
+      // Horas trabalhadas (acrescenta horas abonadas)
       let horasMin = 0;
       if (entrada && saida) {
         horasMin = differenceInMinutes(saida, entrada);
         if (sa && va) horasMin -= differenceInMinutes(va, sa);
       }
+      horasMin += minutosAbonadosDia;
       totalHorasMin += horasMin;
 
       const saldo = horasMin - horasEsperadasDia * 60;
