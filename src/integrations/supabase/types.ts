@@ -2339,6 +2339,7 @@ export type Database = {
       funcionarios: {
         Row: {
           ativo: boolean | null
+          bate_ponto: boolean
           carga_horaria_semanal: number | null
           cargo: string | null
           corretora_id: string | null
@@ -2368,6 +2369,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean | null
+          bate_ponto?: boolean
           carga_horaria_semanal?: number | null
           cargo?: string | null
           corretora_id?: string | null
@@ -2397,6 +2399,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean | null
+          bate_ponto?: boolean
           carga_horaria_semanal?: number | null
           cargo?: string | null
           corretora_id?: string | null
