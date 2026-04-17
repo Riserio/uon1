@@ -143,6 +143,7 @@ export type Database = {
           data_referencia: string | null
           dias_abonados: number | null
           funcionario_id: string
+          horas_abonadas: number
           id: string
           observacao: string | null
           tipo: string
@@ -155,6 +156,7 @@ export type Database = {
           data_referencia?: string | null
           dias_abonados?: number | null
           funcionario_id: string
+          horas_abonadas?: number
           id?: string
           observacao?: string | null
           tipo: string
@@ -167,6 +169,7 @@ export type Database = {
           data_referencia?: string | null
           dias_abonados?: number | null
           funcionario_id?: string
+          horas_abonadas?: number
           id?: string
           observacao?: string | null
           tipo?: string
@@ -498,10 +501,13 @@ export type Database = {
           created_by: string | null
           data_fim: string
           data_inicio: string
+          data_referencia: string | null
           funcionario_id: string
+          horas_abonadas: number
           id: string
           motivo: string | null
           tipo: string
+          tipo_abono: string
           updated_at: string
         }
         Insert: {
@@ -509,10 +515,13 @@ export type Database = {
           created_by?: string | null
           data_fim: string
           data_inicio: string
+          data_referencia?: string | null
           funcionario_id: string
+          horas_abonadas?: number
           id?: string
           motivo?: string | null
           tipo: string
+          tipo_abono?: string
           updated_at?: string
         }
         Update: {
@@ -520,10 +529,13 @@ export type Database = {
           created_by?: string | null
           data_fim?: string
           data_inicio?: string
+          data_referencia?: string | null
           funcionario_id?: string
+          horas_abonadas?: number
           id?: string
           motivo?: string | null
           tipo?: string
+          tipo_abono?: string
           updated_at?: string
         }
         Relationships: [

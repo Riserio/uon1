@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Upload, Trash2, Download, Calendar, FileCheck } from "lucide-react";
+import { FileText, Upload, Trash2, Download, Calendar, FileCheck, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -39,7 +40,9 @@ export default function AnexosPontoDialog({
   
   const [tipo, setTipo] = useState("atestado");
   const [dataReferencia, setDataReferencia] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [tipoAbono, setTipoAbono] = useState<"dia" | "hora">("dia");
   const [diasAbonados, setDiasAbonados] = useState("0");
+  const [horasAbonadas, setHorasAbonadas] = useState("0");
   const [observacao, setObservacao] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -82,7 +85,7 @@ export default function AnexosPontoDialog({
         .getPublicUrl(filePath);
 
       // Inserir registro no banco
-      const { error: insertError } = await supabase
+      const { error: insertError } = await (supabase as any)
         .from("anexos_ponto")
         .insert({
           funcionario_id: funcionarioId,
@@ -90,7 +93,8 @@ export default function AnexosPontoDialog({
           arquivo_url: urlData.publicUrl,
           arquivo_nome: file.name,
           data_referencia: dataReferencia,
-          dias_abonados: tipo === "atestado" ? parseInt(diasAbonados) : 0,
+          dias_abonados: tipo === "atestado" && tipoAbono === "dia" ? parseInt(diasAbonados) || 0 : 0,
+          horas_abonadas: tipo === "atestado" && tipoAbono === "hora" ? parseFloat(horasAbonadas) || 0 : 0,
           observacao,
           uploaded_by: user?.id,
         });
@@ -99,11 +103,14 @@ export default function AnexosPontoDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["anexos_ponto"] });
+      queryClient.invalidateQueries({ queryKey: ["abonados"] });
+      queryClient.invalidateQueries({ queryKey: ["analise_registros"] });
       toast.success("Anexo enviado com sucesso!");
       // Reset form
       setFile(null);
       setObservacao("");
       setDiasAbonados("0");
+      setHorasAbonadas("0");
     },
     onError: (error) => {
       toast.error("Erro ao enviar anexo: " + error.message);
@@ -179,16 +186,54 @@ export default function AnexosPontoDialog({
               </div>
               {tipo === "atestado" && (
                 <div className="space-y-2">
-                  <Label>Dias Abonados</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={diasAbonados}
-                    onChange={(e) => setDiasAbonados(e.target.value)}
-                  />
+                  <Label>{tipoAbono === "dia" ? "Dias Abonados" : "Horas Abonadas"}</Label>
+                  {tipoAbono === "dia" ? (
+                    <Input
+                      type="number"
+                      min="0"
+                      value={diasAbonados}
+                      onChange={(e) => setDiasAbonados(e.target.value)}
+                    />
+                  ) : (
+                    <Input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      value={horasAbonadas}
+                      onChange={(e) => setHorasAbonadas(e.target.value)}
+                      placeholder="Ex.: 1.5"
+                    />
+                  )}
                 </div>
               )}
             </div>
+
+            {tipo === "atestado" && (
+              <RadioGroup
+                value={tipoAbono}
+                onValueChange={(v) => setTipoAbono(v as "dia" | "hora")}
+                className="grid grid-cols-2 gap-2"
+              >
+                <Label
+                  htmlFor="anexo-abono-dia"
+                  className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition ${
+                    tipoAbono === "dia" ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <RadioGroupItem value="dia" id="anexo-abono-dia" />
+                  <span className="text-sm">Abonar dias</span>
+                </Label>
+                <Label
+                  htmlFor="anexo-abono-hora"
+                  className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition ${
+                    tipoAbono === "hora" ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <RadioGroupItem value="hora" id="anexo-abono-hora" />
+                  <span className="text-sm">Abonar horas</span>
+                </Label>
+              </RadioGroup>
+            )}
 
             <div className="space-y-2">
               <Label>Arquivo</Label>
@@ -269,6 +314,12 @@ export default function AnexosPontoDialog({
                             {anexo.tipo === "atestado" && anexo.dias_abonados > 0 && (
                               <Badge variant="secondary" className="text-xs">
                                 {anexo.dias_abonados} dia(s) abonados
+                              </Badge>
+                            )}
+                            {anexo.tipo === "atestado" && anexo.horas_abonadas > 0 && (
+                              <Badge variant="secondary" className="text-xs gap-1">
+                                <Clock className="h-3 w-3" />
+                                {anexo.horas_abonadas}h abonadas
                               </Badge>
                             )}
                           </div>

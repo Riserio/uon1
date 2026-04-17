@@ -33,6 +33,7 @@ import {
   CalendarDays,
   User,
   ChevronRight,
+  CalendarOff,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -51,6 +52,7 @@ import AjusteManualPontoDialog from "./AjusteManualPontoDialog";
 import AnexosPontoDialog from "./AnexosPontoDialog";
 import FechamentoMensalDialog from "./FechamentoMensalDialog";
 import JornadaConfigDialog from "./JornadaConfigDialog";
+import GerenciarAusenciasDialog from "./GerenciarAusenciasDialog";
 
 import { Settings } from "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
@@ -180,6 +182,7 @@ export default function GestaoJornada() {
   const [anexosOpen, setAnexosOpen] = useState(false);
   const [fechamentoOpen, setFechamentoOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
+  const [ausenciasOpen, setAusenciasOpen] = useState(false);
   const [registroParaAjuste, setRegistroParaAjuste] = useState<any>(null);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
@@ -1070,6 +1073,9 @@ export default function GestaoJornada() {
                   <Button variant="outline" size="icon" onClick={() => setFechamentoOpen(true)} title="Fechamento">
                     <Lock className="h-4 w-4" />
                   </Button>
+                  <Button variant="outline" size="icon" onClick={() => setAusenciasOpen(true)} title="Abonos / Folgas / Férias">
+                    <CalendarOff className="h-4 w-4" />
+                  </Button>
                 </>
               )}
               <Button
@@ -1945,6 +1951,14 @@ export default function GestaoJornada() {
           funcionarioId={funcionarioId}
           funcionarioNome={funcionarioSelecionado?.nome || ""}
           funcionarioProfileId={funcionarioSelecionado?.profile_id}
+        />
+      )}
+      {canManageAll && funcionarioId && (
+        <GerenciarAusenciasDialog
+          open={ausenciasOpen}
+          onOpenChange={setAusenciasOpen}
+          funcionarioId={funcionarioId}
+          funcionarioNome={funcionarioSelecionado?.nome}
         />
       )}
     </div>

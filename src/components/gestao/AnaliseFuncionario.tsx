@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import GerenciarAusenciasDialog from "./GerenciarAusenciasDialog";
-import { CalendarOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -86,7 +84,6 @@ export default function AnaliseFuncionario() {
   const [feedback, setFeedback] = useState("");
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [feedbackLoaded, setFeedbackLoaded] = useState(false);
-  const [ausenciasOpen, setAusenciasOpen] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const periodo = useMemo(() => {
@@ -199,32 +196,32 @@ export default function AnaliseFuncionario() {
     },
   });
 
-  // Dias abonados (atestados / abonos com dias_abonados)
+  // Dias abonados (atestados / abonos com dias_abonados ou horas)
   const { data: abonados } = useQuery({
     queryKey: ["abonados", funcionarioId, periodo.inicio.toISOString()],
     queryFn: async () => {
       if (!funcionarioId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("anexos_ponto")
-        .select("data_referencia, dias_abonados, tipo")
+        .select("data_referencia, dias_abonados, horas_abonadas, tipo")
         .eq("funcionario_id", funcionarioId)
         .not("data_referencia", "is", null)
         .gte("data_referencia", format(periodo.inicio, "yyyy-MM-dd"))
         .lte("data_referencia", format(periodo.fim, "yyyy-MM-dd"));
       if (error) throw error;
-      return data || [];
+      return (data || []) as any[];
     },
     enabled: !!funcionarioId,
   });
 
-  // Ausências (abonos manuais, folgas, férias, feriados individuais)
+  // Ausências (abonos manuais, folgas, férias, feriados individuais — dia ou hora)
   const { data: ausencias } = useQuery({
     queryKey: ["ausencias_funcionario_periodo", funcionarioId, periodo.inicio.toISOString()],
     queryFn: async () => {
       if (!funcionarioId) return [];
       const { data, error } = await (supabase as any)
         .from("ausencias_funcionario")
-        .select("data_inicio, data_fim, tipo")
+        .select("data_inicio, data_fim, tipo, tipo_abono, horas_abonadas, data_referencia")
         .eq("funcionario_id", funcionarioId)
         .lte("data_inicio", format(periodo.fim, "yyyy-MM-dd"))
         .gte("data_fim", format(periodo.inicio, "yyyy-MM-dd"));
@@ -270,8 +267,17 @@ export default function AnaliseFuncionario() {
 
     const feriadosSet = new Set((feriados || []).map((f: any) => f.data));
     const abonadosSet = new Set<string>();
+    // Mapa de horas abonadas por dia (yyyy-MM-dd → minutos)
+    const horasAbonadasPorDia: Record<string, number> = {};
+
     (abonados || []).forEach((a: any) => {
       if (!a.data_referencia) return;
+      const horas = Number(a.horas_abonadas || 0);
+      if (horas > 0) {
+        const key = format(parseISO(a.data_referencia), "yyyy-MM-dd");
+        horasAbonadasPorDia[key] = (horasAbonadasPorDia[key] || 0) + horas * 60;
+        return;
+      }
       const dias = Math.max(1, a.dias_abonados || 1);
       const base = parseISO(a.data_referencia);
       for (let i = 0; i < dias; i++) {
@@ -282,6 +288,11 @@ export default function AnaliseFuncionario() {
     });
     // Ausências (abonos manuais, folgas, férias, feriados individuais)
     (ausencias || []).forEach((a: any) => {
+      if (a.tipo_abono === "hora" && a.data_referencia) {
+        const key = format(parseISO(a.data_referencia), "yyyy-MM-dd");
+        horasAbonadasPorDia[key] = (horasAbonadasPorDia[key] || 0) + Number(a.horas_abonadas || 0) * 60;
+        return;
+      }
       if (!a.data_inicio || !a.data_fim) return;
       const ini = parseISO(a.data_inicio);
       const fim = parseISO(a.data_fim);
@@ -336,14 +347,19 @@ export default function AnaliseFuncionario() {
       const va = reg.volta_almoco ? parseISO(reg.volta_almoco) : null;
       const saida = reg.saida ? parseISO(reg.saida) : null;
 
+      // Minutos abonados (horas) para este dia
+      const minutosAbonadosDia = horasAbonadasPorDia[key] || 0;
+
       // Atraso
       if (entrada && funcionario.horario_entrada) {
         const esperado = parseHorario(funcionario.horario_entrada, dia);
         if (esperado) {
           const diff = differenceInMinutes(entrada, esperado);
-          if (diff > tolerancia) {
+          // Desconta horas abonadas do atraso
+          const diffAjustado = Math.max(0, diff - minutosAbonadosDia);
+          if (diffAjustado > tolerancia) {
             qtdAtrasos++;
-            totalAtrasoMin += diff;
+            totalAtrasoMin += diffAjustado;
           }
           // bucket de hora
           const bucket = format(entrada, "HH:00");
@@ -354,8 +370,14 @@ export default function AnaliseFuncionario() {
       // Saída antecipada
       if (saida && funcionario.horario_saida) {
         const esperadoSaida = parseHorario(funcionario.horario_saida, dia);
-        if (esperadoSaida && differenceInMinutes(esperadoSaida, saida) > tolerancia) {
-          qtdSaidasAntecipadas++;
+        if (esperadoSaida) {
+          const diffSaida = differenceInMinutes(esperadoSaida, saida);
+          // Desconta horas abonadas (caso não tenham sido usadas para atraso)
+          const restanteAbono = Math.max(0, minutosAbonadosDia - (entrada && funcionario.horario_entrada ? Math.max(0, differenceInMinutes(entrada, parseHorario(funcionario.horario_entrada, dia)!)) : 0));
+          const diffSaidaAjustado = Math.max(0, diffSaida - restanteAbono);
+          if (diffSaidaAjustado > tolerancia) {
+            qtdSaidasAntecipadas++;
+          }
         }
       }
 
@@ -365,12 +387,13 @@ export default function AnaliseFuncionario() {
         if (dur > 75) qtdAlmocosLongos++;
       }
 
-      // Horas trabalhadas
+      // Horas trabalhadas (acrescenta horas abonadas)
       let horasMin = 0;
       if (entrada && saida) {
         horasMin = differenceInMinutes(saida, entrada);
         if (sa && va) horasMin -= differenceInMinutes(va, sa);
       }
+      horasMin += minutosAbonadosDia;
       totalHorasMin += horasMin;
 
       const saldo = horasMin - horasEsperadasDia * 60;
@@ -551,23 +574,9 @@ ${feedback ? `Observações do gestor:\n${feedback}` : ""}`;
               })}
             </SelectContent>
           </Select>
-          {canManage && funcionarioId && (
-            <Button variant="outline" onClick={() => setAusenciasOpen(true)} className="gap-2">
-              <CalendarOff className="h-4 w-4" />
-              Abonos / Folgas / Férias
-            </Button>
-          )}
         </div>
       </div>
 
-      {canManage && funcionarioId && (
-        <GerenciarAusenciasDialog
-          open={ausenciasOpen}
-          onOpenChange={setAusenciasOpen}
-          funcionarioId={funcionarioId}
-          funcionarioNome={funcionario?.nome}
-        />
-      )}
 
       {!funcionario ? (
         <Card className="rounded-2xl border-dashed">

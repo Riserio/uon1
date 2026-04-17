@@ -1,0 +1,8 @@
+
+ALTER TABLE public.ausencias_funcionario
+  ADD COLUMN IF NOT EXISTS tipo_abono TEXT NOT NULL DEFAULT 'dia',
+  ADD COLUMN IF NOT EXISTS horas_abonadas NUMERIC NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS data_referencia DATE;
+
+ALTER TABLE public.anexos_ponto
+  ADD COLUMN IF NOT EXISTS horas_abonadas NUMERIC NOT NULL DEFAULT 0;
