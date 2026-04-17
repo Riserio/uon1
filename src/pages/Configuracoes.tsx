@@ -10,9 +10,10 @@ import { toast } from "sonner";
 import { 
   Palette, Image as ImageIcon, Settings, Shield, Bell, 
   Monitor, Moon, Sun, Upload, RotateCcw, Save, Eye,
-  Globe, Lock, Mail, Smartphone
+  Globe, Lock, Mail, Smartphone, Users
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import Usuarios from "@/pages/Usuarios";
 
 interface ConfigColors {
   primary: string;
@@ -133,9 +134,13 @@ export default function Configuracoes() {
     toast.success("Cores resetadas!");
   };
 
+  const { userRole } = useAuth();
+  const canManageUsers = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
+
   const sections = [
     { id: "aparencia", label: "Aparência", icon: Palette, description: "Cores e personalização visual" },
     { id: "imagens", label: "Imagens", icon: ImageIcon, description: "Logo e imagem de login" },
+    ...(canManageUsers ? [{ id: "usuarios", label: "Usuários", icon: Users, description: "Gerenciar usuários e permissões" }] : []),
     { id: "seguranca", label: "Segurança", icon: Shield, description: "Configurações de acesso" },
     { id: "notificacoes", label: "Notificações", icon: Bell, description: "Alertas e avisos" },
   ];
@@ -289,6 +294,13 @@ export default function Configuracoes() {
                   <Input id="login-upload" type="file" accept="image/*" className="hidden"
                     onChange={(e) => { const file = e.target.files?.[0]; if (file) handleImageUpload(file, "login"); }} />
                 </div>
+              </div>
+            )}
+
+            {/* USUÁRIOS */}
+            {activeSection === "usuarios" && canManageUsers && (
+              <div className="rounded-2xl border border-border/50 bg-card p-2 sm:p-3">
+                <Usuarios />
               </div>
             )}
 
