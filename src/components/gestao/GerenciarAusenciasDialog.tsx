@@ -312,7 +312,27 @@ export default function GerenciarAusenciasDialog({ open, onOpenChange, funcionar
             </ScrollArea>
           </div>
         </div>
+  );
+
+  if (embedded) {
+    return <div className="px-4 pb-4">{body}</div>;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarOff className="h-5 w-5 text-primary" />
+            Abonos, folgas e férias
+          </DialogTitle>
+          <DialogDescription>
+            {funcionarioNome ? `Gerenciando ausências de ${funcionarioNome}` : "Selecione o tipo e o período da ausência."}
+          </DialogDescription>
+        </DialogHeader>
+        {body}
       </DialogContent>
     </Dialog>
   );
 }
+
