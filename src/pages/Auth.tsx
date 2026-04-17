@@ -468,6 +468,18 @@ export default function Auth() {
                   "Entrar"
                 )}
               </Button>
+
+              {!isSignUp && (
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/reset-password")}
+                    className="text-sm text-[#362c89] hover:underline font-medium"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
+              )}
             </form>
 
             </>
