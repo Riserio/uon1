@@ -204,8 +204,7 @@ export default function Comunicados() {
           }
         />
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild><span className="hidden" /></DialogTrigger>
-            <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle className="text-2xl">
                   {editingId ? "Editar Comunicado" : "Novo Comunicado"}
