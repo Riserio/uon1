@@ -655,6 +655,9 @@ export default function GestaoJornada() {
       const previstaPadrao = formatHoursMinutes(
         ((funcionarioSelecionado.carga_horaria_semanal || 44) / 5),
       );
+      const feriadosList = getFeriadosBH(ano);
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
 
       const body: any[] = [];
       for (let dia = 1; dia <= totalDiasMes; dia++) {
@@ -662,31 +665,54 @@ export default function GestaoJornada() {
         const dateStr = format(date, "yyyy-MM-dd");
         const dayName = format(date, "EEEE", { locale: ptBR });
         const isWE = isWeekend(date);
+        const isHoliday = feriadosList.includes(dateStr);
+        const isFuture = date.getTime() > hoje.getTime();
+        const ausencia = ausenciasPorDia[dateStr];
         const d = daysMap[dateStr];
 
         if (d) {
           const pontos = [d.entrada, d.saidaAlmoco, d.voltaAlmoco, d.saida]
             .filter(Boolean)
             .join(" | ");
+          const abonoTxt = ausencia
+            ? ausencia.tipo_abono === "horas" && ausencia.horas
+              ? `${ausencia.tipo.toUpperCase()} ${ausencia.horas}h`
+              : ausencia.tipo.toUpperCase()
+            : "";
           body.push([
             format(date, "dd/MM"),
             dayName,
             pontos || "-",
             formatHoursMinutes(d.hoursWorked),
-            "",
+            abonoTxt,
             previstaPadrao,
             formatSaldoMinutos(d.saldoMinutos),
           ]);
-        } else {
+        } else if (isFuture) {
+          // Dia futuro: não exibir como falta
+          body.push([format(date, "dd/MM"), dayName, "-", "", "", isWE || isHoliday ? "" : previstaPadrao, ""]);
+        } else if (isHoliday) {
+          body.push([format(date, "dd/MM"), dayName, "FERIADO", "", "", "", ""]);
+        } else if (isWE) {
+          body.push([format(date, "dd/MM"), dayName, "-", "", "", "", ""]);
+        } else if (ausencia) {
+          // Falta justificada por abono/folga/férias (sem pontos)
+          const label = (ausencia.tipo || "abono").toUpperCase();
+          const detalhe =
+            ausencia.tipo_abono === "horas" && ausencia.horas
+              ? `${label} ${ausencia.horas}h`
+              : label;
           body.push([
             format(date, "dd/MM"),
             dayName,
-            isWE ? "-" : "FALTA",
+            detalhe,
             "",
-            "",
-            isWE ? "" : previstaPadrao,
+            detalhe,
+            previstaPadrao,
             "",
           ]);
+        } else {
+          body.push([format(date, "dd/MM"), dayName, "FALTA", "", "", previstaPadrao, ""]);
         }
       }
 
