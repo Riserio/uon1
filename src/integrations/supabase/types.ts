@@ -497,6 +497,8 @@ export type Database = {
       }
       ausencias_funcionario: {
         Row: {
+          arquivo_nome: string | null
+          arquivo_url: string | null
           created_at: string
           created_by: string | null
           data_fim: string
@@ -511,6 +513,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          arquivo_nome?: string | null
+          arquivo_url?: string | null
           created_at?: string
           created_by?: string | null
           data_fim: string
@@ -525,6 +529,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          arquivo_nome?: string | null
+          arquivo_url?: string | null
           created_at?: string
           created_by?: string | null
           data_fim?: string
