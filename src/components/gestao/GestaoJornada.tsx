@@ -257,6 +257,47 @@ export default function GestaoJornada() {
     enabled: canExport,
   });
 
+  // Ausências/abonos/folgas/férias do período (para PDF/Excel e histórico)
+  const { data: ausenciasPeriodo } = useQuery({
+    queryKey: ["ausencias_funcionario_periodo_jornada", funcionarioId, mes, ano],
+    queryFn: async () => {
+      if (!funcionarioId) return [];
+      const dim = getDaysInMonth(new Date(ano, mes - 1));
+      const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
+      const fim = `${ano}-${String(mes).padStart(2, "0")}-${String(dim).padStart(2, "0")}`;
+      const { data, error } = await (supabase as any)
+        .from("ausencias_funcionario")
+        .select("data_inicio, data_fim, tipo, tipo_abono, horas_abonadas, motivo")
+        .eq("funcionario_id", funcionarioId)
+        .lte("data_inicio", fim)
+        .gte("data_fim", inicio);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!funcionarioId,
+  });
+
+  // Mapa data -> info de ausência (cobre intervalos)
+  const ausenciasPorDia = useMemo(() => {
+    const map: Record<string, { tipo: string; tipo_abono?: string; horas?: number; motivo?: string }> = {};
+    (ausenciasPeriodo || []).forEach((a: any) => {
+      const start = parseISO(a.data_inicio);
+      const end = parseISO(a.data_fim);
+      const cur = new Date(start);
+      while (cur <= end) {
+        const key = format(cur, "yyyy-MM-dd");
+        map[key] = {
+          tipo: a.tipo,
+          tipo_abono: a.tipo_abono,
+          horas: a.horas_abonadas,
+          motivo: a.motivo,
+        };
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+    return map;
+  }, [ausenciasPeriodo]);
+
   const todayRecords = useMemo(() => {
     if (!registros) return [];
     const today = format(new Date(), "yyyy-MM-dd");
