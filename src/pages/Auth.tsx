@@ -150,7 +150,22 @@ export default function Auth() {
       const result = await signIn(validated.email, validated.password);
 
       if (result.error) {
-        toast.error(result.error.message || "Erro ao fazer login");
+        const msg = String(result.error.message || "");
+        const isNetworkError = /failed to fetch|networkerror|load failed|fetch/i.test(msg);
+        const isPreview = /id-preview--.*\.lovable\.app$/i.test(window.location.hostname);
+
+        if (isNetworkError) {
+          if (isPreview) {
+            toast.error(
+              "Falha de rede no ambiente de Preview. Acesse pelo endereço publicado (ex: https://uon1.lovable.app) ou domínio próprio.",
+              { duration: 10000 }
+            );
+          } else {
+            toast.error("Falha de conexão. Verifique sua internet, firewall/VPN e tente novamente.", { duration: 8000 });
+          }
+        } else {
+          toast.error(msg || "Erro ao fazer login");
+        }
         setSubmitting(false);
         setLoginPhase("idle");
         return;
