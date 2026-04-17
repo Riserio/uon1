@@ -152,9 +152,18 @@ const getBusinessDaysInMonth = (year: number, month: number): number => {
 };
 
 const formatHoursMinutes = (totalHours: number): string => {
-  const hours = Math.floor(totalHours);
-  const minutes = Math.round((totalHours - hours) * 60);
+  const totalMinutes = Math.round(totalHours * 60);
+  const hours = Math.floor(Math.abs(totalMinutes) / 60);
+  const minutes = Math.abs(totalMinutes) % 60;
   return `${hours}h${minutes.toString().padStart(2, "0")}m`;
+};
+
+const formatSaldoMinutos = (totalMinutes: number): string => {
+  const sign = totalMinutes < 0 ? "-" : totalMinutes > 0 ? "+" : "";
+  const abs = Math.abs(totalMinutes);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return `${sign}${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 };
 
 export default function GestaoJornada() {
