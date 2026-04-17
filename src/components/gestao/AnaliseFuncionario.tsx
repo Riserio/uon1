@@ -367,7 +367,8 @@ export default function AnaliseFuncionario() {
           const diffAjustado = Math.max(0, diff - minutosAbonadosDia);
           if (diffAjustado > tolerancia) {
             qtdAtrasos++;
-            totalAtrasoMin += diffAjustado;
+            // Conta apenas o excedente à tolerância (CLT Art. 58 §1º)
+            totalAtrasoMin += diffAjustado - tolerancia;
           }
           // bucket de hora
           const bucket = format(entrada, "HH:00");
