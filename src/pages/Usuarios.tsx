@@ -1135,7 +1135,7 @@ export default function Usuarios() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         {/* Widget-style tab navigation */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
           {tabsConfig.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

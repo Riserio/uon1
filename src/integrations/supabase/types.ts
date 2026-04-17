@@ -2289,6 +2289,30 @@ export type Database = {
           },
         ]
       }
+      feriados: {
+        Row: {
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          data: string
+          descricao: string
+          id?: string
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
       fluxos: {
         Row: {
           ativo: boolean

@@ -121,9 +121,42 @@ export default function AnaliseFuncionario() {
     enabled: !!funcionarioId,
   });
 
+  // Feriados do período
+  const { data: feriados } = useQuery({
+    queryKey: ["feriados", periodo.inicio.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("feriados")
+        .select("data, descricao")
+        .gte("data", format(periodo.inicio, "yyyy-MM-dd"))
+        .lte("data", format(periodo.fim, "yyyy-MM-dd"));
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Dias abonados (atestados / abonos com dias_abonados)
+  const { data: abonados } = useQuery({
+    queryKey: ["abonados", funcionarioId, periodo.inicio.toISOString()],
+    queryFn: async () => {
+      if (!funcionarioId) return [];
+      const { data, error } = await supabase
+        .from("anexos_ponto")
+        .select("data_referencia, dias_abonados, tipo")
+        .eq("funcionario_id", funcionarioId)
+        .not("data_referencia", "is", null)
+        .gte("data_referencia", format(periodo.inicio, "yyyy-MM-dd"))
+        .lte("data_referencia", format(periodo.fim, "yyyy-MM-dd"));
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!funcionarioId,
+  });
+
   // Agrupar por dia e calcular métricas
   const analise = useMemo(() => {
     if (!funcionario || !registros) return null;
+    void feriados; void abonados;
 
     const dias = eachDayOfInterval({ start: periodo.inicio, end: periodo.fim });
     const tolerancia = funcionario.tolerancia_atraso_minutos ?? 10;
@@ -154,20 +187,56 @@ export default function AnaliseFuncionario() {
     const hoje = new Date();
     hoje.setHours(23, 59, 59, 999);
 
+    const feriadosSet = new Set((feriados || []).map((f: any) => f.data));
+    const abonadosSet = new Set<string>();
+    (abonados || []).forEach((a: any) => {
+      if (!a.data_referencia) return;
+      const dias = Math.max(1, a.dias_abonados || 1);
+      const base = parseISO(a.data_referencia);
+      for (let i = 0; i < dias; i++) {
+        const d = new Date(base);
+        d.setDate(base.getDate() + i);
+        abonadosSet.add(format(d, "yyyy-MM-dd"));
+      }
+    });
+    let qtdAbonados = 0;
+    let qtdFeriados = 0;
+
     dias.forEach((dia) => {
       const isWE = isWeekend(dia);
       const isFuturo = dia.getTime() > hoje.getTime();
       if (isFuturo) return; // Não contabiliza dias futuros
-      if (!isWE) diasUteis++;
       const key = format(dia, "yyyy-MM-dd");
+      const isFeriado = feriadosSet.has(key);
+      const isAbonado = abonadosSet.has(key);
+      if (isFeriado) qtdFeriados++;
+      if (isAbonado) qtdAbonados++;
+      // Não contabiliza fim de semana, feriado nem abonado como dia útil
+      if (isWE || isFeriado || isAbonado) {
+        // Mas se houver registro, ainda contabiliza horas trabalhadas (extras)
+        const reg = porDia[key];
+        if (reg) {
+          const entradaR = reg.entrada ? parseISO(reg.entrada) : null;
+          const saidaR = reg.saida ? parseISO(reg.saida) : null;
+          const saR = reg.saida_almoco ? parseISO(reg.saida_almoco) : null;
+          const vaR = reg.volta_almoco ? parseISO(reg.volta_almoco) : null;
+          if (entradaR && saidaR) {
+            let extra = differenceInMinutes(saidaR, entradaR);
+            if (saR && vaR) extra -= differenceInMinutes(vaR, saR);
+            totalExtraMin += extra;
+            totalHorasMin += extra;
+          }
+        }
+        return;
+      }
+      diasUteis++;
       const reg = porDia[key];
 
-      if (!reg && !isWE) {
+      if (!reg) {
         qtdFaltas++;
         evolucaoDiaria.push({ dia: format(dia, "dd/MM"), saldo: -horasEsperadasDia * 60, horas: 0 });
         return;
       }
-      if (!reg) return;
 
       diasTrabalhados++;
       if (reg.ajustado) qtdAjustes++;
@@ -266,6 +335,8 @@ export default function AnaliseFuncionario() {
       qtdAlmocosLongos,
       qtdAjustes,
       qtdSaidasAntecipadas,
+      qtdFeriados,
+      qtdAbonados,
       evolucaoDiaria,
       distribuicaoArr,
       pontualidadeScore,
@@ -276,7 +347,7 @@ export default function AnaliseFuncionario() {
       scoreGeral,
       horasEsperadasMes: diasUteis * horasEsperadasDia,
     };
-  }, [registros, funcionario, periodo]);
+  }, [registros, funcionario, periodo, feriados, abonados]);
 
   const initials = (nome: string) =>
     nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
