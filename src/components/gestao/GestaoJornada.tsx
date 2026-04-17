@@ -490,6 +490,8 @@ export default function GestaoJornada() {
 
     // Logo Vangard (canto superior direito) — estilo limpo inspirado no modelo Sólides
     const logoVangard = await loadImageAsDataURL("/images/vangard-logo.png");
+    // Logo UON1 (rodapé canto direito)
+    const logoUon1 = await loadImageAsDataURL("/images/logo-full.png");
 
     const drawHeader = () => {
       // Título "Folha de Ponto" — preto, à esquerda
