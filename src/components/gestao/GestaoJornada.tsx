@@ -1221,7 +1221,7 @@ export default function GestaoJornada() {
                             <span className="text-sm font-semibold">{formatHoursMinutes(day.hoursWorked)}</span>
                             {day.isLate && (
                               <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                                -{day.lateMinutes}min
+                                -{day.lateMinutesDiscounted}min
                               </Badge>
                             )}
                             {day.hasOvertime && (
