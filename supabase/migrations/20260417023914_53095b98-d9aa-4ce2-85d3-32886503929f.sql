@@ -1,0 +1,1 @@
+UPDATE public.funcionarios SET horario_saida = '17:48:00' WHERE horario_saida = '07:48:00';
