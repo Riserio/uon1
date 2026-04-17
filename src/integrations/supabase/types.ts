@@ -2360,6 +2360,50 @@ export type Database = {
           },
         ]
       }
+      funcionario_feedback_notas: {
+        Row: {
+          ano: number
+          created_at: string
+          created_by: string | null
+          funcionario_id: string
+          id: string
+          mes: number
+          observacoes: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ano: number
+          created_at?: string
+          created_by?: string | null
+          funcionario_id: string
+          id?: string
+          mes: number
+          observacoes?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ano?: number
+          created_at?: string
+          created_by?: string | null
+          funcionario_id?: string
+          id?: string
+          mes?: number
+          observacoes?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funcionario_feedback_notas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funcionarios: {
         Row: {
           ativo: boolean | null
