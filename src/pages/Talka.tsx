@@ -277,54 +277,42 @@ export default function Talk() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Video className="h-7 w-7 text-primary" />
-              </div>
-              Uon1 Talk
-            </h1>
-            <p className="text-muted-foreground mt-1">Videoconferências e reuniões online</p>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={openNewDialog} size="lg" className="gap-2">
-              <Plus className="h-4 w-4" /> Nova Reunião
-            </Button>
-
-            {/* ✅ ALTERADO: Reunião Instantânea abre no talk.uon1.com.br também */}
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => {
-                // Reunião instantânea
-                const instantId = crypto.randomUUID().substring(0, 8);
-                const reuniaoInstantanea: Reuniao = {
-                  id: "instant",
-                  titulo: "Reunião Instantânea",
-                  data_inicio: new Date().toISOString(),
-                  data_fim: new Date(Date.now() + 3600000).toISOString(),
-                  sala_id: instantId,
-                  status: "em_andamento",
-                  participantes: [],
-                  max_participantes: 50,
-                  created_at: new Date().toISOString(),
-                };
-
-                // mantém abertura interna
-                setSalaAtiva(reuniaoInstantanea);
-
-                // abre também pelo domínio oficial (igual ao botão Entrar / link)
-                const url = `https://${JITSI_DOMAIN}/uon1-talk-${instantId}`;
-                window.open(url, "_blank", "noopener,noreferrer");
-              }}
-              className="gap-2"
-            >
-              <Phone className="h-4 w-4" /> Reunião Instantânea
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={Video}
+          title="Uon1 Talk"
+          subtitle="Videoconferências e reuniões online"
+          actions={
+            <>
+              <Button onClick={openNewDialog} size="lg" className="gap-2 rounded-xl">
+                <Plus className="h-4 w-4" /> Nova Reunião
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => {
+                  const instantId = crypto.randomUUID().substring(0, 8);
+                  const reuniaoInstantanea: Reuniao = {
+                    id: "instant",
+                    titulo: "Reunião Instantânea",
+                    data_inicio: new Date().toISOString(),
+                    data_fim: new Date(Date.now() + 3600000).toISOString(),
+                    sala_id: instantId,
+                    status: "em_andamento",
+                    participantes: [],
+                    max_participantes: 50,
+                    created_at: new Date().toISOString(),
+                  };
+                  setSalaAtiva(reuniaoInstantanea);
+                  const url = `https://${JITSI_DOMAIN}/uon1-talk-${instantId}`;
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }}
+                className="gap-2 rounded-xl"
+              >
+                <Phone className="h-4 w-4" /> Reunião Instantânea
+              </Button>
+            </>
+          }
+        />
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

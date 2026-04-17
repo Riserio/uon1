@@ -45,6 +45,7 @@ import NovoContratoDialog from "@/components/gestao/NovoContratoDialog";
 import TemplateContratoDialog from "@/components/gestao/TemplateContratoDialog";
 import VisualizarContratoDialog from "@/components/gestao/VisualizarContratoDialog";
 import { downloadContratoPDF } from "@/components/gestao/utils/downloadContratoPDF";
+import { PageHeader } from "@/components/ui/page-header";
 
 const getVigenciaBadge = (dataFim: string | null, status: string) => {
   if (!dataFim || status === "cancelado") return null;

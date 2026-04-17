@@ -9,6 +9,7 @@ import { ArrowLeft, FileText, DollarSign, Calendar, CheckCircle } from "lucide-r
 import { formatCurrency } from "@/lib/formatters";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface SinistroData {
   id: string;
@@ -124,39 +125,30 @@ export default function CustosSinistros() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <DollarSign className="h-7 w-7 text-primary" />
-            </div>
-            Custos de Sinistros
-          </h1>
-          <p className="text-muted-foreground mt-1">Resumo detalhado dos custos por sinistro</p>
-        </div>
-        <div className="flex items-end gap-2">
-          <div className="w-full md:w-64">
-            <Label>Filtrar por Corretora</Label>
+      <PageHeader
+        icon={DollarSign}
+        title="Custos de Sinistros"
+        subtitle="Resumo detalhado dos custos por sinistro"
+        actions={
+          <>
             <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full md:w-56 rounded-xl">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todas as Corretoras</SelectItem>
                 {corretoras.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
-                  </SelectItem>
+                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
-          </Button>
-        </div>
-      </div>
+            <Button variant="outline" onClick={() => navigate(-1)} className="rounded-xl">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Voltar
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid gap-4">
         {sinistros.length === 0 ? (
