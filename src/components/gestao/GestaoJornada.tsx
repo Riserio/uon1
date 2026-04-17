@@ -44,7 +44,7 @@ import { toast } from "sonner";
 import { format, parseISO, differenceInMinutes, getDaysInMonth, isWeekend } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import ConfigurarAlertasDialog from "./ConfigurarAlertasDialog";
 import AjusteManualPontoDialog from "./AjusteManualPontoDialog";
@@ -152,9 +152,18 @@ const getBusinessDaysInMonth = (year: number, month: number): number => {
 };
 
 const formatHoursMinutes = (totalHours: number): string => {
-  const hours = Math.floor(totalHours);
-  const minutes = Math.round((totalHours - hours) * 60);
+  const totalMinutes = Math.round(totalHours * 60);
+  const hours = Math.floor(Math.abs(totalMinutes) / 60);
+  const minutes = Math.abs(totalMinutes) % 60;
   return `${hours}h${minutes.toString().padStart(2, "0")}m`;
+};
+
+const formatSaldoMinutos = (totalMinutes: number): string => {
+  const sign = totalMinutes < 0 ? "-" : totalMinutes > 0 ? "+" : "";
+  const abs = Math.abs(totalMinutes);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return `${sign}${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 };
 
 export default function GestaoJornada() {
@@ -300,15 +309,21 @@ export default function GestaoJornada() {
       if (!registrosPorDia[dia]) registrosPorDia[dia] = [];
       registrosPorDia[dia].push(r);
     });
+    const tolerancia = funcionarioSelecionado.tolerancia_atraso_minutos ?? 10;
     const workedDays: Array<{
       date: string;
       dayName: string;
       hoursWorked: number;
+      expectedMinutes: number;
       isLate: boolean;
       lateMinutes: number;
+      lateMinutesDiscounted: number;
       hasOvertime: boolean;
       overtimeMinutes: number;
+      saldoMinutos: number;
       entrada?: string;
+      saidaAlmoco?: string;
+      voltaAlmoco?: string;
       saida?: string;
       almocoMinutes: number;
       almocoRegistrado: boolean;
@@ -317,6 +332,8 @@ export default function GestaoJornada() {
     let lateCount = 0;
     let overtimeCount = 0;
     let totalOvertimeMinutes = 0;
+    let totalLateDiscountedMinutes = 0;
+    let totalSaldoMinutos = 0;
     const expectedEntrada = funcionarioSelecionado.horario_entrada || "08:00";
     const expectedSaida = funcionarioSelecionado.horario_saida || "18:00";
     const almocoInicio = funcionarioSelecionado.horario_almoco_inicio || "12:00";
@@ -326,6 +343,8 @@ export default function GestaoJornada() {
     const [almocoInicioHour, almocoInicioMinute] = almocoInicio.split(":").map(Number);
     const [almocoFimHour, almocoFimMinute] = almocoFim.split(":").map(Number);
     const defaultAlmocoMinutes = almocoFimHour * 60 + almocoFimMinute - (almocoInicioHour * 60 + almocoInicioMinute);
+    const expectedDayMinutes =
+      (expectedSaidaHour * 60 + expectedSaidaMinute) - (expectedHour * 60 + expectedMinute) - defaultAlmocoMinutes;
 
     Object.entries(registrosPorDia).forEach(([dia, regs]) => {
       const entrada = regs.find((r: any) => r.tipo === "entrada");
@@ -335,6 +354,7 @@ export default function GestaoJornada() {
       let hoursWorked = 0,
         isLate = false,
         lateMinutes = 0,
+        lateMinutesDiscounted = 0,
         hasOvertime = false,
         overtimeMinutes = 0;
       let almocoMinutes = defaultAlmocoMinutes,
@@ -345,9 +365,12 @@ export default function GestaoJornada() {
         const expectedDate = new Date(entradaDate);
         expectedDate.setHours(expectedHour, expectedMinute, 0, 0);
         const diffMinutes = differenceInMinutes(entradaDate, expectedDate);
-        if (diffMinutes > 10) {
+        if (diffMinutes > tolerancia) {
           isLate = true;
           lateMinutes = diffMinutes;
+          // Desconta apenas o que excede a tolerância (CLT: até 10min é "perdoado")
+          lateMinutesDiscounted = diffMinutes - tolerancia;
+          totalLateDiscountedMinutes += lateMinutesDiscounted;
           lateCount++;
         }
       }
@@ -356,11 +379,11 @@ export default function GestaoJornada() {
         const expectedSaidaDate = new Date(saidaDate);
         expectedSaidaDate.setHours(expectedSaidaHour, expectedSaidaMinute, 0, 0);
         const diffMinutesSaida = differenceInMinutes(saidaDate, expectedSaidaDate);
-        if (diffMinutesSaida > 10) {
+        if (diffMinutesSaida > tolerancia) {
           hasOvertime = true;
-          overtimeMinutes = diffMinutesSaida;
+          overtimeMinutes = diffMinutesSaida - tolerancia;
           overtimeCount++;
-          totalOvertimeMinutes += diffMinutesSaida;
+          totalOvertimeMinutes += overtimeMinutes;
         }
       }
       if (entrada && saida) {
@@ -375,15 +398,25 @@ export default function GestaoJornada() {
         hoursWorked = Math.max(0, totalMinutes / 60);
         totalMinutesWorked += totalMinutes;
       }
+      // Saldo do dia = horas trabalhadas - horas esperadas (em minutos)
+      const workedMinutesDay = hoursWorked * 60;
+      const saldoMinutos = entrada && saida ? Math.round(workedMinutesDay - expectedDayMinutes) : 0;
+      totalSaldoMinutos += saldoMinutos;
+
       workedDays.push({
         date: dia,
         dayName: format(parseISO(dia), "EEEE", { locale: ptBR }),
         hoursWorked,
+        expectedMinutes: expectedDayMinutes,
         isLate,
         lateMinutes,
+        lateMinutesDiscounted,
         hasOvertime,
         overtimeMinutes,
+        saldoMinutos,
         entrada: entrada ? format(new Date(entrada.data_hora), "HH:mm") : undefined,
+        saidaAlmoco: saidaAlmoco ? format(new Date(saidaAlmoco.data_hora), "HH:mm") : undefined,
+        voltaAlmoco: voltaAlmoco ? format(new Date(voltaAlmoco.data_hora), "HH:mm") : undefined,
         saida: saida ? format(new Date(saida.data_hora), "HH:mm") : undefined,
         almocoMinutes,
         almocoRegistrado,
@@ -397,6 +430,9 @@ export default function GestaoJornada() {
       lateCount,
       overtimeCount,
       totalOvertimeMinutes,
+      totalLateDiscountedMinutes,
+      totalSaldoMinutos,
+      tolerancia,
     };
   }, [registros, funcionarioSelecionado, ano, mes]);
 
@@ -407,42 +443,171 @@ export default function GestaoJornada() {
     return acc;
   }, {});
 
-  // Export functions
+  // Export functions — Espelho de ponto estilo Sólides (individual)
   const exportToPDF = (individual: boolean) => {
     const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const periodLabel = format(new Date(ano, mes - 1), "MMMM 'de' yyyy", { locale: ptBR });
+
+    // Cabeçalho
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.text("Relatório de Ponto", 20, 20);
+    doc.text("Espelho de Ponto", 14, 18);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(`Período: ${format(new Date(ano, mes - 1), "MMMM 'de' yyyy", { locale: ptBR })}`, 20, 28);
-    if (individual && funcionarioSelecionado) doc.text(`Funcionário: ${funcionarioSelecionado.nome}`, 20, 34);
-    const dataToExport = individual ? registros : allRegistros;
-    if (!dataToExport || dataToExport.length === 0) {
-      doc.text("Nenhum registro encontrado", 20, 50);
-    } else {
-      const tableData = dataToExport.map((r: any) => [
-        individual ? "" : r.funcionarios?.nome || "N/A",
-        format(new Date(r.data_hora), "dd/MM/yyyy"),
-        format(new Date(r.data_hora), "EEEE", { locale: ptBR }),
-        format(new Date(r.data_hora), "HH:mm"),
-        tiposPonto.find((t) => t.value === r.tipo)?.label || r.tipo,
-      ]);
-      (doc as any).autoTable({
-        startY: 40,
-        head: [individual ? ["Data", "Dia", "Hora", "Tipo"] : ["Funcionário", "Data", "Dia", "Hora", "Tipo"]],
-        body: individual ? tableData.map((row) => row.slice(1)) : tableData,
-        theme: "striped",
-        headStyles: { fillColor: [102, 51, 153] },
-      });
+    doc.text(`Período: ${periodLabel}`, 14, 25);
+
+    if (individual && funcionarioSelecionado) {
+      doc.text(`Funcionário: ${funcionarioSelecionado.nome}`, 14, 31);
+      doc.text(
+        `Cargo: ${funcionarioSelecionado.cargo || "-"} • Jornada: ${funcionarioSelecionado.carga_horaria_semanal || 44}h/sem • Tolerância: ${detailedStats?.tolerancia ?? 10}min`,
+        14,
+        37,
+      );
     }
+
+    if (individual && detailedStats && detailedStats.workedDays.length > 0) {
+      // Tabela diária com saldo
+      const days = [...detailedStats.workedDays].sort((a, b) => a.date.localeCompare(b.date));
+      const body = days.map((d) => [
+        format(parseISO(d.date), "dd/MM"),
+        format(parseISO(d.date), "EEE", { locale: ptBR }),
+        d.entrada || "--:--",
+        d.saidaAlmoco || "--:--",
+        d.voltaAlmoco || "--:--",
+        d.saida || "--:--",
+        formatHoursMinutes(d.hoursWorked),
+        formatSaldoMinutos(d.saldoMinutos),
+      ]);
+
+      autoTable(doc, {
+        startY: 44,
+        head: [["Data", "Dia", "Entrada", "S.Almoço", "V.Almoço", "Saída", "Trabalhado", "Saldo"]],
+        body,
+        theme: "striped",
+        styles: { fontSize: 8, halign: "center" },
+        headStyles: { fillColor: [102, 51, 153], textColor: 255, fontStyle: "bold" },
+        columnStyles: {
+          7: { fontStyle: "bold" },
+        },
+        didParseCell: (data: any) => {
+          if (data.section === "body" && data.column.index === 7) {
+            const txt = data.cell.raw as string;
+            if (txt?.startsWith("-")) data.cell.styles.textColor = [220, 38, 38];
+            else if (txt?.startsWith("+")) data.cell.styles.textColor = [22, 163, 74];
+          }
+        },
+      });
+
+      // Resumo do mês
+      const finalY = (doc as any).lastAutoTable.finalY + 8;
+      const saldo = detailedStats.totalSaldoMinutos;
+      const extras = detailedStats.totalOvertimeMinutes;
+      const atrasos = detailedStats.totalLateDiscountedMinutes;
+
+      autoTable(doc, {
+        startY: finalY,
+        head: [["Resumo do Mês", "Valor"]],
+        body: [
+          ["Dias trabalhados", `${detailedStats.workedDaysCount} de ${detailedStats.businessDays}`],
+          ["Horas trabalhadas", formatHoursMinutes(detailedStats.totalHoursWorked)],
+          ["Horas extras", `+${formatSaldoMinutos(extras).replace("+", "")}`],
+          ["Atrasos descontados", `-${formatSaldoMinutos(atrasos).replace(/[+-]/, "")}`],
+          [
+            { content: "Saldo do mês", styles: { fontStyle: "bold" } },
+            {
+              content: formatSaldoMinutos(saldo),
+              styles: {
+                fontStyle: "bold",
+                textColor: saldo < 0 ? [220, 38, 38] : saldo > 0 ? [22, 163, 74] : [60, 60, 60],
+              },
+            },
+          ],
+        ],
+        theme: "grid",
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [241, 245, 249], textColor: [30, 30, 30], fontStyle: "bold" },
+        columnStyles: { 0: { cellWidth: 80 }, 1: { halign: "right" } },
+      });
+
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      doc.text(
+        `Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
+        14,
+        doc.internal.pageSize.getHeight() - 10,
+      );
+    } else {
+      // Modo "todos os funcionários" ou sem dados consolidados — fallback registros brutos
+      const dataToExport = individual ? registros : allRegistros;
+      if (!dataToExport || dataToExport.length === 0) {
+        doc.text("Nenhum registro encontrado", 14, 50);
+      } else {
+        const tableData = dataToExport.map((r: any) => [
+          individual ? "" : r.funcionarios?.nome || "N/A",
+          format(new Date(r.data_hora), "dd/MM/yyyy"),
+          format(new Date(r.data_hora), "EEEE", { locale: ptBR }),
+          format(new Date(r.data_hora), "HH:mm"),
+          tiposPonto.find((t) => t.value === r.tipo)?.label || r.tipo,
+        ]);
+        autoTable(doc, {
+          startY: 44,
+          head: [individual ? ["Data", "Dia", "Hora", "Tipo"] : ["Funcionário", "Data", "Dia", "Hora", "Tipo"]],
+          body: individual ? tableData.map((row) => row.slice(1)) : tableData,
+          theme: "striped",
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [102, 51, 153] },
+        });
+      }
+    }
+
     doc.save(
-      `relatorio_ponto_${individual ? funcionarioSelecionado?.nome?.replace(/\s+/g, "_") : "todos"}_${mes}_${ano}.pdf`,
+      `espelho_ponto_${individual ? funcionarioSelecionado?.nome?.replace(/\s+/g, "_") : "todos"}_${mes}_${ano}.pdf`,
     );
     toast.success("PDF exportado com sucesso!");
   };
 
   const exportToExcel = (individual: boolean) => {
+    if (individual && detailedStats && detailedStats.workedDays.length > 0) {
+      // Espelho de ponto detalhado por dia
+      const days = [...detailedStats.workedDays].sort((a, b) => a.date.localeCompare(b.date));
+      const excelData = days.map((d) => ({
+        Data: format(parseISO(d.date), "dd/MM/yyyy"),
+        Dia: format(parseISO(d.date), "EEEE", { locale: ptBR }),
+        Entrada: d.entrada || "",
+        "Saída Almoço": d.saidaAlmoco || "",
+        "Volta Almoço": d.voltaAlmoco || "",
+        Saída: d.saida || "",
+        "Horas Trabalhadas": formatHoursMinutes(d.hoursWorked),
+        "Atraso (min)": d.lateMinutesDiscounted || 0,
+        "Hora Extra (min)": d.overtimeMinutes || 0,
+        "Saldo do dia": formatSaldoMinutos(d.saldoMinutos),
+      }));
+      // Linha de totais
+      excelData.push({
+        Data: "TOTAIS",
+        Dia: "",
+        Entrada: "",
+        "Saída Almoço": "",
+        "Volta Almoço": "",
+        Saída: "",
+        "Horas Trabalhadas": formatHoursMinutes(detailedStats.totalHoursWorked),
+        "Atraso (min)": detailedStats.totalLateDiscountedMinutes,
+        "Hora Extra (min)": detailedStats.totalOvertimeMinutes,
+        "Saldo do dia": formatSaldoMinutos(detailedStats.totalSaldoMinutos),
+      } as any);
+
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Espelho de Ponto");
+      XLSX.writeFile(
+        wb,
+        `espelho_ponto_${funcionarioSelecionado?.nome?.replace(/\s+/g, "_")}_${mes}_${ano}.xlsx`,
+      );
+      toast.success("Excel exportado com sucesso!");
+      return;
+    }
+
     const dataToExport = individual ? registros : allRegistros;
     if (!dataToExport || dataToExport.length === 0) {
       toast.error("Nenhum registro para exportar");
@@ -1056,7 +1221,7 @@ export default function GestaoJornada() {
                             <span className="text-sm font-semibold">{formatHoursMinutes(day.hoursWorked)}</span>
                             {day.isLate && (
                               <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                                -{day.lateMinutes}min
+                                -{day.lateMinutesDiscounted}min
                               </Badge>
                             )}
                             {day.hasOvertime && (
@@ -1215,6 +1380,68 @@ export default function GestaoJornada() {
           {/* RELATORIO VIEW */}
           {activeView === "relatorio" && (
             <div className="space-y-4">
+              {/* Banner de Saldo Mensal — destaque */}
+              {detailedStats && (
+                <Card
+                  className={cn(
+                    "rounded-2xl border-2",
+                    detailedStats.totalSaldoMinutos < 0
+                      ? "border-red-200 dark:border-red-800/60 bg-gradient-to-r from-red-500/5 to-transparent"
+                      : detailedStats.totalSaldoMinutos > 0
+                        ? "border-emerald-200 dark:border-emerald-800/60 bg-gradient-to-r from-emerald-500/5 to-transparent"
+                        : "border-border/50",
+                  )}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between flex-wrap gap-4">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={cn(
+                            "h-14 w-14 rounded-2xl flex items-center justify-center",
+                            detailedStats.totalSaldoMinutos < 0
+                              ? "bg-red-500/10"
+                              : detailedStats.totalSaldoMinutos > 0
+                                ? "bg-emerald-500/10"
+                                : "bg-muted",
+                          )}
+                        >
+                          {detailedStats.totalSaldoMinutos < 0 ? (
+                            <TrendingDown className="h-7 w-7 text-red-600" />
+                          ) : (
+                            <TrendingUp className="h-7 w-7 text-emerald-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                            Saldo do Mês
+                          </p>
+                          <p
+                            className={cn(
+                              "text-3xl font-bold leading-tight",
+                              detailedStats.totalSaldoMinutos < 0
+                                ? "text-red-600"
+                                : detailedStats.totalSaldoMinutos > 0
+                                  ? "text-emerald-600"
+                                  : "",
+                            )}
+                          >
+                            {formatSaldoMinutos(detailedStats.totalSaldoMinutos)}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            +{formatSaldoMinutos(detailedStats.totalOvertimeMinutes).replace("+", "")} extras • −
+                            {formatSaldoMinutos(detailedStats.totalLateDiscountedMinutes).replace(/[+-]/, "")} atrasos
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] text-muted-foreground">Tolerância CLT aplicada</p>
+                        <p className="text-sm font-semibold">{detailedStats.tolerancia} min/dia</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Stats Cards */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 {[
@@ -1247,7 +1474,7 @@ export default function GestaoJornada() {
                     bg: "bg-purple-500/10",
                   },
                   {
-                    label: "Atrasos",
+                    label: `Atrasos (>${detailedStats?.tolerancia ?? 10}min)`,
                     value: detailedStats?.lateCount || 0,
                     icon: AlertCircle,
                     color: detailedStats?.lateCount ? "text-red-600" : "text-muted-foreground",
@@ -1402,7 +1629,7 @@ export default function GestaoJornada() {
                             <span className="text-sm font-semibold">{formatHoursMinutes(day.hoursWorked)}</span>
                             {day.isLate && (
                               <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                                -{day.lateMinutes}min
+                                -{day.lateMinutesDiscounted}min
                               </Badge>
                             )}
                             {day.hasOvertime && (

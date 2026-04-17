@@ -55,8 +55,9 @@ export default function AjusteManualPontoDialog({
 
   const ajustarPonto = useMutation({
     mutationFn: async () => {
-      if (!motivo.trim()) {
-        throw new Error("Informe o motivo do ajuste");
+      // Motivo é obrigatório apenas para registros novos. Para edição, é opcional.
+      if (!registroExistente && !motivo.trim()) {
+        throw new Error("Informe o motivo do registro manual");
       }
 
       const dataHora = new Date(`${data}T${hora}:00`);
@@ -71,7 +72,7 @@ export default function AjusteManualPontoDialog({
             ajustado: true,
             ajustado_por: user?.id,
             ajustado_em: new Date().toISOString(),
-            motivo_ajuste: motivo,
+            motivo_ajuste: motivo.trim() || "Ajuste sem justificativa",
           })
           .eq("id", registroExistente.id);
 
@@ -159,11 +160,17 @@ export default function AjusteManualPontoDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Motivo do Ajuste *</Label>
+            <Label>
+              Motivo {registroExistente ? "(opcional)" : "*"}
+            </Label>
             <Textarea
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Descreva o motivo do ajuste ou registro manual..."
+              placeholder={
+                registroExistente
+                  ? "Opcional: descreva o motivo da edição..."
+                  : "Descreva o motivo do registro manual..."
+              }
               rows={3}
             />
           </div>

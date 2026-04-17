@@ -2360,6 +2360,7 @@ export type Database = {
           salario: number | null
           telefone: string | null
           tipo_contrato: string | null
+          tolerancia_atraso_minutos: number
           updated_at: string
         }
         Insert: {
@@ -2388,6 +2389,7 @@ export type Database = {
           salario?: number | null
           telefone?: string | null
           tipo_contrato?: string | null
+          tolerancia_atraso_minutos?: number
           updated_at?: string
         }
         Update: {
@@ -2416,6 +2418,7 @@ export type Database = {
           salario?: number | null
           telefone?: string | null
           tipo_contrato?: string | null
+          tolerancia_atraso_minutos?: number
           updated_at?: string
         }
         Relationships: [

@@ -52,6 +52,7 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
   const [horarioSaida, setHorarioSaida] = useState("18:00");
   const [horarioAlmocoInicio, setHorarioAlmocoInicio] = useState("12:00");
   const [horarioAlmocoFim, setHorarioAlmocoFim] = useState("13:00");
+  const [toleranciaAtraso, setToleranciaAtraso] = useState("10");
   const [corretoraId, setCorretoraId] = useState("");
 
   // Endereço
@@ -98,6 +99,7 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
       setHorarioSaida(funcionario.horario_saida || "18:00");
       setHorarioAlmocoInicio(funcionario.horario_almoco_inicio || "12:00");
       setHorarioAlmocoFim(funcionario.horario_almoco_fim || "13:00");
+      setToleranciaAtraso(funcionario.tolerancia_atraso_minutos?.toString() ?? "10");
       setCorretoraId(funcionario.corretora_id || "");
 
       const endereco = funcionario.endereco || {};
@@ -131,6 +133,7 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
     setHorarioSaida("18:00");
     setHorarioAlmocoInicio("12:00");
     setHorarioAlmocoFim("13:00");
+    setToleranciaAtraso("10");
     setCorretoraId("");
     setCep("");
     setRua("");
@@ -164,6 +167,7 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
         horario_saida: horarioSaida,
         horario_almoco_inicio: horarioAlmocoInicio,
         horario_almoco_fim: horarioAlmocoFim,
+        tolerancia_atraso_minutos: parseInt(toleranciaAtraso) || 0,
         corretora_id: corretoraId || null,
         endereco: { cep, rua, numero, bairro, cidade, estado },
         dados_bancarios: { banco, agencia, conta, pix },
@@ -357,6 +361,20 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
                   value={horarioAlmocoFim}
                   onChange={(e) => setHorarioAlmocoFim(e.target.value)}
                 />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Tolerância de Atraso (minutos)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={toleranciaAtraso}
+                  onChange={(e) => setToleranciaAtraso(e.target.value)}
+                  placeholder="10"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Atrasos diários até este limite são desconsiderados no saldo (padrão CLT: 10 min).
+                </p>
               </div>
             </div>
 
