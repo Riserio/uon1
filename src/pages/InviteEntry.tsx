@@ -194,33 +194,21 @@ export default function InviteEntry() {
           onDisconnected={() => { setApproved(false); setToken(null); }}
           className="flex flex-col flex-1"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-2.5 bg-card border-b border-border/50 shadow-sm">
-            <div className="flex items-center gap-3">
-              <img src="/images/logo-full.png" alt="UON1" className="h-7 w-auto" />
-              <div className="h-5 w-px bg-border/50" />
-              <img src="/images/logo-vg.png" alt="Vangard" className="h-7 w-auto" />
-              <div className="h-5 w-px bg-border/50" />
-              <div>
-                <h2 className="font-semibold text-sm flex items-center gap-1.5">
-                  <span className="text-primary">Talk</span>
-                  <span className="text-[10px] text-muted-foreground font-normal">by Uon1</span>
-                  <span className="mx-1 text-muted-foreground">•</span>
-                  <span className="text-foreground">{roomInfo?.nome}</span>
-                </h2>
-                <p className="text-xs text-muted-foreground">{displayName} • Convidado</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Video grid + controls */}
+          {/* Same layout as host: shared header + video grid + control bar */}
+          <RoomHeader
+            room={{ nome: roomInfo?.nome || "Reunião" }}
+            isHost={false}
+            roomId={roomId}
+            onLeave={() => { setApproved(false); setToken(null); }}
+            subtitleOverride={`${displayName} • Convidado`}
+          />
           <div className="flex flex-1 overflow-hidden">
-            <GuestVideoGrid />
+            <VideoGridWithReactions />
             {chatOpen && roomId && (
-              <GuestChatPanel roomId={roomId} guestName={displayName} guestIdentity={participantIdentity} />
+              <ChatPanel roomId={roomId} userId={participantIdentity} userName={displayName} />
             )}
           </div>
-          <GuestControlBar
+          <ControlBar
             onLeave={() => { setApproved(false); setToken(null); }}
             chatOpen={chatOpen}
             onToggleChat={() => setChatOpen(!chatOpen)}
