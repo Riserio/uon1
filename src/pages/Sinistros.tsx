@@ -67,7 +67,7 @@ export default function Sinistros() {
     if (activeTab === "vistorias") loadVistorias();
     else if (activeTab === "acompanhamento") loadAcompanhamento();
     else if (activeTab === "dashboard") loadDashboard();
-  }, [activeTab, selectedDashboardCorretora, selectedCorretora]);
+  }, [activeTab, selectedDashboardCorretora, selectedCorretora, tipoVistoriaFilter]);
 
   const loadVistorias = async () => {
     try {
@@ -125,6 +125,7 @@ export default function Sinistros() {
       setDashboardCorretoras(corretorasData || []);
       let query = supabase.from("vistorias").select("*").order("created_at", { ascending: false });
       if (selectedDashboardCorretora !== "all") query = query.eq("corretora_id", selectedDashboardCorretora);
+      if (tipoVistoriaFilter !== "todas") query = query.eq("tipo_vistoria", tipoVistoriaFilter);
       const { data: vistoriasData } = await query;
       if (!vistoriasData) return;
       let cO = 0, cR = 0, cA = 0, cT = 0, cPT = 0, cPP = 0;
@@ -358,6 +359,11 @@ export default function Sinistros() {
                           <Badge variant="destructive" className="text-[11px]"><AlertTriangle className="h-3 w-3 mr-1" />Sem associação</Badge>
                         )}
                         {vistoria.tipo_sinistro && <Badge variant="outline" className="text-[11px]">{vistoria.tipo_sinistro}</Badge>}
+                        {(vistoria as any).tipo_vistoria === "reativacao" ? (
+                          <Badge className="bg-blue-500/10 text-blue-700 dark:text-blue-300 border-0 text-[11px]"><RefreshCw className="h-3 w-3 mr-1" />Reativação</Badge>
+                        ) : (
+                          <Badge className="bg-orange-500/10 text-orange-700 dark:text-orange-300 border-0 text-[11px]"><AlertTriangle className="h-3 w-3 mr-1" />Sinistro</Badge>
+                        )}
                       </div>
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex-1 min-w-0">
