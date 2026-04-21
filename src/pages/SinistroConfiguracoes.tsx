@@ -18,6 +18,8 @@ import { ArrowLeft, Plus, Save, Trash2, Pencil, GripVertical, Settings, HelpCirc
 import { NIVEIS_ALERTA_PESO } from '@/constants/perguntasComite';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { VistoriaPrazoConfig } from '@/components/VistoriaPrazoConfig';
+import { VistoriaFotosConfig } from '@/components/VistoriaFotosConfig';
+import { Camera } from 'lucide-react';
 
 // Tags disponíveis para auto-preenchimento
 const AUTO_FILL_TAGS = [
@@ -443,10 +445,18 @@ export default function SinistroConfiguracoes() {
             <Clock className="h-4 w-4" />
             Prazos de Vistoria
           </TabsTrigger>
+          <TabsTrigger value="fotos" className="gap-2">
+            <Camera className="h-4 w-4" />
+            Fotos por Tipo
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="prazos" className="mt-6">
           <VistoriaPrazoConfig />
+        </TabsContent>
+
+        <TabsContent value="fotos" className="mt-6">
+          <VistoriaFotosConfig />
         </TabsContent>
 
         <TabsContent value="perguntas" className="mt-6 space-y-6">

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings, ClipboardCheck, RefreshCw } from "lucide-react";
 import { ClaimCard, Claim } from "@/components/ClaimCard";
 import { AcompanhamentoSinistroDialog } from "@/components/AcompanhamentoSinistroDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,6 +34,7 @@ interface Vistoria {
 interface StatusConfig { nome: string; cor: string; ordem: number; }
 
 type TabType = "acompanhamento" | "vistorias" | "dashboard";
+type TipoVistoriaFilter = "todas" | "sinistro" | "reativacao";
 
 export default function Sinistros() {
   const navigate = useNavigate();
@@ -60,12 +61,13 @@ export default function Sinistros() {
   const [editingValues, setEditingValues] = useState({ custo_oficina: "", custo_reparo: "", custo_acordo: "", custo_terceiros: "", custo_perda_total: "", custo_perda_parcial: "" });
   const [savingEdit, setSavingEdit] = useState(false);
   const [acompanhamentoClaim, setAcompanhamentoClaim] = useState<Claim | null>(null);
+  const [tipoVistoriaFilter, setTipoVistoriaFilter] = useState<TipoVistoriaFilter>("todas");
 
   useEffect(() => {
     if (activeTab === "vistorias") loadVistorias();
     else if (activeTab === "acompanhamento") loadAcompanhamento();
     else if (activeTab === "dashboard") loadDashboard();
-  }, [activeTab, selectedDashboardCorretora, selectedCorretora]);
+  }, [activeTab, selectedDashboardCorretora, selectedCorretora, tipoVistoriaFilter]);
 
   const loadVistorias = async () => {
     try {
@@ -123,6 +125,7 @@ export default function Sinistros() {
       setDashboardCorretoras(corretorasData || []);
       let query = supabase.from("vistorias").select("*").order("created_at", { ascending: false });
       if (selectedDashboardCorretora !== "all") query = query.eq("corretora_id", selectedDashboardCorretora);
+      if (tipoVistoriaFilter !== "todas") query = query.eq("tipo_vistoria", tipoVistoriaFilter);
       const { data: vistoriasData } = await query;
       if (!vistoriasData) return;
       let cO = 0, cR = 0, cA = 0, cT = 0, cPT = 0, cPP = 0;
@@ -150,9 +153,18 @@ export default function Sinistros() {
   const filteredClaims = claims.filter(c => {
     const ms = selectedStatus === "all" || c.status === selectedStatus;
     const mt = c.numero.toString().includes(searchTerm.toLowerCase()) || c.assunto.toLowerCase().includes(searchTerm.toLowerCase()) || c.observacoes?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
-    return ms && mt;
+    const tipoNorm = ((c as any).tipo_vistoria || ((c as any).tipo_sinistro?.toLowerCase().includes("reativ") ? "reativacao" : "sinistro")) as string;
+    const mtipo = tipoVistoriaFilter === "todas" || tipoNorm === tipoVistoriaFilter;
+    return ms && mt && mtipo;
   });
-  const filteredVistorias = vistorias.filter(v => { if (!vistoriaSearchTerm) return true; const t = vistoriaSearchTerm.toLowerCase(); return v.numero.toString().includes(t) || v.cliente_nome?.toLowerCase().includes(t) || v.veiculo_placa?.toLowerCase().includes(t); });
+  const filteredVistorias = vistorias.filter(v => {
+    const tipo = ((v as any).tipo_vistoria || "sinistro") as string;
+    const mtipo = tipoVistoriaFilter === "todas" || tipo === tipoVistoriaFilter;
+    if (!mtipo) return false;
+    if (!vistoriaSearchTerm) return true;
+    const t = vistoriaSearchTerm.toLowerCase();
+    return v.numero.toString().includes(t) || v.cliente_nome?.toLowerCase().includes(t) || v.veiculo_placa?.toLowerCase().includes(t);
+  });
 
   const normalizeStatus = (s?: string | null) => (s || "").toLowerCase();
   const totalSinistros = claims.length;
@@ -192,9 +204,9 @@ export default function Sinistros() {
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-6">
       <PageHeader
-        icon={AlertTriangle}
-        title="Sinistros"
-        subtitle="Gestão integrada de sinistros e vistorias"
+        icon={ClipboardCheck}
+        title="Vistorias"
+        subtitle="Gestão integrada de vistorias de sinistros e reativações"
         actions={
           <>
             <Button onClick={() => navigate("/vistorias/nova/manual")} className="rounded-xl gap-1.5 shadow-sm">
@@ -224,6 +236,27 @@ export default function Sinistros() {
           <Button variant="ghost" onClick={() => navigate('/sinistros/configuracoes')} className="gap-1.5 rounded-xl">
             <Settings className="h-4 w-4" /> <span className="hidden sm:inline">Configurações</span>
           </Button>
+        </div>
+
+        {/* Filtro Tipo de Vistoria */}
+        <div className="mt-4 flex items-center gap-2 rounded-2xl bg-muted/40 backdrop-blur p-1 w-fit">
+          {([
+            { value: "todas", label: "Todas", icon: ClipboardCheck },
+            { value: "sinistro", label: "Sinistros", icon: AlertTriangle },
+            { value: "reativacao", label: "Reativações", icon: RefreshCw },
+          ] as const).map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setTipoVistoriaFilter(opt.value)}
+              className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+                tipoVistoriaFilter === opt.value
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <opt.icon className="h-4 w-4" /> {opt.label}
+            </button>
+          ))}
         </div>
 
         {loading ? (
@@ -326,6 +359,11 @@ export default function Sinistros() {
                           <Badge variant="destructive" className="text-[11px]"><AlertTriangle className="h-3 w-3 mr-1" />Sem associação</Badge>
                         )}
                         {vistoria.tipo_sinistro && <Badge variant="outline" className="text-[11px]">{vistoria.tipo_sinistro}</Badge>}
+                        {(vistoria as any).tipo_vistoria === "reativacao" ? (
+                          <Badge variant="secondary" className="text-[11px]"><RefreshCw className="h-3 w-3 mr-1" />Reativação</Badge>
+                        ) : (
+                          <Badge className="bg-primary/10 text-primary border-0 text-[11px]"><AlertTriangle className="h-3 w-3 mr-1" />Sinistro</Badge>
+                        )}
                       </div>
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex-1 min-w-0">
