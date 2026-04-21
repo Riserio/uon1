@@ -158,6 +158,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
         observacoes: formData.observacoes || null,
         corretora_id: corretoraId === "administradora" ? null : corretoraId,
         centro_custo_id: formData.centro_custo_id || null,
+        anexos: anexos as any,
       };
 
       if (editingId) {
@@ -220,6 +221,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
       observacoes: lancamento.observacoes || "",
       centro_custo_id: lancamento.centro_custo_id || "",
     });
+    setAnexos(Array.isArray(lancamento.anexos) ? lancamento.anexos : []);
     setDialogOpen(true);
   };
 
@@ -295,6 +297,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
       observacoes: "",
       centro_custo_id: "",
     });
+    setAnexos([]);
   };
 
   const getStatusBadge = (status: string) => {
@@ -489,6 +492,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
                   onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
                 />
               </div>
+              <AnexosFinanceiros anexos={anexos} onChange={setAnexos} />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar
