@@ -739,7 +739,7 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
         </div>
         {/* Controls overlay - top right */}
         <div
-          className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/tile:opacity-100 transition-opacity z-20"
+          className={`absolute ${isEnlarged ? 'top-2 right-2' : 'bottom-2 right-2'} flex items-center gap-1 opacity-0 group-hover/tile:opacity-100 transition-opacity z-20 max-w-full flex-wrap justify-end`}
           onClick={(e) => e.stopPropagation()}
         >
           {canPin && (
