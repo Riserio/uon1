@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings, ClipboardCheck, RefreshCw } from "lucide-react";
 import { ClaimCard, Claim } from "@/components/ClaimCard";
 import { AcompanhamentoSinistroDialog } from "@/components/AcompanhamentoSinistroDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,6 +34,7 @@ interface Vistoria {
 interface StatusConfig { nome: string; cor: string; ordem: number; }
 
 type TabType = "acompanhamento" | "vistorias" | "dashboard";
+type TipoVistoriaFilter = "todas" | "sinistro" | "reativacao";
 
 export default function Sinistros() {
   const navigate = useNavigate();
@@ -60,6 +61,7 @@ export default function Sinistros() {
   const [editingValues, setEditingValues] = useState({ custo_oficina: "", custo_reparo: "", custo_acordo: "", custo_terceiros: "", custo_perda_total: "", custo_perda_parcial: "" });
   const [savingEdit, setSavingEdit] = useState(false);
   const [acompanhamentoClaim, setAcompanhamentoClaim] = useState<Claim | null>(null);
+  const [tipoVistoriaFilter, setTipoVistoriaFilter] = useState<TipoVistoriaFilter>("todas");
 
   useEffect(() => {
     if (activeTab === "vistorias") loadVistorias();
