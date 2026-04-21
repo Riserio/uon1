@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, ClipboardCheck } from "lucide-react";
+ import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, ClipboardCheck, SearchCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
@@ -192,12 +192,12 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
                 Limpar Filtros
               </Button>
             )}
-            {corretoraId && inadimplentesAberto.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setRevistoriaOpen(true)} className="gap-1.5">
-                <ClipboardCheck className="h-4 w-4" />
-                Revistoria ({inadimplentesAberto.length})
-              </Button>
-            )}
+             {corretoraId && inadimplentesAberto.length > 0 && (
+               <Button variant="outline" size="sm" onClick={() => setRevistoriaOpen(true)} className="gap-1.5">
+                 <SearchCheck className="h-4 w-4" />
+                 Revistoria ({inadimplentesAberto.length})
+               </Button>
+             )}
             <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" />
               Exportar
