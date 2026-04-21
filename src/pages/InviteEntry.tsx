@@ -81,8 +81,15 @@ export default function InviteEntry() {
           );
           const tokenData = await tokenRes.json();
           if (tokenData.error) throw new Error(tokenData.error);
-          setToken(tokenData.token);
+          console.log("[Guest] Approved, got new token. livekitUrl:", tokenData.livekitUrl);
+          if (!tokenData.token || !tokenData.livekitUrl) {
+            console.error("[Guest] Missing token or livekitUrl in response", tokenData);
+            toast.error("Erro ao obter credenciais da sala");
+            return;
+          }
+          // Set all together so re-render sees consistent state
           setLivekitUrl(tokenData.livekitUrl);
+          setToken(tokenData.token);
           setApproved(true);
           toast.success("Aprovado! Entrando na sala...");
         } else if (data.status === "denied") {
@@ -181,7 +188,7 @@ export default function InviteEntry() {
   }
 
   // Approved - show full meeting room
-  if (approved && token && livekitUrl && livekitReady) {
+  if (approved && token && livekitUrl) {
     return (
       <div className="fixed inset-0 z-[100] bg-background flex flex-col">
         <LiveKitRoom
