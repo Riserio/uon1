@@ -763,7 +763,7 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   ];
 
   return (
-    <div className={`h-full overflow-hidden flex ${effectiveLayout === "sidebar" && spotlightTrack ? "flex-row" : "flex-col"} bg-muted/30 p-2 sm:p-4`}>
+    <div className={`h-full w-full overflow-hidden flex flex-col bg-muted/30 p-2 sm:p-3 gap-2 sm:gap-3`}>
       {/* Invisible audio tracks */}
       {audioTracks.map((trackRef) => (
         trackRef.publication?.track ? (
@@ -771,20 +771,29 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
         ) : null
       ))}
 
-      {/* Layout settings moved to ControlBar */}
-
-      {/* Spotlight/Enlarged speaker view */}
-      {spotlightTrack && (
-        <div className={`${effectiveLayout === "sidebar" ? "flex-1 min-w-0" : "flex-1 min-h-0 mb-3"} rounded-2xl overflow-hidden`}>
-          {renderTile(spotlightTrack, true)}
+      {spotlightTrack ? (
+        <>
+          {/* Spotlight (screen share or pinned participant) - takes most of the screen */}
+          <div className="flex-1 min-h-0 rounded-2xl overflow-hidden">
+            {renderTile(spotlightTrack, true)}
+          </div>
+          {/* Participants strip at the bottom — always visible, scrolls horizontally if needed */}
+          {gridTracks.length > 0 && (
+            <div className="h-[14vh] min-h-[90px] max-h-[160px] shrink-0 flex items-stretch gap-2 overflow-x-auto overflow-y-hidden px-1">
+              {gridTracks.map((trackRef) => renderTile(trackRef))}
+            </div>
+          )}
+        </>
+      ) : (
+        /* Grid mode: tiles auto-fit visible area without overflow */
+        <div className={`flex-1 min-h-0 grid ${getGridClass()} gap-2 sm:gap-3 items-stretch content-stretch auto-rows-fr`}>
+          {gridTracks.map((trackRef) => (
+            <div key={trackRef.participant.sid + (trackRef.publication?.trackSid || 'p')} className="min-h-0 min-w-0">
+              {renderTile(trackRef, true)}
+            </div>
+          ))}
         </div>
       )}
-      {/* Grid */}
-      <div className={`${effectiveLayout === "sidebar" && spotlightTrack 
-        ? "w-48 shrink-0 flex flex-col gap-2 overflow-y-auto ml-2" 
-        : `grid ${getGridClass()} gap-2 sm:gap-3 ${spotlightTrack ? 'h-[25%] shrink-0' : 'flex-1'} items-center content-center`}`}>
-        {gridTracks.map((trackRef) => renderTile(trackRef))}
-      </div>
     </div>
   );
 }
