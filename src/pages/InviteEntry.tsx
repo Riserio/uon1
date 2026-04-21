@@ -5,13 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import {
-  Video, VideoOff, Users, Mic, MicOff, MonitorUp, Phone, MessageCircle, Send,
-  Maximize2, Minimize2, PictureInPicture2
-} from "lucide-react";
+import { Video, Users } from "lucide-react";
+import { RoomHeader, VideoGridWithReactions, ControlBar, ChatPanel } from "./MeetingRoom";
 
 // Lazy-load LiveKit
 let LiveKitRoom: any;
