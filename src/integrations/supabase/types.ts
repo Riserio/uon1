@@ -2900,6 +2900,7 @@ export type Database = {
       }
       lancamentos_financeiros: {
         Row: {
+          anexos: Json | null
           apolice_numero: string | null
           aprovado_em: string | null
           aprovado_por: string | null
@@ -2941,6 +2942,7 @@ export type Database = {
           valor_liquido: number
         }
         Insert: {
+          anexos?: Json | null
           apolice_numero?: string | null
           aprovado_em?: string | null
           aprovado_por?: string | null
@@ -2982,6 +2984,7 @@ export type Database = {
           valor_liquido: number
         }
         Update: {
+          anexos?: Json | null
           apolice_numero?: string | null
           aprovado_em?: string | null
           aprovado_por?: string | null

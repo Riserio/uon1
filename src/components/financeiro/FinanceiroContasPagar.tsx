@@ -26,6 +26,7 @@ import { registrarHistoricoFinanceiro } from "@/lib/financeiroHistorico";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
+import { AnexosFinanceiros, AnexoFinanceiro } from "./AnexosFinanceiros";
 
 interface Props {
   corretoraId: string;
@@ -39,6 +40,7 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [anexos, setAnexos] = useState<AnexoFinanceiro[]>([]);
   const [formData, setFormData] = useState({
     descricao: "",
     valor_bruto: "",
@@ -151,6 +153,7 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
         corretora_id: corretoraId === "administradora" ? null : corretoraId,
         created_by: user.id,
         status: "pendente",
+        anexos: anexos as any,
       }]);
 
       if (error) throw error;
@@ -170,6 +173,7 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
         banco_agencia: "",
         banco_conta: "",
       });
+      setAnexos([]);
       fetchLancamentos();
     } catch (error: any) {
       toast.error(error.message || "Erro ao criar conta");
@@ -405,6 +409,7 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
                   rows={2}
                 />
               </div>
+              <AnexosFinanceiros anexos={anexos} onChange={setAnexos} />
               <div className="flex justify-end gap-2 pt-2 border-t sticky bottom-0 bg-background pb-1">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar

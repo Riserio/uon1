@@ -26,6 +26,7 @@ import { registrarHistoricoFinanceiro } from "@/lib/financeiroHistorico";
 import { format, isAfter, isBefore, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
+import { AnexosFinanceiros, AnexoFinanceiro } from "./AnexosFinanceiros";
 
 interface Props {
   corretoraId: string;
@@ -39,6 +40,7 @@ export default function FinanceiroContasReceber({ corretoraId }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [anexos, setAnexos] = useState<AnexoFinanceiro[]>([]);
   const [formData, setFormData] = useState({
     descricao: "",
     valor_bruto: "",
@@ -142,6 +144,7 @@ export default function FinanceiroContasReceber({ corretoraId }: Props) {
         corretora_id: corretoraId === "administradora" ? null : corretoraId,
         created_by: user.id,
         status: "pendente",
+        anexos: anexos as any,
       }]);
 
       if (error) throw error;
@@ -157,6 +160,7 @@ export default function FinanceiroContasReceber({ corretoraId }: Props) {
         categoria: "premio",
         observacoes: "",
       });
+      setAnexos([]);
       fetchLancamentos();
     } catch (error: any) {
       toast.error(error.message || "Erro ao criar conta");
@@ -350,6 +354,7 @@ export default function FinanceiroContasReceber({ corretoraId }: Props) {
                   onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
                 />
               </div>
+              <AnexosFinanceiros anexos={anexos} onChange={setAnexos} />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar
