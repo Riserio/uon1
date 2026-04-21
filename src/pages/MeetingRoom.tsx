@@ -643,6 +643,29 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
     }
   };
 
+  const handleFullscreen = async (trackRef: any) => {
+    const tileEl = document.querySelector(`[data-participant-sid="${trackRef.participant.sid}"]`) as HTMLElement | null;
+    if (!tileEl) return;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        setFullscreenSid(null);
+      } else {
+        await tileEl.requestFullscreen();
+        setFullscreenSid(trackRef.participant.sid);
+        const onExit = () => {
+          if (!document.fullscreenElement) {
+            setFullscreenSid(null);
+            document.removeEventListener('fullscreenchange', onExit);
+          }
+        };
+        document.addEventListener('fullscreenchange', onExit);
+      }
+    } catch {
+      toast.error("Tela cheia não suportada");
+    }
+  };
+
   const renderTile = (trackRef: any, isEnlarged = false) => {
     const hasTrack = trackRef.publication && trackRef.publication.track;
     const trackRefAny = trackRef as any;
@@ -650,26 +673,27 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
     const name = trackRef.participant.name || trackRef.participant.identity;
     const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
     const hasHandRaised = raisedHands.has(trackRef.participant.identity) || raisedHands.has(sid);
+    const isScreen = trackRef.source === Track.Source.ScreenShare;
+    const isFullscreen = fullscreenSid === sid;
 
     return (
       <div
         key={sid + (trackRef.publication?.trackSid || "placeholder")}
         data-participant-sid={sid}
         className={`relative rounded-2xl overflow-hidden flex items-center justify-center group/tile transition-shadow duration-300 ${
-          isEnlarged ? "w-full h-full" : "w-full aspect-video"
+          isEnlarged ? "w-full h-full" : "h-full aspect-video shrink-0"
         } ${hasTrack ? "bg-muted" : "bg-muted/50"} ${hasHandRaised ? "ring-2 ring-yellow-500" : ""}`}
-        style={{ minHeight: isEnlarged ? undefined : gridCount > 16 ? '120px' : '160px' }}
       >
         {hasTrack ? (
           trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare ? (
-            <VideoTrack trackRef={trackRefAny} className="w-full h-full object-cover" />
+            <VideoTrack trackRef={trackRefAny} className={`w-full h-full ${isScreen ? 'object-contain bg-black' : 'object-cover'}`} />
           ) : (
             <AudioTrack trackRef={trackRefAny} />
           )
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-primary/20 flex items-center justify-center ring-2 ring-primary/30">
-              <span className="text-2xl sm:text-3xl font-bold text-primary">{initials}</span>
+            <div className={`${isEnlarged ? 'w-20 h-20 sm:w-24 sm:h-24' : 'w-12 h-12 sm:w-16 sm:h-16'} rounded-full bg-primary/20 flex items-center justify-center ring-2 ring-primary/30`}>
+              <span className={`${isEnlarged ? 'text-2xl sm:text-3xl' : 'text-base sm:text-xl'} font-bold text-primary`}>{initials}</span>
             </div>
           </div>
         )}
@@ -682,11 +706,26 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
         {/* Name badge - bottom left */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-3 pt-8">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-foreground font-medium truncate">{name}</span>
+            <span className="text-xs sm:text-sm text-foreground font-medium truncate">
+              {name}{isScreen ? ' (apresentando)' : ''}
+            </span>
           </div>
         </div>
         {/* Controls overlay - top right */}
         <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/tile:opacity-100 transition-opacity">
+          {isEnlarged && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => handleFullscreen(trackRef)}
+                  className="h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background transition-colors border border-border/30"
+                >
+                  {isFullscreen ? <Shrink className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{isFullscreen ? "Sair da tela cheia" : "Tela cheia"}</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
