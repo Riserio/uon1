@@ -36,14 +36,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-interface Props {
-  corretoraId: string;
-}
-
 import { AnexosFinanceiros, AnexoFinanceiro } from "./AnexosFinanceiros";
 
-interface _UnusedShim {
+interface Props {
   corretoraId: string;
 }
 
@@ -70,6 +65,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
     observacoes: "",
     centro_custo_id: "",
   });
+  const [anexos, setAnexos] = useState<AnexoFinanceiro[]>([]);
 
   useEffect(() => {
     if (user) {
