@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
- import { ClipboardCheck, Loader2, AlertTriangle, CheckCircle2, SearchCheck } from "lucide-react";
+ import { Loader2, AlertTriangle, CheckCircle2, SearchCheck } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Props {

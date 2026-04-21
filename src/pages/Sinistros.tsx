@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
- import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings, ClipboardCheck, RefreshCw, SearchCheck } from "lucide-react";
+ import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings, RefreshCw, SearchCheck } from "lucide-react";
 import { ClaimCard, Claim } from "@/components/ClaimCard";
 import { AcompanhamentoSinistroDialog } from "@/components/AcompanhamentoSinistroDialog";
 import { useAuth } from "@/hooks/useAuth";

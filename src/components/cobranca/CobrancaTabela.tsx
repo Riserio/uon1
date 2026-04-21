@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
- import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, ClipboardCheck, SearchCheck } from "lucide-react";
+ import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, SearchCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
