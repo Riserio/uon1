@@ -41,6 +41,12 @@ interface Props {
   corretoraId: string;
 }
 
+import { AnexosFinanceiros, AnexoFinanceiro } from "./AnexosFinanceiros";
+
+interface _UnusedShim {
+  corretoraId: string;
+}
+
 export default function FinanceiroLancamentos({ corretoraId }: Props) {
   const { user } = useAuth();
   const [lancamentos, setLancamentos] = useState<any[]>([]);
