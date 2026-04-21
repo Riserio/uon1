@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import {
   Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, MessageCircle, Send,
-  Maximize2, Minimize2, PictureInPicture2, LayoutGrid, Settings2, Hand, Smile, PersonStanding, Clock, Calendar, Timer, Expand, Shrink
+  Maximize2, Minimize2, PictureInPicture2, LayoutGrid, Settings2, Hand, Smile, PersonStanding, Clock, Calendar, Timer, Expand, Shrink, Pin, PinOff, Film, PanelBottom, PanelRight
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -542,6 +542,11 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   const [enlargedSid, setEnlargedSid] = useState<string | null>(null);
   const [pipSid, setPipSid] = useState<string | null>(null);
   const [fullscreenSid, setFullscreenSid] = useState<string | null>(null);
+  const [pinnedSid, setPinnedSid] = useState<string | null>(null);
+  const [cinemaMode, setCinemaMode] = useState(false);
+  const [presentationLayout, setPresentationLayout] = useState<"strip" | "sidebar">(
+    () => (localStorage.getItem("uon1-presentation-layout") as "strip" | "sidebar") || "strip"
+  );
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
   const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "50", 10));
   const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
@@ -585,10 +590,14 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   const effectiveLayout: LayoutMode = hasScreenShare && layoutMode === "auto" ? "sidebar" : layoutMode;
 
   let spotlightTrack: any = null;
-  if (hasScreenShare) {
+  // Pin has highest precedence: if user explicitly pinned someone, show them as spotlight
+  const pinnedTrack = pinnedSid ? limitedTracks.find(t => t.participant.sid === pinnedSid && t.source !== Track.Source.ScreenShare) : null;
+  if (pinnedTrack && !hasScreenShare) {
+    spotlightTrack = pinnedTrack;
+  } else if (hasScreenShare) {
     spotlightTrack = screenShareTrack;
   } else if (effectiveLayout === "spotlight" || effectiveLayout === "sidebar") {
-    spotlightTrack = limitedTracks[0] || null;
+    spotlightTrack = pinnedTrack || limitedTracks[0] || null;
   } else if (enlargedSid) {
     spotlightTrack = limitedTracks.find(t => t.participant.sid === enlargedSid) || null;
   }
@@ -675,14 +684,25 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
     const hasHandRaised = raisedHands.has(trackRef.participant.identity) || raisedHands.has(sid);
     const isScreen = trackRef.source === Track.Source.ScreenShare;
     const isFullscreen = fullscreenSid === sid;
+    const isPinned = pinnedSid === sid && !isScreen;
+    const canPin = !isScreen; // can't pin a screen share (it's auto-spotlighted)
+
+    // Click-to-pin behavior on small tiles (strip): single click pins/unpins
+    const handleTileClick = () => {
+      if (isEnlarged || !canPin) return;
+      setPinnedSid(prev => (prev === sid ? null : sid));
+    };
 
     return (
       <div
         key={sid + (trackRef.publication?.trackSid || "placeholder")}
         data-participant-sid={sid}
+        onClick={handleTileClick}
         className={`relative rounded-2xl overflow-hidden flex items-center justify-center group/tile transition-shadow duration-300 ${
           isEnlarged ? "w-full h-full" : "h-full aspect-video shrink-0"
-        } ${hasTrack ? "bg-muted" : "bg-muted/50"} ${hasHandRaised ? "ring-2 ring-yellow-500" : ""}`}
+        } ${hasTrack ? "bg-muted" : "bg-muted/50"} ${hasHandRaised ? "ring-2 ring-yellow-500" : ""} ${
+          isPinned ? "ring-2 ring-primary" : ""
+        } ${!isEnlarged && canPin ? "cursor-pointer hover:ring-2 hover:ring-primary/50" : ""}`}
       >
         {hasTrack ? (
           trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare ? (
@@ -703,6 +723,12 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
             <Hand className="h-4 w-4" />
           </div>
         )}
+        {/* Pinned indicator - top left */}
+        {isPinned && !isEnlarged && (
+          <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-full p-1 shadow-lg z-10">
+            <Pin className="h-3 w-3" />
+          </div>
+        )}
         {/* Name badge - bottom left */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-3 pt-8">
           <div className="flex items-center gap-2">
@@ -712,7 +738,23 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
           </div>
         </div>
         {/* Controls overlay - top right */}
-        <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/tile:opacity-100 transition-opacity">
+        <div
+          className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/tile:opacity-100 transition-opacity z-20"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {canPin && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setPinnedSid(prev => (prev === sid ? null : sid))}
+                  className={`h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background transition-colors border border-border/30 ${isPinned ? 'ring-2 ring-primary' : ''}`}
+                >
+                  {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{isPinned ? "Desafixar" : "Fixar como destaque"}</TooltipContent>
+            </Tooltip>
+          )}
           {isEnlarged && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -724,6 +766,36 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
                 </button>
               </TooltipTrigger>
               <TooltipContent>{isFullscreen ? "Sair da tela cheia" : "Tela cheia"}</TooltipContent>
+            </Tooltip>
+          )}
+          {isEnlarged && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setCinemaMode(c => !c)}
+                  className={`h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background transition-colors border border-border/30 ${cinemaMode ? 'ring-2 ring-primary' : ''}`}
+                >
+                  <Film className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{cinemaMode ? "Sair do modo cinema" : "Modo cinema"}</TooltipContent>
+            </Tooltip>
+          )}
+          {isEnlarged && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => {
+                    const next = presentationLayout === "strip" ? "sidebar" : "strip";
+                    setPresentationLayout(next);
+                    localStorage.setItem("uon1-presentation-layout", next);
+                  }}
+                  className="h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background transition-colors border border-border/30"
+                >
+                  {presentationLayout === "strip" ? <PanelRight className="h-4 w-4" /> : <PanelBottom className="h-4 w-4" />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{presentationLayout === "strip" ? "Participantes na lateral" : "Participantes embaixo"}</TooltipContent>
             </Tooltip>
           )}
           <Tooltip>
@@ -772,18 +844,35 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
       ))}
 
       {spotlightTrack ? (
-        <>
-          {/* Spotlight (screen share or pinned participant) - takes most of the screen */}
-          <div className="flex-1 min-h-0 rounded-2xl overflow-hidden">
-            {renderTile(spotlightTrack, true)}
-          </div>
-          {/* Participants strip at the bottom — always visible, scrolls horizontally if needed */}
-          {gridTracks.length > 0 && (
-            <div className="h-[14vh] min-h-[90px] max-h-[160px] shrink-0 flex items-stretch gap-2 overflow-x-auto overflow-y-hidden px-1">
-              {gridTracks.map((trackRef) => renderTile(trackRef))}
+        presentationLayout === "sidebar" && !cinemaMode ? (
+          /* Sidebar layout: spotlight on the left, participants stacked on the right (Zoom side-by-side) */
+          <div className="flex-1 min-h-0 flex gap-2 sm:gap-3">
+            <div className="flex-1 min-w-0 rounded-2xl overflow-hidden">
+              {renderTile(spotlightTrack, true)}
             </div>
-          )}
-        </>
+            {gridTracks.length > 0 && (
+              <div className="w-[180px] sm:w-[220px] lg:w-[260px] shrink-0 flex flex-col gap-2 overflow-y-auto overflow-x-hidden">
+                {gridTracks.map((trackRef) => (
+                  <div key={trackRef.participant.sid + (trackRef.publication?.trackSid || 'p')} className="aspect-video w-full shrink-0">
+                    {renderTile(trackRef)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Strip layout (default, like the user's reference) */
+          <>
+            <div className="flex-1 min-h-0 rounded-2xl overflow-hidden">
+              {renderTile(spotlightTrack, true)}
+            </div>
+            {!cinemaMode && gridTracks.length > 0 && (
+              <div className="h-[14vh] min-h-[90px] max-h-[160px] shrink-0 flex items-stretch gap-2 overflow-x-auto overflow-y-hidden px-1">
+                {gridTracks.map((trackRef) => renderTile(trackRef))}
+              </div>
+            )}
+          </>
+        )
       ) : (
         /* Grid mode: tiles auto-fit visible area without overflow */
         <div className={`flex-1 min-h-0 grid ${getGridClass()} gap-2 sm:gap-3 items-stretch content-stretch auto-rows-fr`}>
