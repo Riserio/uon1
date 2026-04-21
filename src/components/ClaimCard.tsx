@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Camera, ClipboardList, Building2, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, DollarSign, Camera, ClipboardList, Building2, AlertTriangle, Car, Tag } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 export interface ClaimTimeline {
@@ -56,121 +56,123 @@ export function ClaimCard({
     return (claim.custo_oficina || 0) + (claim.custo_reparo || 0) + (claim.custo_acordo || 0) + (claim.custo_terceiros || 0) + (claim.custo_perda_total || 0) + (claim.custo_perda_parcial || 0);
   };
   const total = calculateTotal();
-  return <Card className="overflow-hidden transition-all hover:shadow-md">
-      <CardContent className="p-6">
-        {/* Associação em destaque */}
-        <div className="flex items-center gap-2 flex-wrap mb-3">
-          {claim.corretoraInfo?.nome ? (
-            <Badge variant="secondary" className="text-sm h-6 px-3 font-semibold bg-primary/10 text-primary border-primary/20">
-              <Building2 className="h-3.5 w-3.5 mr-1.5" />
-              {claim.corretoraInfo.nome}
-            </Badge>
-          ) : (
-            <Badge variant="destructive" className="text-sm h-6 px-3 font-semibold">
-              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
-              Sem associação
-            </Badge>
-          )}
-          {claim.tipo_sinistro && (
-            <Badge variant="outline" className="text-sm h-6 px-3 bg-secondary/50">
-              {claim.tipo_sinistro}
-            </Badge>
-          )}
-        </div>
-
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h3 className="text-xl font-bold text-foreground">
+  return <Card className="overflow-hidden transition-all hover:shadow-md hover:border-primary/40">
+      <CardContent className="p-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-bold text-foreground tabular-nums">
               SIN-{new Date(claim.created_at).getFullYear()}-{String(claim.numero).padStart(6, '0')}
-            </h3>
-            <Badge className="text-white border-0" style={{
-            backgroundColor: claim.statusColor
-          }}>
+            </span>
+            <span
+              className="inline-flex items-center h-5 px-2 rounded-full text-[10px] font-semibold text-white"
+              style={{ backgroundColor: claim.statusColor }}
+            >
               {claim.status}
-            </Badge>
-            {claim.vistoria_numero && <Badge variant="outline" className="gap-1">
-                <Camera className="h-3 w-3" />
-                Vistoria #{claim.vistoria_numero}
-              </Badge>}
+            </span>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/sinistros/${claim.id}/deliberacao`)} title="Deliberação do comitê" className="gap-1">
-              <ClipboardList className="h-4 w-4" />
-              Análise do Evento  
+
+          <div className="flex items-center gap-4 text-xs text-muted-foreground ml-auto flex-wrap">
+            {claim.corretoraInfo?.nome ? (
+              <span className="inline-flex items-center gap-1 max-w-[200px]">
+                <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="truncate text-foreground font-medium">{claim.corretoraInfo.nome}</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" /> Sem associação
+              </span>
+            )}
+            {claim.tipo_sinistro && (
+              <span className="inline-flex items-center gap-1">
+                <Tag className="h-3.5 w-3.5" />
+                <span className="text-foreground">{claim.tipo_sinistro}</span>
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1">
+              <Car className="h-3.5 w-3.5" />
+              <span className="text-foreground font-medium tabular-nums">{claim.veiculo_placa || 'N/A'}</span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5" />
+              <span className="text-foreground tabular-nums">
+                {format(new Date(claim.created_at), 'dd/MM/yy', { locale: ptBR })}
+              </span>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <DollarSign className="h-3.5 w-3.5" />
+              <span className="text-foreground font-semibold tabular-nums">{formatCurrency(total)}</span>
+            </span>
+            {claim.vistoria_numero && (
+              <Badge variant="outline" className="h-5 px-1.5 gap-1 text-[10px]">
+                <Camera className="h-3 w-3" />#{claim.vistoria_numero}
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 gap-1 text-xs"
+              onClick={() => navigate(`/sinistros/${claim.id}/deliberacao`)}
+              title="Deliberação do comitê"
+            >
+              <ClipboardList className="h-3.5 w-3.5" />
+              Análise
             </Button>
-            {claim.vistoria_id && <Button variant="ghost" size="icon" onClick={() => navigate(`/vistorias/${claim.vistoria_id}`)} title="Ver vistoria vinculada">
-                <Camera className="h-4 w-4" />
-              </Button>}
-            <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
-              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {claim.vistoria_id && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => navigate(`/vistorias/${claim.vistoria_id}`)}
+                title="Ver vistoria vinculada"
+              >
+                <Camera className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setIsExpanded(!isExpanded)}
+            >
+              {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </Button>
           </div>
         </div>
 
-        <p className="text-muted-foreground mb-4">
-          {claim.assunto}
-        </p>
+        {claim.assunto && (
+          <p className="text-xs text-muted-foreground mt-1.5 truncate">
+            {claim.assunto}
+          </p>
+        )}
 
-        <div className="grid grid-cols-4 gap-4">
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Placa</p>
-              <p className="font-medium text-foreground">{claim.veiculo_placa || 'N/A'}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Tipo</p>
-              <p className="font-medium text-foreground">{claim.assunto}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Data</p>
-              <p className="font-medium text-foreground">
-                {format(new Date(claim.created_at), 'dd/MM/yyyy', {
-                locale: ptBR
-              })}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Valor</p>
-              <p className="font-medium text-foreground">{formatCurrency(total)}</p>
-            </div>
-          </div>
-        </div>
-
-        {isExpanded && <div className="mt-6 border-t border-border pt-6">
-            <h4 className="font-semibold text-foreground mb-4">Linha do Tempo</h4>
-            <div className="space-y-4">
+        {isExpanded && <div className="mt-3 border-t border-border pt-3">
+            <h4 className="text-sm font-semibold text-foreground mb-3">Linha do Tempo</h4>
+            <div className="space-y-3">
               {claim.timeline.map((event, index) => <div key={index} className="flex gap-4">
                   <div className="flex flex-col items-center">
                     <div className={`w-3 h-3 rounded-full ${index === claim.timeline.length - 1 ? 'bg-primary' : 'bg-muted'}`} />
-                    {index < claim.timeline.length - 1 && <div className="w-0.5 h-12 bg-muted" />}
+                    {index < claim.timeline.length - 1 && <div className="w-0.5 h-10 bg-muted" />}
                   </div>
-                  <div className="flex-1 pb-4">
-                    <p className="text-sm text-muted-foreground">
+                  <div className="flex-1 pb-2">
+                    <p className="text-xs text-muted-foreground">
                       {format(new Date(event.date), 'dd/MM/yyyy', {
                   locale: ptBR
                 })}
                     </p>
-                    <p className="font-semibold text-foreground">{event.title}</p>
-                    <p className="text-sm text-muted-foreground">{event.description}</p>
+                    <p className="text-sm font-semibold text-foreground">{event.title}</p>
+                    <p className="text-xs text-muted-foreground">{event.description}</p>
                   </div>
                 </div>)}
             </div>
 
             
 
-            {claim.observacoes && <div className="mt-6 border-t border-border pt-6">
-                <h4 className="font-semibold text-foreground mb-2">Observações</h4>
-                <p className="text-sm text-muted-foreground">{claim.observacoes}</p>
+            {claim.observacoes && <div className="mt-4 border-t border-border pt-3">
+                <h4 className="text-sm font-semibold text-foreground mb-1">Observações</h4>
+                <p className="text-xs text-muted-foreground">{claim.observacoes}</p>
               </div>}
           </div>}
       </CardContent>
