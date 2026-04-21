@@ -26,6 +26,7 @@ import { registrarHistoricoFinanceiro } from "@/lib/financeiroHistorico";
 import { format, isAfter, isBefore, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
+import { AnexosFinanceiros, AnexoFinanceiro } from "./AnexosFinanceiros";
 
 interface Props {
   corretoraId: string;
