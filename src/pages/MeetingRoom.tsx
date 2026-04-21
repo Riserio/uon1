@@ -542,6 +542,11 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   const [enlargedSid, setEnlargedSid] = useState<string | null>(null);
   const [pipSid, setPipSid] = useState<string | null>(null);
   const [fullscreenSid, setFullscreenSid] = useState<string | null>(null);
+  const [pinnedSid, setPinnedSid] = useState<string | null>(null);
+  const [cinemaMode, setCinemaMode] = useState(false);
+  const [presentationLayout, setPresentationLayout] = useState<"strip" | "sidebar">(
+    () => (localStorage.getItem("uon1-presentation-layout") as "strip" | "sidebar") || "strip"
+  );
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
   const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "50", 10));
   const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
