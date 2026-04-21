@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Camera, ClipboardList, Building2, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, DollarSign, Camera, ClipboardList, Building2, AlertTriangle, Car, Tag } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 export interface ClaimTimeline {
