@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings, ClipboardCheck, RefreshCw } from "lucide-react";
+ import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings, RefreshCw, SearchCheck } from "lucide-react";
 import { ClaimCard, Claim } from "@/components/ClaimCard";
 import { AcompanhamentoSinistroDialog } from "@/components/AcompanhamentoSinistroDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -203,9 +203,9 @@ export default function Sinistros() {
 
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-6">
-      <PageHeader
-        icon={ClipboardCheck}
-        title="Vistorias"
+       <PageHeader
+         icon={SearchCheck}
+         title="Vistorias"
         subtitle="Gestão integrada de vistorias de sinistros e reativações"
         actions={
           <>
@@ -240,9 +240,9 @@ export default function Sinistros() {
 
         {/* Filtro Tipo de Vistoria */}
         <div className="mt-4 flex items-center gap-2 rounded-2xl bg-muted/40 backdrop-blur p-1 w-fit">
-          {([
-            { value: "todas", label: "Todas", icon: ClipboardCheck },
-            { value: "sinistro", label: "Sinistros", icon: AlertTriangle },
+           {([
+             { value: "todas", label: "Todas", icon: SearchCheck },
+             { value: "sinistro", label: "Sinistros", icon: AlertTriangle },
             { value: "reativacao", label: "Reativações", icon: RefreshCw },
           ] as const).map(opt => (
             <button

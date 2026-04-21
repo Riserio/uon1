@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront, ClipboardCheck } from "lucide-react";
+ import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront, SearchCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -79,8 +79,8 @@ function useMenuItems() {
     { id: "corretoras", label: "Associações", to: "/corretoras", icon: Building2, group: "cadastros" },
     { id: "termos", label: "Termos de Aceite", to: "/termos", icon: FileText, group: "cadastros" },
     { id: "contatos", label: "Contatos", to: "/contatos", icon: Users, group: "cadastros" },
-    // Ferramentas
-    { id: "sinistros", label: "Vistorias", to: "/sinistros", icon: ClipboardCheck, group: "ferramentas" },
+     // Ferramentas
+     { id: "sinistros", label: "Vistorias", to: "/sinistros", icon: SearchCheck, group: "ferramentas" },
     { id: "lancamentos_financeiros", label: "Financeiro", to: "/financeiro", icon: DollarSign, group: "ferramentas" },
     { id: "agenda", label: "Agenda", to: "/agenda", icon: Calendar, group: "ferramentas" },
     { id: "documentos", label: "Documentos", to: "/documentos", icon: FileText, group: "ferramentas" },
@@ -90,9 +90,9 @@ function useMenuItems() {
     { id: "ouvidoria", label: "Ouvidoria", to: "/ouvidoria-backoffice", icon: MessageSquareWarning, badge: ouvidoriaPendentes, group: "ferramentas" },
     { id: "contratos", label: "Uon1 Sign", to: "/uon1sign", icon: FileSignature, badge: signedContracts.count, group: "ferramentas" },
     { id: "talka", label: "Uon1 Talk", to: "/video", icon: Video, group: "ferramentas" },
-    { id: "comunicados", label: "Comunicados", to: "/comunicados", icon: Megaphone, group: "ferramentas" },
-    { id: "gestao", label: "Gestão", to: "/gestao", icon: Briefcase, group: "ferramentas" },
-    { id: "ppr", label: "PPR", to: "/ppr", icon: ClipboardCheck, group: "ferramentas" },
+     { id: "comunicados", label: "Comunicados", to: "/comunicados", icon: Megaphone, group: "ferramentas" },
+     { id: "gestao", label: "Gestão", to: "/gestao", icon: Briefcase, group: "ferramentas" },
+     { id: "ppr", label: "PPR", to: "/ppr", icon: SearchCheck, group: "ferramentas" },
     { id: "debitos_veiculares", label: "Débitos Veiculares", to: "/debitos-veiculares", icon: CarFront, group: "ferramentas" },
     { id: "ajuda", label: "Ajuda", to: "/ajuda", icon: HelpCircle, group: "ferramentas" },
     { id: "configuracoes", label: "Configurações", to: "/configuracoes", icon: Settings, group: "ferramentas" },

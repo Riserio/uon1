@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ClipboardCheck, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+ import { Loader2, AlertTriangle, CheckCircle2, SearchCheck } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Props {
@@ -125,11 +125,11 @@ export default function RevistoriaInadimplenciaDialog({ open, onOpenChange, inad
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ClipboardCheck className="h-5 w-5 text-primary" />
-            Revistoria por Inadimplência
-          </DialogTitle>
+         <DialogHeader>
+           <DialogTitle className="flex items-center gap-2">
+             <SearchCheck className="h-5 w-5 text-primary" />
+             Revistoria por Inadimplência
+           </DialogTitle>
           <DialogDescription>
             {step === "confirm" 
               ? `Criar revistorias para ${uniqueByPlaca.length} veículo(s) inadimplente(s)`
