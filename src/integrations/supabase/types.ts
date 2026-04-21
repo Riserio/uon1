@@ -798,6 +798,60 @@ export type Database = {
           },
         ]
       }
+      clientes_gestao: {
+        Row: {
+          ativo: boolean
+          cep: string | null
+          cidade: string | null
+          created_at: string
+          created_by: string | null
+          documento: string | null
+          email: string | null
+          endereco: string | null
+          estado: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          telefone: string | null
+          tipo_documento: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cep?: string | null
+          cidade?: string | null
+          created_at?: string
+          created_by?: string | null
+          documento?: string | null
+          email?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          telefone?: string | null
+          tipo_documento?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cep?: string | null
+          cidade?: string | null
+          created_at?: string
+          created_by?: string | null
+          documento?: string | null
+          email?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          telefone?: string | null
+          tipo_documento?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cobranca_automacao_config: {
         Row: {
           ativo: boolean
@@ -1152,6 +1206,78 @@ export type Database = {
             columns: ["corretora_id"]
             isOneToOne: false
             referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cobrancas_gestao: {
+        Row: {
+          aviso_enviado: boolean
+          cliente_id: string
+          created_at: string
+          created_by: string | null
+          data_pagamento: string | null
+          data_vencimento: string
+          descricao: string
+          id: string
+          link_pagamento: string | null
+          metodo_pagamento: string | null
+          observacoes: string | null
+          recorrencia: string
+          recorrencia_pai_id: string | null
+          status: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          aviso_enviado?: boolean
+          cliente_id: string
+          created_at?: string
+          created_by?: string | null
+          data_pagamento?: string | null
+          data_vencimento: string
+          descricao: string
+          id?: string
+          link_pagamento?: string | null
+          metodo_pagamento?: string | null
+          observacoes?: string | null
+          recorrencia?: string
+          recorrencia_pai_id?: string | null
+          status?: string
+          updated_at?: string
+          valor: number
+        }
+        Update: {
+          aviso_enviado?: boolean
+          cliente_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string
+          descricao?: string
+          id?: string
+          link_pagamento?: string | null
+          metodo_pagamento?: string | null
+          observacoes?: string | null
+          recorrencia?: string
+          recorrencia_pai_id?: string | null
+          status?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobrancas_gestao_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes_gestao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobrancas_gestao_recorrencia_pai_id_fkey"
+            columns: ["recorrencia_pai_id"]
+            isOneToOne: false
+            referencedRelation: "cobrancas_gestao"
             referencedColumns: ["id"]
           },
         ]
@@ -4069,6 +4195,66 @@ export type Database = {
             columns: ["lancamento_id"]
             isOneToOne: false
             referencedRelation: "lancamentos_financeiros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notas_fiscais_gestao: {
+        Row: {
+          arquivo_nome: string
+          arquivo_tipo: string | null
+          arquivo_url: string
+          cliente_id: string | null
+          cobranca_id: string | null
+          created_at: string
+          created_by: string | null
+          data_emissao: string | null
+          id: string
+          numero: string | null
+          observacoes: string | null
+          valor: number | null
+        }
+        Insert: {
+          arquivo_nome: string
+          arquivo_tipo?: string | null
+          arquivo_url: string
+          cliente_id?: string | null
+          cobranca_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_emissao?: string | null
+          id?: string
+          numero?: string | null
+          observacoes?: string | null
+          valor?: number | null
+        }
+        Update: {
+          arquivo_nome?: string
+          arquivo_tipo?: string | null
+          arquivo_url?: string
+          cliente_id?: string | null
+          cobranca_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_emissao?: string | null
+          id?: string
+          numero?: string | null
+          observacoes?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notas_fiscais_gestao_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes_gestao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_fiscais_gestao_cobranca_id_fkey"
+            columns: ["cobranca_id"]
+            isOneToOne: false
+            referencedRelation: "cobrancas_gestao"
             referencedColumns: ["id"]
           },
         ]
@@ -7611,6 +7797,7 @@ export type Database = {
         Args: { target_profile_id: string; viewer_id: string }
         Returns: boolean
       }
+      can_manage_gestao: { Args: { _user_id: string }; Returns: boolean }
       can_send_email: { Args: { provider_name: string }; Returns: boolean }
       can_view_profile: {
         Args: { target_profile_id: string; viewer_id: string }
