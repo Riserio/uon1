@@ -15,6 +15,7 @@ import {
   Sparkles,
   PenTool,
   Clock,
+  Briefcase,
 } from "lucide-react";
 
 const Landing = () => {
@@ -76,13 +77,23 @@ const Landing = () => {
           <div className="flex items-center gap-3">
             <img src={LogoUon1} alt="Uon1" className="h-12 w-auto" />
           </div>
-          <Button
-            onClick={() => navigate("/auth")}
-            className="gap-2 bg-gradient-to-r from-[#362c89] to-[#5a4fcf] hover:from-[#2d2473] hover:to-[#4a3fbf] text-white shadow-lg shadow-[#362c89]/30 transition-all duration-300 hover:shadow-xl hover:shadow-[#362c89]/40 hover:-translate-y-0.5 border-0"
-          >
-            Acessar Uon1
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => navigate("/auth?redirect=/gestao-cobranca")}
+              className="gap-2 border-[#362c89]/30 text-[#362c89] hover:bg-[#362c89]/5 hover:text-[#362c89] hover:border-[#362c89]/50 transition-all"
+            >
+              <Briefcase className="h-4 w-4" />
+              Gestão
+            </Button>
+            <Button
+              onClick={() => navigate("/auth")}
+              className="gap-2 bg-gradient-to-r from-[#362c89] to-[#5a4fcf] hover:from-[#2d2473] hover:to-[#4a3fbf] text-white shadow-lg shadow-[#362c89]/30 transition-all duration-300 hover:shadow-xl hover:shadow-[#362c89]/40 hover:-translate-y-0.5 border-0"
+            >
+              Acessar Uon1
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
 

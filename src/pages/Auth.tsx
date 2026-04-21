@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { signInSchema, signUpSchema } from "@/lib/validationSchemas";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +28,8 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [nome, setNome] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/dashboard";
 
   const [step, setStep] = useState<Step>("CREDENTIALS");
   const [totpCode, setTotpCode] = useState("");
@@ -195,7 +197,7 @@ export default function Auth() {
         await checkTOTPStatus(currentUser);
       } else {
         toast.success("Login realizado com sucesso!");
-        navigate("/dashboard", { replace: true });
+        navigate(redirectTo, { replace: true });
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
