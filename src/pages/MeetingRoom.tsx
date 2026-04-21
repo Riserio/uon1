@@ -541,6 +541,7 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
 
   const [enlargedSid, setEnlargedSid] = useState<string | null>(null);
   const [pipSid, setPipSid] = useState<string | null>(null);
+  const [fullscreenSid, setFullscreenSid] = useState<string | null>(null);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
   const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "50", 10));
   const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
@@ -576,10 +577,21 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   // Apply max tiles limit
   const limitedTracks = dedupedTracks.slice(0, maxTiles);
 
-  const effectiveLayout = layoutMode;
-  const spotlightTrack = effectiveLayout === "spotlight" || effectiveLayout === "sidebar"
-    ? limitedTracks[0] || null
-    : (enlargedSid ? limitedTracks.find(t => t.participant.sid === enlargedSid) : null);
+  // Auto-detect screen share to switch into spotlight/sidebar layout (Meet/Zoom behavior)
+  const screenShareTrack = limitedTracks.find(t => t.source === Track.Source.ScreenShare) || null;
+  const hasScreenShare = !!screenShareTrack;
+
+  // Effective layout: if screen share is active and user is in "auto", force sidebar
+  const effectiveLayout: LayoutMode = hasScreenShare && layoutMode === "auto" ? "sidebar" : layoutMode;
+
+  let spotlightTrack: any = null;
+  if (hasScreenShare) {
+    spotlightTrack = screenShareTrack;
+  } else if (effectiveLayout === "spotlight" || effectiveLayout === "sidebar") {
+    spotlightTrack = limitedTracks[0] || null;
+  } else if (enlargedSid) {
+    spotlightTrack = limitedTracks.find(t => t.participant.sid === enlargedSid) || null;
+  }
   
   const gridTracks = spotlightTrack 
     ? limitedTracks.filter(t => t !== spotlightTrack) 
