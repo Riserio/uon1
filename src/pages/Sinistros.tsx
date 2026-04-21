@@ -360,9 +360,9 @@ export default function Sinistros() {
                         )}
                         {vistoria.tipo_sinistro && <Badge variant="outline" className="text-[11px]">{vistoria.tipo_sinistro}</Badge>}
                         {(vistoria as any).tipo_vistoria === "reativacao" ? (
-                          <Badge className="bg-blue-500/10 text-blue-700 dark:text-blue-300 border-0 text-[11px]"><RefreshCw className="h-3 w-3 mr-1" />Reativação</Badge>
+                          <Badge variant="secondary" className="text-[11px]"><RefreshCw className="h-3 w-3 mr-1" />Reativação</Badge>
                         ) : (
-                          <Badge className="bg-orange-500/10 text-orange-700 dark:text-orange-300 border-0 text-[11px]"><AlertTriangle className="h-3 w-3 mr-1" />Sinistro</Badge>
+                          <Badge className="bg-primary/10 text-primary border-0 text-[11px]"><AlertTriangle className="h-3 w-3 mr-1" />Sinistro</Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between gap-4">
