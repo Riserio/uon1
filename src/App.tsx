@@ -86,6 +86,7 @@ const OuvidoriaBackoffice = lazy(() => import("./pages/OuvidoriaBackoffice"));
 const OuvidoriaEmbed = lazy(() => import("./pages/OuvidoriaEmbed"));
 const Treinamento = lazy(() => import("./pages/Treinamento"));
 const DebitosVeiculares = lazy(() => import("./pages/DebitosVeiculares"));
+const GestaoCobranca = lazy(() => import("./pages/GestaoCobranca"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -241,6 +242,7 @@ const App = () => (
               <Route path="/termos-de-servico" element={<TermosServico />} />
               <Route path="/ouvidoria/:slug" element={<OuvidoriaPublica />} />
               <Route path="/embed/ouvidoria/:slug" element={<OuvidoriaEmbed />} />
+              <Route path="/gestao-cobranca" element={<GestaoCobranca />} />
               <Route path="/" element={<DomainBasedRoute />} />
               
               {/* All protected routes share sidebar via AppLayout */}
