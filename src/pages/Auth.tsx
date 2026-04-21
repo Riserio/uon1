@@ -197,7 +197,7 @@ export default function Auth() {
         await checkTOTPStatus(currentUser);
       } else {
         toast.success("Login realizado com sucesso!");
-        navigate("/dashboard", { replace: true });
+        navigate(redirectTo, { replace: true });
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
