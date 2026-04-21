@@ -80,7 +80,7 @@ function useMenuItems() {
     { id: "termos", label: "Termos de Aceite", to: "/termos", icon: FileText, group: "cadastros" },
     { id: "contatos", label: "Contatos", to: "/contatos", icon: Users, group: "cadastros" },
     // Ferramentas
-    { id: "sinistros", label: "Sinistros", to: "/sinistros", icon: AlertTriangle, group: "ferramentas" },
+    { id: "sinistros", label: "Vistorias", to: "/sinistros", icon: ClipboardCheck, group: "ferramentas" },
     { id: "lancamentos_financeiros", label: "Financeiro", to: "/financeiro", icon: DollarSign, group: "ferramentas" },
     { id: "agenda", label: "Agenda", to: "/agenda", icon: Calendar, group: "ferramentas" },
     { id: "documentos", label: "Documentos", to: "/documentos", icon: FileText, group: "ferramentas" },
