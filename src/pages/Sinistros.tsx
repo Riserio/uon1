@@ -152,9 +152,18 @@ export default function Sinistros() {
   const filteredClaims = claims.filter(c => {
     const ms = selectedStatus === "all" || c.status === selectedStatus;
     const mt = c.numero.toString().includes(searchTerm.toLowerCase()) || c.assunto.toLowerCase().includes(searchTerm.toLowerCase()) || c.observacoes?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
-    return ms && mt;
+    const tipoNorm = ((c as any).tipo_vistoria || ((c as any).tipo_sinistro?.toLowerCase().includes("reativ") ? "reativacao" : "sinistro")) as string;
+    const mtipo = tipoVistoriaFilter === "todas" || tipoNorm === tipoVistoriaFilter;
+    return ms && mt && mtipo;
   });
-  const filteredVistorias = vistorias.filter(v => { if (!vistoriaSearchTerm) return true; const t = vistoriaSearchTerm.toLowerCase(); return v.numero.toString().includes(t) || v.cliente_nome?.toLowerCase().includes(t) || v.veiculo_placa?.toLowerCase().includes(t); });
+  const filteredVistorias = vistorias.filter(v => {
+    const tipo = ((v as any).tipo_vistoria || "sinistro") as string;
+    const mtipo = tipoVistoriaFilter === "todas" || tipo === tipoVistoriaFilter;
+    if (!mtipo) return false;
+    if (!vistoriaSearchTerm) return true;
+    const t = vistoriaSearchTerm.toLowerCase();
+    return v.numero.toString().includes(t) || v.cliente_nome?.toLowerCase().includes(t) || v.veiculo_placa?.toLowerCase().includes(t);
+  });
 
   const normalizeStatus = (s?: string | null) => (s || "").toLowerCase();
   const totalSinistros = claims.length;
