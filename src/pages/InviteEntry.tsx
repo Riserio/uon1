@@ -188,7 +188,7 @@ export default function InviteEntry() {
   }
 
   // Approved - show full meeting room
-  if (approved && token && livekitUrl && livekitReady) {
+  if (approved && token && livekitUrl) {
     return (
       <div className="fixed inset-0 z-[100] bg-background flex flex-col">
         <LiveKitRoom
