@@ -867,8 +867,12 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
               {renderTile(spotlightTrack, true)}
             </div>
             {!cinemaMode && gridTracks.length > 0 && (
-              <div className="h-[14vh] min-h-[90px] max-h-[160px] shrink-0 flex items-stretch gap-2 overflow-x-auto overflow-y-hidden px-1">
-                {gridTracks.map((trackRef) => renderTile(trackRef))}
+              <div className="h-[14vh] min-h-[110px] max-h-[160px] shrink-0 flex flex-row items-stretch gap-2 overflow-x-auto overflow-y-hidden px-1">
+                {gridTracks.map((trackRef) => (
+                  <div key={trackRef.participant.sid + (trackRef.publication?.trackSid || 'p')} className="h-full aspect-video shrink-0">
+                    {renderTile(trackRef)}
+                  </div>
+                ))}
               </div>
             )}
           </>
