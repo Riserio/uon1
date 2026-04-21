@@ -845,14 +845,14 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
       ))}
 
       {spotlightTrack ? (
-        presentationLayout === "sidebar" && !cinemaMode ? (
+        !cinemaMode ? (
           /* Sidebar layout: spotlight on the left, participants stacked on the right (Zoom side-by-side) */
           <div className="flex-1 min-h-0 flex gap-2 sm:gap-3">
             <div className="flex-1 min-w-0 rounded-2xl overflow-hidden">
               {renderTile(spotlightTrack, true)}
             </div>
             {gridTracks.length > 0 && (
-              <div className="w-[180px] sm:w-[220px] lg:w-[260px] shrink-0 flex flex-col gap-2 overflow-y-auto overflow-x-hidden">
+              <div className="w-[200px] sm:w-[240px] lg:w-[280px] shrink-0 flex flex-col gap-2 overflow-y-auto overflow-x-hidden">
                 {gridTracks.map((trackRef) => (
                   <div key={trackRef.participant.sid + (trackRef.publication?.trackSid || 'p')} className="aspect-video w-full shrink-0">
                     {renderTile(trackRef)}
@@ -862,20 +862,11 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
             )}
           </div>
         ) : (
-          /* Strip layout (default, like the user's reference) */
+          /* Cinema mode: only spotlight, no participant tiles */
           <>
             <div className="flex-1 min-h-0 rounded-2xl overflow-hidden">
               {renderTile(spotlightTrack, true)}
             </div>
-            {!cinemaMode && gridTracks.length > 0 && (
-              <div className="h-[14vh] min-h-[110px] max-h-[160px] shrink-0 flex flex-row items-stretch gap-2 overflow-x-auto overflow-y-hidden px-1">
-                {gridTracks.map((trackRef) => (
-                  <div key={trackRef.participant.sid + (trackRef.publication?.trackSid || 'p')} className="h-full aspect-video shrink-0">
-                    {renderTile(trackRef)}
-                  </div>
-                ))}
-              </div>
-            )}
           </>
         )
       ) : (
