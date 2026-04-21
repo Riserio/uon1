@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,30 +9,15 @@ import { toast } from "sonner";
 import { Video, Users } from "lucide-react";
 import { RoomHeader, VideoGridWithReactions, ControlBar, ChatPanel } from "./MeetingRoom";
 
-// Lazy-load LiveKit
+// Lazy-load LiveKit (only need LiveKitRoom here; shared components handle their own LK hooks)
 let LiveKitRoom: any;
-let VideoTrack: any;
-let AudioTrack: any;
-let useTracks: any;
-let useParticipants: any;
-let TrackToggle: any;
-let Track: any;
 let livekitLoaded = false;
 
 const loadLiveKit = async () => {
   if (livekitLoaded) return true;
   try {
-    const [componentsReact, livekitClient] = await Promise.all([
-      import("@livekit/components-react"),
-      import("livekit-client"),
-    ]);
+    const componentsReact = await import("@livekit/components-react");
     LiveKitRoom = componentsReact.LiveKitRoom;
-    VideoTrack = componentsReact.VideoTrack;
-    AudioTrack = componentsReact.AudioTrack;
-    useTracks = componentsReact.useTracks;
-    useParticipants = componentsReact.useParticipants;
-    TrackToggle = componentsReact.TrackToggle;
-    Track = livekitClient.Track;
     await import("@livekit/components-styles");
     livekitLoaded = true;
     return true;
