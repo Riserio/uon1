@@ -1326,6 +1326,7 @@ function ChatPanel({ roomId, userId, userName }: { roomId: string; userId: strin
 // ── Pending Requests Panel ──
 function PendingRequestsPanel({ roomId }: { roomId: string }) {
   const [pending, setPending] = useState<PendingParticipant[]>([]);
+  const knownIdsRef = useRef<Set<string>>(new Set());
 
   const fetchPending = async () => {
     const { data } = await supabase
@@ -1333,7 +1334,17 @@ function PendingRequestsPanel({ roomId }: { roomId: string }) {
       .select("*")
       .eq("room_id", roomId)
       .eq("status", "pending");
-    setPending((data as unknown as PendingParticipant[]) || []);
+    const list = (data as unknown as PendingParticipant[]) || [];
+    // Notify on new pending participants (after first load)
+    if (knownIdsRef.current.size > 0) {
+      list.forEach(p => {
+        if (!knownIdsRef.current.has(p.id)) {
+          toast.info(`${p.display_name} quer entrar na sala`, { duration: 10000 });
+        }
+      });
+    }
+    knownIdsRef.current = new Set(list.map(p => p.id));
+    setPending(list);
   };
 
   useEffect(() => {
