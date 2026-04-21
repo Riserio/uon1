@@ -394,7 +394,7 @@ function MeetingTimer({ room, isHost, roomId, onTimeUp, onExtend }: {
 }
 
 // ── Room Header ──
-function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost: boolean; roomId: string; onLeave: () => void }) {
+export function RoomHeader({ room, isHost, roomId, onLeave, subtitleOverride }: { room: RoomData | { nome: string; agendado_para?: string | null; duracao_minutos?: number | null }; isHost: boolean; roomId: string; onLeave: () => void; subtitleOverride?: string }) {
   const participants = useParticipants();
 
   const copyLink = () => {
@@ -420,7 +420,7 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
             <span className="text-foreground">{room.nome}</span>
           </h2>
           <p className="text-xs text-muted-foreground flex items-center gap-2">
-            {participants.length} participante(s) • {isHost ? "Moderador" : "Participante"}
+            {participants.length} participante(s) • {subtitleOverride ?? (isHost ? "Moderador" : "Participante")}
             {startTime && (
               <span className="flex items-center gap-1">
                 • <Calendar className="h-3 w-3" />
@@ -478,7 +478,7 @@ function HandRaiseIndicators({ raisedHands }: { raisedHands: Map<string, string>
 }
 
 // ── Video Grid with Reactions wrapper ──
-function VideoGridWithReactions() {
+export function VideoGridWithReactions() {
   const [reactions, setReactions] = useState<{ id: string; emoji: string; senderName: string }[]>([]);
   const [raisedHands, setRaisedHands] = useState<Map<string, string>>(new Map());
 
@@ -884,7 +884,7 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
 }
 
 // ── Control Bar ──
-function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
+export function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
@@ -1243,7 +1243,7 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
 }
 
 // ── Chat Panel ──
-function ChatPanel({ roomId, userId, userName }: { roomId: string; userId: string; userName: string }) {
+export function ChatPanel({ roomId, userId, userName }: { roomId: string; userId: string; userName: string }) {
   const [messages, setMessages] = useState<{ id: string; sender_name: string; sender_id: string; message: string; created_at: string }[]>([]);
   const [text, setText] = useState("");
 
