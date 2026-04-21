@@ -590,10 +590,14 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   const effectiveLayout: LayoutMode = hasScreenShare && layoutMode === "auto" ? "sidebar" : layoutMode;
 
   let spotlightTrack: any = null;
-  if (hasScreenShare) {
+  // Pin has highest precedence: if user explicitly pinned someone, show them as spotlight
+  const pinnedTrack = pinnedSid ? limitedTracks.find(t => t.participant.sid === pinnedSid && t.source !== Track.Source.ScreenShare) : null;
+  if (pinnedTrack && !hasScreenShare) {
+    spotlightTrack = pinnedTrack;
+  } else if (hasScreenShare) {
     spotlightTrack = screenShareTrack;
   } else if (effectiveLayout === "spotlight" || effectiveLayout === "sidebar") {
-    spotlightTrack = limitedTracks[0] || null;
+    spotlightTrack = pinnedTrack || limitedTracks[0] || null;
   } else if (enlargedSid) {
     spotlightTrack = limitedTracks.find(t => t.participant.sid === enlargedSid) || null;
   }
