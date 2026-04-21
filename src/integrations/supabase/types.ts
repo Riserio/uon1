@@ -6594,6 +6594,45 @@ export type Database = {
           },
         ]
       }
+      vistoria_fotos_config: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          instrucoes: string | null
+          label: string
+          obrigatoria: boolean
+          ordem: number
+          tipo_sinistro: string | null
+          tipo_vistoria: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          instrucoes?: string | null
+          label: string
+          obrigatoria?: boolean
+          ordem?: number
+          tipo_sinistro?: string | null
+          tipo_vistoria: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          instrucoes?: string | null
+          label?: string
+          obrigatoria?: boolean
+          ordem?: number
+          tipo_sinistro?: string | null
+          tipo_vistoria?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       vistoria_prazo_config: {
         Row: {
           ativo: boolean
