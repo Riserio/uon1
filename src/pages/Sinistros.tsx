@@ -237,6 +237,27 @@ export default function Sinistros() {
           </Button>
         </div>
 
+        {/* Filtro Tipo de Vistoria */}
+        <div className="mt-4 flex items-center gap-2 rounded-2xl bg-muted/40 backdrop-blur p-1 w-fit">
+          {([
+            { value: "todas", label: "Todas", icon: ClipboardCheck },
+            { value: "sinistro", label: "Sinistros", icon: AlertTriangle },
+            { value: "reativacao", label: "Reativações", icon: RefreshCw },
+          ] as const).map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setTipoVistoriaFilter(opt.value)}
+              className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+                tipoVistoriaFilter === opt.value
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <opt.icon className="h-4 w-4" /> {opt.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary/20 border-t-primary" />
