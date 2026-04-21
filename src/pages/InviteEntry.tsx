@@ -7,24 +7,18 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Video, Users } from "lucide-react";
-import { RoomHeader, VideoGridWithReactions, ControlBar, ChatPanel } from "./MeetingRoom";
+import { RoomHeader, VideoGridWithReactions, ControlBar, ChatPanel, loadLiveKit } from "./MeetingRoom";
 
-// Lazy-load LiveKit (only need LiveKitRoom here; shared components handle their own LK hooks)
+// LiveKitRoom must be loaded via shared MeetingRoom loader so all hooks/components are initialized
 let LiveKitRoom: any;
-let livekitLoaded = false;
 
-const loadLiveKit = async () => {
-  if (livekitLoaded) return true;
-  try {
+const loadAll = async () => {
+  const ok = await loadLiveKit();
+  if (ok) {
     const componentsReact = await import("@livekit/components-react");
     LiveKitRoom = componentsReact.LiveKitRoom;
-    await import("@livekit/components-styles");
-    livekitLoaded = true;
-    return true;
-  } catch (e) {
-    console.error("Failed to load LiveKit:", e);
-    return false;
   }
+  return ok;
 };
 
 export default function InviteEntry() {
@@ -45,7 +39,7 @@ export default function InviteEntry() {
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
-    loadLiveKit().then(setLivekitReady);
+    loadAll().then(setLivekitReady);
   }, []);
 
   useEffect(() => {
