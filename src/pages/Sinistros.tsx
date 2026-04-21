@@ -194,9 +194,9 @@ export default function Sinistros() {
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-6">
       <PageHeader
-        icon={AlertTriangle}
-        title="Sinistros"
-        subtitle="Gestão integrada de sinistros e vistorias"
+        icon={ClipboardCheck}
+        title="Vistorias"
+        subtitle="Gestão integrada de vistorias de sinistros e reativações"
         actions={
           <>
             <Button onClick={() => navigate("/vistorias/nova/manual")} className="rounded-xl gap-1.5 shadow-sm">
