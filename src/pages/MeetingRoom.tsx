@@ -33,7 +33,7 @@ let useRoomContext: any;
 let livekitLoaded = false;
 let livekitLoadError: string | null = null;
 
-const loadLiveKit = async () => {
+export const loadLiveKit = async () => {
   if (livekitLoaded) return true;
   try {
     const [componentsReact, livekitClient] = await Promise.all([
