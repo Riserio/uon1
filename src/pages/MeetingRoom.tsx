@@ -684,14 +684,25 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
     const hasHandRaised = raisedHands.has(trackRef.participant.identity) || raisedHands.has(sid);
     const isScreen = trackRef.source === Track.Source.ScreenShare;
     const isFullscreen = fullscreenSid === sid;
+    const isPinned = pinnedSid === sid && !isScreen;
+    const canPin = !isScreen; // can't pin a screen share (it's auto-spotlighted)
+
+    // Click-to-pin behavior on small tiles (strip): single click pins/unpins
+    const handleTileClick = () => {
+      if (isEnlarged || !canPin) return;
+      setPinnedSid(prev => (prev === sid ? null : sid));
+    };
 
     return (
       <div
         key={sid + (trackRef.publication?.trackSid || "placeholder")}
         data-participant-sid={sid}
+        onClick={handleTileClick}
         className={`relative rounded-2xl overflow-hidden flex items-center justify-center group/tile transition-shadow duration-300 ${
           isEnlarged ? "w-full h-full" : "h-full aspect-video shrink-0"
-        } ${hasTrack ? "bg-muted" : "bg-muted/50"} ${hasHandRaised ? "ring-2 ring-yellow-500" : ""}`}
+        } ${hasTrack ? "bg-muted" : "bg-muted/50"} ${hasHandRaised ? "ring-2 ring-yellow-500" : ""} ${
+          isPinned ? "ring-2 ring-primary" : ""
+        } ${!isEnlarged && canPin ? "cursor-pointer hover:ring-2 hover:ring-primary/50" : ""}`}
       >
         {hasTrack ? (
           trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare ? (
@@ -712,6 +723,12 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
             <Hand className="h-4 w-4" />
           </div>
         )}
+        {/* Pinned indicator - top left */}
+        {isPinned && !isEnlarged && (
+          <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-full p-1 shadow-lg z-10">
+            <Pin className="h-3 w-3" />
+          </div>
+        )}
         {/* Name badge - bottom left */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-3 pt-8">
           <div className="flex items-center gap-2">
@@ -721,7 +738,23 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
           </div>
         </div>
         {/* Controls overlay - top right */}
-        <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/tile:opacity-100 transition-opacity">
+        <div
+          className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/tile:opacity-100 transition-opacity z-20"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {canPin && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setPinnedSid(prev => (prev === sid ? null : sid))}
+                  className={`h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background transition-colors border border-border/30 ${isPinned ? 'ring-2 ring-primary' : ''}`}
+                >
+                  {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{isPinned ? "Desafixar" : "Fixar como destaque"}</TooltipContent>
+            </Tooltip>
+          )}
           {isEnlarged && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -733,6 +766,36 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
                 </button>
               </TooltipTrigger>
               <TooltipContent>{isFullscreen ? "Sair da tela cheia" : "Tela cheia"}</TooltipContent>
+            </Tooltip>
+          )}
+          {isEnlarged && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setCinemaMode(c => !c)}
+                  className={`h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background transition-colors border border-border/30 ${cinemaMode ? 'ring-2 ring-primary' : ''}`}
+                >
+                  <Film className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{cinemaMode ? "Sair do modo cinema" : "Modo cinema"}</TooltipContent>
+            </Tooltip>
+          )}
+          {isEnlarged && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => {
+                    const next = presentationLayout === "strip" ? "sidebar" : "strip";
+                    setPresentationLayout(next);
+                    localStorage.setItem("uon1-presentation-layout", next);
+                  }}
+                  className="h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-background transition-colors border border-border/30"
+                >
+                  {presentationLayout === "strip" ? <PanelRight className="h-4 w-4" /> : <PanelBottom className="h-4 w-4" />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{presentationLayout === "strip" ? "Participantes na lateral" : "Participantes embaixo"}</TooltipContent>
             </Tooltip>
           )}
           <Tooltip>
