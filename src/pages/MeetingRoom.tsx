@@ -545,7 +545,7 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   const [pinnedSid, setPinnedSid] = useState<string | null>(null);
   const [cinemaMode, setCinemaMode] = useState(false);
   const [presentationLayout, setPresentationLayout] = useState<"strip" | "sidebar">(
-    () => (localStorage.getItem("uon1-presentation-layout") as "strip" | "sidebar") || "strip"
+    () => (localStorage.getItem("uon1-presentation-layout") as "strip" | "sidebar") || "sidebar"
   );
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
   const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "50", 10));
@@ -592,14 +592,15 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   let spotlightTrack: any = null;
   // Pin has highest precedence: if user explicitly pinned someone, show them as spotlight
   const pinnedTrack = pinnedSid ? limitedTracks.find(t => t.participant.sid === pinnedSid && t.source !== Track.Source.ScreenShare) : null;
+  const enlargedTrack = enlargedSid ? limitedTracks.find(t => t.participant.sid === enlargedSid) : null;
   if (pinnedTrack && !hasScreenShare) {
     spotlightTrack = pinnedTrack;
   } else if (hasScreenShare) {
     spotlightTrack = screenShareTrack;
+  } else if (enlargedTrack) {
+    spotlightTrack = enlargedTrack;
   } else if (effectiveLayout === "spotlight" || effectiveLayout === "sidebar") {
     spotlightTrack = pinnedTrack || limitedTracks[0] || null;
-  } else if (enlargedSid) {
-    spotlightTrack = limitedTracks.find(t => t.participant.sid === enlargedSid) || null;
   }
   
   const gridTracks = spotlightTrack 
@@ -867,8 +868,12 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
               {renderTile(spotlightTrack, true)}
             </div>
             {!cinemaMode && gridTracks.length > 0 && (
-              <div className="h-[14vh] min-h-[90px] max-h-[160px] shrink-0 flex items-stretch gap-2 overflow-x-auto overflow-y-hidden px-1">
-                {gridTracks.map((trackRef) => renderTile(trackRef))}
+              <div className="h-[14vh] min-h-[110px] max-h-[160px] shrink-0 flex flex-row items-stretch gap-2 overflow-x-auto overflow-y-hidden px-1">
+                {gridTracks.map((trackRef) => (
+                  <div key={trackRef.participant.sid + (trackRef.publication?.trackSid || 'p')} className="h-full aspect-video shrink-0">
+                    {renderTile(trackRef)}
+                  </div>
+                ))}
               </div>
             )}
           </>
