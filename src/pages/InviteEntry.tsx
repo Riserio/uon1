@@ -39,7 +39,7 @@ export default function InviteEntry() {
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
-    loadLiveKit().then(setLivekitReady);
+    loadAll().then(setLivekitReady);
   }, []);
 
   useEffect(() => {
