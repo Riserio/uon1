@@ -89,6 +89,58 @@ const COLUMN_MAP: { [key: string]: string } = {
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
+// ============================================
+// Deduplicação fiel ao SGA
+// ============================================
+// O relatório SGA mostra 1 boleto por pessoa+data_vencimento (mesmo quando
+// a pessoa tem múltiplos veículos no mesmo dia) e ignora boletos
+// "acumulados/refaturados" (data_vencimento_original com dia diferente
+// do dia_vencimento_veiculo). Esta função aplica as mesmas regras.
+function normalizarNomeSGA(nome: any): string {
+  if (!nome) return "";
+  return String(nome)
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function diaDeISO(s: any): number | null {
+  if (!s) return null;
+  const m = String(s).match(/^\d{4}-\d{2}-(\d{2})/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function isAcumuladoSGA(b: any): boolean {
+  if (b.dia_vencimento_veiculo == null) return false;
+  const d = diaDeISO(b.data_vencimento_original);
+  if (d == null) return false;
+  return d !== Number(b.dia_vencimento_veiculo);
+}
+
+function dedupSGAFielServer(boletos: any[]): any[] {
+  if (!Array.isArray(boletos) || boletos.length === 0) return [];
+  const semAcum = boletos.filter((b) => !isAcumuladoSGA(b));
+  const mapa = new Map<string, any>();
+  for (const b of semAcum) {
+    const nome = normalizarNomeSGA(b.nome);
+    const dv = b.data_vencimento || "";
+    if (!nome || !dv) {
+      mapa.set(`__nokey_${mapa.size}`, b);
+      continue;
+    }
+    const key = `${nome}|${dv}`;
+    const existente = mapa.get(key);
+    const valorNovo = parseFloat(String(b.valor || 0)) || 0;
+    const valorExist = existente ? (parseFloat(String(existente.valor || 0)) || 0) : -1;
+    if (!existente || valorNovo > valorExist) {
+      mapa.set(key, b);
+    }
+  }
+  return Array.from(mapa.values());
+}
+
 function normalizeGithubRunId(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const str = String(value).trim();
