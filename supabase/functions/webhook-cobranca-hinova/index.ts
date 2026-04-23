@@ -948,10 +948,8 @@ serve(async (req) => {
     // Data de referência para cálculo de atraso
     const hojeStr = getTodayInSaoPaulo(); // YYYY-MM-DD em São Paulo
 
-    for (let i = 0; i < dados.length; i += BATCH_SIZE) {
-      const batch = dados.slice(i, i + BATCH_SIZE);
-
-      const boletosBatch = batch.map((row: any) => {
+    // 1) Processar TODAS as linhas primeiro (precisamos da visão completa para deduplicar)
+    const allBoletos: any[] = dados.map((row: any) => {
         const boleto: any = {
           importacao_id: importacao.id,
         };
@@ -1021,15 +1019,23 @@ serve(async (req) => {
         return boleto;
       });
 
+    // 2) Aplicar dedup fiel ao SGA
+    const boletosFiel = dedupSGAFielServer(allBoletos);
+    const removidosDedup = allBoletos.length - boletosFiel.length;
+    console.log(`[Webhook Cobranca] ${allBoletos.length} brutos → ${boletosFiel.length} após dedup SGA (${removidosDedup} removidos)`);
+
+    // 3) Inserir em batches
+    for (let i = 0; i < boletosFiel.length; i += BATCH_SIZE) {
+      const boletosBatch = boletosFiel.slice(i, i + BATCH_SIZE);
       const { error: batchError } = await supabase
         .from("cobranca_boletos")
         .insert(boletosBatch);
 
       if (batchError) {
         console.error(`Erro no lote ${i / BATCH_SIZE + 1}:`, batchError);
-        erros += batch.length;
+        erros += boletosBatch.length;
       } else {
-        processados += batch.length;
+        processados += boletosBatch.length;
       }
 
       // Atualizar progresso se temos execução resolvida
