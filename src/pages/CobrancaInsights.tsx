@@ -26,6 +26,7 @@ import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useBILayoutOptional } from "@/contexts/BILayoutContext";
 import { usePortalLayoutOptional } from "@/contexts/PortalLayoutContext";
+import { dedupSGAFiel } from "@/lib/cobrancaDedup";
 
 export interface CobrancaFilters {
   mesReferencia: string;
