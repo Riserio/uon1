@@ -121,9 +121,8 @@ function isAcumuladoSGA(b: any): boolean {
 
 function dedupSGAFielServer(boletos: any[]): any[] {
   if (!Array.isArray(boletos) || boletos.length === 0) return [];
-  const semAcum = boletos.filter((b) => !isAcumuladoSGA(b));
   const mapa = new Map<string, any>();
-  for (const b of semAcum) {
+  for (const b of boletos) {
     const nome = normalizarNomeSGA(b.nome);
     const dv = b.data_vencimento || "";
     if (!nome || !dv) {
