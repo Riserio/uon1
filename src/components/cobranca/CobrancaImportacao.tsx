@@ -451,16 +451,20 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
       await registrarLog({
         modulo: "cobranca_insights",
         acao: "importacao",
-        descricao: `Importação de ${jsonData.length} registros - ${file.name}`,
+        descricao: `Importação de ${dedupedRecords.length} registros (de ${jsonData.length} brutos, dedup SGA) - ${file.name}`,
         corretoraId,
         dadosNovos: {
           arquivo: file.name,
-          total_registros: jsonData.length,
+          total_registros: dedupedRecords.length,
+          total_brutos: jsonData.length,
+          removidos_dedup: jsonData.length - dedupedRecords.length,
           corretora: corretoraNome,
         },
       });
 
-      toast.success(`${jsonData.length} registros importados com sucesso para ${corretoraNome}!`);
+      toast.success(
+        `${dedupedRecords.length} boletos importados (${jsonData.length - dedupedRecords.length} duplicados/acumulados removidos para bater com SGA) - ${corretoraNome}!`
+      );
       setFile(null);
       setPreview([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
