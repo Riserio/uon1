@@ -289,7 +289,11 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
   // Gerar histórico retroativo quando os boletos carregam
   useEffect(() => {
     if (boletos.length > 0 && corretoraId && mesReferencia) {
-      generateHistoricoRetroativo();
+      // Debounce: evita disparar durante navegação rápida entre abas/filtros
+      const timer = setTimeout(() => {
+        generateHistoricoRetroativo();
+      }, 1500);
+      return () => clearTimeout(timer);
     }
   }, [boletos.length, corretoraId, mesReferencia]);
 
