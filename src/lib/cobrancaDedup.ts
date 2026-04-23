@@ -74,12 +74,11 @@ export function isBoletoAcumulado(b: BoletoDedupRow): boolean {
 export function dedupSGAFiel<T extends BoletoDedupRow>(boletos: T[]): T[] {
   if (!Array.isArray(boletos) || boletos.length === 0) return [];
 
-  // Passo 1: filtrar acumulados
-  const semAcumulados = boletos.filter((b) => !isBoletoAcumulado(b));
-
-  // Passo 2: agrupar por nome+data_vencimento, manter o de maior valor
+  // Regra fiel ao SGA: agrupar por nome+data_vencimento, manter o de maior valor.
+  // (A regra anterior de filtrar "acumulados" via dia_vencimento_veiculo se
+  // mostrou agressiva demais - removia ~50% dos boletos válidos.)
   const mapa = new Map<string, T>();
-  for (const b of semAcumulados) {
+  for (const b of boletos) {
     const nome = normalizarNome(b.nome);
     const dv = b.data_vencimento || "";
     if (!nome || !dv) {
