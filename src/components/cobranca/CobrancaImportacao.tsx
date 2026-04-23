@@ -13,6 +13,7 @@ import CobrancaHistoricoImportacoes from "./CobrancaHistoricoImportacoes";
 // Automação agora é gerenciada pelo BISyncButton no header
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 import { useAuth } from "@/hooks/useAuth";
+import { dedupSGAFiel } from "@/lib/cobrancaDedup";
 
 type CobrancaModulo = "cobranca_insights";
 
@@ -336,18 +337,12 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
 
       setProgress(30);
 
-      // Processar e inserir dados em batches
-      const batchSize = 100;
-      const totalBatches = Math.ceil(jsonData.length / batchSize);
-
       // Data de referência para cálculo de atraso
       const hojeDate = new Date();
       const hojeStr = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth()+1).padStart(2,'0')}-${String(hojeDate.getDate()).padStart(2,'0')}`;
 
-      for (let i = 0; i < totalBatches; i++) {
-        const batch = jsonData.slice(i * batchSize, (i + 1) * batchSize);
-
-        const records = batch.map((row: any) => {
+      // 1) Mapear TODOS os registros primeiro (preciso ver tudo para deduplicar)
+      const allRecords = jsonData.map((row: any) => {
           const record: any = { importacao_id: importacao.id };
           const processedDbCols = new Set<string>();
 
@@ -424,17 +419,31 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
           }
 
           return record;
-        });
+      });
 
+      // 2) Aplicar dedup fiel ao SGA (1 por pessoa+vencimento, sem acumulados)
+      const dedupedRecords = dedupSGAFiel(allRecords);
+      const removidos = allRecords.length - dedupedRecords.length;
+      console.log(`[Cobranca Import] ${allRecords.length} brutos → ${dedupedRecords.length} após dedup SGA (${removidos} removidos)`);
+
+      // Atualizar total_registros da importacao com o número real
+      await supabase
+        .from("cobranca_importacoes")
+        .update({ total_registros: dedupedRecords.length })
+        .eq("id", importacao.id);
+
+      // 3) Inserir em batches
+      const batchSize = 100;
+      const totalBatches = Math.ceil(dedupedRecords.length / batchSize);
+      for (let i = 0; i < totalBatches; i++) {
+        const batch = dedupedRecords.slice(i * batchSize, (i + 1) * batchSize);
         const { error: batchError } = await supabase
           .from("cobranca_boletos")
-          .insert(records);
-
+          .insert(batch);
         if (batchError) {
           console.error("Erro no batch:", batchError);
           throw batchError;
         }
-
         setProgress(30 + Math.round((i + 1) / totalBatches * 70));
       }
 
@@ -442,16 +451,20 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
       await registrarLog({
         modulo: "cobranca_insights",
         acao: "importacao",
-        descricao: `Importação de ${jsonData.length} registros - ${file.name}`,
+        descricao: `Importação de ${dedupedRecords.length} registros (de ${jsonData.length} brutos, dedup SGA) - ${file.name}`,
         corretoraId,
         dadosNovos: {
           arquivo: file.name,
-          total_registros: jsonData.length,
+          total_registros: dedupedRecords.length,
+          total_brutos: jsonData.length,
+          removidos_dedup: jsonData.length - dedupedRecords.length,
           corretora: corretoraNome,
         },
       });
 
-      toast.success(`${jsonData.length} registros importados com sucesso para ${corretoraNome}!`);
+      toast.success(
+        `${dedupedRecords.length} boletos importados (${jsonData.length - dedupedRecords.length} duplicados/acumulados removidos para bater com SGA) - ${corretoraNome}!`
+      );
       setFile(null);
       setPreview([]);
       if (fileInputRef.current) fileInputRef.current.value = "";

@@ -26,6 +26,7 @@ import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useBILayoutOptional } from "@/contexts/BILayoutContext";
 import { usePortalLayoutOptional } from "@/contexts/PortalLayoutContext";
+import { dedupSGAFiel } from "@/lib/cobrancaDedup";
 
 export interface CobrancaFilters {
   mesReferencia: string;
@@ -289,9 +290,13 @@ export default function CobrancaInsights() {
           if (offset >= 100000) break;
         }
 
-        setBoletos(allBoletos);
-        setBICachedData(selectedAssociacao, 'cobranca', allBoletos, importacao);
-        if (isPortalAccess) savePrefetchedData(selectedAssociacao, 'cobranca', allBoletos);
+        // Aplicar deduplicação fiel ao SGA: 1 boleto por pessoa+vencimento (maior valor)
+        // e remover boletos acumulados/refaturados (dia ≠ dia_vencimento_veiculo)
+        const boletosFiel = dedupSGAFiel(allBoletos);
+        console.log(`[Cobranca] Boletos brutos: ${allBoletos.length} → após dedup SGA: ${boletosFiel.length}`);
+        setBoletos(boletosFiel);
+        setBICachedData(selectedAssociacao, 'cobranca', boletosFiel, importacao);
+        if (isPortalAccess) savePrefetchedData(selectedAssociacao, 'cobranca', boletosFiel);
       } else {
         setBoletos([]);
         setImportacaoAtiva(null);
