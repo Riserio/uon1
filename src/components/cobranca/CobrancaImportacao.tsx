@@ -13,6 +13,7 @@ import CobrancaHistoricoImportacoes from "./CobrancaHistoricoImportacoes";
 // Automação agora é gerenciada pelo BISyncButton no header
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 import { useAuth } from "@/hooks/useAuth";
+import { dedupSGAFiel } from "@/lib/cobrancaDedup";
 
 type CobrancaModulo = "cobranca_insights";
 
