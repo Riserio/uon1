@@ -1663,25 +1663,27 @@ export default function GestaoJornada() {
                                 {format(parseISO(dia), "MMMM", { locale: ptBR })}
                               </span>
                             </div>
-                            <Badge variant="secondary" className="text-[10px]">
-                              {regs.length} registro(s)
-                            </Badge>
-                            {canManageAll && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 gap-1 text-xs"
-                                onClick={() => {
-                                  setRegistroParaAjuste(null);
-                                  setDefaultDateAjuste(dia);
-                                  setAjusteOpen(true);
-                                }}
-                                title="Adicionar ponto neste dia"
-                              >
-                                <Plus className="h-3 w-3" />
-                                Adicionar
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {canManageAll && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 gap-1 text-xs"
+                                  onClick={() => {
+                                    setRegistroParaAjuste(null);
+                                    setDefaultDateAjuste(dia);
+                                    setAjusteOpen(true);
+                                  }}
+                                  title="Adicionar ponto neste dia"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  Adicionar
+                                </Button>
+                              )}
+                              <Badge variant="secondary" className="text-[10px]">
+                                {regs.length} registro(s)
+                              </Badge>
+                            </div>
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                             {regs
