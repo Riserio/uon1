@@ -183,6 +183,7 @@ export default function GestaoJornada() {
   const [configOpen, setConfigOpen] = useState(false);
   // Anexos & Abonos foram unificados num único dialog (setAnexosOpen)
   const [registroParaAjuste, setRegistroParaAjuste] = useState<any>(null);
+  const [defaultDateAjuste, setDefaultDateAjuste] = useState<string | undefined>(undefined);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [activeView, setActiveView] = useState<"registrar ponto" | "historico" | "relatorio">("registrar ponto");
