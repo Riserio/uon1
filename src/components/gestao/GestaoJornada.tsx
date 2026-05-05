@@ -1153,6 +1153,7 @@ export default function GestaoJornada() {
                     size="icon"
                     onClick={() => {
                       setRegistroParaAjuste(null);
+                      setDefaultDateAjuste(undefined);
                       setAjusteOpen(true);
                     }}
                     title="Ajuste Manual"
