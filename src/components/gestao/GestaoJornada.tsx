@@ -2067,6 +2067,52 @@ export default function GestaoJornada() {
                 </Card>
               )}
 
+              {/* Relatório por período customizado */}
+              {canExport && funcionarioId && (
+                <Card className="rounded-2xl border-border/50">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-primary" />
+                      <CardTitle className="text-sm font-semibold">Relatório por Período</CardTitle>
+                    </div>
+                    <CardDescription className="text-xs">
+                      Gere um espelho com horas positivas, negativas e saldo final em qualquer intervalo (ex.: últimos 3 meses).
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">De</Label>
+                        <Input
+                          type="date"
+                          value={periodoInicio}
+                          onChange={(e) => setPeriodoInicio(e.target.value)}
+                          className="h-9 w-[160px]"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Até</Label>
+                        <Input
+                          type="date"
+                          value={periodoFim}
+                          onChange={(e) => setPeriodoFim(e.target.value)}
+                          className="h-9 w-[160px]"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={exportarRelatorioPeriodo}
+                        disabled={exportandoPeriodo}
+                        className="gap-1.5"
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5" />
+                        {exportandoPeriodo ? "Gerando..." : "Gerar Excel do Período"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* All days */}
               <Card className="rounded-2xl border-border/50">
                 <CardHeader className="pb-3">
