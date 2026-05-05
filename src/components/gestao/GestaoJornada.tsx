@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   Clock,
   MapPin,
@@ -183,9 +184,18 @@ export default function GestaoJornada() {
   const [configOpen, setConfigOpen] = useState(false);
   // Anexos & Abonos foram unificados num único dialog (setAnexosOpen)
   const [registroParaAjuste, setRegistroParaAjuste] = useState<any>(null);
+  const [defaultDateAjuste, setDefaultDateAjuste] = useState<string | undefined>(undefined);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [activeView, setActiveView] = useState<"registrar ponto" | "historico" | "relatorio">("registrar ponto");
+  // Período customizado para relatório (ex.: últimos 3 meses)
+  const [periodoInicio, setPeriodoInicio] = useState<string>(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    return format(d, "yyyy-MM-dd");
+  });
+  const [periodoFim, setPeriodoFim] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
+  const [exportandoPeriodo, setExportandoPeriodo] = useState(false);
 
   const canManageAll = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
   const canExport = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
@@ -954,6 +964,146 @@ export default function GestaoJornada() {
     toast.success("Excel exportado com sucesso!");
   };
 
+  // Relatório por período customizado (ex.: últimos 3 meses).
+  // Calcula horas trabalhadas, extras, atrasos e saldo total agregando dia a dia
+  // dentro do intervalo escolhido. Útil para desligamentos / acerto de saldo.
+  const exportarRelatorioPeriodo = async () => {
+    if (!funcionarioSelecionado) {
+      toast.error("Selecione um funcionário");
+      return;
+    }
+    if (!periodoInicio || !periodoFim || periodoInicio > periodoFim) {
+      toast.error("Período inválido");
+      return;
+    }
+    setExportandoPeriodo(true);
+    try {
+      const inicioISO = new Date(`${periodoInicio}T00:00:00`).toISOString();
+      const fimISO = new Date(`${periodoFim}T23:59:59`).toISOString();
+      const { data: regs, error } = await supabase
+        .from("registros_ponto")
+        .select("*")
+        .eq("funcionario_id", funcionarioId)
+        .gte("data_hora", inicioISO)
+        .lte("data_hora", fimISO)
+        .order("data_hora", { ascending: true });
+      if (error) throw error;
+
+      const tolerancia =
+        (jornadaConfig as any)?.tolerancia_atraso_minutos ??
+        (funcionarioSelecionado as any).tolerancia_atraso_minutos ??
+        10;
+      const expectedEntrada = (funcionarioSelecionado as any).horario_entrada || "08:00";
+      const expectedSaida = (funcionarioSelecionado as any).horario_saida || "18:00";
+      const almocoInicio = (funcionarioSelecionado as any).horario_almoco_inicio || "12:00";
+      const almocoFim = (funcionarioSelecionado as any).horario_almoco_fim || "13:00";
+      const [eh, em] = expectedEntrada.split(":").map(Number);
+      const [sh, sm] = expectedSaida.split(":").map(Number);
+      const [aih, aim] = almocoInicio.split(":").map(Number);
+      const [afh, afm] = almocoFim.split(":").map(Number);
+      const defaultAlmocoMin = afh * 60 + afm - (aih * 60 + aim);
+      const expectedDayMin = sh * 60 + sm - (eh * 60 + em) - defaultAlmocoMin;
+
+      const porDia: Record<string, any[]> = {};
+      (regs || []).forEach((r: any) => {
+        const dia = format(new Date(r.data_hora), "yyyy-MM-dd");
+        if (!porDia[dia]) porDia[dia] = [];
+        porDia[dia].push(r);
+      });
+
+      let totalExtras = 0;
+      let totalAtrasos = 0;
+      let totalSaldo = 0;
+      let totalTrab = 0;
+      let diasTrab = 0;
+      const linhas: any[] = [];
+
+      const start = new Date(`${periodoInicio}T00:00:00`);
+      const end = new Date(`${periodoFim}T00:00:00`);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dia = format(d, "yyyy-MM-dd");
+        const regsDia = porDia[dia];
+        if (!regsDia) continue;
+        const entrada = regsDia.find((r: any) => r.tipo === "entrada");
+        const saida = regsDia.find((r: any) => r.tipo === "saida");
+        const sa = regsDia.find((r: any) => r.tipo === "saida_almoco");
+        const va = regsDia.find((r: any) => r.tipo === "volta_almoco");
+
+        let lateDisc = 0;
+        let extra = 0;
+        if (entrada) {
+          const ed = new Date(entrada.data_hora);
+          const exp = new Date(ed);
+          exp.setHours(eh, em, 0, 0);
+          const diff = differenceInMinutes(ed, exp);
+          if (diff > tolerancia) lateDisc = diff - tolerancia;
+        }
+        if (saida) {
+          const sd = new Date(saida.data_hora);
+          const exp = new Date(sd);
+          exp.setHours(sh, sm, 0, 0);
+          const diff = differenceInMinutes(sd, exp);
+          if (diff > tolerancia) extra = diff - tolerancia;
+        }
+        let trabMin = 0;
+        if (entrada && saida) {
+          const almocoMin =
+            sa && va
+              ? (new Date(va.data_hora).getTime() - new Date(sa.data_hora).getTime()) / 60000
+              : defaultAlmocoMin;
+          trabMin = (new Date(saida.data_hora).getTime() - new Date(entrada.data_hora).getTime()) / 60000 - almocoMin;
+          trabMin = Math.max(0, trabMin);
+          diasTrab++;
+        }
+        const saldo = entrada && saida ? Math.round(trabMin - expectedDayMin) : 0;
+        totalExtras += extra;
+        totalAtrasos += lateDisc;
+        totalSaldo += saldo;
+        totalTrab += trabMin;
+        linhas.push({
+          Data: format(d, "dd/MM/yyyy"),
+          Dia: format(d, "EEEE", { locale: ptBR }),
+          Entrada: entrada ? format(new Date(entrada.data_hora), "HH:mm") : "",
+          "Saída Almoço": sa ? format(new Date(sa.data_hora), "HH:mm") : "",
+          "Volta Almoço": va ? format(new Date(va.data_hora), "HH:mm") : "",
+          Saída: saida ? format(new Date(saida.data_hora), "HH:mm") : "",
+          "Horas Trabalhadas": formatHoursMinutes(trabMin / 60),
+          "Atraso (min)": lateDisc,
+          "Hora Extra (min)": extra,
+          "Saldo do dia": formatSaldoMinutos(saldo),
+        });
+      }
+
+      linhas.push({
+        Data: "TOTAIS",
+        Dia: `${diasTrab} dias`,
+        Entrada: "",
+        "Saída Almoço": "",
+        "Volta Almoço": "",
+        Saída: "",
+        "Horas Trabalhadas": formatHoursMinutes(totalTrab / 60),
+        "Atraso (min)": totalAtrasos,
+        "Hora Extra (min)": totalExtras,
+        "Saldo do dia": formatSaldoMinutos(totalSaldo),
+      });
+
+      const ws = XLSX.utils.json_to_sheet(linhas);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Período");
+      XLSX.writeFile(
+        wb,
+        `relatorio_periodo_${funcionarioSelecionado?.nome?.replace(/\s+/g, "_")}_${periodoInicio}_a_${periodoFim}.xlsx`,
+      );
+      toast.success(
+        `Relatório gerado · Saldo do período: ${formatSaldoMinutos(totalSaldo)}`,
+      );
+    } catch (e: any) {
+      toast.error("Erro ao gerar relatório: " + e.message);
+    } finally {
+      setExportandoPeriodo(false);
+    }
+  };
+
   const gerarProtocolo = () => {
     const now = new Date();
     return `REC${now.getFullYear().toString().slice(-2)}${(now.getMonth() + 1).toString().padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}${now.getHours().toString().padStart(2, "0")}${now.getMinutes().toString().padStart(2, "0")}${Math.floor(
@@ -1152,6 +1302,7 @@ export default function GestaoJornada() {
                     size="icon"
                     onClick={() => {
                       setRegistroParaAjuste(null);
+                      setDefaultDateAjuste(undefined);
                       setAjusteOpen(true);
                     }}
                     title="Ajuste Manual"
@@ -1661,9 +1812,27 @@ export default function GestaoJornada() {
                                 {format(parseISO(dia), "MMMM", { locale: ptBR })}
                               </span>
                             </div>
-                            <Badge variant="secondary" className="text-[10px]">
-                              {regs.length} registro(s)
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              {canManageAll && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 gap-1 text-xs"
+                                  onClick={() => {
+                                    setRegistroParaAjuste(null);
+                                    setDefaultDateAjuste(dia);
+                                    setAjusteOpen(true);
+                                  }}
+                                  title="Adicionar ponto neste dia"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  Adicionar
+                                </Button>
+                              )}
+                              <Badge variant="secondary" className="text-[10px]">
+                                {regs.length} registro(s)
+                              </Badge>
+                            </div>
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                             {regs
@@ -1700,6 +1869,7 @@ export default function GestaoJornada() {
                                         className="h-6 w-6 shrink-0"
                                         onClick={() => {
                                           setRegistroParaAjuste(registro);
+                                          setDefaultDateAjuste(undefined);
                                           setAjusteOpen(true);
                                         }}
                                       >
@@ -1893,6 +2063,52 @@ export default function GestaoJornada() {
                           Excel Todos
                         </Button>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Relatório por período customizado */}
+              {canExport && funcionarioId && (
+                <Card className="rounded-2xl border-border/50">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-primary" />
+                      <CardTitle className="text-sm font-semibold">Relatório por Período</CardTitle>
+                    </div>
+                    <CardDescription className="text-xs">
+                      Gere um espelho com horas positivas, negativas e saldo final em qualquer intervalo (ex.: últimos 3 meses).
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">De</Label>
+                        <Input
+                          type="date"
+                          value={periodoInicio}
+                          onChange={(e) => setPeriodoInicio(e.target.value)}
+                          className="h-9 w-[160px]"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Até</Label>
+                        <Input
+                          type="date"
+                          value={periodoFim}
+                          onChange={(e) => setPeriodoFim(e.target.value)}
+                          className="h-9 w-[160px]"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={exportarRelatorioPeriodo}
+                        disabled={exportandoPeriodo}
+                        className="gap-1.5"
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5" />
+                        {exportandoPeriodo ? "Gerando..." : "Gerar Excel do Período"}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -2112,6 +2328,17 @@ export default function GestaoJornada() {
           funcionarioId={funcionarioId}
           funcionarioNome={funcionarioSelecionado?.nome || ""}
           registroExistente={registroParaAjuste}
+          defaultDate={defaultDateAjuste}
+          funcionarioSchedule={
+            funcionarioSelecionado
+              ? {
+                  horario_entrada: (funcionarioSelecionado as any).horario_entrada,
+                  horario_almoco_inicio: (funcionarioSelecionado as any).horario_almoco_inicio,
+                  horario_almoco_fim: (funcionarioSelecionado as any).horario_almoco_fim,
+                  horario_saida: (funcionarioSelecionado as any).horario_saida,
+                }
+              : null
+          }
         />
       )}
       {canManageAll && funcionarioId && (
