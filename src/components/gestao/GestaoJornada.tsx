@@ -187,6 +187,14 @@ export default function GestaoJornada() {
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [activeView, setActiveView] = useState<"registrar ponto" | "historico" | "relatorio">("registrar ponto");
+  // Período customizado para relatório (ex.: últimos 3 meses)
+  const [periodoInicio, setPeriodoInicio] = useState<string>(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    return format(d, "yyyy-MM-dd");
+  });
+  const [periodoFim, setPeriodoFim] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
+  const [exportandoPeriodo, setExportandoPeriodo] = useState(false);
 
   const canManageAll = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
   const canExport = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
