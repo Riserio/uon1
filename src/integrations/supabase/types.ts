@@ -5373,6 +5373,7 @@ export type Database = {
           ajustado_por: string | null
           created_at: string
           data_hora: string
+          data_hora_original: string | null
           dispositivo: string | null
           endereco_aproximado: string | null
           foto_url: string | null
@@ -5384,6 +5385,7 @@ export type Database = {
           motivo_ajuste: string | null
           observacao: string | null
           tipo: string
+          tipo_original: string | null
           user_agent: string | null
         }
         Insert: {
@@ -5392,6 +5394,7 @@ export type Database = {
           ajustado_por?: string | null
           created_at?: string
           data_hora?: string
+          data_hora_original?: string | null
           dispositivo?: string | null
           endereco_aproximado?: string | null
           foto_url?: string | null
@@ -5403,6 +5406,7 @@ export type Database = {
           motivo_ajuste?: string | null
           observacao?: string | null
           tipo: string
+          tipo_original?: string | null
           user_agent?: string | null
         }
         Update: {
@@ -5411,6 +5415,7 @@ export type Database = {
           ajustado_por?: string | null
           created_at?: string
           data_hora?: string
+          data_hora_original?: string | null
           dispositivo?: string | null
           endereco_aproximado?: string | null
           foto_url?: string | null
@@ -5422,6 +5427,7 @@ export type Database = {
           motivo_ajuste?: string | null
           observacao?: string | null
           tipo?: string
+          tipo_original?: string | null
           user_agent?: string | null
         }
         Relationships: [
