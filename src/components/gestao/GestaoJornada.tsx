@@ -963,6 +963,146 @@ export default function GestaoJornada() {
     toast.success("Excel exportado com sucesso!");
   };
 
+  // Relatório por período customizado (ex.: últimos 3 meses).
+  // Calcula horas trabalhadas, extras, atrasos e saldo total agregando dia a dia
+  // dentro do intervalo escolhido. Útil para desligamentos / acerto de saldo.
+  const exportarRelatorioPeriodo = async () => {
+    if (!funcionarioSelecionado) {
+      toast.error("Selecione um funcionário");
+      return;
+    }
+    if (!periodoInicio || !periodoFim || periodoInicio > periodoFim) {
+      toast.error("Período inválido");
+      return;
+    }
+    setExportandoPeriodo(true);
+    try {
+      const inicioISO = new Date(`${periodoInicio}T00:00:00`).toISOString();
+      const fimISO = new Date(`${periodoFim}T23:59:59`).toISOString();
+      const { data: regs, error } = await supabase
+        .from("registros_ponto")
+        .select("*")
+        .eq("funcionario_id", funcionarioId)
+        .gte("data_hora", inicioISO)
+        .lte("data_hora", fimISO)
+        .order("data_hora", { ascending: true });
+      if (error) throw error;
+
+      const tolerancia =
+        (jornadaConfig as any)?.tolerancia_atraso_minutos ??
+        (funcionarioSelecionado as any).tolerancia_atraso_minutos ??
+        10;
+      const expectedEntrada = (funcionarioSelecionado as any).horario_entrada || "08:00";
+      const expectedSaida = (funcionarioSelecionado as any).horario_saida || "18:00";
+      const almocoInicio = (funcionarioSelecionado as any).horario_almoco_inicio || "12:00";
+      const almocoFim = (funcionarioSelecionado as any).horario_almoco_fim || "13:00";
+      const [eh, em] = expectedEntrada.split(":").map(Number);
+      const [sh, sm] = expectedSaida.split(":").map(Number);
+      const [aih, aim] = almocoInicio.split(":").map(Number);
+      const [afh, afm] = almocoFim.split(":").map(Number);
+      const defaultAlmocoMin = afh * 60 + afm - (aih * 60 + aim);
+      const expectedDayMin = sh * 60 + sm - (eh * 60 + em) - defaultAlmocoMin;
+
+      const porDia: Record<string, any[]> = {};
+      (regs || []).forEach((r: any) => {
+        const dia = format(new Date(r.data_hora), "yyyy-MM-dd");
+        if (!porDia[dia]) porDia[dia] = [];
+        porDia[dia].push(r);
+      });
+
+      let totalExtras = 0;
+      let totalAtrasos = 0;
+      let totalSaldo = 0;
+      let totalTrab = 0;
+      let diasTrab = 0;
+      const linhas: any[] = [];
+
+      const start = new Date(`${periodoInicio}T00:00:00`);
+      const end = new Date(`${periodoFim}T00:00:00`);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dia = format(d, "yyyy-MM-dd");
+        const regsDia = porDia[dia];
+        if (!regsDia) continue;
+        const entrada = regsDia.find((r: any) => r.tipo === "entrada");
+        const saida = regsDia.find((r: any) => r.tipo === "saida");
+        const sa = regsDia.find((r: any) => r.tipo === "saida_almoco");
+        const va = regsDia.find((r: any) => r.tipo === "volta_almoco");
+
+        let lateDisc = 0;
+        let extra = 0;
+        if (entrada) {
+          const ed = new Date(entrada.data_hora);
+          const exp = new Date(ed);
+          exp.setHours(eh, em, 0, 0);
+          const diff = differenceInMinutes(ed, exp);
+          if (diff > tolerancia) lateDisc = diff - tolerancia;
+        }
+        if (saida) {
+          const sd = new Date(saida.data_hora);
+          const exp = new Date(sd);
+          exp.setHours(sh, sm, 0, 0);
+          const diff = differenceInMinutes(sd, exp);
+          if (diff > tolerancia) extra = diff - tolerancia;
+        }
+        let trabMin = 0;
+        if (entrada && saida) {
+          const almocoMin =
+            sa && va
+              ? (new Date(va.data_hora).getTime() - new Date(sa.data_hora).getTime()) / 60000
+              : defaultAlmocoMin;
+          trabMin = (new Date(saida.data_hora).getTime() - new Date(entrada.data_hora).getTime()) / 60000 - almocoMin;
+          trabMin = Math.max(0, trabMin);
+          diasTrab++;
+        }
+        const saldo = entrada && saida ? Math.round(trabMin - expectedDayMin) : 0;
+        totalExtras += extra;
+        totalAtrasos += lateDisc;
+        totalSaldo += saldo;
+        totalTrab += trabMin;
+        linhas.push({
+          Data: format(d, "dd/MM/yyyy"),
+          Dia: format(d, "EEEE", { locale: ptBR }),
+          Entrada: entrada ? format(new Date(entrada.data_hora), "HH:mm") : "",
+          "Saída Almoço": sa ? format(new Date(sa.data_hora), "HH:mm") : "",
+          "Volta Almoço": va ? format(new Date(va.data_hora), "HH:mm") : "",
+          Saída: saida ? format(new Date(saida.data_hora), "HH:mm") : "",
+          "Horas Trabalhadas": formatHoursMinutes(trabMin / 60),
+          "Atraso (min)": lateDisc,
+          "Hora Extra (min)": extra,
+          "Saldo do dia": formatSaldoMinutos(saldo),
+        });
+      }
+
+      linhas.push({
+        Data: "TOTAIS",
+        Dia: `${diasTrab} dias`,
+        Entrada: "",
+        "Saída Almoço": "",
+        "Volta Almoço": "",
+        Saída: "",
+        "Horas Trabalhadas": formatHoursMinutes(totalTrab / 60),
+        "Atraso (min)": totalAtrasos,
+        "Hora Extra (min)": totalExtras,
+        "Saldo do dia": formatSaldoMinutos(totalSaldo),
+      });
+
+      const ws = XLSX.utils.json_to_sheet(linhas);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Período");
+      XLSX.writeFile(
+        wb,
+        `relatorio_periodo_${funcionarioSelecionado?.nome?.replace(/\s+/g, "_")}_${periodoInicio}_a_${periodoFim}.xlsx`,
+      );
+      toast.success(
+        `Relatório gerado · Saldo do período: ${formatSaldoMinutos(totalSaldo)}`,
+      );
+    } catch (e: any) {
+      toast.error("Erro ao gerar relatório: " + e.message);
+    } finally {
+      setExportandoPeriodo(false);
+    }
+  };
+
   const gerarProtocolo = () => {
     const now = new Date();
     return `REC${now.getFullYear().toString().slice(-2)}${(now.getMonth() + 1).toString().padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}${now.getHours().toString().padStart(2, "0")}${now.getMinutes().toString().padStart(2, "0")}${Math.floor(
