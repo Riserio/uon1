@@ -11,6 +11,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { RotateCcw, Trash2, Sparkles } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface AjusteManualPontoDialogProps {
   open: boolean;
@@ -21,6 +32,16 @@ interface AjusteManualPontoDialogProps {
     id: string;
     tipo: string;
     data_hora: string;
+    ajustado?: boolean;
+    tipo_original?: string | null;
+    data_hora_original?: string | null;
+  } | null;
+  defaultDate?: string; // yyyy-MM-dd: pré-preenche o dia ao adicionar
+  funcionarioSchedule?: {
+    horario_entrada?: string | null;
+    horario_almoco_inicio?: string | null;
+    horario_almoco_fim?: string | null;
+    horario_saida?: string | null;
   } | null;
 }
 
@@ -31,12 +52,43 @@ const tiposPonto = [
   { value: "saida", label: "Saída" },
 ];
 
+// Auto-detecta o tipo de ponto pelo horário, comparando com a escala do funcionário.
+// Retorna o tipo cuja referência está mais próxima do horário informado.
+function detectarTipoPorHorario(
+  hora: string,
+  schedule?: AjusteManualPontoDialogProps["funcionarioSchedule"],
+): string {
+  if (!hora) return "entrada";
+  const [h, m] = hora.split(":").map(Number);
+  const minutos = h * 60 + m;
+  const def = {
+    entrada: schedule?.horario_entrada || "08:00",
+    saida_almoco: schedule?.horario_almoco_inicio || "12:00",
+    volta_almoco: schedule?.horario_almoco_fim || "13:00",
+    saida: schedule?.horario_saida || "18:00",
+  };
+  let best = "entrada";
+  let bestDiff = Infinity;
+  (Object.keys(def) as Array<keyof typeof def>).forEach((k) => {
+    const [hh, mm] = def[k].split(":").map(Number);
+    const ref = hh * 60 + mm;
+    const diff = Math.abs(minutos - ref);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = k;
+    }
+  });
+  return best;
+}
+
 export default function AjusteManualPontoDialog({
   open,
   onOpenChange,
   funcionarioId,
   funcionarioNome,
   registroExistente,
+  defaultDate,
+  funcionarioSchedule,
 }: AjusteManualPontoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -44,10 +96,11 @@ export default function AjusteManualPontoDialog({
   // modo: "ponto" = registro de ponto comum | "abono_horas" = abono de horas
   const [modo, setModo] = useState<"ponto" | "abono_horas">("ponto");
   const [tipo, setTipo] = useState(registroExistente?.tipo || "entrada");
+  const [tipoTocado, setTipoTocado] = useState(false);
   const [data, setData] = useState(
     registroExistente 
       ? format(new Date(registroExistente.data_hora), "yyyy-MM-dd") 
-      : format(new Date(), "yyyy-MM-dd")
+      : (defaultDate || format(new Date(), "yyyy-MM-dd"))
   );
   const [hora, setHora] = useState(
     registroExistente 
@@ -56,6 +109,16 @@ export default function AjusteManualPontoDialog({
   );
   const [horasAbonadas, setHorasAbonadas] = useState("1");
   const [motivo, setMotivo] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+
+  // Auto-detecção do tipo conforme o horário (somente se o usuário não trocou manualmente)
+  const handleHoraChange = (novaHora: string) => {
+    setHora(novaHora);
+    if (!tipoTocado && !registroExistente) {
+      setTipo(detectarTipoPorHorario(novaHora, funcionarioSchedule));
+    }
+  };
 
   const ajustarPonto = useMutation({
     mutationFn: async () => {
@@ -91,6 +154,9 @@ export default function AjusteManualPontoDialog({
       const dataHora = new Date(`${data}T${hora}:00`);
 
       if (registroExistente) {
+        // Preserva a batida original na 1ª edição
+        const preservaOriginal =
+          !registroExistente.tipo_original && !registroExistente.data_hora_original;
         // Atualizar registro existente
         const { error } = await supabase
           .from("registros_ponto")
@@ -101,6 +167,12 @@ export default function AjusteManualPontoDialog({
             ajustado_por: user?.id,
             ajustado_em: new Date().toISOString(),
             motivo_ajuste: motivo.trim() || "Ajuste sem justificativa",
+            ...(preservaOriginal
+              ? {
+                  tipo_original: registroExistente.tipo,
+                  data_hora_original: registroExistente.data_hora,
+                }
+              : {}),
           })
           .eq("id", registroExistente.id);
 
@@ -137,10 +209,66 @@ export default function AjusteManualPontoDialog({
       // Reset form
       setModo("ponto");
       setTipo("entrada");
-      setData(format(new Date(), "yyyy-MM-dd"));
+      setData(defaultDate || format(new Date(), "yyyy-MM-dd"));
       setHora("08:00");
       setHorasAbonadas("1");
       setMotivo("");
+      setTipoTocado(false);
+    },
+    onError: (error) => {
+      toast.error("Erro: " + error.message);
+    },
+  });
+
+  // Restaurar a batida original (descarta o ajuste mantendo o registro)
+  const restaurarOriginal = useMutation({
+    mutationFn: async () => {
+      if (!registroExistente?.tipo_original || !registroExistente?.data_hora_original) {
+        throw new Error("Este registro não possui batida original armazenada");
+      }
+      const { error } = await supabase
+        .from("registros_ponto")
+        .update({
+          tipo: registroExistente.tipo_original,
+          data_hora: registroExistente.data_hora_original,
+          ajustado: false,
+          ajustado_por: null,
+          ajustado_em: null,
+          motivo_ajuste: null,
+          tipo_original: null,
+          data_hora_original: null,
+        })
+        .eq("id", registroExistente.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["registros_ponto"] });
+      queryClient.invalidateQueries({ queryKey: ["analise_registros"] });
+      toast.success("Batida original restaurada");
+      setConfirmRestore(false);
+      onOpenChange(false);
+    },
+    onError: (error) => {
+      toast.error("Erro: " + error.message);
+    },
+  });
+
+  // Excluir o registro completamente
+  const excluirRegistro = useMutation({
+    mutationFn: async () => {
+      if (!registroExistente?.id) throw new Error("Registro inválido");
+      const { error } = await supabase
+        .from("registros_ponto")
+        .delete()
+        .eq("id", registroExistente.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["registros_ponto"] });
+      queryClient.invalidateQueries({ queryKey: ["analise_registros"] });
+      toast.success("Registro excluído");
+      setConfirmDelete(false);
+      onOpenChange(false);
     },
     onError: (error) => {
       toast.error("Erro: " + error.message);
@@ -148,6 +276,9 @@ export default function AjusteManualPontoDialog({
   });
 
   const isAbonoHoras = modo === "abono_horas";
+  const temBatidaOriginal = !!(
+    registroExistente?.tipo_original && registroExistente?.data_hora_original
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -165,6 +296,12 @@ export default function AjusteManualPontoDialog({
         <div className="space-y-4">
           <div className="p-3 bg-muted rounded-lg">
             <p className="text-sm font-medium">{funcionarioNome}</p>
+            {registroExistente?.ajustado && temBatidaOriginal && (
+              <p className="text-xs text-amber-600 mt-1">
+                Original: {tiposPonto.find((t) => t.value === registroExistente.tipo_original)?.label} às{" "}
+                {format(new Date(registroExistente.data_hora_original!), "dd/MM HH:mm")}
+              </p>
+            )}
           </div>
 
           {/* Toggle modo apenas em criação (não edição) */}
@@ -197,8 +334,21 @@ export default function AjusteManualPontoDialog({
 
           {!isAbonoHoras && (
             <div className="space-y-2">
-              <Label>Tipo de Registro</Label>
-              <Select value={tipo} onValueChange={setTipo}>
+              <div className="flex items-center justify-between">
+                <Label>Tipo de Registro</Label>
+                {!registroExistente && (
+                  <span className="text-[10px] text-muted-foreground inline-flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> auto-detectado pela hora
+                  </span>
+                )}
+              </div>
+              <Select
+                value={tipo}
+                onValueChange={(v) => {
+                  setTipo(v);
+                  setTipoTocado(true);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -240,7 +390,7 @@ export default function AjusteManualPontoDialog({
                 <Input
                   type="time"
                   value={hora}
-                  onChange={(e) => setHora(e.target.value)}
+                  onChange={(e) => handleHoraChange(e.target.value)}
                 />
               </div>
             )}
@@ -264,19 +414,86 @@ export default function AjusteManualPontoDialog({
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              onClick={() => ajustarPonto.mutate()} 
-              disabled={ajustarPonto.isPending}
-            >
-              {ajustarPonto.isPending ? "Salvando..." : "Salvar"}
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-4">
+            <div className="flex gap-2">
+              {registroExistente && temBatidaOriginal && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmRestore(true)}
+                  disabled={restaurarOriginal.isPending}
+                  className="gap-1.5"
+                  title="Restaurar batida original"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Restaurar original
+                </Button>
+              )}
+              {registroExistente && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={excluirRegistro.isPending}
+                  className="gap-1.5 text-destructive hover:text-destructive"
+                  title="Excluir este registro"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Excluir
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => ajustarPonto.mutate()}
+                disabled={ajustarPonto.isPending}
+              >
+                {ajustarPonto.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir registro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação remove permanentemente esta batida de ponto. Não é possível desfazer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => excluirRegistro.mutate()}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRestore} onOpenChange={setConfirmRestore}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restaurar batida original?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O ajuste manual será descartado e a batida voltará ao tipo e horário originais.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => restaurarOriginal.mutate()}>
+              Restaurar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
