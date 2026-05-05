@@ -1720,6 +1720,7 @@ export default function GestaoJornada() {
                                         className="h-6 w-6 shrink-0"
                                         onClick={() => {
                                           setRegistroParaAjuste(registro);
+                                          setDefaultDateAjuste(undefined);
                                           setAjusteOpen(true);
                                         }}
                                       >
@@ -2132,6 +2133,17 @@ export default function GestaoJornada() {
           funcionarioId={funcionarioId}
           funcionarioNome={funcionarioSelecionado?.nome || ""}
           registroExistente={registroParaAjuste}
+          defaultDate={defaultDateAjuste}
+          funcionarioSchedule={
+            funcionarioSelecionado
+              ? {
+                  horario_entrada: (funcionarioSelecionado as any).horario_entrada,
+                  horario_almoco_inicio: (funcionarioSelecionado as any).horario_almoco_inicio,
+                  horario_almoco_fim: (funcionarioSelecionado as any).horario_almoco_fim,
+                  horario_saida: (funcionarioSelecionado as any).horario_saida,
+                }
+              : null
+          }
         />
       )}
       {canManageAll && funcionarioId && (
