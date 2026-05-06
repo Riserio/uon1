@@ -96,6 +96,13 @@ Deno.serve(async (req) => {
       })
     }
 
+    // 5. Inactivate linked funcionario record (if any) so it disappears from Jornada/listings
+    const { error: funcErr } = await supabaseAdmin
+      .from('funcionarios')
+      .update({ ativo: false })
+      .eq('profile_id', userId)
+    if (funcErr) console.error('[delete-user] Error inactivating funcionario:', funcErr)
+
     console.log(`[delete-user] User ${userId} successfully inactivated`)
 
     return new Response(
