@@ -28,6 +28,8 @@ import {
   Briefcase,
   UserCircle,
   ChevronDown,
+  RotateCcw,
+  UserX,
 } from "lucide-react";
 import { UserFluxoPermissionsDialog } from "@/components/UserFluxoPermissionsDialog";
 import { UserMenuPermissionsDialog } from "@/components/UserMenuPermissionsDialog";
