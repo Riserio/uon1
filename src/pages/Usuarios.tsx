@@ -2061,6 +2061,74 @@ export default function Usuarios() {
           </Card>
         </TabsContent>
 
+        {/* INATIVOS */}
+        <TabsContent value="inativos">
+          <Card className="border-border/40 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-medium">Usuários Inativos</CardTitle>
+                <Badge variant="secondary" className="font-normal">
+                  {inactiveProfiles.length} inativos
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Avatar</TableHead>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>Função</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {inactiveProfiles.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          Nenhum usuário inativo
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      inactiveProfiles.map((item) => (
+                        <TableRow key={item.id} className="opacity-70">
+                          <TableCell>
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={item.avatar_url || undefined} alt={item.nome} />
+                              <AvatarFallback>{item.nome.substring(0, 2).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                          </TableCell>
+                          <TableCell className="font-medium">{item.nome}</TableCell>
+                          <TableCell>{item.email}</TableCell>
+                          <TableCell>{item.telefone || "-"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{getRoleName(userRoles[item.id])}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReactivateUser(item)}
+                              className="gap-1.5"
+                              title="Reativar usuário"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              Reativar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* PENDENTES */}
         <TabsContent value="pendentes">
           <Card className="border-border/40 shadow-sm">
