@@ -774,6 +774,26 @@ export default function Usuarios() {
     }
   };
 
+  const handleReactivateUser = async (profile: Profile) => {
+    if (!confirm(`Reativar o usuário "${profile.nome}"?`)) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('reactivate-user', {
+        body: { userId: profile.id },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || "Erro ao reativar usuário");
+        return;
+      }
+      await logUserAction("Reativação de Usuário", profile.id, { ativo: true, status: 'ativo' });
+      toast.success("Usuário reativado com sucesso!");
+      fetchProfiles();
+      fetchUserRoles();
+    } catch (err) {
+      console.error("Erro ao reativar:", err);
+      toast.error("Erro ao reativar usuário");
+    }
+  };
+
   const openDialog = async (item?: Profile) => {
     if (item) {
       setEditingItem(item);
