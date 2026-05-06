@@ -28,6 +28,8 @@ import {
   Briefcase,
   UserCircle,
   ChevronDown,
+  RotateCcw,
+  UserX,
 } from "lucide-react";
 import { UserFluxoPermissionsDialog } from "@/components/UserFluxoPermissionsDialog";
 import { UserMenuPermissionsDialog } from "@/components/UserMenuPermissionsDialog";
@@ -152,9 +154,23 @@ export default function Usuarios() {
     { id: 'acompanhamento-eventos', label: 'Acompanhamento de Eventos', description: 'Kanban de acompanhamento de eventos' },
   ];
   const filteredProfiles = useMemo(() => {
-    if (!searchTerm) return profiles;
+    const ativos = profiles.filter((p) => p.ativo !== false && p.status !== 'inativo');
+    if (!searchTerm) return ativos;
     const term = searchTerm.toLowerCase();
-    return profiles.filter(
+    return ativos.filter(
+      (p) =>
+        p.nome.toLowerCase().includes(term) ||
+        p.email.toLowerCase().includes(term) ||
+        p.telefone?.toLowerCase().includes(term) ||
+        p.cargo?.toLowerCase().includes(term),
+    );
+  }, [profiles, searchTerm]);
+
+  const inactiveProfiles = useMemo(() => {
+    const inativos = profiles.filter((p) => p.ativo === false || p.status === 'inativo');
+    if (!searchTerm) return inativos;
+    const term = searchTerm.toLowerCase();
+    return inativos.filter(
       (p) =>
         p.nome.toLowerCase().includes(term) ||
         p.email.toLowerCase().includes(term) ||
@@ -758,6 +774,26 @@ export default function Usuarios() {
     }
   };
 
+  const handleReactivateUser = async (profile: Profile) => {
+    if (!confirm(`Reativar o usuário "${profile.nome}"?`)) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('reactivate-user', {
+        body: { userId: profile.id },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || "Erro ao reativar usuário");
+        return;
+      }
+      await logUserAction("Reativação de Usuário", profile.id, { ativo: true, status: 'ativo' });
+      toast.success("Usuário reativado com sucesso!");
+      fetchProfiles();
+      fetchUserRoles();
+    } catch (err) {
+      console.error("Erro ao reativar:", err);
+      toast.error("Erro ao reativar usuário");
+    }
+  };
+
   const openDialog = async (item?: Profile) => {
     if (item) {
       setEditingItem(item);
@@ -1070,6 +1106,7 @@ export default function Usuarios() {
   const tabsConfig = [
     { id: "lista", label: "Lista", icon: UsersIcon, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
     { id: "pendentes", label: "Pendentes", icon: UserPlus, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400", badge: pendingProfiles.length },
+    { id: "inativos", label: "Inativos", icon: UserX, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400", badge: inactiveProfiles.length },
     { id: "equipes", label: "Equipes", icon: UsersRound, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
     { id: "hierarquia", label: "Hierarquia", icon: Network, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
     { id: "permissoes", label: "Permissões", icon: Shield, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
@@ -1172,6 +1209,7 @@ export default function Usuarios() {
         <TabsList className="hidden">
           <TabsTrigger value="lista">Lista</TabsTrigger>
           <TabsTrigger value="pendentes">Pendentes</TabsTrigger>
+          <TabsTrigger value="inativos">Inativos</TabsTrigger>
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
           <TabsTrigger value="hierarquia">Hierarquia</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
@@ -2019,6 +2057,74 @@ export default function Usuarios() {
                   </Pagination>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* INATIVOS */}
+        <TabsContent value="inativos">
+          <Card className="border-border/40 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-medium">Usuários Inativos</CardTitle>
+                <Badge variant="secondary" className="font-normal">
+                  {inactiveProfiles.length} inativos
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Avatar</TableHead>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>Função</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {inactiveProfiles.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          Nenhum usuário inativo
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      inactiveProfiles.map((item) => (
+                        <TableRow key={item.id} className="opacity-70">
+                          <TableCell>
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={item.avatar_url || undefined} alt={item.nome} />
+                              <AvatarFallback>{item.nome.substring(0, 2).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                          </TableCell>
+                          <TableCell className="font-medium">{item.nome}</TableCell>
+                          <TableCell>{item.email}</TableCell>
+                          <TableCell>{item.telefone || "-"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{getRoleName(userRoles[item.id])}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReactivateUser(item)}
+                              className="gap-1.5"
+                              title="Reativar usuário"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              Reativar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
