@@ -1985,9 +1985,9 @@ export default function Usuarios() {
                                 size="icon"
                                 className="h-8 w-8 text-destructive"
                                 onClick={() => handleDeleteUser(item)}
-                                title="Excluir usuário"
+                                title="Inativar usuário"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <UserX className="h-4 w-4" />
                               </Button>
                             </div>
                           </TableCell>
