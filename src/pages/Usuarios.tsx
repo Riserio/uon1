@@ -1106,6 +1106,7 @@ export default function Usuarios() {
   const tabsConfig = [
     { id: "lista", label: "Lista", icon: UsersIcon, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
     { id: "pendentes", label: "Pendentes", icon: UserPlus, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400", badge: pendingProfiles.length },
+    { id: "inativos", label: "Inativos", icon: UserX, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400", badge: inactiveProfiles.length },
     { id: "equipes", label: "Equipes", icon: UsersRound, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
     { id: "hierarquia", label: "Hierarquia", icon: Network, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
     { id: "permissoes", label: "Permissões", icon: Shield, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
