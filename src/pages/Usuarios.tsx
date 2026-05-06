@@ -154,9 +154,23 @@ export default function Usuarios() {
     { id: 'acompanhamento-eventos', label: 'Acompanhamento de Eventos', description: 'Kanban de acompanhamento de eventos' },
   ];
   const filteredProfiles = useMemo(() => {
-    if (!searchTerm) return profiles;
+    const ativos = profiles.filter((p) => p.ativo !== false && p.status !== 'inativo');
+    if (!searchTerm) return ativos;
     const term = searchTerm.toLowerCase();
-    return profiles.filter(
+    return ativos.filter(
+      (p) =>
+        p.nome.toLowerCase().includes(term) ||
+        p.email.toLowerCase().includes(term) ||
+        p.telefone?.toLowerCase().includes(term) ||
+        p.cargo?.toLowerCase().includes(term),
+    );
+  }, [profiles, searchTerm]);
+
+  const inactiveProfiles = useMemo(() => {
+    const inativos = profiles.filter((p) => p.ativo === false || p.status === 'inativo');
+    if (!searchTerm) return inativos;
+    const term = searchTerm.toLowerCase();
+    return inativos.filter(
       (p) =>
         p.nome.toLowerCase().includes(term) ||
         p.email.toLowerCase().includes(term) ||
