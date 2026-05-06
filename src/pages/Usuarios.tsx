@@ -1209,6 +1209,7 @@ export default function Usuarios() {
         <TabsList className="hidden">
           <TabsTrigger value="lista">Lista</TabsTrigger>
           <TabsTrigger value="pendentes">Pendentes</TabsTrigger>
+          <TabsTrigger value="inativos">Inativos</TabsTrigger>
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
           <TabsTrigger value="hierarquia">Hierarquia</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
