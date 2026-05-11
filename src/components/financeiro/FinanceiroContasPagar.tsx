@@ -27,6 +27,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
 import { AnexosFinanceiros, AnexoFinanceiro } from "./AnexosFinanceiros";
+import { CategoriaSelect } from "./CategoriaSelect";
 
 interface Props {
   corretoraId: string;
@@ -344,25 +345,12 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
                 </div>
                 <div>
                   <Label>Categoria</Label>
-                  <Select 
+                  <CategoriaSelect
+                    tipo="saida"
+                    corretoraId={corretoraId}
                     value={formData.categoria}
-                    onValueChange={(v) => setFormData({ ...formData, categoria: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sinistro">Sinistro</SelectItem>
-                      <SelectItem value="indenizacao">Indenização</SelectItem>
-                      <SelectItem value="salvados">Salvados</SelectItem>
-                      <SelectItem value="ressarcimento">Ressarcimento</SelectItem>
-                      <SelectItem value="custo_operacional">Custo Operacional</SelectItem>
-                      <SelectItem value="taxa_administrativa">Taxa Administrativa</SelectItem>
-                      <SelectItem value="ajuste_tecnico">Ajuste Técnico</SelectItem>
-                      <SelectItem value="estorno">Estorno</SelectItem>
-                      <SelectItem value="outros">Outros</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    onChange={(v) => setFormData({ ...formData, categoria: v })}
+                  />
                 </div>
               </div>
 
