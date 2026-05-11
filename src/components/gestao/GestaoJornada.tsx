@@ -197,9 +197,9 @@ export default function GestaoJornada() {
   const [periodoFim, setPeriodoFim] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
   const [exportandoPeriodo, setExportandoPeriodo] = useState(false);
 
-  const canManageAll = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
-  const canExport = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
-  const isLimitedUser = userRole === "lider" || userRole === "comercial";
+  const canManageAll = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo" || userRole === "lider";
+  const canExport = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo" || userRole === "lider";
+  const isLimitedUser = userRole === "comercial";
 
   const { data: jornadaConfig } = useQuery({
     queryKey: ["jornada_config"],
