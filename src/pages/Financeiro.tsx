@@ -39,6 +39,8 @@ import FinanceiroConciliacao from "@/components/financeiro/FinanceiroConciliacao
 import FinanceiroHistorico from "@/components/financeiro/FinanceiroHistorico";
 import FinanceiroNotasFiscais from "@/components/financeiro/FinanceiroNotasFiscais";
 import FinanceiroCentrosCusto from "@/components/financeiro/FinanceiroCentrosCusto";
+import FinanceiroCategorias from "@/components/financeiro/FinanceiroCategorias";
+import { Tags } from "lucide-react";
 
 export default function Financeiro() {
   const [activeTab, setActiveTab] = useState("visao-geral");
@@ -114,6 +116,7 @@ export default function Financeiro() {
     { value: "historico", label: "Histórico", icon: History },
     { value: "notas-fiscais", label: "Nota Fiscal", icon: FileText },
     { value: "centros-custo", label: "Centro de Custo", icon: PiggyBank },
+    { value: "categorias", label: "Categorias", icon: Tags },
   ];
 
   if (loading) {
@@ -374,6 +377,7 @@ export default function Financeiro() {
           <TabsContent value="historico"><FinanceiroHistorico corretoraId={selectedCorretora} /></TabsContent>
           <TabsContent value="notas-fiscais"><FinanceiroNotasFiscais corretoraId={selectedCorretora} /></TabsContent>
           <TabsContent value="centros-custo"><FinanceiroCentrosCusto corretoraId={selectedCorretora} /></TabsContent>
+          <TabsContent value="categorias"><FinanceiroCategorias corretoraId={selectedCorretora} /></TabsContent>
         </Tabs>
       </div>
     </div>
