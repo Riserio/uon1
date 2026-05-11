@@ -757,6 +757,63 @@ export type Database = {
           },
         ]
       }
+      categorias_financeiras: {
+        Row: {
+          ativo: boolean
+          cor: string
+          corretora_id: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          nivel: number
+          nome: string
+          parent_id: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string
+          corretora_id?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nivel?: number
+          nome: string
+          parent_id?: string | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string
+          corretora_id?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nivel?: number
+          nome?: string
+          parent_id?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categorias_financeiras_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categorias_financeiras_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_financeiras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       centros_custo: {
         Row: {
           ativo: boolean
