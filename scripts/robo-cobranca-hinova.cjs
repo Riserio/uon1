@@ -196,7 +196,7 @@ const TIMEOUTS = {
 };
 
 const LIMITS = {
-  MAX_LOGIN_RETRIES: 5,          // Reduzido de 20 → 5
+  MAX_LOGIN_RETRIES: 10,         // Aumentado para 10
   MAX_DOWNLOAD_RETRIES: 3,
   MAX_POPUP_CLOSE_ATTEMPTS: 10,
   MAX_LOOP_ITERATIONS: 100,      // Limite para evitar loops infinitos
