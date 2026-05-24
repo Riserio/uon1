@@ -263,6 +263,7 @@ async function runOne(supabase: any, schedule: any) {
         next_run_at: computeNextRun(schedule, now).toISOString(),
       })
       .eq('id', schedule.id);
+    return { ok: results.some((result) => result.includes(':ok')), results };
   } catch (e: any) {
     await supabase.from('whatsapp_template_schedules')
       .update({
@@ -272,6 +273,7 @@ async function runOne(supabase: any, schedule: any) {
         next_run_at: computeNextRun(schedule, now).toISOString(),
       })
       .eq('id', schedule.id);
+    return { ok: false, results: [], error: e.message };
   }
 }
 
@@ -289,8 +291,8 @@ Deno.serve(async (req) => {
     if (error || !sch) {
       return new Response(JSON.stringify({ error: 'schedule not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    await runOne(supabase, sch);
-    return new Response(JSON.stringify({ ok: true, ran: 1 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const result = await runOne(supabase, sch);
+    return new Response(JSON.stringify({ ...result, ran: result.ok ? 1 : 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   // Cron tick: run all due schedules.
