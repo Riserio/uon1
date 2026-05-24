@@ -166,6 +166,68 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     finally { setSending(false); }
   };
 
+  const openTemplatePicker = async () => {
+    if (!selectedContact) return;
+    setShowTemplatePicker(true);
+    setSelectedTemplate(null);
+    setTemplateVars({});
+    if (templates.length === 0) {
+      setLoadingTemplates(true);
+      try {
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`https://${projectId}.supabase.co/functions/v1/listar-templates-whatsapp`, {
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) toast.error(data.error || 'Erro ao carregar templates');
+        else setTemplates(data.templates || []);
+      } catch { toast.error('Erro ao carregar templates'); }
+      finally { setLoadingTemplates(false); }
+    }
+  };
+
+  const getTemplateBodyVarCount = (tpl: any): number => {
+    const body = tpl?.components?.find((c: any) => c.type === 'BODY');
+    if (!body?.text) return 0;
+    const matches = body.text.match(/\{\{\d+\}\}/g);
+    return matches ? new Set(matches).size : 0;
+  };
+
+  const handleSendTemplate = async () => {
+    if (!selectedTemplate || !selectedContact || sendingTemplate) return;
+    const varCount = getTemplateBodyVarCount(selectedTemplate);
+    const vars: Record<string, string> = {};
+    for (let i = 1; i <= varCount; i++) {
+      const v = templateVars[String(i)]?.trim();
+      if (!v) { toast.error(`Preencha a variável {{${i}}}`); return; }
+      vars[String(i)] = v;
+    }
+    setSendingTemplate(true);
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const { data: { session } } = await supabase.auth.getSession();
+      const body = selectedTemplate.components?.find((c: any) => c.type === 'BODY');
+      let rendered = body?.text || selectedTemplate.name;
+      Object.entries(vars).forEach(([k, v]) => { rendered = rendered.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), v); });
+      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/whatsapp-send-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          contact_id: selectedContact.id,
+          message: rendered,
+          type: 'template',
+          template_name: selectedTemplate.name,
+          template_variables: vars,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) toast.error(result.error || 'Erro ao enviar template');
+      else { toast.success('Template enviado'); setShowTemplatePicker(false); }
+    } catch { toast.error('Erro ao enviar template'); }
+    finally { setSendingTemplate(false); }
+  };
+
   const toggleHumanMode = async (contact: Contact) => {
     const newMode = !contact.human_mode;
     await supabase.from('whatsapp_contacts').update({ human_mode: newMode, human_mode_by: newMode ? user?.id : null, human_mode_at: newMode ? new Date().toISOString() : null }).eq('id', contact.id);
