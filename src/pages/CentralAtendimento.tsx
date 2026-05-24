@@ -643,6 +643,9 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
             <div className="p-3 border-t border-border/50 bg-card">
               <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center gap-2 max-w-3xl mx-auto">
                 <Input value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="Digite uma mensagem..." className="flex-1 rounded-xl" disabled={sending} />
+                <Button type="button" variant="outline" size="icon" className="rounded-xl shrink-0" onClick={openTemplatePicker} title="Enviar template (fora de 24h)">
+                  <FileText className="h-4 w-4" />
+                </Button>
                 <Button type="submit" size="icon" className="rounded-xl shrink-0" disabled={!messageText.trim() || sending}>
                   <Send className="h-4 w-4" />
                 </Button>
@@ -651,6 +654,62 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
           </>
         )}
       </div>
+
+      <Dialog open={showTemplatePicker} onOpenChange={setShowTemplatePicker}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Enviar template aprovado (Meta)</DialogTitle>
+          </DialogHeader>
+          {loadingTemplates ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Carregando templates aprovados...</div>
+          ) : templates.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Nenhum template aprovado encontrado.</div>
+          ) : !selectedTemplate ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Selecione um template aprovado para enviar fora da janela de 24h.</p>
+              {templates.map((tpl: any) => {
+                const body = tpl.components?.find((c: any) => c.type === 'BODY');
+                return (
+                  <button
+                    key={tpl.id}
+                    onClick={() => { setSelectedTemplate(tpl); setTemplateVars({}); }}
+                    className="w-full text-left p-3 rounded-xl border border-border hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-sm">{tpl.name}</span>
+                      <Badge variant="secondary" className="text-xs">{tpl.category} · {tpl.language}</Badge>
+                    </div>
+                    {body?.text && <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">{body.text}</p>}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <button onClick={() => setSelectedTemplate(null)} className="text-xs text-primary hover:underline">← Voltar à lista</button>
+              <div className="p-3 rounded-xl bg-muted/40 text-sm whitespace-pre-wrap">
+                {selectedTemplate.components?.find((c: any) => c.type === 'BODY')?.text || selectedTemplate.name}
+              </div>
+              {Array.from({ length: getTemplateBodyVarCount(selectedTemplate) }, (_, i) => i + 1).map((n) => (
+                <div key={n} className="space-y-1">
+                  <Label className="text-xs">Variável {`{{${n}}}`}</Label>
+                  <Input
+                    value={templateVars[String(n)] || ''}
+                    onChange={(e) => setTemplateVars((p) => ({ ...p, [String(n)]: e.target.value }))}
+                    placeholder={`Valor para {{${n}}}`}
+                  />
+                </div>
+              ))}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowTemplatePicker(false)}>Cancelar</Button>
+                <Button onClick={handleSendTemplate} disabled={sendingTemplate}>
+                  {sendingTemplate ? 'Enviando...' : 'Enviar template'}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
