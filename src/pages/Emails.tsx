@@ -709,10 +709,7 @@ export default function Emails() {
               </TabsContent>
 
               <TabsContent value="config">
-                <div className="space-y-6">
-                  <WhatsAppNotificacaoGlobal />
-                  <WhatsAppConfig />
-                </div>
+                <WhatsAppConfig />
               </TabsContent>
               <TabsContent value="templates">
                 <WhatsAppTemplates />
