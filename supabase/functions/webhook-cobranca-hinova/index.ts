@@ -89,6 +89,54 @@ const COLUMN_MAP: { [key: string]: string } = {
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
+const COBRANCA_TEMPLATE_NAME = "resumo_dirio";
+const COBRANCA_TEMPLATE_LANGUAGE = "pt_BR";
+
+function onlyDigits(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function formatWhatsAppPhone(value: string): string {
+  const cleanPhone = onlyDigits(value);
+  return cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+}
+
+function formatCurrencyBR(value: unknown): string {
+  const numeric = typeof value === "number" ? value : Number(value || 0);
+  return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numeric);
+}
+
+function buildCobrancaTemplatePayload(to: string, dados: any) {
+  const bodyValues = [
+    dados?.data_atual,
+    dados?.percentual_inadimplencia,
+    dados?.total_gerados,
+    dados?.total_baixados,
+    dados?.faturamento_esperado_formatado ?? formatCurrencyBR(dados?.faturamento_esperado),
+    dados?.faturamento_recebido_formatado ?? formatCurrencyBR(dados?.faturamento_recebido),
+    dados?.total_aberto_formatado ?? dados?.valor_inadimplencia ?? formatCurrencyBR(dados?.total_aberto),
+    dados?.boletos_por_dia,
+    dados?.cooperativa_maior_inadimplencia,
+    dados?.cooperativa_menor_inadimplencia,
+  ];
+
+  return {
+    messaging_product: "whatsapp",
+    to,
+    type: "template",
+    template: {
+      name: COBRANCA_TEMPLATE_NAME,
+      language: { code: COBRANCA_TEMPLATE_LANGUAGE },
+      components: [
+        {
+          type: "body",
+          parameters: bodyValues.map((value) => ({ type: "text", text: String(value ?? "-") })),
+        },
+      ],
+    },
+  };
+}
+
 // ============================================
 // Deduplicação fiel ao SGA
 // ============================================
