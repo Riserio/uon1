@@ -9,6 +9,46 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const META_TOKEN = Deno.env.get('META_WHATSAPP_TOKEN')!;
 const META_PHONE_ID = Deno.env.get('META_WHATSAPP_PHONE_NUMBER_ID')!;
+const META_WABA_ID = Deno.env.get('META_WHATSAPP_BUSINESS_ACCOUNT_ID') || '';
+
+// Cache: template name -> number of {{n}} placeholders in BODY component.
+const templateBodyParamCache = new Map<string, number>();
+
+async function getTemplateBodyParamCount(name: string, language: string): Promise<number | null> {
+  const cacheKey = `${name}::${language}`;
+  if (templateBodyParamCache.has(cacheKey)) return templateBodyParamCache.get(cacheKey)!;
+
+  let wabaId = META_WABA_ID;
+  if (!wabaId) {
+    const phoneRes = await fetch(
+      `https://graph.facebook.com/v22.0/${META_PHONE_ID}?fields=whatsapp_business_account`,
+      { headers: { Authorization: `Bearer ${META_TOKEN}` } },
+    );
+    const phoneJson = await phoneRes.json();
+    wabaId = phoneJson?.whatsapp_business_account?.id;
+    if (!wabaId) return null;
+  }
+
+  const res = await fetch(
+    `https://graph.facebook.com/v22.0/${wabaId}/message_templates?name=${encodeURIComponent(name)}&fields=name,language,components&limit=20`,
+    { headers: { Authorization: `Bearer ${META_TOKEN}` } },
+  );
+  const json = await res.json();
+  if (!res.ok) return null;
+  const list = Array.isArray(json?.data) ? json.data : [];
+  const match = list.find((t: any) => t.name === name && t.language === language)
+    || list.find((t: any) => t.name === name);
+  if (!match) return null;
+  const body = (match.components || []).find((c: any) => c.type === 'BODY');
+  const text: string = body?.text || '';
+  const placeholders = new Set<number>();
+  const re = /\{\{\s*(\d+)\s*\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) placeholders.add(Number(m[1]));
+  const count = placeholders.size;
+  templateBodyParamCache.set(cacheKey, count);
+  return count;
+}
 
 // Default mapping from generator JSON fields → template {{n}} placeholders.
 const DEFAULT_MAPS: Record<string, string[]> = {
@@ -124,6 +164,26 @@ async function sendTemplate(phone: string, schedule: any, params: { type: 'text'
   const formatted = phone.replace(/\D/g, '').startsWith('55')
     ? phone.replace(/\D/g, '')
     : `55${phone.replace(/\D/g, '')}`;
+
+  // Adjust params to match the template's actual placeholder count.
+  let adjustedParams = params;
+  try {
+    const expected = await getTemplateBodyParamCount(
+      schedule.template_name,
+      schedule.template_language || 'pt_BR',
+    );
+    if (typeof expected === 'number') {
+      if (params.length > expected) {
+        adjustedParams = params.slice(0, expected);
+      } else if (params.length < expected) {
+        adjustedParams = [
+          ...params,
+          ...Array.from({ length: expected - params.length }, () => ({ type: 'text' as const, text: '-' })),
+        ];
+      }
+    }
+  } catch { /* fall back to provided params */ }
+
   const body: any = {
     messaging_product: 'whatsapp',
     to: formatted,
@@ -131,7 +191,7 @@ async function sendTemplate(phone: string, schedule: any, params: { type: 'text'
     template: {
       name: schedule.template_name,
       language: { code: schedule.template_language || 'pt_BR' },
-      ...(params.length > 0 ? { components: [{ type: 'body', parameters: params }] } : {}),
+      ...(adjustedParams.length > 0 ? { components: [{ type: 'body', parameters: adjustedParams }] } : {}),
     },
   };
   const res = await fetch(`https://graph.facebook.com/v22.0/${META_PHONE_ID}/messages`, {
