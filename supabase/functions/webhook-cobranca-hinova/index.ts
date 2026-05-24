@@ -1334,11 +1334,51 @@ serve(async (req) => {
             const metaToken = Deno.env.get("META_WHATSAPP_TOKEN");
             const metaPhoneNumberId = Deno.env.get("META_WHATSAPP_PHONE_NUMBER_ID");
 
-            if (fluxoId && phoneNumbers.length > 0) {
+            if (phoneNumbers.length > 0 && metaToken && metaPhoneNumberId) {
+              const { data: resumoData } = await supabase.functions.invoke("gerar-resumo-cobranca", {
+                body: { corretora_id: corretoraId, mes_referencia: mesRefParaRelatorio },
+              });
+              const messageContent = resumoData?.resumo || "Resumo de cobrança não disponível";
+              const templateParams = resumoData?.dados || {};
+
+              for (const phone of phoneNumbers) {
+                const formattedPhone = formatWhatsAppPhone(phone);
+                try {
+                  const metaResponse = await fetch(
+                    `https://graph.facebook.com/v22.0/${metaPhoneNumberId}/messages`,
+                    {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
+                      body: JSON.stringify(buildCobrancaTemplatePayload(formattedPhone, templateParams)),
+                    }
+                  );
+                  const metaData = await metaResponse.json();
+                  const metaMessageId = metaData?.messages?.[0]?.id || null;
+                  const errorMessage = metaResponse.ok ? null : (metaData?.error?.message || "Erro Meta API");
+
+                  await supabase.from("whatsapp_historico").insert({
+                    corretora_id: corretoraId, telefone_destino: formattedPhone, mensagem: messageContent,
+                    tipo: "cobranca", status: metaResponse.ok ? "enviado" : "erro",
+                    status_entrega: metaResponse.ok ? "enviado" : "erro", meta_message_id: metaMessageId,
+                    erro_mensagem: errorMessage,
+                    enviado_em: new Date().toISOString(), enviado_por: null,
+                  });
+
+                  const { data: waContact } = await supabase.from("whatsapp_contacts").select("id").eq("phone", formattedPhone).maybeSingle();
+                  if (waContact) {
+                    await supabase.from("whatsapp_messages").insert({ contact_id: waContact.id, direction: "out", body: messageContent, type: "template", status: metaResponse.ok ? "sent" : "failed", meta_message_id: metaMessageId, error_message: errorMessage, sent_by: null });
+                    await supabase.from("whatsapp_contacts").update({ last_message_at: new Date().toISOString(), last_message_preview: messageContent.substring(0, 100) }).eq("id", waContact.id);
+                  }
+                  console.log(`[Webhook Cobrança] Template WhatsApp enviado para ${formattedPhone}: ${metaResponse.ok ? "sucesso" : errorMessage}`);
+                } catch (sendErr) {
+                  console.error(`[Webhook Cobrança] Erro ao enviar template WhatsApp para ${formattedPhone}:`, sendErr);
+                }
+              }
+              await supabase.from("whatsapp_config").update({ ultimo_envio_automatico: new Date().toISOString(), ultimo_erro_envio: null }).eq("id", waConfig.id);
+            } else if (fluxoId && phoneNumbers.length > 0) {
               // Trigger saved flow for each phone number
               for (const phone of phoneNumbers) {
-                const cleanPhone = phone.replace(/\D/g, "");
-                const formattedPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+                const formattedPhone = formatWhatsAppPhone(phone);
                 try {
                   await supabase.functions.invoke("whatsapp-flow-engine", {
                     body: { contact_phone: formattedPhone, flow_id: fluxoId, trigger: "auto_import", mes_referencia: mesRefParaRelatorio },
