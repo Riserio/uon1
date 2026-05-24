@@ -11,12 +11,12 @@ const META_TOKEN = Deno.env.get('META_WHATSAPP_TOKEN')!;
 const META_PHONE_ID = Deno.env.get('META_WHATSAPP_PHONE_NUMBER_ID')!;
 const META_WABA_ID = Deno.env.get('META_WHATSAPP_BUSINESS_ACCOUNT_ID') || '';
 
-// Cache: template name -> number of {{n}} placeholders in BODY component.
-const templateBodyParamCache = new Map<string, number>();
+// Cache: template name -> number of {{n}} placeholders in HEADER/BODY components.
+const templateParamSpecCache = new Map<string, { header: number; body: number }>();
 
-async function getTemplateBodyParamCount(name: string, language: string): Promise<number | null> {
+async function getTemplateParamSpec(name: string, language: string): Promise<{ header: number; body: number } | null> {
   const cacheKey = `${name}::${language}`;
-  if (templateBodyParamCache.has(cacheKey)) return templateBodyParamCache.get(cacheKey)!;
+  if (templateParamSpecCache.has(cacheKey)) return templateParamSpecCache.get(cacheKey)!;
 
   let wabaId = META_WABA_ID;
   if (!wabaId) {
@@ -39,15 +39,22 @@ async function getTemplateBodyParamCount(name: string, language: string): Promis
   const match = list.find((t: any) => t.name === name && t.language === language)
     || list.find((t: any) => t.name === name);
   if (!match) return null;
-  const body = (match.components || []).find((c: any) => c.type === 'BODY');
-  const text: string = body?.text || '';
-  const placeholders = new Set<number>();
-  const re = /\{\{\s*(\d+)\s*\}\}/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) placeholders.add(Number(m[1]));
-  const count = placeholders.size;
-  templateBodyParamCache.set(cacheKey, count);
-  return count;
+  const countPlaceholders = (text = '') => {
+    const placeholders = new Set<number>();
+    const re = /\{\{\s*(\d+)\s*\}\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) placeholders.add(Number(m[1]));
+    return placeholders.size;
+  };
+  const components = match.components || [];
+  const header = components.find((c: any) => c.type === 'HEADER');
+  const body = components.find((c: any) => c.type === 'BODY');
+  const spec = {
+    header: countPlaceholders(header?.text || ''),
+    body: countPlaceholders(body?.text || ''),
+  };
+  templateParamSpecCache.set(cacheKey, spec);
+  return spec;
 }
 
 // Default mapping from generator JSON fields → template {{n}} placeholders.
