@@ -167,29 +167,40 @@ function buildParameters(schedule: any, dados: Record<string, any>): { type: 'te
   return order.map((field) => ({ type: 'text', text: String(dados[field] ?? '') }));
 }
 
-async function sendTemplate(phone: string, schedule: any, params: { type: 'text'; text: string }[]) {
+async function sendTemplate(phone: string, schedule: any, params: { type: 'text'; text: string }[], headerText: string) {
   const formatted = phone.replace(/\D/g, '').startsWith('55')
     ? phone.replace(/\D/g, '')
     : `55${phone.replace(/\D/g, '')}`;
 
-  // Adjust params to match the template's actual placeholder count.
+  // Adjust params to match the template's actual HEADER/BODY placeholder count.
   let adjustedParams = params;
+  let headerParams: { type: 'text'; text: string }[] = [];
   try {
-    const expected = await getTemplateBodyParamCount(
+    const expected = await getTemplateParamSpec(
       schedule.template_name,
       schedule.template_language || 'pt_BR',
     );
-    if (typeof expected === 'number') {
-      if (params.length > expected) {
-        adjustedParams = params.slice(0, expected);
-      } else if (params.length < expected) {
+    if (expected) {
+      if (expected.header > 0) {
+        headerParams = Array.from({ length: expected.header }, (_, index) => ({
+          type: 'text' as const,
+          text: index === 0 ? headerText : '-',
+        }));
+      }
+      if (params.length > expected.body) {
+        adjustedParams = params.slice(0, expected.body);
+      } else if (params.length < expected.body) {
         adjustedParams = [
           ...params,
-          ...Array.from({ length: expected - params.length }, () => ({ type: 'text' as const, text: '-' })),
+          ...Array.from({ length: expected.body - params.length }, () => ({ type: 'text' as const, text: '-' })),
         ];
       }
     }
   } catch { /* fall back to provided params */ }
+
+  const components = [];
+  if (headerParams.length > 0) components.push({ type: 'header', parameters: headerParams });
+  if (adjustedParams.length > 0) components.push({ type: 'body', parameters: adjustedParams });
 
   const body: any = {
     messaging_product: 'whatsapp',
@@ -198,7 +209,7 @@ async function sendTemplate(phone: string, schedule: any, params: { type: 'text'
     template: {
       name: schedule.template_name,
       language: { code: schedule.template_language || 'pt_BR' },
-      ...(adjustedParams.length > 0 ? { components: [{ type: 'body', parameters: adjustedParams }] } : {}),
+      ...(components.length > 0 ? { components } : {}),
     },
   };
   const res = await fetch(`https://graph.facebook.com/v22.0/${META_PHONE_ID}/messages`, {
