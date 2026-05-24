@@ -601,6 +601,10 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
           </div>
         </CardContent>
       </Card>
+
+      {selectedCorretora && (
+        <WhatsAppTemplateSchedules corretoraId={selectedCorretora} />
+      )}
     </div>
   );
 }
