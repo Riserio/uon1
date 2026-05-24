@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Search, Send, Check, CheckCheck, Clock, XCircle, Bot,
@@ -503,17 +503,34 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
             </div>
 
             {/* Messages */}
-            <ScrollArea ref={scrollAreaRef} className="flex-1 p-4 bg-muted/10">
-              <div className="space-y-2 max-w-3xl mx-auto">
+            <ScrollArea ref={scrollAreaRef} className="flex-1 p-4 bg-gradient-to-b from-muted/10 to-muted/20">
+              <div className="space-y-1 max-w-3xl mx-auto">
                 {loadingMessages ? (
                   <div className="text-center py-8 text-muted-foreground text-sm">Carregando...</div>
                 ) : messages.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground text-sm">Nenhuma mensagem</div>
                 ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className={cn('flex', msg.direction === 'out' ? 'justify-end' : 'justify-start')}>
+                  messages.map((msg, idx) => {
+                    const msgDate = new Date(msg.created_at);
+                    const prev = idx > 0 ? messages[idx - 1] : null;
+                    const showDateSeparator = !prev || !isSameDay(new Date(prev.created_at), msgDate);
+                    const dateLabel = isToday(msgDate)
+                      ? 'Hoje'
+                      : isYesterday(msgDate)
+                        ? 'Ontem'
+                        : format(msgDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
+                    return (
+                    <div key={msg.id}>
+                      {showDateSeparator && (
+                        <div className="flex justify-center my-4">
+                          <span className="text-[11px] font-medium px-3 py-1 rounded-full bg-card/80 backdrop-blur-sm border border-border/50 text-muted-foreground shadow-sm capitalize">
+                            {dateLabel}
+                          </span>
+                        </div>
+                      )}
+                    <div className={cn('flex mb-1', msg.direction === 'out' ? 'justify-end' : 'justify-start')}>
                       <div className={cn(
-                        'max-w-[75%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm',
+                        'group max-w-[75%] sm:max-w-[70%] rounded-2xl px-3.5 py-2 shadow-sm',
                         msg.direction === 'out' ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-card border border-border/50 rounded-bl-md'
                       )}>
                         {msg.type !== 'text' && msg.type !== 'template' && <Badge variant="secondary" className="text-[10px] mb-1">{msg.type}</Badge>}
@@ -534,13 +551,20 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                         )}
                         {msg.body && msg.body !== `[${msg.type}]` && <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>}
                         {(!msg.body || msg.body === `[${msg.type}]`) && !msg.media_url && <p className="text-sm whitespace-pre-wrap break-words">{msg.body || ''}</p>}
-                        <div className={cn('flex items-center justify-end gap-1 mt-1', msg.direction === 'out' ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
-                          <span className="text-[10px]">{format(new Date(msg.created_at), 'HH:mm')}</span>
+                        <div
+                          className={cn('flex items-center justify-end gap-1 mt-1', msg.direction === 'out' ? 'text-primary-foreground/70' : 'text-muted-foreground')}
+                          title={format(msgDate, "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
+                        >
+                          <span className="text-[10px] tabular-nums">
+                            {format(msgDate, "dd/MM/yy HH:mm", { locale: ptBR })}
+                          </span>
                           {msg.direction === 'out' && getStatusIcon(msg.status)}
                         </div>
                       </div>
                     </div>
-                  ))
+                    </div>
+                    );
+                  })
                 )}
                 <div ref={messagesEndRef} />
               </div>
