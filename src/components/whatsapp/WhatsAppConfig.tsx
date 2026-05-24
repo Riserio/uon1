@@ -292,321 +292,255 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-green-500" />
-            Configuração do WhatsApp
-          </CardTitle>
-          <CardDescription>
-            Configure os números do WhatsApp e as opções de envio automático
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label>Associação</Label>
-            <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a associação" />
-              </SelectTrigger>
-              <SelectContent>
-                {corretoras.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Multiple phone numbers */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      {/* Unified header: association selector + status + save */}
+      <Card className="rounded-2xl">
+        <CardContent className="pt-6">
+          <div className="flex flex-col lg:flex-row gap-4 lg:items-end lg:justify-between">
+            <div className="flex-1 space-y-2">
               <Label className="flex items-center gap-2">
-                <Phone className="h-4 w-4" />
-                Números de Destino
+                <MessageCircle className="h-4 w-4 text-green-600" />
+                Associação
               </Label>
+              <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
+                <SelectTrigger><SelectValue placeholder="Selecione a associação" /></SelectTrigger>
+                <SelectContent>
+                  {corretoras.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={config.ativo}
+                  onCheckedChange={(checked) => setConfig({ ...config, ativo: checked })}
+                />
+                <Label className="whitespace-nowrap">WhatsApp ativo</Label>
+              </div>
+              <Button onClick={handleSave} disabled={loading}>
+                <Save className="h-4 w-4 mr-2" />
+                {loading ? 'Salvando...' : 'Salvar tudo'}
+              </Button>
+            </div>
+          </div>
+
+          {(config.ultimo_erro_envio || config.ultimo_envio_automatico) && (
+            <div className="mt-4">
+              {config.ultimo_erro_envio ? (
+                <Alert variant="destructive">
+                  <XCircle className="h-4 w-4" />
+                  <AlertTitle>Último erro</AlertTitle>
+                  <AlertDescription>{config.ultimo_erro_envio}</AlertDescription>
+                </Alert>
+              ) : (
+                <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertTitle className="text-green-800 dark:text-green-200">Último envio bem-sucedido</AlertTitle>
+                  <AlertDescription className="text-green-700 dark:text-green-300">
+                    {new Date(config.ultimo_envio_automatico!).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Sub-tabs */}
+      <Tabs defaultValue="conexao" className="space-y-4">
+        <TabsList className="rounded-full bg-muted/40 backdrop-blur p-1">
+          <TabsTrigger value="conexao" className="rounded-full gap-1.5">
+            <Phone className="h-3.5 w-3.5" /> Conexão & Números
+          </TabsTrigger>
+          <TabsTrigger value="envios" className="rounded-full gap-1.5">
+            <Zap className="h-3.5 w-3.5" /> Envios Automáticos
+          </TabsTrigger>
+          <TabsTrigger value="fluxo" className="rounded-full gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" /> Reinício de Fluxo
+          </TabsTrigger>
+          <TabsTrigger value="alertas" className="rounded-full gap-1.5">
+            <Bell className="h-3.5 w-3.5" /> Alertas Globais
+          </TabsTrigger>
+        </TabsList>
+
+        {/* === CONEXÃO === */}
+        <TabsContent value="conexao">
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Phone className="h-4 w-4" /> Números de Destino
+              </CardTitle>
+              <CardDescription>
+                Todos os números abaixo recebem os resumos automáticos configurados nesta associação.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                {phoneNumbers.map((phone, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-green-100 text-green-700 text-xs font-bold shrink-0 dark:bg-green-900 dark:text-green-300">
+                      {index + 1}
+                    </div>
+                    <Input
+                      placeholder="(XX) XXXXX-XXXX"
+                      value={phone.number}
+                      onChange={(e) => updatePhoneNumber(index, 'number', formatPhone(e.target.value))}
+                      className="flex-1"
+                      maxLength={16}
+                    />
+                    <Input
+                      placeholder="Nome (opcional)"
+                      value={phone.label}
+                      onChange={(e) => updatePhoneNumber(index, 'label', e.target.value)}
+                      className="flex-1"
+                    />
+                    {phoneNumbers.length > 1 && (
+                      <Button variant="ghost" size="icon" onClick={() => removePhoneNumber(index)} className="shrink-0 text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
               <Button variant="outline" size="sm" onClick={addPhoneNumber} className="gap-1">
-                <Plus className="h-3.5 w-3.5" />
-                Adicionar número
+                <Plus className="h-3.5 w-3.5" /> Adicionar número
               </Button>
-            </div>
-            
-            <div className="space-y-2">
-              {phoneNumbers.map((phone, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div className="flex items-center justify-center h-8 w-8 rounded-full bg-green-100 text-green-700 text-xs font-bold shrink-0 dark:bg-green-900 dark:text-green-300">
-                    {index + 1}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* === ENVIOS AUTOMÁTICOS === */}
+        <TabsContent value="envios" className="space-y-4">
+          {/* Post-import triggers */}
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Zap className="h-4 w-4 text-amber-500" /> Disparo após importação
+              </CardTitle>
+              <CardDescription>
+                Quando a importação de BI terminar, dispara o fluxo de automação selecionado.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {([
+                { key: 'cobranca', label: 'Resumo de Cobrança', toggle: 'envio_automatico_cobranca', flow: 'fluxo_cobranca_id' },
+                { key: 'eventos', label: 'Resumo de Eventos', toggle: 'envio_automatico_eventos', flow: 'fluxo_eventos_id' },
+                { key: 'mgf', label: 'Resumo MGF', toggle: 'envio_automatico_mgf', flow: 'fluxo_mgf_id' },
+              ] as const).map((row) => {
+                const checked = (config as any)[row.toggle] as boolean;
+                const flowId = (config as any)[row.flow] as string;
+                return (
+                  <div key={row.key} className="rounded-xl border bg-muted/30 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-medium">{row.label}</Label>
+                      <Switch
+                        checked={checked}
+                        onCheckedChange={(v) => setConfig({ ...config, [row.toggle]: v } as any)}
+                      />
+                    </div>
+                    {checked && (
+                      <Select value={flowId} onValueChange={(v) => setConfig({ ...config, [row.flow]: v } as any)}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o fluxo..." /></SelectTrigger>
+                        <SelectContent>
+                          {flows.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          {/* Scheduled templates */}
+          {selectedCorretora && <WhatsAppTemplateSchedules corretoraId={selectedCorretora} />}
+        </TabsContent>
+
+        {/* === REINÍCIO DE FLUXO === */}
+        <TabsContent value="fluxo">
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="h-4 w-4 text-orange-500" /> Reinício de Fluxo
+              </CardTitle>
+              <CardDescription>
+                Define quando um fluxo expira e quais palavras o contato pode enviar para reiniciá-lo.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <Label>Tempo de expiração (minutos)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={config.timeout_minutos}
+                  onChange={(e) => setConfig({ ...config, timeout_minutos: parseInt(e.target.value) || 30 })}
+                  className="w-40"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se o contato ficar inativo por esse tempo, o fluxo expira automaticamente.
+                </p>
+              </div>
+
+              <div className="space-y-2 border-t pt-4">
+                <Label>Palavras-chave de reinício</Label>
+                <div className="flex flex-wrap gap-2">
+                  {config.reset_keywords.map((kw, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 bg-muted px-2.5 py-1 rounded-full text-sm">
+                      {kw}
+                      <button
+                        type="button"
+                        onClick={() => setConfig({ ...config, reset_keywords: config.reset_keywords.filter((_, idx) => idx !== i) })}
+                        className="text-muted-foreground hover:text-destructive ml-1"
+                      >×</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
                   <Input
-                    placeholder="(XX) XXXXX-XXXX"
-                    value={phone.number}
-                    onChange={(e) => updatePhoneNumber(index, 'number', formatPhone(e.target.value))}
+                    placeholder="Nova palavra-chave..."
+                    value={keywordInput}
+                    onChange={(e) => setKeywordInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && keywordInput.trim()) {
+                        e.preventDefault();
+                        const k = keywordInput.trim().toLowerCase();
+                        if (!config.reset_keywords.includes(k)) {
+                          setConfig({ ...config, reset_keywords: [...config.reset_keywords, k] });
+                        }
+                        setKeywordInput('');
+                      }
+                    }}
                     className="flex-1"
-                    maxLength={16}
                   />
-                  <Input
-                    placeholder="Nome (opcional)"
-                    value={phone.label}
-                    onChange={(e) => updatePhoneNumber(index, 'label', e.target.value)}
-                    className="flex-1"
-                  />
-                  {phoneNumbers.length > 1 && (
-                    <Button variant="ghost" size="icon" onClick={() => removePhoneNumber(index)} className="shrink-0 text-destructive hover:text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Todos os números receberão os resumos automáticos configurados abaixo.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between border-t pt-4">
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={config.ativo}
-                onCheckedChange={(checked) => setConfig({ ...config, ativo: checked })}
-              />
-              <Label>WhatsApp ativo para esta associação</Label>
-            </div>
-
-            <Button onClick={handleSave} disabled={loading}>
-              <Save className="h-4 w-4 mr-2" />
-              {loading ? 'Salvando...' : 'Salvar'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Meta WhatsApp Business API Card */}
-      <Card className="border-green-200 dark:border-green-800">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5 text-green-600" />
-            WhatsApp Business API (Meta)
-          </CardTitle>
-          <CardDescription>
-            Envio direto via API oficial do Meta — gratuito para mensagens dentro da janela de 24h
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {config.ultimo_erro_envio && (
-            <Alert variant="destructive">
-              <XCircle className="h-4 w-4" />
-              <AlertTitle>Último erro</AlertTitle>
-              <AlertDescription>{config.ultimo_erro_envio}</AlertDescription>
-            </Alert>
-          )}
-
-          {config.ultimo_envio_automatico && !config.ultimo_erro_envio && (
-            <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertTitle className="text-green-800 dark:text-green-200">Último envio bem-sucedido</AlertTitle>
-              <AlertDescription className="text-green-700 dark:text-green-300">
-                {new Date(config.ultimo_envio_automatico).toLocaleString('pt-BR')}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Auto-send options */}
-          <div className="space-y-4 border-t pt-4">
-            <h4 className="font-medium flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Envio Automático
-            </h4>
-
-            <p className="text-xs text-muted-foreground">
-              Ao ativar, selecione o fluxo de automação que será disparado automaticamente após a importação.
-            </p>
-
-            <div className="space-y-4">
-              <div className="space-y-2 border rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Resumo de Cobrança</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Enviar automaticamente após atualização de cobrança
-                    </p>
-                  </div>
-                  <Switch
-                    checked={config.envio_automatico_cobranca}
-                    onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_cobranca: checked })}
-                  />
-                </div>
-                {config.envio_automatico_cobranca && (
-                  <Select value={config.fluxo_cobranca_id} onValueChange={(v) => setConfig({ ...config, fluxo_cobranca_id: v })}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione o fluxo..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {flows.map(f => (
-                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-
-              <div className="space-y-2 border rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Resumo de Eventos</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Enviar automaticamente após atualização de eventos
-                    </p>
-                  </div>
-                  <Switch
-                    checked={config.envio_automatico_eventos}
-                    onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_eventos: checked })}
-                  />
-                </div>
-                {config.envio_automatico_eventos && (
-                  <Select value={config.fluxo_eventos_id} onValueChange={(v) => setConfig({ ...config, fluxo_eventos_id: v })}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione o fluxo..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {flows.map(f => (
-                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-
-              <div className="space-y-2 border rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Resumo MGF</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Enviar automaticamente após atualização de MGF
-                    </p>
-                  </div>
-                  <Switch
-                    checked={config.envio_automatico_mgf}
-                    onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_mgf: checked })}
-                  />
-                </div>
-                {config.envio_automatico_mgf && (
-                  <Select value={config.fluxo_mgf_id} onValueChange={(v) => setConfig({ ...config, fluxo_mgf_id: v })}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione o fluxo..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {flows.map(f => (
-                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-4">
-            <Button onClick={handleSave} disabled={loading}>
-              <Save className="h-4 w-4 mr-2" />
-              {loading ? 'Salvando...' : 'Salvar'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Reset & Timeout Config */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-orange-500" />
-            Reinício de Fluxo
-          </CardTitle>
-          <CardDescription>
-            Configure o tempo de expiração automática e as palavras-chave que reiniciam o fluxo
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label>Tempo de expiração (minutos)</Label>
-            <p className="text-xs text-muted-foreground">
-              Se o contato ficar sem interagir por esse tempo, o fluxo expira automaticamente e pode ser reiniciado.
-            </p>
-            <Input
-              type="number"
-              min={1}
-              max={1440}
-              value={config.timeout_minutos}
-              onChange={(e) => setConfig({ ...config, timeout_minutos: parseInt(e.target.value) || 30 })}
-              className="w-40"
-            />
-          </div>
-
-          <div className="space-y-2 border-t pt-4">
-            <Label>Palavras-chave de reinício</Label>
-            <p className="text-xs text-muted-foreground">
-              Quando o contato enviar uma dessas palavras, o fluxo ativo será encerrado e poderá iniciar um novo.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {config.reset_keywords.map((kw, i) => (
-                <span key={i} className="inline-flex items-center gap-1 bg-muted px-2.5 py-1 rounded-full text-sm">
-                  {kw}
-                  <button
-                    type="button"
-                    onClick={() => setConfig({ ...config, reset_keywords: config.reset_keywords.filter((_, idx) => idx !== i) })}
-                    className="text-muted-foreground hover:text-destructive ml-1"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const k = keywordInput.trim().toLowerCase();
+                      if (k && !config.reset_keywords.includes(k)) {
+                        setConfig({ ...config, reset_keywords: [...config.reset_keywords, k] });
+                      }
+                      setKeywordInput('');
+                    }}
+                    disabled={!keywordInput.trim()}
                   >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Nova palavra-chave..."
-                value={keywordInput}
-                onChange={(e) => setKeywordInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && keywordInput.trim()) {
-                    e.preventDefault();
-                    if (!config.reset_keywords.includes(keywordInput.trim().toLowerCase())) {
-                      setConfig({ ...config, reset_keywords: [...config.reset_keywords, keywordInput.trim().toLowerCase()] });
-                    }
-                    setKeywordInput('');
-                  }
-                }}
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (keywordInput.trim() && !config.reset_keywords.includes(keywordInput.trim().toLowerCase())) {
-                    setConfig({ ...config, reset_keywords: [...config.reset_keywords, keywordInput.trim().toLowerCase()] });
-                  }
-                  setKeywordInput('');
-                }}
-                disabled={!keywordInput.trim()}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Adicionar
-              </Button>
-            </div>
-          </div>
+                    <Plus className="h-4 w-4 mr-1" /> Adicionar
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <div className="flex justify-end pt-4">
-            <Button onClick={handleSave} disabled={loading}>
-              <Save className="h-4 w-4 mr-2" />
-              {loading ? 'Salvando...' : 'Salvar'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {selectedCorretora && (
-        <WhatsAppTemplateSchedules corretoraId={selectedCorretora} />
-      )}
+        {/* === ALERTAS GLOBAIS === */}
+        <TabsContent value="alertas">
+          <WhatsAppNotificacaoGlobal />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
