@@ -11,12 +11,12 @@ const META_TOKEN = Deno.env.get('META_WHATSAPP_TOKEN')!;
 const META_PHONE_ID = Deno.env.get('META_WHATSAPP_PHONE_NUMBER_ID')!;
 const META_WABA_ID = Deno.env.get('META_WHATSAPP_BUSINESS_ACCOUNT_ID') || '';
 
-// Cache: template name -> number of {{n}} placeholders in BODY component.
-const templateBodyParamCache = new Map<string, number>();
+// Cache: template name -> number of {{n}} placeholders in HEADER/BODY components.
+const templateParamSpecCache = new Map<string, { header: number; body: number }>();
 
-async function getTemplateBodyParamCount(name: string, language: string): Promise<number | null> {
+async function getTemplateParamSpec(name: string, language: string): Promise<{ header: number; body: number } | null> {
   const cacheKey = `${name}::${language}`;
-  if (templateBodyParamCache.has(cacheKey)) return templateBodyParamCache.get(cacheKey)!;
+  if (templateParamSpecCache.has(cacheKey)) return templateParamSpecCache.get(cacheKey)!;
 
   let wabaId = META_WABA_ID;
   if (!wabaId) {
@@ -39,15 +39,22 @@ async function getTemplateBodyParamCount(name: string, language: string): Promis
   const match = list.find((t: any) => t.name === name && t.language === language)
     || list.find((t: any) => t.name === name);
   if (!match) return null;
-  const body = (match.components || []).find((c: any) => c.type === 'BODY');
-  const text: string = body?.text || '';
-  const placeholders = new Set<number>();
-  const re = /\{\{\s*(\d+)\s*\}\}/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) placeholders.add(Number(m[1]));
-  const count = placeholders.size;
-  templateBodyParamCache.set(cacheKey, count);
-  return count;
+  const countPlaceholders = (text = '') => {
+    const placeholders = new Set<number>();
+    const re = /\{\{\s*(\d+)\s*\}\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) placeholders.add(Number(m[1]));
+    return placeholders.size;
+  };
+  const components = match.components || [];
+  const header = components.find((c: any) => c.type === 'HEADER');
+  const body = components.find((c: any) => c.type === 'BODY');
+  const spec = {
+    header: countPlaceholders(header?.text || ''),
+    body: countPlaceholders(body?.text || ''),
+  };
+  templateParamSpecCache.set(cacheKey, spec);
+  return spec;
 }
 
 // Default mapping from generator JSON fields → template {{n}} placeholders.
@@ -160,29 +167,40 @@ function buildParameters(schedule: any, dados: Record<string, any>): { type: 'te
   return order.map((field) => ({ type: 'text', text: String(dados[field] ?? '') }));
 }
 
-async function sendTemplate(phone: string, schedule: any, params: { type: 'text'; text: string }[]) {
+async function sendTemplate(phone: string, schedule: any, params: { type: 'text'; text: string }[], headerText: string) {
   const formatted = phone.replace(/\D/g, '').startsWith('55')
     ? phone.replace(/\D/g, '')
     : `55${phone.replace(/\D/g, '')}`;
 
-  // Adjust params to match the template's actual placeholder count.
+  // Adjust params to match the template's actual HEADER/BODY placeholder count.
   let adjustedParams = params;
+  let headerParams: { type: 'text'; text: string }[] = [];
   try {
-    const expected = await getTemplateBodyParamCount(
+    const expected = await getTemplateParamSpec(
       schedule.template_name,
       schedule.template_language || 'pt_BR',
     );
-    if (typeof expected === 'number') {
-      if (params.length > expected) {
-        adjustedParams = params.slice(0, expected);
-      } else if (params.length < expected) {
+    if (expected) {
+      if (expected.header > 0) {
+        headerParams = Array.from({ length: expected.header }, (_, index) => ({
+          type: 'text' as const,
+          text: index === 0 ? headerText : '-',
+        }));
+      }
+      if (params.length > expected.body) {
+        adjustedParams = params.slice(0, expected.body);
+      } else if (params.length < expected.body) {
         adjustedParams = [
           ...params,
-          ...Array.from({ length: expected - params.length }, () => ({ type: 'text' as const, text: '-' })),
+          ...Array.from({ length: expected.body - params.length }, () => ({ type: 'text' as const, text: '-' })),
         ];
       }
     }
   } catch { /* fall back to provided params */ }
+
+  const components = [];
+  if (headerParams.length > 0) components.push({ type: 'header', parameters: headerParams });
+  if (adjustedParams.length > 0) components.push({ type: 'body', parameters: adjustedParams });
 
   const body: any = {
     messaging_product: 'whatsapp',
@@ -191,7 +209,7 @@ async function sendTemplate(phone: string, schedule: any, params: { type: 'text'
     template: {
       name: schedule.template_name,
       language: { code: schedule.template_language || 'pt_BR' },
-      ...(adjustedParams.length > 0 ? { components: [{ type: 'body', parameters: adjustedParams }] } : {}),
+      ...(components.length > 0 ? { components } : {}),
     },
   };
   const res = await fetch(`https://graph.facebook.com/v22.0/${META_PHONE_ID}/messages`, {
@@ -207,8 +225,14 @@ async function sendTemplate(phone: string, schedule: any, params: { type: 'text'
 async function runOne(supabase: any, schedule: any) {
   const now = new Date();
   try {
+    const { data: corretora } = await supabase
+      .from('corretoras')
+      .select('nome')
+      .eq('id', schedule.corretora_id)
+      .maybeSingle();
     const dados = await generateData(supabase, schedule.data_source, schedule.corretora_id);
     const params = buildParameters(schedule, dados);
+    const headerText = corretora?.nome || 'Associação';
 
     const recipients: string[] = Array.isArray(schedule.recipients) ? schedule.recipients : [];
     if (recipients.length === 0) throw new Error('Sem destinatários');
@@ -217,7 +241,7 @@ async function runOne(supabase: any, schedule: any) {
     for (const phone of recipients) {
       if (!phone?.trim()) continue;
       try {
-        const id = await sendTemplate(phone.trim(), schedule, params);
+        const id = await sendTemplate(phone.trim(), schedule, params, headerText);
         results.push(`${phone}:ok`);
         await supabase.from('whatsapp_messages').insert({
           direction: 'out',
@@ -239,6 +263,7 @@ async function runOne(supabase: any, schedule: any) {
         next_run_at: computeNextRun(schedule, now).toISOString(),
       })
       .eq('id', schedule.id);
+    return { ok: results.some((result) => result.includes(':ok')), results };
   } catch (e: any) {
     await supabase.from('whatsapp_template_schedules')
       .update({
@@ -248,6 +273,7 @@ async function runOne(supabase: any, schedule: any) {
         next_run_at: computeNextRun(schedule, now).toISOString(),
       })
       .eq('id', schedule.id);
+    return { ok: false, results: [], error: e.message };
   }
 }
 
@@ -265,8 +291,8 @@ Deno.serve(async (req) => {
     if (error || !sch) {
       return new Response(JSON.stringify({ error: 'schedule not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    await runOne(supabase, sch);
-    return new Response(JSON.stringify({ ok: true, ran: 1 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const result = await runOne(supabase, sch);
+    return new Response(JSON.stringify({ ...result, ran: result.ok ? 1 : 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   // Cron tick: run all due schedules.

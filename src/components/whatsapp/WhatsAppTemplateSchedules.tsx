@@ -160,12 +160,13 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
 
   const runNow = async (id: string) => {
     toast.loading('Enviando agora...', { id: 'runnow' });
-    const { error } = await supabase.functions.invoke('whatsapp-template-schedule-runner', {
+    const { data, error } = await supabase.functions.invoke('whatsapp-template-schedule-runner', {
       body: { schedule_id: id },
     });
     toast.dismiss('runnow');
     if (error) toast.error('Erro: ' + error.message);
-    else { toast.success('Disparado'); load(); }
+    else if (data?.ok) { toast.success('Mensagem enviada'); load(); }
+    else { toast.error(data?.error || data?.results?.join(', ') || 'Não foi possível entregar a mensagem'); load(); }
   };
 
   const updRecipient = (i: number, v: string) => {
