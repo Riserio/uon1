@@ -34,14 +34,14 @@ serve(async (req) => {
     // Ajustar para UTC-3 (São Paulo)
     const now = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-    const mesReferencia = `${meses[now.getUTCMonth()]} de ${now.getUTCFullYear()}`;
+    let mesReferencia = `${meses[now.getUTCMonth()]} de ${now.getUTCFullYear()}`;
     
     // Calculate first and last day of current month
     const primeiroDiaMes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const ultimoDiaMes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
     
-    const dataInicio = primeiroDiaMes.toISOString().split('T')[0];
-    const dataFim = ultimoDiaMes.toISOString().split('T')[0];
+    let dataInicio = primeiroDiaMes.toISOString().split('T')[0];
+    let dataFim = ultimoDiaMes.toISOString().split('T')[0];
     
     console.log(`[gerar-resumo-eventos] Filtrando eventos do mês: ${dataInicio} até ${dataFim}`);
 
@@ -57,37 +57,61 @@ serve(async (req) => {
       throw new Error('Nenhuma importação ativa encontrada');
     }
 
-    // Get events from active import filtered by current month
-    // Using pagination to get all records
-    let allEventos: any[] = [];
-    let offset = 0;
-    const batchSize = 1000;
-    let hasMore = true;
+    const carregarEventosPeriodo = async (inicio: string, fim: string) => {
+      let allEventos: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-    while (hasMore) {
-      const { data: batchEventos, error: batchError } = await supabase
+      while (hasMore) {
+        const { data: batchEventos, error: batchError } = await supabase
         .from('sga_eventos')
         .select('motivo_evento, evento_cidade, cooperativa, data_cadastro_evento')
         .eq('importacao_id', importacao.id)
-        .gte('data_cadastro_evento', dataInicio)
-        .lte('data_cadastro_evento', dataFim)
+        .gte('data_cadastro_evento', inicio)
+        .lte('data_cadastro_evento', fim)
         .range(offset, offset + batchSize - 1);
 
-      if (batchError) {
-        console.error('[gerar-resumo-eventos] Error fetching eventos:', batchError);
-        throw batchError;
-      }
+        if (batchError) {
+          console.error('[gerar-resumo-eventos] Error fetching eventos:', batchError);
+          throw batchError;
+        }
 
-      if (batchEventos && batchEventos.length > 0) {
-        allEventos = [...allEventos, ...batchEventos];
-        offset += batchSize;
-        hasMore = batchEventos.length === batchSize;
-      } else {
-        hasMore = false;
+        if (batchEventos && batchEventos.length > 0) {
+          allEventos = [...allEventos, ...batchEventos];
+          offset += batchSize;
+          hasMore = batchEventos.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+      return allEventos;
+    };
+
+    let eventos = await carregarEventosPeriodo(dataInicio, dataFim);
+    if (eventos.length === 0) {
+      const hoje = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().split('T')[0];
+      const { data: ultimoEvento } = await supabase
+        .from('sga_eventos')
+        .select('data_cadastro_evento')
+        .eq('importacao_id', importacao.id)
+        .not('data_cadastro_evento', 'is', null)
+        .lte('data_cadastro_evento', hoje)
+        .order('data_cadastro_evento', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (ultimoEvento?.data_cadastro_evento) {
+        const [anoRef, mesRef] = String(ultimoEvento.data_cadastro_evento).split('T')[0].split('-').map(Number);
+        const inicioRef = new Date(Date.UTC(anoRef, mesRef - 1, 1));
+        const fimRef = new Date(Date.UTC(anoRef, mesRef, 0));
+        dataInicio = inicioRef.toISOString().split('T')[0];
+        dataFim = fimRef.toISOString().split('T')[0];
+        mesReferencia = `${meses[mesRef - 1]} de ${anoRef}`;
+        console.log(`[gerar-resumo-eventos] Mês atual sem dados; usando período automático: ${dataInicio} até ${dataFim}`);
+        eventos = await carregarEventosPeriodo(dataInicio, dataFim);
       }
     }
-
-    const eventos = allEventos;
     console.log(`[gerar-resumo-eventos] Total eventos carregados: ${eventos.length}`);
 
     // Calculate metrics
