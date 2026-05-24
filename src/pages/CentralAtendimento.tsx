@@ -68,6 +68,12 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [showNewContact, setShowNewContact] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
+  const [sendingTemplate, setSendingTemplate] = useState(false);
   const [newContactName, setNewContactName] = useState('');
   const [newContactPhone, setNewContactPhone] = useState('');
   const [creatingContact, setCreatingContact] = useState(false);
