@@ -1,60 +1,68 @@
+## Objetivo
 
-The user wants:
-1. Move "Gerenciar Ausências" button from Análise de Funcionário → Jornada de Trabalho.
-2. Allow abonar **horas** (not just days) — accessible from:
-   - Registro manual de ponto (the "+" / manual entry dialog)
-   - Pencil/edit on history items
-3. In Anexos de Ponto, when type = atestado → allow abonar **dias OU horas**.
-4. Análise de Funcionário must still consume these abono records (already does for days; needs to discount hours from "atrasos" or add to saldo).
+Permitir, em **Configurações → WhatsApp**, criar agendamentos recorrentes (diário, semanal ou mensal) que enviam templates aprovados na Meta (`resumo_eventos`, `resumo_cobranca`, `resumo_mgf`, etc.) com as variáveis `{{1}}, {{2}}…` **preenchidas automaticamente** a partir dos dados atuais do BI da associação — sem precisar de janela de 24h.
 
-## Plan
+## 1. Banco de dados
 
-### 1. Database — extend abono support to hours
-- Add to `ausencias_funcionario`:
-  - `tipo_abono` (`dia` | `hora`) default `dia`
-  - `horas_abonadas` (numeric, default 0) — used when `tipo_abono = 'hora'`
-  - `data_referencia` (date) — single date when it's an hour-abono
-- Add to `anexos_ponto`:
-  - `horas_abonadas` (numeric, default 0) — already has `dias_abonados`
+Nova tabela `whatsapp_template_schedules`:
 
-### 2. Move "Gerenciar Ausências" to Jornada de Trabalho
-- Remove the button from `AnaliseFuncionario.tsx`.
-- Add it to `GestaoJornada.tsx` header (visible only to admin/administrativo/superintendente), opening `GerenciarAusenciasDialog`.
+- `corretora_id` (uuid, FK)
+- `template_name` (text) — nome do template aprovado
+- `template_language` (text, default `pt_BR`)
+- `data_source` (text) — `resumo_eventos` | `resumo_cobranca` | `resumo_mgf`  (define qual edge function gera os valores)
+- `recipients` (text[]) — telefones que recebem
+- `frequency` (text) — `daily` | `weekly` | `monthly`
+- `day_of_week` (int 0–6, nullable, p/ semanal)
+- `day_of_month` (int 1–31, nullable, p/ mensal)
+- `send_time` (time, default `08:00`) — horário em America/Sao_Paulo
+- `ativo` (bool, default true)
+- `last_run_at`, `last_status`, `last_error`, `next_run_at`
+- RLS: somente usuários da associação (ou admin) leem/escrevem; mesmo padrão das outras tabelas do WhatsApp.
 
-### 3. Extend `GerenciarAusenciasDialog`
-- Add toggle: "Abonar dia(s) inteiro(s)" vs "Abonar horas"
-- When "horas": show single date + hours input (instead of date range).
-- List view: show "X horas abonadas em DD/MM" for hour-type entries.
+## 2. Edge functions
 
-### 4. Hour abono in `AjusteManualPontoDialog`
-- Add a new mode/checkbox: "Registrar abono de horas" (instead of a clock-in record).
-- When checked: hides tipo/hora fields, shows hours input → on save, inserts into `ausencias_funcionario` as `tipo_abono='hora'`.
-- When editing existing register (pencil): keep current behavior, but if the underlying record is an abono, allow editing hours.
+**`whatsapp-template-schedule-runner`** (novo, invocado a cada 5 min por `pg_cron`):
+1. Busca schedules ativos com `next_run_at <= now()`.
+2. Para cada um:
+   - Chama o gerador correspondente (`gerar-resumo-eventos`, `gerar-resumo-cobranca`, ou um novo `gerar-resumo-mgf`) passando `corretora_id`.
+   - Mapeia os campos do JSON retornado nos placeholders do template (mapeamento documentado abaixo).
+   - Envia via Meta Cloud API (`type: "template"`) para cada destinatário.
+   - Registra em `whatsapp_messages` (`status='sent'`, sem `contact_id` quando não existir) e atualiza `last_run_at`, `last_status`, `next_run_at` conforme `frequency`.
 
-### 5. Anexos de Ponto — atestado with hours
-- In `AnexosPontoDialog.tsx`, when `tipo === 'atestado'`:
-  - Add radio: "Abonar dias" | "Abonar horas"
-  - Show `dias_abonados` OR `horas_abonadas` accordingly.
-- Update insert logic.
-- History: show both metrics per anexo.
+**Mapeamento Template → Dados** (configurável, com defaults):
+- `resumo_eventos`: {{1}}=`mes_referencia`, {{2}}=`total_eventos`, {{3}}=`eventos_colisao`, {{4}}=`eventos_vidros`, {{5}}=`eventos_furto_roubo`, {{6}}=`eventos_outros`, {{7}}=`cidade_mais_eventos`, {{8}}=`cooperativa_mais_eventos`.
+- `resumo_cobranca`: derivado do retorno de `gerar-resumo-cobranca`.
+- `resumo_mgf`: nova função análoga (manutenção/gerenciamento de frota) — placeholder por enquanto até confirmação dos campos.
 
-### 6. Análise de Funcionário — consume hour abonos
-- Already adds full days to `abonadosSet` (skip lateness/absence).
-- For hour-abonos: subtract `horas_abonadas` from total `atrasoMin` (or add to `saldo`) for that date.
-- Pull `horas_abonadas` from both `ausencias_funcionario` (tipo='hora') and `anexos_ponto` (atestado).
+A primeira vez o usuário visualiza os mapeamentos automáticos; pode sobrescrever em uma coluna `variable_map jsonb` se quiser.
 
-### Files to modify
-- New migration: schema changes on `ausencias_funcionario` and `anexos_ponto`.
-- `src/components/gestao/GerenciarAusenciasDialog.tsx` — add hours mode.
-- `src/components/gestao/GestaoJornada.tsx` — add gerenciar ausências button.
-- `src/components/gestao/AnaliseFuncionario.tsx` — remove button; consume horas_abonadas.
-- `src/components/gestao/AjusteManualPontoDialog.tsx` — add abono-de-horas mode.
-- `src/components/gestao/AnexosPontoDialog.tsx` — atestado: dias OU horas.
+## 3. Agendador
 
-### Access control
-All abono-related actions remain restricted to `admin`, `administrativo`, `superintendente`.
+`pg_cron` (já habilitado) chamando o runner a cada 5 minutos via `pg_net`. Migração separada (com a anon key específica do projeto) — não usada em remix.
 
-<lov-actions>
-<lov-suggestion message="Aprovar o plano e implementar tudo">Aprovar e implementar</lov-suggestion>
-<lov-suggestion message="Após implementar, teste registrando um abono de horas e verifique se o atraso é descontado corretamente na Análise">Testar fluxo de abono de horas</lov-suggestion>
-</lov-actions>
+## 4. UI — Configurações → WhatsApp
+
+Nova seção **"Envios Automáticos por Template"** dentro de `WhatsAppConfig.tsx`:
+- Lista de schedules da associação selecionada.
+- Botão **"Novo agendamento"** abre dialog com:
+  - Select de Template (carregado de `listar-templates-whatsapp`, só `APPROVED`).
+  - Origem dos dados (auto-sugerida pelo nome do template).
+  - Frequência (Diário / Semanal / Mensal) + Dia da semana / Dia do mês conforme escolha.
+  - Horário (`HH:mm`).
+  - Destinatários (multi-input com os mesmos números já configurados como sugestão).
+  - Toggle ativo.
+  - Pré-visualização: chama o gerador e mostra o texto que será enviado.
+- Cada linha mostra `Ativo`, `Próxima execução`, `Último envio`, ações `Editar` / `Pausar` / `Excluir` / `Enviar agora`.
+
+## 5. Critérios de aceite
+
+- Criar agendamento diário às 08:00 do template `resumo_eventos` para 2 números → recebimento real às 08:00 com números do mês atual preenchidos.
+- Mudar para semanal (segunda-feira) → `next_run_at` reagenda corretamente.
+- Pausar → não envia mais; reativar → recalcula `next_run_at`.
+- "Enviar agora" dispara fora do horário e registra `last_run_at`.
+
+## Notas técnicas
+
+- Usar `America/Sao_Paulo` para todo cálculo de `next_run_at`.
+- O envio é via `type: "template"` então não exige janela de 24h.
+- Falha de Meta → grava `last_error`, mantém `ativo`, tenta novamente na próxima janela.

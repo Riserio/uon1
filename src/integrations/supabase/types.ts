@@ -7815,6 +7815,83 @@ export type Database = {
           },
         ]
       }
+      whatsapp_template_schedules: {
+        Row: {
+          ativo: boolean
+          corretora_id: string
+          created_at: string
+          created_by: string | null
+          data_source: string
+          day_of_month: number | null
+          day_of_week: number | null
+          frequency: string
+          id: string
+          last_error: string | null
+          last_run_at: string | null
+          last_status: string | null
+          name: string
+          next_run_at: string | null
+          recipients: string[]
+          send_time: string
+          template_language: string
+          template_name: string
+          updated_at: string
+          variable_map: Json
+        }
+        Insert: {
+          ativo?: boolean
+          corretora_id: string
+          created_at?: string
+          created_by?: string | null
+          data_source: string
+          day_of_month?: number | null
+          day_of_week?: number | null
+          frequency: string
+          id?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_status?: string | null
+          name: string
+          next_run_at?: string | null
+          recipients?: string[]
+          send_time?: string
+          template_language?: string
+          template_name: string
+          updated_at?: string
+          variable_map?: Json
+        }
+        Update: {
+          ativo?: boolean
+          corretora_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_source?: string
+          day_of_month?: number | null
+          day_of_week?: number | null
+          frequency?: string
+          id?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_status?: string | null
+          name?: string
+          next_run_at?: string | null
+          recipients?: string[]
+          send_time?: string
+          template_language?: string
+          template_name?: string
+          updated_at?: string
+          variable_map?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_template_schedules_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_templates: {
         Row: {
           ativo: boolean | null
