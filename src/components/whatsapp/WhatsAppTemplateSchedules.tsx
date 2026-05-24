@@ -42,6 +42,12 @@ const SOURCE_LABEL: Record<DataSource, string> = {
   resumo_mgf: 'Resumo de MGF (BI Atendimentos)',
 };
 
+const SOURCE_PATTERN: Record<DataSource, RegExp> = {
+  resumo_eventos: /event|sga|sinistr/i,
+  resumo_cobranca: /cobranca|cobranç|billing|inadimp/i,
+  resumo_mgf: /mgf|atendiment|servic/i,
+};
+
 const WEEKDAYS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
 const emptySchedule = (corretora_id: string): Schedule => ({
@@ -89,6 +95,10 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
       const list = (data?.templates || []).filter((t: any) => t.status === 'APPROVED');
       setTemplates(list.map((t: any) => ({ name: t.name, language: t.language })));
     } catch { /* ignore */ }
+  };
+
+  const findTemplateForSource = (source: DataSource) => {
+    return templates.find(t => SOURCE_PATTERN[source].test(t.name));
   };
 
   const openNew = () => { setEditing(emptySchedule(corretoraId)); setOpenDialog(true); };
@@ -240,31 +250,19 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
               </div>
 
               <div>
-                <Label>Template aprovado</Label>
+                <Label>Origem dos dados</Label>
                 <Select
-                  value={editing.template_name}
+                  value={editing.data_source}
                   onValueChange={(v) => {
-                    const tpl = templates.find(t => t.name === v);
-                    let ds: DataSource = editing.data_source;
-                    if (/event/i.test(v)) ds = 'resumo_eventos';
-                    else if (/cobranca|cobrança/i.test(v)) ds = 'resumo_cobranca';
-                    else if (/mgf/i.test(v)) ds = 'resumo_mgf';
-                    setEditing({ ...editing, template_name: v, template_language: tpl?.language || 'pt_BR', data_source: ds });
+                    const ds = v as DataSource;
+                    const match = findTemplateForSource(ds);
+                    setEditing({
+                      ...editing,
+                      data_source: ds,
+                      ...(match ? { template_name: match.name, template_language: match.language } : {}),
+                    });
                   }}
                 >
-                  <SelectTrigger><SelectValue placeholder="Selecione um template..." /></SelectTrigger>
-                  <SelectContent>
-                    {templates.map(t => <SelectItem key={t.name} value={t.name}>{t.name} ({t.language})</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {templates.length === 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">Nenhum template aprovado encontrado.</p>
-                )}
-              </div>
-
-              <div>
-                <Label>Origem dos dados (preenchimento automático)</Label>
-                <Select value={editing.data_source} onValueChange={(v) => setEditing({ ...editing, data_source: v as DataSource })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(Object.keys(SOURCE_LABEL) as DataSource[]).map(k => (
@@ -272,6 +270,32 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  O template aprovado é selecionado automaticamente pela origem. Você pode trocar abaixo se quiser.
+                </p>
+              </div>
+
+              <div>
+                <Label>Template aprovado (Meta)</Label>
+                <Select
+                  value={editing.template_name}
+                  onValueChange={(v) => {
+                    const tpl = templates.find(t => t.name === v);
+                    setEditing({ ...editing, template_name: v, template_language: tpl?.language || 'pt_BR' });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={templates.length === 0 ? 'Nenhum template aprovado disponível' : 'Selecionar template...'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map(t => <SelectItem key={t.name} value={t.name}>{t.name} ({t.language})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {templates.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Cadastre e aprove templates na aba Templates (Meta WhatsApp Business).
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
