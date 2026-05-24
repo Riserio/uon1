@@ -12,7 +12,7 @@ import { ptBR } from 'date-fns/locale';
 import {
   Search, Send, Check, CheckCheck, Clock, XCircle, Bot,
   UserCheck, MessageCircle, Phone, MoreVertical, RefreshCw, Plus, Archive, ArchiveRestore,
-  MicOff, Mic, File, Timer
+  MicOff, Mic, File, Timer, FileText
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator
@@ -68,6 +68,12 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [showNewContact, setShowNewContact] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
+  const [sendingTemplate, setSendingTemplate] = useState(false);
   const [newContactName, setNewContactName] = useState('');
   const [newContactPhone, setNewContactPhone] = useState('');
   const [creatingContact, setCreatingContact] = useState(false);
@@ -158,6 +164,68 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
       if (!response.ok) toast.error(result.error || 'Erro ao enviar');
     } catch { toast.error('Erro ao enviar mensagem'); }
     finally { setSending(false); }
+  };
+
+  const openTemplatePicker = async () => {
+    if (!selectedContact) return;
+    setShowTemplatePicker(true);
+    setSelectedTemplate(null);
+    setTemplateVars({});
+    if (templates.length === 0) {
+      setLoadingTemplates(true);
+      try {
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`https://${projectId}.supabase.co/functions/v1/listar-templates-whatsapp`, {
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) toast.error(data.error || 'Erro ao carregar templates');
+        else setTemplates(data.templates || []);
+      } catch { toast.error('Erro ao carregar templates'); }
+      finally { setLoadingTemplates(false); }
+    }
+  };
+
+  const getTemplateBodyVarCount = (tpl: any): number => {
+    const body = tpl?.components?.find((c: any) => c.type === 'BODY');
+    if (!body?.text) return 0;
+    const matches = body.text.match(/\{\{\d+\}\}/g);
+    return matches ? new Set(matches).size : 0;
+  };
+
+  const handleSendTemplate = async () => {
+    if (!selectedTemplate || !selectedContact || sendingTemplate) return;
+    const varCount = getTemplateBodyVarCount(selectedTemplate);
+    const vars: Record<string, string> = {};
+    for (let i = 1; i <= varCount; i++) {
+      const v = templateVars[String(i)]?.trim();
+      if (!v) { toast.error(`Preencha a variável {{${i}}}`); return; }
+      vars[String(i)] = v;
+    }
+    setSendingTemplate(true);
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const { data: { session } } = await supabase.auth.getSession();
+      const body = selectedTemplate.components?.find((c: any) => c.type === 'BODY');
+      let rendered = body?.text || selectedTemplate.name;
+      Object.entries(vars).forEach(([k, v]) => { rendered = rendered.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), v); });
+      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/whatsapp-send-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          contact_id: selectedContact.id,
+          message: rendered,
+          type: 'template',
+          template_name: selectedTemplate.name,
+          template_variables: vars,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) toast.error(result.error || 'Erro ao enviar template');
+      else { toast.success('Template enviado'); setShowTemplatePicker(false); }
+    } catch { toast.error('Erro ao enviar template'); }
+    finally { setSendingTemplate(false); }
   };
 
   const toggleHumanMode = async (contact: Contact) => {
@@ -575,6 +643,9 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
             <div className="p-3 border-t border-border/50 bg-card">
               <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center gap-2 max-w-3xl mx-auto">
                 <Input value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="Digite uma mensagem..." className="flex-1 rounded-xl" disabled={sending} />
+                <Button type="button" variant="outline" size="icon" className="rounded-xl shrink-0" onClick={openTemplatePicker} title="Enviar template (fora de 24h)">
+                  <FileText className="h-4 w-4" />
+                </Button>
                 <Button type="submit" size="icon" className="rounded-xl shrink-0" disabled={!messageText.trim() || sending}>
                   <Send className="h-4 w-4" />
                 </Button>
@@ -583,6 +654,62 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
           </>
         )}
       </div>
+
+      <Dialog open={showTemplatePicker} onOpenChange={setShowTemplatePicker}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Enviar template aprovado (Meta)</DialogTitle>
+          </DialogHeader>
+          {loadingTemplates ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Carregando templates aprovados...</div>
+          ) : templates.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Nenhum template aprovado encontrado.</div>
+          ) : !selectedTemplate ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Selecione um template aprovado para enviar fora da janela de 24h.</p>
+              {templates.map((tpl: any) => {
+                const body = tpl.components?.find((c: any) => c.type === 'BODY');
+                return (
+                  <button
+                    key={tpl.id}
+                    onClick={() => { setSelectedTemplate(tpl); setTemplateVars({}); }}
+                    className="w-full text-left p-3 rounded-xl border border-border hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-sm">{tpl.name}</span>
+                      <Badge variant="secondary" className="text-xs">{tpl.category} · {tpl.language}</Badge>
+                    </div>
+                    {body?.text && <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">{body.text}</p>}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <button onClick={() => setSelectedTemplate(null)} className="text-xs text-primary hover:underline">← Voltar à lista</button>
+              <div className="p-3 rounded-xl bg-muted/40 text-sm whitespace-pre-wrap">
+                {selectedTemplate.components?.find((c: any) => c.type === 'BODY')?.text || selectedTemplate.name}
+              </div>
+              {Array.from({ length: getTemplateBodyVarCount(selectedTemplate) }, (_, i) => i + 1).map((n) => (
+                <div key={n} className="space-y-1">
+                  <Label className="text-xs">Variável {`{{${n}}}`}</Label>
+                  <Input
+                    value={templateVars[String(n)] || ''}
+                    onChange={(e) => setTemplateVars((p) => ({ ...p, [String(n)]: e.target.value }))}
+                    placeholder={`Valor para {{${n}}}`}
+                  />
+                </div>
+              ))}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowTemplatePicker(false)}>Cancelar</Button>
+                <Button onClick={handleSendTemplate} disabled={sendingTemplate}>
+                  {sendingTemplate ? 'Enviando...' : 'Enviar template'}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
