@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { MessageCircle, Save, Clock, TestTube, CheckCircle, XCircle, AlertCircle, Smartphone, Plus, Trash2, Phone } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatPhone } from '@/lib/validators';
+import { WhatsAppTemplateSchedules } from './WhatsAppTemplateSchedules';
 
 interface WhatsAppConfigProps {
   corretoraId?: string;
