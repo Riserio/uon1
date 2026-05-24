@@ -225,8 +225,14 @@ async function sendTemplate(phone: string, schedule: any, params: { type: 'text'
 async function runOne(supabase: any, schedule: any) {
   const now = new Date();
   try {
+    const { data: corretora } = await supabase
+      .from('corretoras')
+      .select('nome')
+      .eq('id', schedule.corretora_id)
+      .maybeSingle();
     const dados = await generateData(supabase, schedule.data_source, schedule.corretora_id);
     const params = buildParameters(schedule, dados);
+    const headerText = corretora?.nome || 'Associação';
 
     const recipients: string[] = Array.isArray(schedule.recipients) ? schedule.recipients : [];
     if (recipients.length === 0) throw new Error('Sem destinatários');
@@ -235,7 +241,7 @@ async function runOne(supabase: any, schedule: any) {
     for (const phone of recipients) {
       if (!phone?.trim()) continue;
       try {
-        const id = await sendTemplate(phone.trim(), schedule, params);
+        const id = await sendTemplate(phone.trim(), schedule, params, headerText);
         results.push(`${phone}:ok`);
         await supabase.from('whatsapp_messages').insert({
           direction: 'out',
