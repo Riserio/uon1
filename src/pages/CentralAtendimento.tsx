@@ -82,6 +82,7 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
       .from('whatsapp_contacts')
       .select('*')
       .not('last_message_at', 'is', null)
+      .order('unread_count', { ascending: false })
       .order('last_message_at', { ascending: false, nullsFirst: false });
     if (data) setContacts(data as Contact[]);
   }, []);
