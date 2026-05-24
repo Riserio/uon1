@@ -70,10 +70,16 @@ const DEFAULT_MAPS: Record<string, string[]> = {
     'cooperativa_mais_eventos',
   ],
   resumo_cobranca: [
-    'mes_referencia',
-    'total_inadimplentes',
-    'valor_inadimplencia',
+    'data_atual',
     'percentual_inadimplencia',
+    'total_gerados',
+    'total_baixados',
+    'faturamento_esperado_formatado',
+    'faturamento_recebido_formatado',
+    'total_aberto_formatado',
+    'boletos_por_dia',
+    'cooperativa_maior_inadimplencia',
+    'cooperativa_menor_inadimplencia',
   ],
   resumo_mgf: [
     'mes_referencia',
@@ -250,8 +256,30 @@ async function runOne(supabase: any, schedule: any) {
           status: 'sent',
           meta_message_id: id,
         });
+        await supabase.from('whatsapp_historico').insert({
+          corretora_id: schedule.corretora_id,
+          telefone_destino: phone.trim().replace(/\D/g, '').startsWith('55') ? phone.trim().replace(/\D/g, '') : `55${phone.trim().replace(/\D/g, '')}`,
+          mensagem: `[template:${schedule.template_name}] ${params.map(p=>p.text).join(' | ')}`,
+          tipo: schedule.data_source === 'resumo_cobranca' ? 'cobranca' : schedule.data_source === 'resumo_eventos' ? 'eventos' : 'mgf',
+          status: 'enviado',
+          status_entrega: 'enviado',
+          meta_message_id: id,
+          enviado_em: now.toISOString(),
+          enviado_por: schedule.created_by || null,
+        });
       } catch (e: any) {
         results.push(`${phone}:erro(${e.message})`);
+        await supabase.from('whatsapp_historico').insert({
+          corretora_id: schedule.corretora_id,
+          telefone_destino: phone.trim().replace(/\D/g, '').startsWith('55') ? phone.trim().replace(/\D/g, '') : `55${phone.trim().replace(/\D/g, '')}`,
+          mensagem: `[template:${schedule.template_name}] ${params.map(p=>p.text).join(' | ')}`,
+          tipo: schedule.data_source === 'resumo_cobranca' ? 'cobranca' : schedule.data_source === 'resumo_eventos' ? 'eventos' : 'mgf',
+          status: 'erro',
+          status_entrega: 'erro',
+          erro_mensagem: e.message,
+          enviado_em: now.toISOString(),
+          enviado_por: schedule.created_by || null,
+        });
       }
     }
 
