@@ -3,6 +3,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import DOMPurify from "dompurify";
 
 // Carrega imagem via Image element e converte para dataURL (evita CORS)
 const fetchImageDataUrl = (url?: string): Promise<string | null> => {
@@ -164,7 +165,7 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
       }
     );
     
-    content.innerHTML = processedHtml;
+    content.innerHTML = DOMPurify.sanitize(processedHtml);
     container.appendChild(content);
 
     // Signatures log
