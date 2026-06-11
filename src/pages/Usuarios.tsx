@@ -55,6 +55,7 @@ interface Profile {
   email: string;
   telefone?: string;
   cargo?: string;
+  cargo_id?: string | null;
   equipe_id?: string;
   lider_id?: string;
   administrativo_id?: string;
