@@ -1735,6 +1735,32 @@ export default function Usuarios() {
                         </div>
                       </div>
                       <div className="grid gap-2">
+                        <Label htmlFor="cargo_id">
+                          Cargo Personalizado (Permissões)
+                          <span className="text-xs text-muted-foreground font-normal ml-1">
+                            — opcional, aplica permissões definidas no cargo
+                          </span>
+                        </Label>
+                        <Select
+                          value={formData.cargo_id || "none"}
+                          onValueChange={(v) =>
+                            setFormData({ ...formData, cargo_id: v === "none" ? null : v })
+                          }
+                        >
+                          <SelectTrigger id="cargo_id">
+                            <SelectValue placeholder="Sem cargo personalizado" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sem cargo personalizado</SelectItem>
+                            {cargosCustom.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
                         <Label htmlFor="cpf_cnpj">CPF/CNPJ</Label>
                         <MaskedInput
                           id="cpf_cnpj"
