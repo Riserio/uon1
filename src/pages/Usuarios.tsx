@@ -1215,6 +1215,7 @@ export default function Usuarios() {
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
           <TabsTrigger value="hierarquia">Hierarquia</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
+          <TabsTrigger value="cargos">Cargos</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
 
