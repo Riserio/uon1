@@ -380,6 +380,12 @@ export default function Usuarios() {
       fetchLideres();
       fetchAdministrativos();
       fetchLogs();
+      supabase
+        .from("cargos")
+        .select("id, nome, cor")
+        .eq("ativo", true)
+        .order("nome")
+        .then(({ data }) => setCargosCustom((data as any) || []));
     }
   }, [userRole]);
 
