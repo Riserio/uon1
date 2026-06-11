@@ -45,6 +45,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
 import FuncionarioFormTabs, { FuncionarioFormData, defaultFuncionarioFormData } from "@/components/FuncionarioFormTabs";
+import CargosPermissoesTab from "@/components/CargosPermissoesTab";
 
 type RoleType = "superintendente" | "administrativo" | "lider" | "comercial" | "parceiro";
 
@@ -54,6 +55,7 @@ interface Profile {
   email: string;
   telefone?: string;
   cargo?: string;
+  cargo_id?: string | null;
   equipe_id?: string;
   lider_id?: string;
   administrativo_id?: string;
@@ -96,6 +98,7 @@ export default function Usuarios() {
   const [pendingProfiles, setPendingProfiles] = useState<Profile[]>([]);
   const [userRoles, setUserRoles] = useState<Record<string, string>>({});
   const [equipes, setEquipes] = useState<Equipe[]>([]);
+  const [cargosCustom, setCargosCustom] = useState<{ id: string; nome: string; cor?: string | null }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Profile | null>(null);
@@ -377,6 +380,12 @@ export default function Usuarios() {
       fetchLideres();
       fetchAdministrativos();
       fetchLogs();
+      supabase
+        .from("cargos")
+        .select("id, nome, cor")
+        .eq("ativo", true)
+        .order("nome")
+        .then(({ data }) => setCargosCustom((data as any) || []));
     }
   }, [userRole]);
 
@@ -502,6 +511,7 @@ export default function Usuarios() {
         email: formData.email || editingItem.email,
         telefone: formData.telefone,
         cargo: formData.cargo,
+        cargo_id: formData.cargo_id || null,
         equipe_id: editingRole === "comercial" ? formData.equipe_id : null,
         lider_id: null,
         administrativo_id: editingRole === "lider" ? formData.administrativo_id : null,
@@ -1110,6 +1120,7 @@ export default function Usuarios() {
     { id: "equipes", label: "Equipes", icon: UsersRound, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
     { id: "hierarquia", label: "Hierarquia", icon: Network, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
     { id: "permissoes", label: "Permissões", icon: Shield, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
+    { id: "cargos", label: "Cargos", icon: Briefcase, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" },
     { id: "logs", label: "Logs", icon: Briefcase, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400" },
   ];
 
@@ -1213,6 +1224,7 @@ export default function Usuarios() {
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
           <TabsTrigger value="hierarquia">Hierarquia</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
+          <TabsTrigger value="cargos">Cargos</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
 
@@ -1721,6 +1733,32 @@ export default function Usuarios() {
                             }
                           />
                         </div>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cargo_id">
+                          Cargo Personalizado (Permissões)
+                          <span className="text-xs text-muted-foreground font-normal ml-1">
+                            — opcional, aplica permissões definidas no cargo
+                          </span>
+                        </Label>
+                        <Select
+                          value={formData.cargo_id || "none"}
+                          onValueChange={(v) =>
+                            setFormData({ ...formData, cargo_id: v === "none" ? null : v })
+                          }
+                        >
+                          <SelectTrigger id="cargo_id">
+                            <SelectValue placeholder="Sem cargo personalizado" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sem cargo personalizado</SelectItem>
+                            {cargosCustom.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="cpf_cnpj">CPF/CNPJ</Label>
@@ -2610,6 +2648,24 @@ export default function Usuarios() {
                   </p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* CARGOS */}
+        <TabsContent value="cargos">
+          <Card className="border-border/40 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-medium">Cargos & Funções Personalizados</CardTitle>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Cadastre cargos personalizados e defina permissões de menu para cada um.
+                Estes cargos convivem com os perfis do sistema (admin, superintendente, líder, etc).
+              </p>
+            </CardHeader>
+            <CardContent>
+              <CargosPermissoesTab />
             </CardContent>
           </Card>
         </TabsContent>

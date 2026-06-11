@@ -757,6 +757,80 @@ export type Database = {
           },
         ]
       }
+      cargo_menu_permissions: {
+        Row: {
+          cargo_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          menu_item: string
+          pode_editar: boolean
+          pode_visualizar: boolean
+          updated_at: string
+        }
+        Insert: {
+          cargo_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          menu_item: string
+          pode_editar?: boolean
+          pode_visualizar?: boolean
+          updated_at?: string
+        }
+        Update: {
+          cargo_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          menu_item?: string
+          pode_editar?: boolean
+          pode_visualizar?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cargo_menu_permissions_cargo_id_fkey"
+            columns: ["cargo_id"]
+            isOneToOne: false
+            referencedRelation: "cargos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cargos: {
+        Row: {
+          ativo: boolean
+          cor: string | null
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       categorias_financeiras: {
         Row: {
           ativo: boolean
@@ -5348,6 +5422,7 @@ export type Database = {
           ativo: boolean
           avatar_url: string | null
           cargo: string | null
+          cargo_id: string | null
           cpf_cnpj: string | null
           created_at: string
           email: string
@@ -5369,6 +5444,7 @@ export type Database = {
           ativo?: boolean
           avatar_url?: string | null
           cargo?: string | null
+          cargo_id?: string | null
           cpf_cnpj?: string | null
           created_at?: string
           email: string
@@ -5390,6 +5466,7 @@ export type Database = {
           ativo?: boolean
           avatar_url?: string | null
           cargo?: string | null
+          cargo_id?: string | null
           cpf_cnpj?: string | null
           created_at?: string
           email?: string
@@ -5412,6 +5489,13 @@ export type Database = {
             columns: ["administrativo_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_cargo_id_fkey"
+            columns: ["cargo_id"]
+            isOneToOne: false
+            referencedRelation: "cargos"
             referencedColumns: ["id"]
           },
           {

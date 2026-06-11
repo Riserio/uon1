@@ -77,10 +77,35 @@ export function useMenuPermissions(userId: string | undefined) {
         .select('menu_item, pode_visualizar, pode_editar')
         .eq('role', roleData?.role);
 
+      // Carregar cargo_id do usuário e suas permissões de cargo
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('cargo_id')
+        .eq('id', userId)
+        .single();
+
+      let cargoPermissionsData: any[] = [];
+      if (profileData?.cargo_id) {
+        const { data } = await supabase
+          .from('cargo_menu_permissions')
+          .select('menu_item, pode_visualizar, pode_editar')
+          .eq('cargo_id', profileData.cargo_id);
+        cargoPermissionsData = data || [];
+      }
+
       const permissionsMap: Record<string, MenuPermission> = {};
       
       // Primeiro adicionar permissões do role
       (rolePermissionsData || []).forEach((perm) => {
+        permissionsMap[perm.menu_item] = {
+          menu_item: perm.menu_item,
+          pode_visualizar: perm.pode_visualizar,
+          pode_editar: perm.pode_editar,
+        };
+      });
+
+      // Sobrescrever com permissões do cargo personalizado
+      cargoPermissionsData.forEach((perm) => {
         permissionsMap[perm.menu_item] = {
           menu_item: perm.menu_item,
           pode_visualizar: perm.pode_visualizar,
