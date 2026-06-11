@@ -45,6 +45,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
 import FuncionarioFormTabs, { FuncionarioFormData, defaultFuncionarioFormData } from "@/components/FuncionarioFormTabs";
+import CargosPermissoesTab from "@/components/CargosPermissoesTab";
 
 type RoleType = "superintendente" | "administrativo" | "lider" | "comercial" | "parceiro";
 
