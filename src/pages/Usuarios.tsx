@@ -2617,6 +2617,24 @@ export default function Usuarios() {
           </Card>
         </TabsContent>
 
+        {/* CARGOS */}
+        <TabsContent value="cargos">
+          <Card className="border-border/40 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-medium">Cargos & Funções Personalizados</CardTitle>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Cadastre cargos personalizados e defina permissões de menu para cada um.
+                Estes cargos convivem com os perfis do sistema (admin, superintendente, líder, etc).
+              </p>
+            </CardHeader>
+            <CardContent>
+              <CargosPermissoesTab />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* EQUIPES */}
         <TabsContent value="equipes">
           <Card className="border-border/40 shadow-sm">
