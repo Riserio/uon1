@@ -98,6 +98,7 @@ export default function Usuarios() {
   const [pendingProfiles, setPendingProfiles] = useState<Profile[]>([]);
   const [userRoles, setUserRoles] = useState<Record<string, string>>({});
   const [equipes, setEquipes] = useState<Equipe[]>([]);
+  const [cargosCustom, setCargosCustom] = useState<{ id: string; nome: string; cor?: string | null }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Profile | null>(null);
