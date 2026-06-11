@@ -511,6 +511,7 @@ export default function Usuarios() {
         email: formData.email || editingItem.email,
         telefone: formData.telefone,
         cargo: formData.cargo,
+        cargo_id: formData.cargo_id || null,
         equipe_id: editingRole === "comercial" ? formData.equipe_id : null,
         lider_id: null,
         administrativo_id: editingRole === "lider" ? formData.administrativo_id : null,
