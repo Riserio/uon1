@@ -299,7 +299,7 @@ export default function Configuracoes() {
 
             {/* USUÁRIOS */}
             {activeSection === "usuarios" && canManageUsers && (
-              <div className="rounded-2xl border border-border/50 bg-card p-2 sm:p-3">
+              <div className="rounded-2xl border border-border/50 bg-card p-2 sm:p-3 min-w-0 overflow-x-hidden">
                 <Usuarios />
               </div>
             )}
