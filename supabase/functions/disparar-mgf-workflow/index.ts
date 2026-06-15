@@ -240,7 +240,7 @@ serve(async (req) => {
       };
       if (data_inicio) (workflowInputs as any).data_inicio = data_inicio;
       if (data_fim) (workflowInputs as any).data_fim = data_fim;
-      if (backfill_job_id) (workflowInputs as any).backfill_job_id = backfill_job_id;
+      // backfill_job_id não é input do workflow GitHub; vínculo via execucao_id.
 
       console.log(`[MGF GitHub Workflow] Disparando workflow para ${corretora_id}`);
 
