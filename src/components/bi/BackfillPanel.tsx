@@ -95,6 +95,7 @@ export default function BackfillPanel({ corretoraId }: Props) {
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [diaUnico, setDiaUnico] = useState<Date | undefined>();
   const [adding, setAdding] = useState(false);
+  const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const { jobs, loading } = useBackfillJobs(corretoraId, modulo);
   const { rec, horaAgendada, enable, disable } = useBackfillRecurrence(corretoraId, modulo);
   const autoAtivo = !!rec?.ativo;
