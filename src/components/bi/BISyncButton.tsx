@@ -598,9 +598,12 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
             </div>
           )}
 
+          {activeView === "backfill" && (
+            <BackfillPanel corretoraId={corretoraId} />
+          )}
+
           {activeView === "config" && (
             <div className="p-4">
-              {/* placeholder marker */}
               {loading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
               ) : (
