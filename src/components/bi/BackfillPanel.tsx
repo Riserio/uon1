@@ -223,6 +223,19 @@ export default function BackfillPanel({ corretoraId }: Props) {
     } finally { setAdding(false); }
   };
 
+  const runJobNow = async (job: BackfillJob) => {
+    if (job.status !== "pendente") return;
+    setRunningJobId(job.id);
+    try {
+      // Dispara o worker para consumir a fila imediatamente
+      const { error } = await supabase.functions.invoke("backfill-worker", { body: { force: true, job_id: job.id } });
+      if (error) throw error;
+      toast.success("Worker disparado — execução iniciada");
+    } catch (e: any) {
+      toast.error("Erro ao disparar: " + (e?.message || "desconhecido"));
+    } finally { setRunningJobId(null); }
+  };
+
   const clearConcluded = async () => {
     const ids = jobs.filter(j => j.status === "concluido" || j.status === "cancelado").map(j => j.id);
     if (!ids.length) return;
