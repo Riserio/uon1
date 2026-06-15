@@ -1,68 +1,78 @@
-## Objetivo
+## Backfill por período — Cobrança, Eventos e MGF
 
-Permitir, em **Configurações → WhatsApp**, criar agendamentos recorrentes (diário, semanal ou mensal) que enviam templates aprovados na Meta (`resumo_eventos`, `resumo_cobranca`, `resumo_mgf`, etc.) com as variáveis `{{1}}, {{2}}…` **preenchidas automaticamente** a partir dos dados atuais do BI da associação — sem precisar de janela de 24h.
+Nova aba **"Backfill"** no modal de Sincronização (`BISyncButton`), unificando os 3 módulos com uma experiência moderna e segura.
 
-## 1. Banco de dados
+### 1. Interface (mais funcional e fácil)
 
-Nova tabela `whatsapp_template_schedules`:
+Layout em 3 seções dentro de uma única tela com tabs por módulo (Cobrança / Eventos / MGF):
 
-- `corretora_id` (uuid, FK)
-- `template_name` (text) — nome do template aprovado
-- `template_language` (text, default `pt_BR`)
-- `data_source` (text) — `resumo_eventos` | `resumo_cobranca` | `resumo_mgf`  (define qual edge function gera os valores)
-- `recipients` (text[]) — telefones que recebem
-- `frequency` (text) — `daily` | `weekly` | `monthly`
-- `day_of_week` (int 0–6, nullable, p/ semanal)
-- `day_of_month` (int 1–31, nullable, p/ mensal)
-- `send_time` (time, default `08:00`) — horário em America/Sao_Paulo
-- `ativo` (bool, default true)
-- `last_run_at`, `last_status`, `last_error`, `next_run_at`
-- RLS: somente usuários da associação (ou admin) leem/escrevem; mesmo padrão das outras tabelas do WhatsApp.
+```text
+┌─────────────────────────────────────────────────────┐
+│ [ Cobrança ] [ Eventos ] [ MGF ]                    │
+├─────────────────────────────────────────────────────┤
+│ Presets rápidos:                                    │
+│ [Mês anterior] [Mês atual] [Últimos 6 meses]        │
+│ [Ano anterior] [Ano atual]  [Tudo]                  │
+│                                                     │
+│ Ou escolha um período:                              │
+│  ( ) Por dia      [DatePicker único]                │
+│  (•) Por período  [De ▼] [Até ▼]                    │
+│                                                     │
+│            [ + Adicionar à fila ]                   │
+├─────────────────────────────────────────────────────┤
+│ Fila de execução (1 por vez):                       │
+│  ● 01/05/2026 → 31/05/2026  Em execução  45%        │
+│  ○ 01/04/2026 → 30/04/2026  Aguardando              │
+│  ✓ 01/06/2026 → 14/06/2026  Concluído   1.245 reg.  │
+│  ✗ 01/03/2026 → 31/03/2026  Falhou      [Tentar]    │
+└─────────────────────────────────────────────────────┘
+```
 
-## 2. Edge functions
+- Cada item da fila mostra: período, status (aguardando / executando / concluído / falhou), progresso, registros importados.
+- Botões: **Pausar fila**, **Limpar concluídos**, **Tentar novamente** (em itens falhos).
+- Aviso visual quando o usuário tenta adicionar um período que **sobrepõe** outro já enfileirado/concluído no mesmo módulo+associação → bloqueio com mensagem clara.
 
-**`whatsapp-template-schedule-runner`** (novo, invocado a cada 5 min por `pg_cron`):
-1. Busca schedules ativos com `next_run_at <= now()`.
-2. Para cada um:
-   - Chama o gerador correspondente (`gerar-resumo-eventos`, `gerar-resumo-cobranca`, ou um novo `gerar-resumo-mgf`) passando `corretora_id`.
-   - Mapeia os campos do JSON retornado nos placeholders do template (mapeamento documentado abaixo).
-   - Envia via Meta Cloud API (`type: "template"`) para cada destinatário.
-   - Registra em `whatsapp_messages` (`status='sent'`, sem `contact_id` quando não existir) e atualiza `last_run_at`, `last_status`, `next_run_at` conforme `frequency`.
+### 2. Regras de período
 
-**Mapeamento Template → Dados** (configurável, com defaults):
-- `resumo_eventos`: {{1}}=`mes_referencia`, {{2}}=`total_eventos`, {{3}}=`eventos_colisao`, {{4}}=`eventos_vidros`, {{5}}=`eventos_furto_roubo`, {{6}}=`eventos_outros`, {{7}}=`cidade_mais_eventos`, {{8}}=`cooperativa_mais_eventos`.
-- `resumo_cobranca`: derivado do retorno de `gerar-resumo-cobranca`.
-- `resumo_mgf`: nova função análoga (manutenção/gerenciamento de frota) — placeholder por enquanto até confirmação dos campos.
+- **Presets** calculados em America/Sao_Paulo (seguindo o padrão de datas do projeto).
+- **MGF**: aceita período (o robô envia o range no portal Hinova; quando não houver filtro nativo no portal, o range é aplicado pós-extração no parser, mantendo o comportamento atual de "trazer tudo" como fallback de segurança).
+- **Por dia**: cria 1 item na fila com `data_inicio = data_fim = dia escolhido`.
+- **Tudo**: range fixo a partir de 01/01/2020 até hoje (configurável).
+- **Não permitir duplicatas/overlap**: validação client-side + constraint no banco (`EXCLUDE USING gist` em `corretora_id + modulo + tstzrange`) para impedir 2 jobs concorrentes na mesma janela.
 
-A primeira vez o usuário visualiza os mapeamentos automáticos; pode sobrescrever em uma coluna `variable_map jsonb` se quiser.
+### 3. Execução automática, 1 por vez (mais seguro)
 
-## 3. Agendador
+- Nova tabela `backfill_jobs` com fila persistente (sobrevive a F5 e troca de sessão).
+- Edge function **`backfill-worker`** acionada via:
+  - `pg_cron` a cada 1 minuto pegando o **próximo job pendente da associação** com `FOR UPDATE SKIP LOCKED` (garante 1 por vez por associação).
+  - Trigger imediato após inserir um job (via `supabase.functions.invoke`) para começar na hora se a fila estiver vazia.
+- O worker chama o robô existente (`hinova-cobranca-importar`, `hinova-eventos-importar`, `hinova-mgf-importar`) passando `data_inicio` e `data_fim`, atualiza `status`, `progresso`, `registros_importados`, `erro` em tempo real.
+- Realtime do Supabase mantém a UI atualizada sem polling.
+- Respeita a porta de integridade existente (extração 0 registros = falha, não sobrescreve dashboard).
 
-`pg_cron` (já habilitado) chamando o runner a cada 5 minutos via `pg_net`. Migração separada (com a anon key específica do projeto) — não usada em remix.
+### 4. Atualização incremental (uso diário)
 
-## 4. UI — Configurações → WhatsApp
+Após o backfill histórico estar completo, o usuário usa a opção **"Por dia"** para puxar o dia anterior em segundos — mesma interface, mesmo motor. Não há tela separada para "diário" vs "histórico".
 
-Nova seção **"Envios Automáticos por Template"** dentro de `WhatsAppConfig.tsx`:
-- Lista de schedules da associação selecionada.
-- Botão **"Novo agendamento"** abre dialog com:
-  - Select de Template (carregado de `listar-templates-whatsapp`, só `APPROVED`).
-  - Origem dos dados (auto-sugerida pelo nome do template).
-  - Frequência (Diário / Semanal / Mensal) + Dia da semana / Dia do mês conforme escolha.
-  - Horário (`HH:mm`).
-  - Destinatários (multi-input com os mesmos números já configurados como sugestão).
-  - Toggle ativo.
-  - Pré-visualização: chama o gerador e mostra o texto que será enviado.
-- Cada linha mostra `Ativo`, `Próxima execução`, `Último envio`, ações `Editar` / `Pausar` / `Excluir` / `Enviar agora`.
+---
 
-## 5. Critérios de aceite
+### Detalhes técnicos
 
-- Criar agendamento diário às 08:00 do template `resumo_eventos` para 2 números → recebimento real às 08:00 com números do mês atual preenchidos.
-- Mudar para semanal (segunda-feira) → `next_run_at` reagenda corretamente.
-- Pausar → não envia mais; reativar → recalcula `next_run_at`.
-- "Enviar agora" dispara fora do horário e registra `last_run_at`.
+**Migration (`backfill_jobs`)**
+- `id`, `corretora_id`, `modulo` ('cobranca'|'eventos'|'mgf'), `data_inicio`, `data_fim`, `status` ('pendente'|'executando'|'concluido'|'falhou'|'cancelado'), `progresso` int, `registros_importados` int, `erro` text, `iniciado_em`, `concluido_em`, `created_by`, `created_at`, `updated_at`.
+- Constraint de exclusão evitando overlap (`corretora_id`, `modulo`, `tstzrange(data_inicio, data_fim, '[]')` com `&&`) apenas para status em ('pendente','executando','concluido').
+- RLS: admin/superintendente full; demais escopados por `corretora_id = get_user_corretora_id(auth.uid())`.
+- GRANT padrão (`authenticated`, `service_role`).
 
-## Notas técnicas
+**Edge functions**
+- `backfill-enqueue`: valida overlap, insere job e dispara worker.
+- `backfill-worker`: pega 1 job por associação com `SKIP LOCKED`, executa o robô correspondente, atualiza status. Idempotente, com timeout de 25 min.
+- Reuso integral dos importadores Hinova existentes — só recebem o range adicional.
 
-- Usar `America/Sao_Paulo` para todo cálculo de `next_run_at`.
-- O envio é via `type: "template"` então não exige janela de 24h.
-- Falha de Meta → grava `last_error`, mantém `ativo`, tenta novamente na próxima janela.
+**Frontend**
+- Novo componente `BackfillPanel.tsx` (tabs por módulo + presets + fila).
+- Hook `useBackfillJobs(corretoraId)` com Realtime subscription.
+- Integrado como 3ª aba no `BISyncButton` (mantém "Sincronização instantânea" e "Configurações" intactos).
+
+**Memória**
+- Salvar regra: "Backfill por período = 1 job por vez por associação; presets BR (mês/ano anterior, 6 meses, tudo); overlap bloqueado por constraint."

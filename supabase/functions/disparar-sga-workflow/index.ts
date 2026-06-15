@@ -61,7 +61,8 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, corretora_id, run_id } = body;
+    const { action, corretora_id, run_id, data_inicio: bodyDataInicio, data_fim: bodyDataFim, bypass_daily_limit, backfill_job_id } = body;
+    const isServiceRole = authHeader.includes(supabaseKey);
 
     // ====================================
     // CANCELAR EXECUÇÃO
@@ -114,8 +115,9 @@ serve(async (req) => {
       console.log(`[SGA Workflow] Iniciando para corretora: ${corretora_id}`);
 
       // Verificar execução hoje
+      const skipDailyGate = bypass_daily_limit === true && isServiceRole;
       const hoje = new Date().toISOString().split('T')[0];
-      const { data: execucoesHoje } = await supabase
+      const { data: execucoesHoje } = skipDailyGate ? { data: [] as any[] } : await supabase
         .from("sga_automacao_execucoes")
         .select("id, status")
         .eq("corretora_id", corretora_id)
@@ -123,7 +125,7 @@ serve(async (req) => {
         .in("status", ["sucesso", "executando"])
         .limit(1);
 
-      if (execucoesHoje && execucoesHoje.length > 0) {
+      if (!skipDailyGate && execucoesHoje && execucoesHoje.length > 0) {
         const st = execucoesHoje[0].status;
         return new Response(
           JSON.stringify({ success: false, message: st === "executando" ? "Já existe uma execução em andamento hoje" : "Já houve uma integração com sucesso hoje." }),
@@ -215,10 +217,20 @@ serve(async (req) => {
         .eq("id", config.id);
 
       // Calcular datas: desde 01/01/2000 até último dia do mês atual
-      const dataInicio = '01/01/2000';
-      const now = new Date();
-      const ultimoDiaMes = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const dataFim = `${String(ultimoDiaMes.getDate()).padStart(2, '0')}/${String(ultimoDiaMes.getMonth() + 1).padStart(2, '0')}/${ultimoDiaMes.getFullYear()}`;
+      // Se vier do backfill, usar período recebido (formato ISO YYYY-MM-DD -> DD/MM/YYYY)
+      const toBR = (iso: string) => {
+        const [y, m, d] = iso.split('-');
+        return `${d}/${m}/${y}`;
+      };
+      const dataInicio = bodyDataInicio ? toBR(bodyDataInicio) : '01/01/2000';
+      let dataFim: string;
+      if (bodyDataFim) {
+        dataFim = toBR(bodyDataFim);
+      } else {
+        const now = new Date();
+        const ultimoDiaMes = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        dataFim = `${String(ultimoDiaMes.getDate()).padStart(2, '0')}/${String(ultimoDiaMes.getMonth() + 1).padStart(2, '0')}/${ultimoDiaMes.getFullYear()}`;
+      }
 
       let relatorioUrl = urlEventos;
       if (!relatorioUrl && hinovaUrl) {
@@ -242,6 +254,7 @@ serve(async (req) => {
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-sga-hinova`,
       };
+      if (backfill_job_id) (workflowInputs as any).backfill_job_id = backfill_job_id;
 
       console.log(`[SGA Workflow] Disparando workflow - Período: ${dataInicio} até ${dataFim}, Relatório: ${relatorioUrl}`);
 

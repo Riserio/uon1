@@ -13,10 +13,11 @@ import {
   Settings, Eye, EyeOff, Save,
   Zap, AlertTriangle, ExternalLink, Square,
   Download, LogIn, Filter, Send, Timer, HardDrive,
-  ChevronRight, RefreshCw, Wifi, WifiOff
+  ChevronRight, RefreshCw, Wifi, WifiOff, CalendarRange
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import BackfillPanel from "./BackfillPanel";
 
 type ModuleType = "cobranca" | "eventos" | "mgf";
 
@@ -112,7 +113,7 @@ interface BISyncButtonProps {
 
 export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButtonProps) {
   const [open, setOpen] = useState(false);
-  const [activeView, setActiveView] = useState<"modules" | "config" | "history">("modules");
+  const [activeView, setActiveView] = useState<"modules" | "backfill" | "config" | "history">("modules");
   const [creds, setCreds] = useState<HinovaCredenciais>({
     corretora_id: corretoraId,
     hinova_url: "", hinova_user: "", hinova_pass: "", hinova_codigo_cliente: "",
@@ -426,7 +427,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           {anyExecuting && <span className="absolute -top-1.5 -right-1.5 h-3 w-3 rounded-full bg-primary animate-pulse ring-2 ring-background" />}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-lg p-0 gap-0 rounded-2xl overflow-hidden max-h-[85vh] flex flex-col">
         <div className="border-b px-5 py-4 bg-muted/20 shrink-0">
           <div className="flex items-center justify-between">
             <div>
@@ -451,6 +452,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           <div className="flex items-center gap-1.5 mt-3">
             {[
               { id: "modules" as const, label: "Módulos", icon: Zap },
+              { id: "backfill" as const, label: "Backfill", icon: CalendarRange },
               { id: "config" as const, label: "Configuração", icon: Settings },
               { id: "history" as const, label: "Histórico", icon: RefreshCw },
             ].map(v => (
@@ -594,6 +596,10 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                 })
               )}
             </div>
+          )}
+
+          {activeView === "backfill" && (
+            <BackfillPanel corretoraId={corretoraId} />
           )}
 
           {activeView === "config" && (

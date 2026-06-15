@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.hinova-proxy]
 verify_jwt = false
+
+[functions.backfill-worker]
+verify_jwt = false
