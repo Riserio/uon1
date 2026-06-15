@@ -73,7 +73,8 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, corretora_id, run_id } = body;
+    const { action, corretora_id, run_id, data_inicio, data_fim, bypass_daily_limit, backfill_job_id } = body;
+    const isServiceRole = authHeader.includes(supabaseServiceKey);
 
     if (action === 'cancel' && run_id) {
       console.log(`[MGF GitHub Workflow] Cancelando run ${run_id}`);
@@ -124,8 +125,9 @@ serve(async (req) => {
       console.log(`[MGF GitHub Workflow] Iniciando para corretora: ${corretora_id}`);
 
       // Verificar se já houve execução com sucesso ou em andamento hoje
+      const skipDailyGate = bypass_daily_limit === true && isServiceRole;
       const hoje = new Date().toISOString().split('T')[0];
-      const { data: execucoesHoje } = await supabase
+      const { data: execucoesHoje } = skipDailyGate ? { data: [] as any[] } : await supabase
         .from("mgf_automacao_execucoes")
         .select("id, status")
         .eq("corretora_id", corretora_id)
@@ -133,7 +135,7 @@ serve(async (req) => {
         .in("status", ["sucesso", "executando"])
         .limit(1);
 
-      if (execucoesHoje && execucoesHoje.length > 0) {
+      if (!skipDailyGate && execucoesHoje && execucoesHoje.length > 0) {
         const st = execucoesHoje[0].status;
         console.log(`[MGF GitHub Workflow] Corretora ${corretora_id} já tem execução '${st}' hoje, bloqueando disparo`);
         return new Response(
