@@ -554,6 +554,74 @@ export type Database = {
           },
         ]
       }
+      backfill_jobs: {
+        Row: {
+          concluido_em: string | null
+          corretora_id: string
+          created_at: string
+          created_by: string | null
+          data_fim: string
+          data_inicio: string
+          erro: string | null
+          execucao_id: string | null
+          github_run_id: string | null
+          github_run_url: string | null
+          id: string
+          iniciado_em: string | null
+          modulo: string
+          progresso: number
+          registros_importados: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          concluido_em?: string | null
+          corretora_id: string
+          created_at?: string
+          created_by?: string | null
+          data_fim: string
+          data_inicio: string
+          erro?: string | null
+          execucao_id?: string | null
+          github_run_id?: string | null
+          github_run_url?: string | null
+          id?: string
+          iniciado_em?: string | null
+          modulo: string
+          progresso?: number
+          registros_importados?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          concluido_em?: string | null
+          corretora_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_fim?: string
+          data_inicio?: string
+          erro?: string | null
+          execucao_id?: string | null
+          github_run_id?: string | null
+          github_run_url?: string | null
+          id?: string
+          iniciado_em?: string | null
+          modulo?: string
+          progresso?: number
+          registros_importados?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backfill_jobs_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       banco_horas: {
         Row: {
           created_at: string
@@ -8026,6 +8094,34 @@ export type Database = {
       can_view_profile: {
         Args: { target_profile_id: string; viewer_id: string }
         Returns: boolean
+      }
+      claim_next_backfill_job: {
+        Args: { _corretora_id?: string }
+        Returns: {
+          concluido_em: string | null
+          corretora_id: string
+          created_at: string
+          created_by: string | null
+          data_fim: string
+          data_inicio: string
+          erro: string | null
+          execucao_id: string | null
+          github_run_id: string | null
+          github_run_url: string | null
+          id: string
+          iniciado_em: string | null
+          modulo: string
+          progresso: number
+          registros_importados: number | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "backfill_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       generate_contrato_numero: { Args: never; Returns: string }
       generate_lancamento_numero: { Args: never; Returns: string }
