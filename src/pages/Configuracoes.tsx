@@ -154,7 +154,7 @@ export default function Configuracoes() {
           subtitle="Personalize e controle o sistema"
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6">
           {/* Sidebar Navigation */}
           <div className="space-y-1.5">
             {sections.map((section) => {
@@ -185,7 +185,7 @@ export default function Configuracoes() {
           </div>
 
           {/* Content */}
-          <div className="space-y-6">
+          <div className="space-y-6 min-w-0">
             {/* APARÊNCIA */}
             {activeSection === "aparencia" && (
               <>
@@ -299,7 +299,7 @@ export default function Configuracoes() {
 
             {/* USUÁRIOS */}
             {activeSection === "usuarios" && canManageUsers && (
-              <div className="rounded-2xl border border-border/50 bg-card p-2 sm:p-3">
+              <div className="rounded-2xl border border-border/50 bg-card p-2 sm:p-3 min-w-0 overflow-x-hidden">
                 <Usuarios />
               </div>
             )}
