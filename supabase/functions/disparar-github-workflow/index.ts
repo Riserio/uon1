@@ -72,7 +72,8 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, corretora_id, run_id } = body;
+    const { action, corretora_id, run_id, data_inicio, data_fim, bypass_daily_limit, backfill_job_id } = body;
+    const isServiceRole = authHeader.includes(supabaseServiceKey);
 
     if (action === 'cancel' && run_id) {
       // Cancelar workflow em execução
@@ -124,8 +125,9 @@ serve(async (req) => {
       console.log(`[GitHub Workflow] Iniciando para corretora: ${corretora_id}`);
 
       // Verificar se já houve execução com sucesso ou em andamento hoje
+      const skipDailyGate = bypass_daily_limit === true && isServiceRole;
       const hoje = new Date().toISOString().split('T')[0];
-      const { data: execucoesHoje } = await supabase
+      const { data: execucoesHoje } = skipDailyGate ? { data: [] as any[] } : await supabase
         .from("cobranca_automacao_execucoes")
         .select("id, status")
         .eq("corretora_id", corretora_id)
@@ -133,7 +135,7 @@ serve(async (req) => {
         .in("status", ["sucesso", "executando"])
         .limit(1);
 
-      if (execucoesHoje && execucoesHoje.length > 0) {
+      if (!skipDailyGate && execucoesHoje && execucoesHoje.length > 0) {
         const st = execucoesHoje[0].status;
         console.log(`[GitHub Workflow] Corretora ${corretora_id} já tem execução '${st}' hoje, bloqueando disparo`);
         return new Response(
@@ -210,6 +212,9 @@ serve(async (req) => {
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-cobranca-hinova`,
       };
+      if (data_inicio) (workflowInputs as any).data_inicio = data_inicio;
+      if (data_fim) (workflowInputs as any).data_fim = data_fim;
+      if (backfill_job_id) (workflowInputs as any).backfill_job_id = backfill_job_id;
 
       console.log(`[GitHub Workflow] Disparando workflow para ${corretora_id}`);
 
