@@ -1946,24 +1946,68 @@ async function configurarFiltrosRelatorio(page, inicio, fim) {
 async function dispararGeracaoRelatorio(page) {
   log('Clicando em Gerar Relatório...');
 
-  const btnGerar = page.locator('input[type="submit"]:has-text("Gerar"), button:has-text("Gerar"), input[value*="Gerar" i], button:has-text("Exportar")').first();
-  if (await btnGerar.isVisible().catch(() => false)) {
-    await btnGerar.click();
-    log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
-    return;
+  const frames = [page.mainFrame(), ...page.frames().filter((frame) => frame !== page.mainFrame())];
+  for (const frame of frames) {
+    const result = await frame.evaluate(() => {
+      const normalize = (value) => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+      const isVisible = (el) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      };
+      const triggers = Array.from(document.querySelectorAll('input[type="submit"], input[type="button"], input[type="image"], button, a'));
+      const preferredWords = ['gerar', 'exportar', 'baixar', 'consultar', 'pesquisar', 'visualizar', 'processar'];
+      let best = null;
+      let bestScore = 0;
+
+      for (const el of triggers) {
+        if (el.disabled || !isVisible(el)) continue;
+        const text = normalize([
+          el.value,
+          el.textContent,
+          el.title,
+          el.getAttribute('aria-label'),
+          el.getAttribute('alt'),
+          el.id,
+          el.name,
+          el.className,
+        ].filter(Boolean).join(' '));
+        const score = preferredWords.reduce((sum, word, index) => sum + (text.includes(word) ? 100 - index : 0), 0);
+        if (score > bestScore) {
+          best = el;
+          bestScore = score;
+        }
+      }
+
+      if (best) {
+        best.scrollIntoView({ block: 'center', inline: 'center' });
+        best.click();
+        return { success: true, method: 'click', text: (best.value || best.textContent || best.name || best.id || '').trim() };
+      }
+
+      const form = document.querySelector('form');
+      if (form) {
+        if (typeof form.requestSubmit === 'function') form.requestSubmit();
+        else form.submit();
+        return { success: true, method: 'formSubmit', text: 'formulário principal' };
+      }
+
+      return { success: false };
+    }).catch((e) => ({ success: false, error: e.message }));
+
+    if (result?.success) {
+      log(`Geração disparada via ${result.method}: ${result.text || 'sem rótulo'}`, LOG_LEVELS.SUCCESS);
+      await page.waitForTimeout(500);
+      return;
+    }
   }
 
-  await page.evaluate(() => {
-    const btns = document.querySelectorAll('input[type="submit"], button');
-    for (const btn of btns) {
-      const text = (btn.value || btn.textContent || '').toLowerCase();
-      if (text.includes('gerar') || text.includes('exportar')) {
-        btn.click();
-        return;
-      }
-    }
-  });
-  log('Botão Gerar clicado via fallback', LOG_LEVELS.DEBUG);
+  throw new Error('Botão/formulário para gerar relatório não encontrado');
 }
 
 async function coletarDadosDoPeriodo(context, page, periodo, index, total) {
