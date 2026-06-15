@@ -1396,12 +1396,13 @@ serve(async (req) => {
               for (const phone of phoneNumbers) {
                 const formattedPhone = formatWhatsAppPhone(phone);
                 try {
+                  const templatePayload = await buildCobrancaTemplatePayload(formattedPhone, templateParams);
                   const metaResponse = await fetch(
                     `https://graph.facebook.com/v22.0/${metaPhoneNumberId}/messages`,
                     {
                       method: "POST",
                       headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
-                      body: JSON.stringify(buildCobrancaTemplatePayload(formattedPhone, templateParams)),
+                      body: JSON.stringify(templatePayload),
                     }
                   );
                   const metaData = await metaResponse.json();
