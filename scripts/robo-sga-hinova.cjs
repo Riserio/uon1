@@ -2176,10 +2176,7 @@ async function main() {
     setStep('LOGIN');
     log(`Acessando portal: ${CONFIG.HINOVA_URL}`);
 
-    await page.goto(CONFIG.HINOVA_URL, {
-      waitUntil: 'domcontentloaded',
-      timeout: TIMEOUTS.PAGE_LOAD,
-    });
+    await gotoComRetry(page, CONFIG.HINOVA_URL);
 
     log('Aguardando formulário de login...');
     await page.waitForSelector('input[type="password"], input[name*="senha" i], input[id*="senha" i]', {
