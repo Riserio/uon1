@@ -2795,15 +2795,15 @@ export default function Usuarios() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="rounded-lg border overflow-hidden">
-                <Table>
+              <div className="rounded-lg border overflow-x-auto">
+                <Table className="min-w-[640px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Data/Hora</TableHead>
                       <TableHead>Ação</TableHead>
                       <TableHead>Usuário Alvo</TableHead>
                       <TableHead>Realizado por</TableHead>
-                      <TableHead>Detalhes</TableHead>
+                      <TableHead className="min-w-[200px]">Detalhes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2816,16 +2816,19 @@ export default function Usuarios() {
                     ) : (
                       logs.map((log) => (
                         <TableRow key={log.id}>
-                          <TableCell>{new Date(log.created_at).toLocaleString("pt-BR")}</TableCell>
+                          <TableCell className="whitespace-nowrap text-xs">{new Date(log.created_at).toLocaleString("pt-BR")}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="uppercase text-xs">
                               {log.action}
                             </Badge>
                           </TableCell>
-                          <TableCell>{getProfileName(log.target_user_id)}</TableCell>
-                          <TableCell>{getProfileName(log.user_id)}</TableCell>
-                          <TableCell className="max-w-xl">
-                            <span className="text-sm text-muted-foreground">
+                          <TableCell className="text-xs">{getProfileName(log.target_user_id)}</TableCell>
+                          <TableCell className="text-xs">{getProfileName(log.user_id)}</TableCell>
+                          <TableCell className="max-w-[280px] sm:max-w-[420px]">
+                            <span
+                              className="text-xs text-muted-foreground block truncate"
+                              title={log.changes ? JSON.stringify(log.changes) : "-"}
+                            >
                               {log.changes ? JSON.stringify(log.changes) : "-"}
                             </span>
                           </TableCell>
