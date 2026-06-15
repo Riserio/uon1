@@ -1720,43 +1720,38 @@ export default function Usuarios() {
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="cargo">Cargo</Label>
-                          <Input
-                            id="cargo"
-                            value={formData.cargo || ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                cargo: e.target.value,
-                              })
-                            }
-                          />
+                          <Select
+                            value={formData.cargo_id || (formData.cargo ? `__legacy__:${formData.cargo}` : "none")}
+                            onValueChange={(v) => {
+                              if (v === "none") {
+                                setFormData({ ...formData, cargo: "", cargo_id: null });
+                                return;
+                              }
+                              const c = cargosCustom.find((x) => x.id === v);
+                              setFormData({ ...formData, cargo_id: v, cargo: c?.nome || "" });
+                            }}
+                          >
+                            <SelectTrigger id="cargo">
+                              <SelectValue placeholder="Selecione um cargo" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background z-50">
+                              <SelectItem value="none">Nenhum</SelectItem>
+                              {cargosCustom.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.nome}
+                                </SelectItem>
+                              ))}
+                              {formData.cargo && !formData.cargo_id && (
+                                <SelectItem value={`__legacy__:${formData.cargo}`}>
+                                  {formData.cargo} (legado)
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[11px] text-muted-foreground">
+                            Cadastre novos cargos em "Cargos & Permissões".
+                          </p>
                         </div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="cargo_id">
-                          Cargo Personalizado (Permissões)
-                          <span className="text-xs text-muted-foreground font-normal ml-1">
-                            — opcional, aplica permissões definidas no cargo
-                          </span>
-                        </Label>
-                        <Select
-                          value={formData.cargo_id || "none"}
-                          onValueChange={(v) =>
-                            setFormData({ ...formData, cargo_id: v === "none" ? null : v })
-                          }
-                        >
-                          <SelectTrigger id="cargo_id">
-                            <SelectValue placeholder="Sem cargo personalizado" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sem cargo personalizado</SelectItem>
-                            {cargosCustom.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="cpf_cnpj">CPF/CNPJ</Label>
