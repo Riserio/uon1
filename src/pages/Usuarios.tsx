@@ -1119,8 +1119,7 @@ export default function Usuarios() {
     { id: "inativos", label: "Inativos", icon: UserX, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400", badge: inactiveProfiles.length },
     { id: "equipes", label: "Equipes", icon: UsersRound, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
     { id: "hierarquia", label: "Hierarquia", icon: Network, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
-    { id: "permissoes", label: "Permissões", icon: Shield, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
-    { id: "cargos", label: "Cargos", icon: Briefcase, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" },
+    { id: "cargos", label: "Cargos & Permissões", icon: Shield, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" },
     { id: "logs", label: "Logs", icon: Briefcase, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400" },
   ];
 
