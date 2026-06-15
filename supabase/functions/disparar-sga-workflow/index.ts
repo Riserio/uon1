@@ -41,16 +41,20 @@ serve(async (req) => {
     });
 
     const token = authHeader.replace('Bearer ', '');
-    const { data, error: claimsError } = await authClient.auth.getClaims(token);
-    
-    if (claimsError || !data?.claims) {
-      return new Response(
-        JSON.stringify({ success: false, message: "Token inválido" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    let user: { id: string; email: string };
+    if (token === supabaseKey) {
+      // Chamada interna via service role (ex: backfill-worker)
+      user = { id: '00000000-0000-0000-0000-000000000000', email: 'system@backfill' };
+    } else {
+      const { data, error: claimsError } = await authClient.auth.getClaims(token);
+      if (claimsError || !data?.claims) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Token inválido" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      user = { id: data.claims.sub as string, email: data.claims.email as string };
     }
-
-    const user = { id: data.claims.sub as string, email: data.claims.email as string };
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     if (!githubPat || !githubRepoOwner || !githubRepoName) {
