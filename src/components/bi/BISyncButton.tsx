@@ -13,10 +13,11 @@ import {
   Settings, Eye, EyeOff, Save,
   Zap, AlertTriangle, ExternalLink, Square,
   Download, LogIn, Filter, Send, Timer, HardDrive,
-  ChevronRight, RefreshCw, Wifi, WifiOff
+  ChevronRight, RefreshCw, Wifi, WifiOff, CalendarRange
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import BackfillPanel from "./BackfillPanel";
 
 type ModuleType = "cobranca" | "eventos" | "mgf";
 
@@ -112,7 +113,7 @@ interface BISyncButtonProps {
 
 export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButtonProps) {
   const [open, setOpen] = useState(false);
-  const [activeView, setActiveView] = useState<"modules" | "config" | "history">("modules");
+  const [activeView, setActiveView] = useState<"modules" | "backfill" | "config" | "history">("modules");
   const [creds, setCreds] = useState<HinovaCredenciais>({
     corretora_id: corretoraId,
     hinova_url: "", hinova_user: "", hinova_pass: "", hinova_codigo_cliente: "",
@@ -451,6 +452,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           <div className="flex items-center gap-1.5 mt-3">
             {[
               { id: "modules" as const, label: "Módulos", icon: Zap },
+              { id: "backfill" as const, label: "Backfill", icon: CalendarRange },
               { id: "config" as const, label: "Configuração", icon: Settings },
               { id: "history" as const, label: "Histórico", icon: RefreshCw },
             ].map(v => (
