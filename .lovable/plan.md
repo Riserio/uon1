@@ -1,78 +1,42 @@
-## Backfill por período — Cobrança, Eventos e MGF
+## Modo "Por dia" — Repetir automaticamente todo dia (D-1)
 
-Nova aba **"Backfill"** no modal de Sincronização (`BISyncButton`), unificando os 3 módulos com uma experiência moderna e segura.
+Adicionar ao painel **Backfill** a opção de salvar **uma regra única** que, todo dia, no horário já configurado em **Configurações de Sincronização** da associação, dispara automaticamente um backfill do **dia anterior** (D-1) para o módulo escolhido.
 
-### 1. Interface (mais funcional e fácil)
+### UI (`BackfillPanel.tsx`)
 
-Layout em 3 seções dentro de uma única tela com tabs por módulo (Cobrança / Eventos / MGF):
+No modo **"Por dia"**, abaixo do seletor de data, adicionar:
 
-```text
-┌─────────────────────────────────────────────────────┐
-│ [ Cobrança ] [ Eventos ] [ MGF ]                    │
-├─────────────────────────────────────────────────────┤
-│ Presets rápidos:                                    │
-│ [Mês anterior] [Mês atual] [Últimos 6 meses]        │
-│ [Ano anterior] [Ano atual]  [Tudo]                  │
-│                                                     │
-│ Ou escolha um período:                              │
-│  ( ) Por dia      [DatePicker único]                │
-│  (•) Por período  [De ▼] [Até ▼]                    │
-│                                                     │
-│            [ + Adicionar à fila ]                   │
-├─────────────────────────────────────────────────────┤
-│ Fila de execução (1 por vez):                       │
-│  ● 01/05/2026 → 31/05/2026  Em execução  45%        │
-│  ○ 01/04/2026 → 30/04/2026  Aguardando              │
-│  ✓ 01/06/2026 → 14/06/2026  Concluído   1.245 reg.  │
-│  ✗ 01/03/2026 → 31/03/2026  Falhou      [Tentar]    │
-└─────────────────────────────────────────────────────┘
-```
+- Switch **"Repetir automaticamente todo dia"** (busca sempre o dia anterior).
+- Quando ativado:
+  - O seletor de data some.
+  - Mostra um resumo: *"Todo dia às HH:MM (horário de Configurações) busca o dia anterior."*
+  - O botão muda para **"Salvar regra automática"** (ou **"Desativar regra"** se já existir).
+  - Mostra status atual: *Próxima execução: amanhã às HH:MM →  buscar DD/MM/AAAA*.
+- Convive normalmente com jobs manuais via presets/período (não conflita).
 
-- Cada item da fila mostra: período, status (aguardando / executando / concluído / falhou), progresso, registros importados.
-- Botões: **Pausar fila**, **Limpar concluídos**, **Tentar novamente** (em itens falhos).
-- Aviso visual quando o usuário tenta adicionar um período que **sobrepõe** outro já enfileirado/concluído no mesmo módulo+associação → bloqueio com mensagem clara.
+### Backend
 
-### 2. Regras de período
+**Nova tabela `backfill_recurrences`** (1 linha por `corretora_id` + `modulo`):
+- `ativo` (bool), `offset_dias` (int, default 1 = D-1), `ultima_execucao_em` (timestamptz).
+- Constraint unique (`corretora_id`, `modulo`).
+- RLS: mesmas regras de `backfill_jobs`.
 
-- **Presets** calculados em America/Sao_Paulo (seguindo o padrão de datas do projeto).
-- **MGF**: aceita período (o robô envia o range no portal Hinova; quando não houver filtro nativo no portal, o range é aplicado pós-extração no parser, mantendo o comportamento atual de "trazer tudo" como fallback de segurança).
-- **Por dia**: cria 1 item na fila com `data_inicio = data_fim = dia escolhido`.
-- **Tudo**: range fixo a partir de 01/01/2020 até hoje (configurável).
-- **Não permitir duplicatas/overlap**: validação client-side + constraint no banco (`EXCLUDE USING gist` em `corretora_id + modulo + tstzrange`) para impedir 2 jobs concorrentes na mesma janela.
+**Nova função SQL `enqueue_recurrent_backfills()`** (SECURITY DEFINER):
+- Para cada recorrência ativa:
+  1. Lê o horário do scheduler já configurado na tabela do módulo (`cobranca_automacao_config.horario_execucao`, `sga_automacao_config.horario_execucao`, `mgf_automacao_config.horario_execucao`).
+  2. Se `now() (America/Sao_Paulo)` >= horário e ainda não rodou hoje (`ultima_execucao_em < hoje 00:00`):
+     - Calcula `data = hoje - offset_dias`.
+     - Insere em `backfill_jobs` (`status: pendente`, ignora se já existir job para esse `data_inicio=data_fim=data`).
+     - Atualiza `ultima_execucao_em = now()`.
 
-### 3. Execução automática, 1 por vez (mais seguro)
+**Cron `pg_cron`**: roda `enqueue_recurrent_backfills()` a cada 5 minutos. O `backfill-worker` (já existente, a cada 1 min) então pega o job e dispara o robô.
 
-- Nova tabela `backfill_jobs` com fila persistente (sobrevive a F5 e troca de sessão).
-- Edge function **`backfill-worker`** acionada via:
-  - `pg_cron` a cada 1 minuto pegando o **próximo job pendente da associação** com `FOR UPDATE SKIP LOCKED` (garante 1 por vez por associação).
-  - Trigger imediato após inserir um job (via `supabase.functions.invoke`) para começar na hora se a fila estiver vazia.
-- O worker chama o robô existente (`hinova-cobranca-importar`, `hinova-eventos-importar`, `hinova-mgf-importar`) passando `data_inicio` e `data_fim`, atualiza `status`, `progresso`, `registros_importados`, `erro` em tempo real.
-- Realtime do Supabase mantém a UI atualizada sem polling.
-- Respeita a porta de integridade existente (extração 0 registros = falha, não sobrescreve dashboard).
+### Resultado
 
-### 4. Atualização incremental (uso diário)
+Uma única regra salva por (associação, módulo). O usuário liga uma vez e o sistema executa todo dia no horário definido em **Configurações**, buscando sempre D-1, usando exatamente o mesmo motor de fila do Backfill (1 job por vez, com proteção de overlap e timeout).
 
-Após o backfill histórico estar completo, o usuário usa a opção **"Por dia"** para puxar o dia anterior em segundos — mesma interface, mesmo motor. Não há tela separada para "diário" vs "histórico".
+### Arquivos
 
----
-
-### Detalhes técnicos
-
-**Migration (`backfill_jobs`)**
-- `id`, `corretora_id`, `modulo` ('cobranca'|'eventos'|'mgf'), `data_inicio`, `data_fim`, `status` ('pendente'|'executando'|'concluido'|'falhou'|'cancelado'), `progresso` int, `registros_importados` int, `erro` text, `iniciado_em`, `concluido_em`, `created_by`, `created_at`, `updated_at`.
-- Constraint de exclusão evitando overlap (`corretora_id`, `modulo`, `tstzrange(data_inicio, data_fim, '[]')` com `&&`) apenas para status em ('pendente','executando','concluido').
-- RLS: admin/superintendente full; demais escopados por `corretora_id = get_user_corretora_id(auth.uid())`.
-- GRANT padrão (`authenticated`, `service_role`).
-
-**Edge functions**
-- `backfill-enqueue`: valida overlap, insere job e dispara worker.
-- `backfill-worker`: pega 1 job por associação com `SKIP LOCKED`, executa o robô correspondente, atualiza status. Idempotente, com timeout de 25 min.
-- Reuso integral dos importadores Hinova existentes — só recebem o range adicional.
-
-**Frontend**
-- Novo componente `BackfillPanel.tsx` (tabs por módulo + presets + fila).
-- Hook `useBackfillJobs(corretoraId)` com Realtime subscription.
-- Integrado como 3ª aba no `BISyncButton` (mantém "Sincronização instantânea" e "Configurações" intactos).
-
-**Memória**
-- Salvar regra: "Backfill por período = 1 job por vez por associação; presets BR (mês/ano anterior, 6 meses, tudo); overlap bloqueado por constraint."
+- **Migração**: criar `backfill_recurrences` + função + cron.
+- **Editar** `src/components/bi/BackfillPanel.tsx`: switch + status + salvar/remover recorrência.
+- **Novo hook** `useBackfillRecurrence.ts`: ler/gravar recorrência ativa por módulo.
