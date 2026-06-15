@@ -2137,6 +2137,30 @@ async function coletarDadosDoPeriodoAdaptativo(context, page, periodo, index, to
 }
 
 // ============================================
+// NAVIGATION HELPER (com retry + fallback)
+// ============================================
+async function gotoComRetry(page, url, maxAttempts = 3) {
+  const waitStrategies = ['domcontentloaded', 'load', 'commit'];
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const waitUntil = waitStrategies[Math.min(attempt - 1, waitStrategies.length - 1)];
+    try {
+      log(`Navegando para ${url} (tentativa ${attempt}/${maxAttempts}, waitUntil=${waitUntil})`, LOG_LEVELS.INFO);
+      await page.goto(url, { waitUntil, timeout: TIMEOUTS.PAGE_LOAD });
+      log(`Navegação concluída em ${attempt} tentativa(s)`, LOG_LEVELS.SUCCESS);
+      return;
+    } catch (err) {
+      lastError = err;
+      log(`Falha na navegação (tentativa ${attempt}): ${err.message}`, LOG_LEVELS.WARN);
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 5000 * attempt));
+      }
+    }
+  }
+  throw lastError;
+}
+
+// ============================================
 // MAIN
 // ============================================
 async function main() {
