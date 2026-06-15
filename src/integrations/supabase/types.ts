@@ -2275,7 +2275,7 @@ export type Database = {
           created_at: string
           descricao: string | null
           id: string
-          lider_id: string
+          lider_id: string | null
           nome: string
           updated_at: string
         }
@@ -2283,7 +2283,7 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           id?: string
-          lider_id: string
+          lider_id?: string | null
           nome: string
           updated_at?: string
         }
@@ -2291,7 +2291,7 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           id?: string
-          lider_id?: string
+          lider_id?: string | null
           nome?: string
           updated_at?: string
         }
