@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Loader2, CheckCircle2, XCircle, Clock, ExternalLink, X, RefreshCw, AlertTriangle, Trash2, Repeat, Database, Timer, CalendarDays, TrendingUp, Activity } from "lucide-react";
+import { CalendarIcon, Plus, Loader2, CheckCircle2, XCircle, Clock, ExternalLink, X, RefreshCw, AlertTriangle, Trash2, Repeat, Database, Timer, CalendarDays, TrendingUp, Activity, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
