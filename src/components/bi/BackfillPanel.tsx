@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Loader2, CheckCircle2, XCircle, Clock, ExternalLink, X, RefreshCw, AlertTriangle, Trash2, Repeat, Database, Timer, CalendarDays, TrendingUp, Activity } from "lucide-react";
+import { CalendarIcon, Plus, Loader2, CheckCircle2, XCircle, Clock, ExternalLink, X, RefreshCw, AlertTriangle, Trash2, Repeat, Database, Timer, CalendarDays, TrendingUp, Activity, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -95,6 +95,7 @@ export default function BackfillPanel({ corretoraId }: Props) {
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [diaUnico, setDiaUnico] = useState<Date | undefined>();
   const [adding, setAdding] = useState(false);
+  const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const { jobs, loading } = useBackfillJobs(corretoraId, modulo);
   const { rec, horaAgendada, enable, disable } = useBackfillRecurrence(corretoraId, modulo);
   const autoAtivo = !!rec?.ativo;
@@ -220,6 +221,19 @@ export default function BackfillPanel({ corretoraId }: Props) {
     } catch (e: any) {
       toast.error("Erro: " + (e?.message || "desconhecido"));
     } finally { setAdding(false); }
+  };
+
+  const runJobNow = async (job: BackfillJob) => {
+    if (job.status !== "pendente") return;
+    setRunningJobId(job.id);
+    try {
+      // Dispara o worker para consumir a fila imediatamente
+      const { error } = await supabase.functions.invoke("backfill-worker", { body: { force: true, job_id: job.id } });
+      if (error) throw error;
+      toast.success("Worker disparado — execução iniciada");
+    } catch (e: any) {
+      toast.error("Erro ao disparar: " + (e?.message || "desconhecido"));
+    } finally { setRunningJobId(null); }
   };
 
   const clearConcluded = async () => {
@@ -406,6 +420,11 @@ export default function BackfillPanel({ corretoraId }: Props) {
                     {job.status === "falhou" && (
                       <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => retryJob(job)} title="Tentar novamente">
                         <RefreshCw className="h-3 w-3" />
+                      </Button>
+                    )}
+                    {job.status === "pendente" && (
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-emerald-600 hover:text-emerald-600 hover:bg-emerald-500/10" onClick={() => runJobNow(job)} disabled={runningJobId === job.id} title="Executar agora">
+                        {runningJobId === job.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                       </Button>
                     )}
                     {(job.status === "pendente" || job.status === "executando") && (
