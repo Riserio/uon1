@@ -427,7 +427,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           {anyExecuting && <span className="absolute -top-1.5 -right-1.5 h-3 w-3 rounded-full bg-primary animate-pulse ring-2 ring-background" />}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md p-0 gap-0 rounded-2xl overflow-hidden max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-lg p-0 gap-0 rounded-2xl overflow-hidden max-h-[85vh] flex flex-col">
         <div className="border-b px-5 py-4 bg-muted/20 shrink-0">
           <div className="flex items-center justify-between">
             <div>
