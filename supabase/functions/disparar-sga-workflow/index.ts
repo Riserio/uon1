@@ -217,10 +217,20 @@ serve(async (req) => {
         .eq("id", config.id);
 
       // Calcular datas: desde 01/01/2000 até último dia do mês atual
-      const dataInicio = '01/01/2000';
-      const now = new Date();
-      const ultimoDiaMes = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const dataFim = `${String(ultimoDiaMes.getDate()).padStart(2, '0')}/${String(ultimoDiaMes.getMonth() + 1).padStart(2, '0')}/${ultimoDiaMes.getFullYear()}`;
+      // Se vier do backfill, usar período recebido (formato ISO YYYY-MM-DD -> DD/MM/YYYY)
+      const toBR = (iso: string) => {
+        const [y, m, d] = iso.split('-');
+        return `${d}/${m}/${y}`;
+      };
+      const dataInicio = bodyDataInicio ? toBR(bodyDataInicio) : '01/01/2000';
+      let dataFim: string;
+      if (bodyDataFim) {
+        dataFim = toBR(bodyDataFim);
+      } else {
+        const now = new Date();
+        const ultimoDiaMes = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        dataFim = `${String(ultimoDiaMes.getDate()).padStart(2, '0')}/${String(ultimoDiaMes.getMonth() + 1).padStart(2, '0')}/${ultimoDiaMes.getFullYear()}`;
+      }
 
       let relatorioUrl = urlEventos;
       if (!relatorioUrl && hinovaUrl) {
@@ -244,6 +254,7 @@ serve(async (req) => {
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-sga-hinova`,
       };
+      if (backfill_job_id) (workflowInputs as any).backfill_job_id = backfill_job_id;
 
       console.log(`[SGA Workflow] Disparando workflow - Período: ${dataInicio} até ${dataFim}, Relatório: ${relatorioUrl}`);
 
