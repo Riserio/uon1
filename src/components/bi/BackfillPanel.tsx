@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Loader2, CheckCircle2, XCircle, Clock, ExternalLink, X, RefreshCw, AlertTriangle, Trash2, Repeat } from "lucide-react";
+import { CalendarIcon, Plus, Loader2, CheckCircle2, XCircle, Clock, ExternalLink, X, RefreshCw, AlertTriangle, Trash2, Repeat, Database, Timer, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,26 @@ function parseISO(iso: string): Date {
 
 function fmtBR(iso: string): string {
   return format(parseISO(iso), "dd/MM/yyyy", { locale: ptBR });
+}
+
+function fmtDuration(startISO?: string | null, endISO?: string | null): string | null {
+  if (!startISO || !endISO) return null;
+  const ms = new Date(endISO).getTime() - new Date(startISO).getTime();
+  if (!isFinite(ms) || ms < 0) return null;
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  if (m < 60) return rs ? `${m}m ${rs}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return rm ? `${h}h ${rm}m` : `${h}h`;
+}
+
+function diasNoPeriodo(ini: string, fim: string): number {
+  const a = parseISO(ini).getTime();
+  const b = parseISO(fim).getTime();
+  return Math.max(1, Math.round((b - a) / 86400000) + 1);
 }
 
 function presetRanges() {
@@ -312,8 +332,35 @@ export default function BackfillPanel({ corretoraId }: Props) {
                 {job.status === "executando" && (
                   <Progress value={job.progresso} className="h-1" />
                 )}
-                {job.status === "concluido" && job.registros_importados != null && (
-                  <p className="text-[10px] text-muted-foreground">{job.registros_importados.toLocaleString("pt-BR")} registro(s) importado(s)</p>
+                {job.status === "concluido" && (
+                  <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-2 space-y-1">
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                      <CheckCircle2 className="h-3 w-3" /> Resumo da execução
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Database className="h-3 w-3" />
+                        <span className="text-foreground font-medium">{(job.registros_importados ?? 0).toLocaleString("pt-BR")}</span> registros
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <CalendarDays className="h-3 w-3" />
+                        <span className="text-foreground font-medium">{diasNoPeriodo(job.data_inicio, job.data_fim)}</span> dia(s)
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground col-span-2">
+                        <Clock className="h-3 w-3" />
+                        Período: <span className="text-foreground font-medium">{fmtBR(job.data_inicio)} → {fmtBR(job.data_fim)}</span>
+                      </div>
+                      {fmtDuration(job.iniciado_em, job.concluido_em) && (
+                        <div className="flex items-center gap-1 text-muted-foreground col-span-2">
+                          <Timer className="h-3 w-3" />
+                          Duração: <span className="text-foreground font-medium">{fmtDuration(job.iniciado_em, job.concluido_em)}</span>
+                          {job.concluido_em && (
+                            <span className="ml-auto">{format(new Date(job.concluido_em), "dd/MM HH:mm")}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
                 {job.status === "falhou" && job.erro && (
                   <p className="text-[10px] text-destructive line-clamp-2">{job.erro}</p>
