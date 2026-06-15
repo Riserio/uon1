@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Loader2, CheckCircle2, XCircle, Clock, ExternalLink, X, RefreshCw, AlertTriangle, Trash2, Repeat, Database, Timer, CalendarDays } from "lucide-react";
+import { CalendarIcon, Plus, Loader2, CheckCircle2, XCircle, Clock, ExternalLink, X, RefreshCw, AlertTriangle, Trash2, Repeat, Database, Timer, CalendarDays, TrendingUp, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -100,6 +100,48 @@ export default function BackfillPanel({ corretoraId }: Props) {
   const autoAtivo = !!rec?.ativo;
 
   const presets = useMemo(presetRanges, []);
+
+  // Métricas de estabilidade do módulo selecionado (calculadas a partir do histórico carregado)
+  const stats = useMemo(() => {
+    const finalizados = jobs.filter(j => j.status === "concluido" || j.status === "falhou");
+    const total = finalizados.length;
+    const sucessos = jobs.filter(j => j.status === "concluido").length;
+    const falhas = jobs.filter(j => j.status === "falhou").length;
+    const taxa = total > 0 ? Math.round((sucessos / total) * 100) : null;
+
+    const duracoes: number[] = [];
+    for (const j of jobs) {
+      if (j.status !== "concluido" || !j.iniciado_em || !j.concluido_em) continue;
+      const ms = new Date(j.concluido_em).getTime() - new Date(j.iniciado_em).getTime();
+      if (isFinite(ms) && ms > 0) duracoes.push(ms);
+    }
+    const tempoMedioMs = duracoes.length
+      ? Math.round(duracoes.reduce((a, b) => a + b, 0) / duracoes.length)
+      : null;
+
+    const totalRegistros = jobs
+      .filter(j => j.status === "concluido")
+      .reduce((acc, j) => acc + (j.registros_importados ?? 0), 0);
+
+    return { total, sucessos, falhas, taxa, tempoMedioMs, totalRegistros };
+  }, [jobs]);
+
+  const fmtMs = (ms: number | null): string => {
+    if (ms == null) return "—";
+    const s = Math.round(ms / 1000);
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    const rs = s % 60;
+    if (m < 60) return rs ? `${m}m ${rs}s` : `${m}m`;
+    const h = Math.floor(m / 60);
+    return `${h}h ${m % 60}m`;
+  };
+
+  const taxaColor =
+    stats.taxa == null ? "text-muted-foreground" :
+    stats.taxa >= 90 ? "text-emerald-600 dark:text-emerald-400" :
+    stats.taxa >= 70 ? "text-amber-600 dark:text-amber-400" :
+    "text-destructive";
 
   // Detecta overlap client-side com jobs existentes (não cancelado/falhou)
   const overlapMessage = useMemo(() => {
@@ -205,6 +247,50 @@ export default function BackfillPanel({ corretoraId }: Props) {
             {m.label}
           </button>
         ))}
+      </div>
+
+      {/* Métricas de estabilidade do módulo */}
+      <div className="rounded-2xl border bg-muted/40 backdrop-blur p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Activity className="h-3 w-3" /> Estabilidade — {MODULES.find(m => m.id === modulo)?.label}
+          </Label>
+          <span className="text-[10px] text-muted-foreground">últimas {jobs.length} execuções</span>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          <div className="rounded-lg bg-background/60 border p-2">
+            <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+              <TrendingUp className="h-2.5 w-2.5" /> Sucesso
+            </div>
+            <p className={cn("text-base font-bold leading-tight mt-0.5", taxaColor)}>
+              {stats.taxa != null ? `${stats.taxa}%` : "—"}
+            </p>
+            <p className="text-[9px] text-muted-foreground">{stats.sucessos}/{stats.total} ok</p>
+          </div>
+          <div className="rounded-lg bg-background/60 border p-2">
+            <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+              <Timer className="h-2.5 w-2.5" /> Tempo médio
+            </div>
+            <p className="text-base font-bold leading-tight mt-0.5">{fmtMs(stats.tempoMedioMs)}</p>
+            <p className="text-[9px] text-muted-foreground">por execução</p>
+          </div>
+          <div className="rounded-lg bg-background/60 border p-2">
+            <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+              <XCircle className="h-2.5 w-2.5" /> Falhas
+            </div>
+            <p className={cn("text-base font-bold leading-tight mt-0.5", stats.falhas > 0 ? "text-destructive" : "")}>
+              {stats.falhas}
+            </p>
+            <p className="text-[9px] text-muted-foreground">no período</p>
+          </div>
+          <div className="rounded-lg bg-background/60 border p-2">
+            <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+              <Database className="h-2.5 w-2.5" /> Registros
+            </div>
+            <p className="text-base font-bold leading-tight mt-0.5">{stats.totalRegistros.toLocaleString("pt-BR")}</p>
+            <p className="text-[9px] text-muted-foreground">importados</p>
+          </div>
+        </div>
       </div>
 
       {/* Presets */}
