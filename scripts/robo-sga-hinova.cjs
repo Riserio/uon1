@@ -1783,11 +1783,16 @@ async function baixarRelatorioViaFormReplay({ context, page, downloadDir, semant
   return { ...saved, source: 'formReplay' };
 }
 
-async function executarDownloadDoPeriodo({ context, page, downloadDir, semanticName }) {
+async function executarDownloadDoPeriodo({ context, page, downloadDir, semanticName, triggerDownload }) {
   const directCaptureTimeoutMs = Math.min(TIMEOUTS.DOWNLOAD_EVENT, 60000);
 
+  log('Armando captura de download antes de gerar o relatório...', LOG_LEVELS.INFO);
+  const directDownloadPromise = aguardarDownloadHibrido(context, page, downloadDir, semanticName, directCaptureTimeoutMs);
+  await page.waitForTimeout(300);
+  await triggerDownload();
+
   log('Aguardando download direto (janela curta) antes dos fallbacks...', LOG_LEVELS.INFO);
-  const directResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, directCaptureTimeoutMs);
+  const directResult = await directDownloadPromise;
   if (directResult.success) {
     return directResult;
   }
@@ -2025,13 +2030,12 @@ async function coletarDadosDoPeriodo(context, page, periodo, index, total) {
   await updateProgress('executando', 'DOWNLOAD');
   log(`Diretório de download: ${downloadDir}`);
 
-  await dispararGeracaoRelatorio(page);
-
   const downloadResult = await executarDownloadDoPeriodo({
     context,
     page,
     downloadDir,
     semanticName,
+    triggerDownload: () => dispararGeracaoRelatorio(page),
   });
 
   if (!downloadResult.success) {
