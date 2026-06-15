@@ -37,7 +37,9 @@ serve(async (req) => {
     // Decodificar JWT para obter dados do usuário
     const token = authHeader.replace('Bearer ', '');
     let user: { id: string; email: string };
-    try {
+    if (token === supabaseServiceKey) {
+      user = { id: '00000000-0000-0000-0000-000000000000', email: 'system@backfill' };
+    } else try {
       const payloadBase64 = token.split('.')[1];
       const payload = JSON.parse(atob(payloadBase64));
       if (!payload.sub || !payload.exp || payload.exp * 1000 < Date.now()) {
