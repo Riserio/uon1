@@ -136,7 +136,7 @@ async function fetchCredentialsFromServer() {
 // CONSTANTES
 // ============================================
 const TIMEOUTS = {
-  PAGE_LOAD: 90000,
+  PAGE_LOAD: 180000,
   LOGIN_RETRY_WAIT: 5000,
   DOWNLOAD_EVENT: 45 * 1000,
   DOWNLOAD_TOTAL: 20 * 60000,
@@ -1817,10 +1817,7 @@ async function executarDownloadDoPeriodo({ context, page, downloadDir, semanticN
 async function abrirPaginaRelatorio(page) {
   log(`Navegando para Relatório de Eventos: ${CONFIG.HINOVA_RELATORIO_URL}`);
 
-  await page.goto(CONFIG.HINOVA_RELATORIO_URL, {
-    waitUntil: 'domcontentloaded',
-    timeout: TIMEOUTS.PAGE_LOAD,
-  });
+  await gotoComRetry(page, CONFIG.HINOVA_RELATORIO_URL);
 
   await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {
     log('DOMContentLoaded timeout - continuando...', LOG_LEVELS.WARN);
@@ -2137,6 +2134,30 @@ async function coletarDadosDoPeriodoAdaptativo(context, page, periodo, index, to
 }
 
 // ============================================
+// NAVIGATION HELPER (com retry + fallback)
+// ============================================
+async function gotoComRetry(page, url, maxAttempts = 3) {
+  const waitStrategies = ['domcontentloaded', 'load', 'commit'];
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const waitUntil = waitStrategies[Math.min(attempt - 1, waitStrategies.length - 1)];
+    try {
+      log(`Navegando para ${url} (tentativa ${attempt}/${maxAttempts}, waitUntil=${waitUntil})`, LOG_LEVELS.INFO);
+      await page.goto(url, { waitUntil, timeout: TIMEOUTS.PAGE_LOAD });
+      log(`Navegação concluída em ${attempt} tentativa(s)`, LOG_LEVELS.SUCCESS);
+      return;
+    } catch (err) {
+      lastError = err;
+      log(`Falha na navegação (tentativa ${attempt}): ${err.message}`, LOG_LEVELS.WARN);
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 5000 * attempt));
+      }
+    }
+  }
+  throw lastError;
+}
+
+// ============================================
 // MAIN
 // ============================================
 async function main() {
@@ -2176,10 +2197,7 @@ async function main() {
     setStep('LOGIN');
     log(`Acessando portal: ${CONFIG.HINOVA_URL}`);
 
-    await page.goto(CONFIG.HINOVA_URL, {
-      waitUntil: 'domcontentloaded',
-      timeout: TIMEOUTS.PAGE_LOAD,
-    });
+    await gotoComRetry(page, CONFIG.HINOVA_URL);
 
     log('Aguardando formulário de login...');
     await page.waitForSelector('input[type="password"], input[name*="senha" i], input[id*="senha" i]', {
