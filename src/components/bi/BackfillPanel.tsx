@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Loader2, CheckCircle2, XCircle, Clock, ExternalLink, X, RefreshCw, AlertTriangle, Trash2 } from "lucide-react";
+import { CalendarIcon, Plus, Loader2, CheckCircle2, XCircle, Clock, ExternalLink, X, RefreshCw, AlertTriangle, Trash2, Repeat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useBackfillJobs, BackfillModulo, BackfillJob } from "@/hooks/useBackfillJobs";
+import { useBackfillRecurrence } from "@/hooks/useBackfillRecurrence";
 
 const MODULES: { id: BackfillModulo; label: string; color: string }[] = [
   { id: "cobranca", label: "Cobrança", color: "emerald" },
@@ -74,6 +76,8 @@ export default function BackfillPanel({ corretoraId }: Props) {
   const [diaUnico, setDiaUnico] = useState<Date | undefined>();
   const [adding, setAdding] = useState(false);
   const { jobs, loading } = useBackfillJobs(corretoraId, modulo);
+  const { rec, horaAgendada, enable, disable } = useBackfillRecurrence(corretoraId, modulo);
+  const autoAtivo = !!rec?.ativo;
 
   const presets = useMemo(presetRanges, []);
 
@@ -214,7 +218,39 @@ export default function BackfillPanel({ corretoraId }: Props) {
             <DateField label="Até" value={dataFim} onChange={setDataFim} />
           </div>
         ) : (
-          <DateField label="Dia" value={diaUnico} onChange={setDiaUnico} />
+          <>
+            {!autoAtivo && <DateField label="Dia" value={diaUnico} onChange={setDiaUnico} />}
+            <div className="rounded-lg border bg-background/60 p-2.5 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Repeat className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium">Repetir todo dia (D-1)</p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      Usa o horário definido em Configurações{horaAgendada ? ` (${horaAgendada})` : ""}
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={autoAtivo}
+                  onCheckedChange={async (v) => {
+                    const err = v ? await enable(1) : await disable();
+                    if (err) toast.error("Erro: " + err.message);
+                    else toast.success(v ? "Regra automática ativada" : "Regra desativada");
+                  }}
+                />
+              </div>
+              {autoAtivo && (
+                <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Próxima execução: {horaAgendada || "03:00"} (America/São_Paulo) — busca o dia anterior
+                  {rec?.ultima_execucao_em && (
+                    <span className="ml-1">· Última: {format(new Date(rec.ultima_execucao_em), "dd/MM HH:mm")}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {overlapMessage && (
@@ -224,9 +260,9 @@ export default function BackfillPanel({ corretoraId }: Props) {
           </div>
         )}
 
-        <Button size="sm" onClick={addJob} disabled={adding || !!overlapMessage} className="w-full h-8 rounded-xl gap-1.5">
+        <Button size="sm" onClick={addJob} disabled={adding || !!overlapMessage || (mode === "dia" && autoAtivo)} className="w-full h-8 rounded-xl gap-1.5">
           {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-          Adicionar à fila
+          {mode === "dia" && autoAtivo ? "Regra automática ativa" : "Adicionar à fila"}
         </Button>
       </div>
 
