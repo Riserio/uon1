@@ -622,6 +622,42 @@ export type Database = {
           },
         ]
       }
+      backfill_recurrences: {
+        Row: {
+          ativo: boolean
+          corretora_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          modulo: string
+          offset_dias: number
+          ultima_execucao_em: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          corretora_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          modulo: string
+          offset_dias?: number
+          ultima_execucao_em?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          corretora_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          modulo?: string
+          offset_dias?: number
+          ultima_execucao_em?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       banco_horas: {
         Row: {
           created_at: string
@@ -8122,6 +8158,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      enqueue_recurrent_backfills: {
+        Args: never
+        Returns: {
+          corretora_id: string
+          data_alvo: string
+          job_id: string
+          modulo: string
+        }[]
       }
       generate_contrato_numero: { Args: never; Returns: string }
       generate_lancamento_numero: { Args: never; Returns: string }
