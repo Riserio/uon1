@@ -92,6 +92,49 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const COBRANCA_TEMPLATE_NAME = "resumo_dirio";
 const COBRANCA_TEMPLATE_LANGUAGE = "pt_BR";
 
+// Cache: template name+lang -> placeholder count in BODY (auto-discovered via Meta Graph)
+const cobrancaTemplateBodyCountCache = new Map<string, number>();
+
+async function getCobrancaTemplateBodyCount(name: string, language: string): Promise<number | null> {
+  const key = `${name}::${language}`;
+  if (cobrancaTemplateBodyCountCache.has(key)) return cobrancaTemplateBodyCountCache.get(key)!;
+  const metaToken = Deno.env.get("META_WHATSAPP_TOKEN");
+  const metaPhoneId = Deno.env.get("META_WHATSAPP_PHONE_NUMBER_ID");
+  let wabaId = Deno.env.get("META_WHATSAPP_BUSINESS_ACCOUNT_ID") || "";
+  if (!metaToken || !metaPhoneId) return null;
+  try {
+    if (!wabaId) {
+      const phoneRes = await fetch(
+        `https://graph.facebook.com/v22.0/${metaPhoneId}?fields=whatsapp_business_account`,
+        { headers: { Authorization: `Bearer ${metaToken}` } },
+      );
+      const phoneJson = await phoneRes.json();
+      wabaId = phoneJson?.whatsapp_business_account?.id || "";
+      if (!wabaId) return null;
+    }
+    const res = await fetch(
+      `https://graph.facebook.com/v22.0/${wabaId}/message_templates?name=${encodeURIComponent(name)}&fields=name,language,components&limit=20`,
+      { headers: { Authorization: `Bearer ${metaToken}` } },
+    );
+    const json = await res.json();
+    if (!res.ok) return null;
+    const list = Array.isArray(json?.data) ? json.data : [];
+    const match = list.find((t: any) => t.name === name && t.language === language) || list.find((t: any) => t.name === name);
+    if (!match) return null;
+    const body = (match.components || []).find((c: any) => c.type === "BODY");
+    const placeholders = new Set<number>();
+    const re = /\{\{\s*(\d+)\s*\}\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(body?.text || "")) !== null) placeholders.add(Number(m[1]));
+    const count = placeholders.size;
+    cobrancaTemplateBodyCountCache.set(key, count);
+    return count;
+  } catch (e) {
+    console.error("[Webhook Cobrança] Erro descobrindo spec do template:", e);
+    return null;
+  }
+}
+
 function onlyDigits(value: string): string {
   return value.replace(/\D/g, "");
 }
@@ -106,8 +149,8 @@ function formatCurrencyBR(value: unknown): string {
   return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numeric);
 }
 
-function buildCobrancaTemplatePayload(to: string, dados: any) {
-  const bodyValues = [
+async function buildCobrancaTemplatePayload(to: string, dados: any) {
+  let bodyValues: any[] = [
     dados?.data_atual,
     dados?.percentual_inadimplencia,
     dados?.total_gerados,
@@ -120,6 +163,20 @@ function buildCobrancaTemplatePayload(to: string, dados: any) {
     dados?.cooperativa_menor_inadimplencia,
   ];
 
+  // Adjust to actual template placeholder count to avoid Meta error #132018
+  const expected = await getCobrancaTemplateBodyCount(COBRANCA_TEMPLATE_NAME, COBRANCA_TEMPLATE_LANGUAGE);
+  if (typeof expected === "number" && expected >= 0) {
+    if (bodyValues.length > expected) bodyValues = bodyValues.slice(0, expected);
+    else if (bodyValues.length < expected) {
+      bodyValues = [...bodyValues, ...Array.from({ length: expected - bodyValues.length }, () => "-")];
+    }
+  }
+
+  const components = bodyValues.length > 0 ? [{
+    type: "body",
+    parameters: bodyValues.map((value) => ({ type: "text", text: String(value ?? "-") })),
+  }] : [];
+
   return {
     messaging_product: "whatsapp",
     to,
@@ -127,12 +184,7 @@ function buildCobrancaTemplatePayload(to: string, dados: any) {
     template: {
       name: COBRANCA_TEMPLATE_NAME,
       language: { code: COBRANCA_TEMPLATE_LANGUAGE },
-      components: [
-        {
-          type: "body",
-          parameters: bodyValues.map((value) => ({ type: "text", text: String(value ?? "-") })),
-        },
-      ],
+      ...(components.length > 0 ? { components } : {}),
     },
   };
 }
@@ -1344,12 +1396,13 @@ serve(async (req) => {
               for (const phone of phoneNumbers) {
                 const formattedPhone = formatWhatsAppPhone(phone);
                 try {
+                  const templatePayload = await buildCobrancaTemplatePayload(formattedPhone, templateParams);
                   const metaResponse = await fetch(
                     `https://graph.facebook.com/v22.0/${metaPhoneNumberId}/messages`,
                     {
                       method: "POST",
                       headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
-                      body: JSON.stringify(buildCobrancaTemplatePayload(formattedPhone, templateParams)),
+                      body: JSON.stringify(templatePayload),
                     }
                   );
                   const metaData = await metaResponse.json();

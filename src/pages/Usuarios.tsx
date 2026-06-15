@@ -946,7 +946,7 @@ export default function Usuarios() {
     if (editingEquipe) {
       const { error } = await supabase.from("equipes").update(equipeFormData).eq("id", editingEquipe.id);
       if (error) {
-        toast.error("Erro ao atualizar equipe");
+        toast.error("Erro ao atualizar equipe: " + error.message);
         return;
       }
 
@@ -976,7 +976,7 @@ export default function Usuarios() {
         .select()
         .single();
       if (error) {
-        toast.error("Erro ao criar equipe");
+        toast.error("Erro ao criar equipe: " + error.message);
         return;
       }
 
@@ -1119,8 +1119,7 @@ export default function Usuarios() {
     { id: "inativos", label: "Inativos", icon: UserX, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400", badge: inactiveProfiles.length },
     { id: "equipes", label: "Equipes", icon: UsersRound, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
     { id: "hierarquia", label: "Hierarquia", icon: Network, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
-    { id: "permissoes", label: "Permissões", icon: Shield, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
-    { id: "cargos", label: "Cargos", icon: Briefcase, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" },
+    { id: "cargos", label: "Cargos & Permissões", icon: Shield, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" },
     { id: "logs", label: "Logs", icon: Briefcase, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400" },
   ];
 
@@ -1183,7 +1182,7 @@ export default function Usuarios() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         {/* Widget-style tab navigation */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 mb-4">
           {tabsConfig.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -1223,8 +1222,7 @@ export default function Usuarios() {
           <TabsTrigger value="inativos">Inativos</TabsTrigger>
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
           <TabsTrigger value="hierarquia">Hierarquia</TabsTrigger>
-          <TabsTrigger value="permissoes">Permissões</TabsTrigger>
-          <TabsTrigger value="cargos">Cargos</TabsTrigger>
+          <TabsTrigger value="cargos">Cargos &amp; Permissões</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
 
@@ -1722,43 +1720,38 @@ export default function Usuarios() {
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="cargo">Cargo</Label>
-                          <Input
-                            id="cargo"
-                            value={formData.cargo || ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                cargo: e.target.value,
-                              })
-                            }
-                          />
+                          <Select
+                            value={formData.cargo_id || (formData.cargo ? `__legacy__:${formData.cargo}` : "none")}
+                            onValueChange={(v) => {
+                              if (v === "none") {
+                                setFormData({ ...formData, cargo: "", cargo_id: null });
+                                return;
+                              }
+                              const c = cargosCustom.find((x) => x.id === v);
+                              setFormData({ ...formData, cargo_id: v, cargo: c?.nome || "" });
+                            }}
+                          >
+                            <SelectTrigger id="cargo">
+                              <SelectValue placeholder="Selecione um cargo" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background z-50">
+                              <SelectItem value="none">Nenhum</SelectItem>
+                              {cargosCustom.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.nome}
+                                </SelectItem>
+                              ))}
+                              {formData.cargo && !formData.cargo_id && (
+                                <SelectItem value={`__legacy__:${formData.cargo}`}>
+                                  {formData.cargo} (legado)
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[11px] text-muted-foreground">
+                            Cadastre novos cargos em "Cargos & Permissões".
+                          </p>
                         </div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="cargo_id">
-                          Cargo Personalizado (Permissões)
-                          <span className="text-xs text-muted-foreground font-normal ml-1">
-                            — opcional, aplica permissões definidas no cargo
-                          </span>
-                        </Label>
-                        <Select
-                          value={formData.cargo_id || "none"}
-                          onValueChange={(v) =>
-                            setFormData({ ...formData, cargo_id: v === "none" ? null : v })
-                          }
-                        >
-                          <SelectTrigger id="cargo_id">
-                            <SelectValue placeholder="Sem cargo personalizado" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sem cargo personalizado</SelectItem>
-                            {cargosCustom.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="cpf_cnpj">CPF/CNPJ</Label>
@@ -2210,16 +2203,34 @@ export default function Usuarios() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="approval-cargo">Cargo</Label>
-                      <Input
-                        id="approval-cargo"
-                        value={formData.cargo || ""}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            cargo: e.target.value,
-                          })
-                        }
-                      />
+                      <Select
+                        value={formData.cargo_id || (formData.cargo ? `__legacy__:${formData.cargo}` : "none")}
+                        onValueChange={(v) => {
+                          if (v === "none") {
+                            setFormData({ ...formData, cargo: "", cargo_id: null });
+                            return;
+                          }
+                          const c = cargosCustom.find((x) => x.id === v);
+                          setFormData({ ...formData, cargo_id: v, cargo: c?.nome || "" });
+                        }}
+                      >
+                        <SelectTrigger id="approval-cargo">
+                          <SelectValue placeholder="Selecione um cargo" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {cargosCustom.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                          {formData.cargo && !formData.cargo_id && (
+                            <SelectItem value={`__legacy__:${formData.cargo}`}>
+                              {formData.cargo} (legado)
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                     {approvalRole === "administrativo" && (
                       <div className="grid gap-2">
@@ -2593,75 +2604,20 @@ export default function Usuarios() {
         </TabsContent>
 
         {/* PERMISSÕES */}
-        <TabsContent value="permissoes">
-          <Card className="border-border/40 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-medium">Permissões de Menu por Perfil</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-medium text-lg mb-2">Configurar Permissões</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Configure quais menus cada perfil (role) pode visualizar e editar. As permissões podem ser definidas
-                    por perfil ou individualmente por usuário.
-                  </p>
-                  <Button onClick={() => setRoleMenuPermissionsDialogOpen(true)} className="gap-2">
-                    <Shield className="h-4 w-4" />
-                    Gerenciar Permissões por Perfil
-                  </Button>
-                </div>
-
-                <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Network className="h-4 w-4" />
-                    Hierarquia de Visualização de Dados
-                  </h4>
-                  <p className="text-sm text-muted-foreground">
-                    As permissões de menu controlam quais funcionalidades cada perfil pode acessar. A hierarquia de
-                    visualização de dados determina quais atendimentos cada usuário pode ver:
-                  </p>
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex items-start gap-2"></li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-semibold text-primary min-w-[140px]">Administrativo:</span>
-                      <span>Visualiza usuários abaixo dele na hierarquia (líderes e comerciais vinculados)</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-semibold text-primary min-w-[140px]">Líder:</span>
-                      <span>Visualiza membros da sua equipe</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-semibold text-primary min-w-[140px]">Comercial:</span>
-                      <span>Visualiza apenas sua própria produção</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900">
-                  <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Permissões Especiais</h4>
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
-                    • Permissões individuais por usuário sobrescrevem as permissões do perfil
-                    <br />• Use a coluna "Ações" na lista de usuários para configurar permissões individuais
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* CARGOS */}
+        {/* CARGOS & PERMISSÕES */}
         <TabsContent value="cargos">
           <Card className="border-border/40 shadow-sm">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-medium">Cargos & Funções Personalizados</CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <CardTitle className="text-base font-medium">Cargos & Permissões</CardTitle>
+                <Button size="sm" variant="outline" onClick={() => setRoleMenuPermissionsDialogOpen(true)} className="gap-2">
+                  <Shield className="h-4 w-4" />
+                  Permissões por Perfil de Sistema
+                </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Cadastre cargos personalizados e defina permissões de menu para cada um.
-                Estes cargos convivem com os perfis do sistema (admin, superintendente, líder, etc).
+                Cadastre cargos personalizados com permissões de menu específicas. Permissões individuais por
+                usuário sobrescrevem as do cargo, e as do cargo sobrescrevem as do perfil de sistema.
               </p>
             </CardHeader>
             <CardContent>
@@ -2839,15 +2795,15 @@ export default function Usuarios() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="rounded-lg border overflow-hidden">
-                <Table>
+              <div className="rounded-lg border overflow-x-auto">
+                <Table className="min-w-[640px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Data/Hora</TableHead>
                       <TableHead>Ação</TableHead>
                       <TableHead>Usuário Alvo</TableHead>
                       <TableHead>Realizado por</TableHead>
-                      <TableHead>Detalhes</TableHead>
+                      <TableHead className="min-w-[200px]">Detalhes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2860,16 +2816,19 @@ export default function Usuarios() {
                     ) : (
                       logs.map((log) => (
                         <TableRow key={log.id}>
-                          <TableCell>{new Date(log.created_at).toLocaleString("pt-BR")}</TableCell>
+                          <TableCell className="whitespace-nowrap text-xs">{new Date(log.created_at).toLocaleString("pt-BR")}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="uppercase text-xs">
                               {log.action}
                             </Badge>
                           </TableCell>
-                          <TableCell>{getProfileName(log.target_user_id)}</TableCell>
-                          <TableCell>{getProfileName(log.user_id)}</TableCell>
-                          <TableCell className="max-w-xl">
-                            <span className="text-sm text-muted-foreground">
+                          <TableCell className="text-xs">{getProfileName(log.target_user_id)}</TableCell>
+                          <TableCell className="text-xs">{getProfileName(log.user_id)}</TableCell>
+                          <TableCell className="max-w-[280px] sm:max-w-[420px]">
+                            <span
+                              className="text-xs text-muted-foreground block truncate"
+                              title={log.changes ? JSON.stringify(log.changes) : "-"}
+                            >
                               {log.changes ? JSON.stringify(log.changes) : "-"}
                             </span>
                           </TableCell>
