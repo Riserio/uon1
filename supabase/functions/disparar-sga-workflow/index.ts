@@ -258,7 +258,8 @@ serve(async (req) => {
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-sga-hinova`,
       };
-      if (backfill_job_id) (workflowInputs as any).backfill_job_id = backfill_job_id;
+      // backfill_job_id NÃO é enviado ao GitHub (workflow não declara esse input).
+      // O vínculo é mantido via execucao_id na tabela backfill_jobs.
 
       console.log(`[SGA Workflow] Disparando workflow - Período: ${dataInicio} até ${dataFim}, Relatório: ${relatorioUrl}`);
 
