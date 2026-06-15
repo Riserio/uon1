@@ -136,7 +136,7 @@ async function fetchCredentialsFromServer() {
 // CONSTANTES
 // ============================================
 const TIMEOUTS = {
-  PAGE_LOAD: 90000,
+  PAGE_LOAD: 180000,
   LOGIN_RETRY_WAIT: 5000,
   DOWNLOAD_EVENT: 45 * 1000,
   DOWNLOAD_TOTAL: 20 * 60000,
