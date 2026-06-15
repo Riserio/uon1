@@ -946,7 +946,7 @@ export default function Usuarios() {
     if (editingEquipe) {
       const { error } = await supabase.from("equipes").update(equipeFormData).eq("id", editingEquipe.id);
       if (error) {
-        toast.error("Erro ao atualizar equipe");
+        toast.error("Erro ao atualizar equipe: " + error.message);
         return;
       }
 
@@ -976,7 +976,7 @@ export default function Usuarios() {
         .select()
         .single();
       if (error) {
-        toast.error("Erro ao criar equipe");
+        toast.error("Erro ao criar equipe: " + error.message);
         return;
       }
 
