@@ -61,7 +61,8 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, corretora_id, run_id } = body;
+    const { action, corretora_id, run_id, data_inicio: bodyDataInicio, data_fim: bodyDataFim, bypass_daily_limit, backfill_job_id } = body;
+    const isServiceRole = authHeader.includes(supabaseKey);
 
     // ====================================
     // CANCELAR EXECUÇÃO
@@ -114,8 +115,9 @@ serve(async (req) => {
       console.log(`[SGA Workflow] Iniciando para corretora: ${corretora_id}`);
 
       // Verificar execução hoje
+      const skipDailyGate = bypass_daily_limit === true && isServiceRole;
       const hoje = new Date().toISOString().split('T')[0];
-      const { data: execucoesHoje } = await supabase
+      const { data: execucoesHoje } = skipDailyGate ? { data: [] as any[] } : await supabase
         .from("sga_automacao_execucoes")
         .select("id, status")
         .eq("corretora_id", corretora_id)
@@ -123,7 +125,7 @@ serve(async (req) => {
         .in("status", ["sucesso", "executando"])
         .limit(1);
 
-      if (execucoesHoje && execucoesHoje.length > 0) {
+      if (!skipDailyGate && execucoesHoje && execucoesHoje.length > 0) {
         const st = execucoesHoje[0].status;
         return new Response(
           JSON.stringify({ success: false, message: st === "executando" ? "Já existe uma execução em andamento hoje" : "Já houve uma integração com sucesso hoje." }),
