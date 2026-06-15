@@ -236,6 +236,9 @@ serve(async (req) => {
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-mgf-hinova`,
       };
+      if (data_inicio) (workflowInputs as any).data_inicio = data_inicio;
+      if (data_fim) (workflowInputs as any).data_fim = data_fim;
+      if (backfill_job_id) (workflowInputs as any).backfill_job_id = backfill_job_id;
 
       console.log(`[MGF GitHub Workflow] Disparando workflow para ${corretora_id}`);
 
