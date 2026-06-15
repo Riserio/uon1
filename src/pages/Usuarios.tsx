@@ -2203,16 +2203,34 @@ export default function Usuarios() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="approval-cargo">Cargo</Label>
-                      <Input
-                        id="approval-cargo"
-                        value={formData.cargo || ""}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            cargo: e.target.value,
-                          })
-                        }
-                      />
+                      <Select
+                        value={formData.cargo_id || (formData.cargo ? `__legacy__:${formData.cargo}` : "none")}
+                        onValueChange={(v) => {
+                          if (v === "none") {
+                            setFormData({ ...formData, cargo: "", cargo_id: null });
+                            return;
+                          }
+                          const c = cargosCustom.find((x) => x.id === v);
+                          setFormData({ ...formData, cargo_id: v, cargo: c?.nome || "" });
+                        }}
+                      >
+                        <SelectTrigger id="approval-cargo">
+                          <SelectValue placeholder="Selecione um cargo" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {cargosCustom.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                          {formData.cargo && !formData.cargo_id && (
+                            <SelectItem value={`__legacy__:${formData.cargo}`}>
+                              {formData.cargo} (legado)
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                     {approvalRole === "administrativo" && (
                       <div className="grid gap-2">
