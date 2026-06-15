@@ -2591,75 +2591,20 @@ export default function Usuarios() {
         </TabsContent>
 
         {/* PERMISSÕES */}
-        <TabsContent value="permissoes">
-          <Card className="border-border/40 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-medium">Permissões de Menu por Perfil</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-medium text-lg mb-2">Configurar Permissões</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Configure quais menus cada perfil (role) pode visualizar e editar. As permissões podem ser definidas
-                    por perfil ou individualmente por usuário.
-                  </p>
-                  <Button onClick={() => setRoleMenuPermissionsDialogOpen(true)} className="gap-2">
-                    <Shield className="h-4 w-4" />
-                    Gerenciar Permissões por Perfil
-                  </Button>
-                </div>
-
-                <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Network className="h-4 w-4" />
-                    Hierarquia de Visualização de Dados
-                  </h4>
-                  <p className="text-sm text-muted-foreground">
-                    As permissões de menu controlam quais funcionalidades cada perfil pode acessar. A hierarquia de
-                    visualização de dados determina quais atendimentos cada usuário pode ver:
-                  </p>
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex items-start gap-2"></li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-semibold text-primary min-w-[140px]">Administrativo:</span>
-                      <span>Visualiza usuários abaixo dele na hierarquia (líderes e comerciais vinculados)</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-semibold text-primary min-w-[140px]">Líder:</span>
-                      <span>Visualiza membros da sua equipe</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-semibold text-primary min-w-[140px]">Comercial:</span>
-                      <span>Visualiza apenas sua própria produção</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900">
-                  <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Permissões Especiais</h4>
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
-                    • Permissões individuais por usuário sobrescrevem as permissões do perfil
-                    <br />• Use a coluna "Ações" na lista de usuários para configurar permissões individuais
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* CARGOS */}
+        {/* CARGOS & PERMISSÕES */}
         <TabsContent value="cargos">
           <Card className="border-border/40 shadow-sm">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-medium">Cargos & Funções Personalizados</CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <CardTitle className="text-base font-medium">Cargos & Permissões</CardTitle>
+                <Button size="sm" variant="outline" onClick={() => setRoleMenuPermissionsDialogOpen(true)} className="gap-2">
+                  <Shield className="h-4 w-4" />
+                  Permissões por Perfil de Sistema
+                </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Cadastre cargos personalizados e defina permissões de menu para cada um.
-                Estes cargos convivem com os perfis do sistema (admin, superintendente, líder, etc).
+                Cadastre cargos personalizados com permissões de menu específicas. Permissões individuais por
+                usuário sobrescrevem as do cargo, e as do cargo sobrescrevem as do perfil de sistema.
               </p>
             </CardHeader>
             <CardContent>
