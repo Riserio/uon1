@@ -422,6 +422,11 @@ export default function BackfillPanel({ corretoraId }: Props) {
                         <RefreshCw className="h-3 w-3" />
                       </Button>
                     )}
+                    {job.status === "pendente" && (
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-emerald-600 hover:text-emerald-600 hover:bg-emerald-500/10" onClick={() => runJobNow(job)} disabled={runningJobId === job.id} title="Executar agora">
+                        {runningJobId === job.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                      </Button>
+                    )}
                     {(job.status === "pendente" || job.status === "executando") && (
                       <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => cancelJob(job.id)} title="Cancelar">
                         <X className="h-3 w-3" />
