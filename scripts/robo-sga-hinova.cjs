@@ -1817,10 +1817,7 @@ async function executarDownloadDoPeriodo({ context, page, downloadDir, semanticN
 async function abrirPaginaRelatorio(page) {
   log(`Navegando para Relatório de Eventos: ${CONFIG.HINOVA_RELATORIO_URL}`);
 
-  await page.goto(CONFIG.HINOVA_RELATORIO_URL, {
-    waitUntil: 'domcontentloaded',
-    timeout: TIMEOUTS.PAGE_LOAD,
-  });
+  await gotoComRetry(page, CONFIG.HINOVA_RELATORIO_URL);
 
   await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {
     log('DOMContentLoaded timeout - continuando...', LOG_LEVELS.WARN);
