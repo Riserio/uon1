@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { installRealtimeVisibilityPause } from "./lib/realtimeVisibility";
 
 // Auto-reload on stale chunk errors (after a new deploy, the cached index.html
 // references hashed chunks that no longer exist on the server).
@@ -22,5 +23,7 @@ window.addEventListener("error", (e) => handleChunkError(e?.message));
 window.addEventListener("unhandledrejection", (e: any) =>
   handleChunkError(e?.reason?.message || String(e?.reason || ""))
 );
+
+installRealtimeVisibilityPause();
 
 createRoot(document.getElementById("root")!).render(<App />);
