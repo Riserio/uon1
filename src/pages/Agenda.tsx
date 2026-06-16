@@ -156,10 +156,13 @@ export default function Agenda() {
       fetchEventos();
       fetchLembretes();
       fetchIntegrations();
-      const lembreteInterval = setInterval(() => verificarLembretes(), 60000);
+      const lembreteInterval = setInterval(() => {
+        if (document.visibilityState === 'visible') verificarLembretes();
+      }, 60000);
 
       // Auto-sync Google Calendar: immediate + every 3 minutes
       const doAutoSync = () => {
+        if (document.visibilityState !== 'visible') return;
         if (integrations.some(i => i.ativo)) {
           supabase.functions.invoke('google-calendar-sync').then(({ data }) => {
             if (data?.imported > 0 || data?.updated > 0) {
