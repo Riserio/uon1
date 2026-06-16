@@ -57,10 +57,10 @@ export function useWhatsAppUnread() {
       })
       .subscribe();
 
-    // Polling fallback every 10s in case realtime drops
+    // Polling fallback (60s, pausado quando aba oculta) - Realtime acima cobre o caminho rápido
     const pollInterval = setInterval(() => {
-      fetchUnread();
-    }, 10000);
+      if (document.visibilityState === 'visible') fetchUnread();
+    }, 60000);
 
     return () => {
       supabase.removeChannel(channel);
