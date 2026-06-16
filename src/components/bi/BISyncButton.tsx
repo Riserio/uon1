@@ -227,9 +227,14 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     );
     return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
   }, [open, corretoraId, loadActiveExecutions, loadModuleStatuses]);
+  // Polling de fallback apenas se a aba estiver visível e a 30s
+  // (o Realtime acima já cobre os updates em tempo real – isto serve
+  // só como rede de segurança caso o canal caia).
   useEffect(() => {
     if (!open || !corretoraId) return;
-    pollRef.current = setInterval(() => { loadActiveExecutions(); }, 3000);
+    pollRef.current = setInterval(() => {
+      if (document.visibilityState === 'visible') loadActiveExecutions();
+    }, 30000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [open, corretoraId, loadActiveExecutions]);
 
