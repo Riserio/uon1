@@ -17,7 +17,15 @@ const handleChunkError = (msg?: string) => {
   const last = Number(sessionStorage.getItem(RELOAD_KEY) || 0);
   if (Date.now() - last < 10000) return; // avoid reload loops
   sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
-  window.location.reload();
+  // Force cache bypass: append a cache-buster query param so the browser
+  // re-fetches index.html and the new hashed chunk references.
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("_cb", String(Date.now()));
+    window.location.replace(url.toString());
+  } catch {
+    window.location.reload();
+  }
 };
 window.addEventListener("error", (e) => handleChunkError(e?.message));
 window.addEventListener("unhandledrejection", (e: any) =>
