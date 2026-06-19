@@ -357,6 +357,8 @@ export default function GestaoJornada() {
           .eq("profile_id", user.id)
           .eq("ativo", true)
           .eq("bate_ponto", true)
+          .order("created_at", { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         if (funcionarioError) throw funcionarioError;
