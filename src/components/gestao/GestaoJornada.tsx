@@ -177,6 +177,7 @@ export default function GestaoJornada() {
   const [funcionarioId, setFuncionarioId] = useState<string>("");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [endereco, setEndereco] = useState<string>("");
+  const [locationStatus, setLocationStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const [alertasOpen, setAlertasOpen] = useState(false);
   const [ajusteOpen, setAjusteOpen] = useState(false);
   const [anexosOpen, setAnexosOpen] = useState(false);
@@ -323,6 +324,7 @@ export default function GestaoJornada() {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           setLocation({ lat, lng });
+          setLocationStatus("ready");
           try {
             const response = await fetch(
               `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
@@ -334,22 +336,69 @@ export default function GestaoJornada() {
           }
         },
         (error) => {
-          console.error("Erro ao obter localização:", error);
-          toast.error("Não foi possível obter sua localização");
+          console.warn("Localização indisponível; registro de ponto continuará liberado:", error);
+          setLocationStatus("unavailable");
         },
       );
+    } else {
+      setLocationStatus("unavailable");
     }
   }, []);
 
   const registrarPonto = useMutation({
     mutationFn: async (tipo: string) => {
-      if (!funcionarioId) throw new Error("Selecione um funcionário");
-      if (registeredTypes.has(tipo))
+      if (!user?.id) throw new Error("Sessão expirada. Entre novamente para registrar o ponto.");
+
+      let targetFuncionarioId = funcionarioId;
+      if (isLimitedUser) {
+        const { data: ownFuncionario, error: funcionarioError } = await supabase
+          .from("funcionarios")
+          .select("id")
+          .eq("profile_id", user.id)
+          .eq("ativo", true)
+          .eq("bate_ponto", true)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (funcionarioError) throw funcionarioError;
+        if (!ownFuncionario?.id) throw new Error("Seu usuário não está vinculado a um funcionário ativo para bater ponto.");
+        targetFuncionarioId = ownFuncionario.id;
+        if (!funcionarioId) setFuncionarioId(ownFuncionario.id);
+      }
+
+      if (!targetFuncionarioId) throw new Error("Selecione um funcionário");
+      if (registeredTypes.has(tipo) && targetFuncionarioId === funcionarioId)
         throw new Error(`${tiposPonto.find((t) => t.value === tipo)?.label} já foi registrado(a) hoje`);
+
+      const now = new Date();
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Sao_Paulo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(now);
+      const getPart = (type: string) => parts.find((part) => part.type === type)?.value;
+      const todaySp = `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
+      const inicioDia = new Date(`${todaySp}T00:00:00-03:00`).toISOString();
+      const fimDia = new Date(`${todaySp}T23:59:59.999-03:00`).toISOString();
+
+      const { data: registroExistente, error: checkError } = await supabase
+        .from("registros_ponto")
+        .select("id")
+        .eq("funcionario_id", targetFuncionarioId)
+        .eq("tipo", tipo)
+        .gte("data_hora", inicioDia)
+        .lte("data_hora", fimDia)
+        .maybeSingle();
+      if (checkError) throw checkError;
+      if (registroExistente)
+        throw new Error(`${tiposPonto.find((t) => t.value === tipo)?.label} já foi registrado(a) hoje`);
+
       const { error } = await supabase.from("registros_ponto").insert({
-        funcionario_id: funcionarioId,
+        funcionario_id: targetFuncionarioId,
         tipo,
-        data_hora: new Date().toISOString(),
+        data_hora: now.toISOString(),
         latitude: location?.lat,
         longitude: location?.lng,
         endereco_aproximado: endereco,
@@ -1403,6 +1452,11 @@ export default function GestaoJornada() {
                     <span className="flex items-center gap-1.5 text-emerald-600 bg-emerald-500/10 px-3 py-1.5 rounded-full">
                       <MapPin className="h-3.5 w-3.5" />
                       {endereco || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                    </span>
+                  ) : locationStatus === "unavailable" ? (
+                    <span className="flex items-center gap-1.5 text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
+                      <MapPin className="h-3.5 w-3.5" />
+                      Localização não informada
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5 text-amber-600 bg-amber-500/10 px-3 py-1.5 rounded-full">
