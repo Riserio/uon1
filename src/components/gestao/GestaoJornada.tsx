@@ -1451,6 +1451,11 @@ export default function GestaoJornada() {
                       <MapPin className="h-3.5 w-3.5" />
                       {endereco || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
                     </span>
+                  ) : locationStatus === "unavailable" ? (
+                    <span className="flex items-center gap-1.5 text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
+                      <MapPin className="h-3.5 w-3.5" />
+                      Localização não informada
+                    </span>
                   ) : (
                     <span className="flex items-center gap-1.5 text-amber-600 bg-amber-500/10 px-3 py-1.5 rounded-full">
                       <AlertTriangle className="h-3.5 w-3.5" />
