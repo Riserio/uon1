@@ -109,6 +109,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
   const [contratadaRepresentante, setContratadaRepresentante] = useState("");
   const [contratadaAssinaturaAutomatica, setContratadaAssinaturaAutomatica] = useState(true);
   const [contratadaManualMode, setContratadaManualMode] = useState(false);
+  const [lembreteAtivo, setLembreteAtivo] = useState(true);
+  const [lembreteDiasStr, setLembreteDiasStr] = useState("3, 7, 14");
   const [conteudoHtml, setConteudoHtml] = useState("");
   const [signatarios, setSignatarios] = useState<Signatario[]>([]);
   const [showReceipt, setShowReceipt] = useState(false);
