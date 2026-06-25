@@ -402,18 +402,24 @@ export default function ContratoAssinatura() {
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-2 sm:pt-2 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              {contrato.contratante_nome && (
-                <div className="rounded-lg border p-3">
-                  <div className="text-xs text-muted-foreground">Contratante</div>
-                  <div className="font-medium">{contrato.contratante_nome}</div>
-                </div>
-              )}
-              {(contrato as any).contratada_nome && (
-                <div className="rounded-lg border p-3">
-                  <div className="text-xs text-muted-foreground">Contratada</div>
-                  <div className="font-medium">{(contrato as any).contratada_nome}</div>
-                </div>
-              )}
+              {(() => {
+                // Agrupa signatários pelo tipo (designação real definida no contrato)
+                const grupos: Record<string, string[]> = {};
+                (assinaturasList || []).forEach((a: any) => {
+                  const tipo = (a.tipo || "Signatário").toString();
+                  const label = tipo.charAt(0).toUpperCase() + tipo.slice(1).toLowerCase();
+                  if (!grupos[label]) grupos[label] = [];
+                  if (a.nome) grupos[label].push(a.nome);
+                });
+                return Object.entries(grupos).map(([label, nomes]) => (
+                  <div key={label} className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">{label}{nomes.length > 1 ? `s (${nomes.length})` : ""}</div>
+                    <div className="font-medium space-y-0.5">
+                      {nomes.map((n, i) => <div key={i}>{n}</div>)}
+                    </div>
+                  </div>
+                ));
+              })()}
               {contrato.valor_contrato && (
                 <div className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">Valor</div>
