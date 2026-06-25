@@ -118,12 +118,14 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
     // Meta (PARTES)
     const meta = document.createElement("div");
     meta.style.marginBottom = "8px";
+    const contratadaLabel = contrato?.contratada_nome || "Vangard Gestora";
+    const contratadaEndereco = contrato?.contratada_endereco || "Rua Gonçalves Dias, 89 - Funcionários, Belo Horizonte - MG";
     meta.innerHTML = `
       <strong>PARTES</strong>
       <p style="margin:6px 0;"><strong>CONTRATANTE:</strong> ${contrato?.contratante_nome || "-"}</p>
       <p style="margin:6px 0;"><strong>CPF/CNPJ:</strong> ${contrato?.contratante_cpf || contrato?.contratante_cnpj || "-"}</p>
       <p style="margin:6px 0;"><strong>E-mail:</strong> ${contrato?.contratante_email || "-"}</p>
-      <p style="margin:6px 0;"><strong>CONTRATADA:</strong> Vangard Gestora — Rua Gonçalves Dias, 89 - Funcionários, Belo Horizonte - MG</p>
+      <p style="margin:6px 0;"><strong>CONTRATADA:</strong> ${contratadaLabel} — ${contratadaEndereco}</p>
     `;
     container.appendChild(meta);
 

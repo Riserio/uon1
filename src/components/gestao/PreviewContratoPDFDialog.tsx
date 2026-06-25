@@ -38,12 +38,16 @@ export default function PreviewContratoPDFDialog({
     }
   );
 
+  const contratadaLabel = contrato?.contratada_nome || "Vangard Gestora";
+  const contratadaEmail = contrato?.contratada_email || "contatos@vangardgestora.com.br";
+  const contratadaTipo = contrato?.contratada_papel || "contratada";
+
   const allSignatarios = [
     {
-      nome: "Vangard Gestora",
-      email: "contatos@vangardgestora.com.br",
-      tipo: "contratado",
-      cpf: "",
+      nome: contratadaLabel,
+      email: contratadaEmail,
+      tipo: contratadaTipo,
+      cpf: contrato?.contratada_documento || "",
     },
     {
       nome: contrato?.contratante_nome || "",
@@ -144,8 +148,8 @@ export default function PreviewContratoPDFDialog({
                 </p>
               )}
               <p style={{ margin: "6px 0" }}>
-                <strong>CONTRATADA:</strong> Vangard Gestora — Rua Gonçalves Dias, 89 -
-                Funcionários, Belo Horizonte - MG
+                <strong>CONTRATADA:</strong> {contratadaLabel}
+                {contrato?.contratada_endereco ? ` — ${contrato.contratada_endereco}` : ""}
               </p>
             </div>
 
