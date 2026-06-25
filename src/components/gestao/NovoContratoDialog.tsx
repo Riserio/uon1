@@ -43,30 +43,30 @@ interface Signatario {
 }
 
 const PAPEIS_SIGNATARIO = [
-  "Contratante",
-  "Contratado",
-  "Locatário",
-  "Locador",
-  "Franqueado",
-  "Franqueador",
-  "Comprador",
-  "Vendedor",
-  "Prestador de Serviços",
-  "Tomador de Serviços",
-  "Cliente",
-  "Fornecedor",
-  "Fiador",
-  "Sócio",
-  "Cotista",
   "Acionista",
-  "Gestora",
   "Avalista",
   "Cedente",
   "Cessionário",
+  "Cliente",
+  "Comprador",
+  "Contratado",
+  "Contratante",
+  "Cotista",
+  "Fiador",
+  "Fornecedor",
+  "Franqueado",
+  "Franqueador",
+  "Gestora",
+  "Locador",
+  "Locatário",
   "Parte Interessada",
+  "Prestador de Serviços",
+  "Sócio",
   "Testemunha",
+  "Tomador de Serviços",
+  "Vendedor",
   "Outro",
-];
+].sort((a, b) => (a === "Outro" ? 1 : b === "Outro" ? -1 : a.localeCompare(b, "pt-BR")));
 
 interface NovoContratoDialogProps {
   open: boolean;
