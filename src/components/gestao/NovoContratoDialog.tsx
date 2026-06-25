@@ -1085,6 +1085,37 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
             )}
           </div>
 
+          {/* Lembretes automáticos */}
+          <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <h4 className="font-medium text-sm">Lembretes automáticos por e-mail</h4>
+                <p className="text-xs text-muted-foreground">
+                  Cobra automaticamente os signatários que ainda não assinaram, nos dias configurados. Inspirado no Clicksign.
+                </p>
+              </div>
+              <Switch checked={lembreteAtivo} onCheckedChange={setLembreteAtivo} />
+            </div>
+            {lembreteAtivo && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Dias após o envio para cobrar</Label>
+                <Input
+                  value={lembreteDiasStr}
+                  onChange={(e) => setLembreteDiasStr(e.target.value)}
+                  placeholder="Ex.: 3, 7, 14"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Separe por vírgula. Padrão: 3, 7 e 14 dias. O lembrete sai 09:00 (UTC) e respeita a data de expiração do link.
+                </p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {parseLembreteDias(lembreteDiasStr).map((d) => (
+                    <Badge key={d} variant="secondary" className="text-xs">{d} dias</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Valor e Datas */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
