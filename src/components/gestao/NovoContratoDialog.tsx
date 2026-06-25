@@ -207,6 +207,9 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
     setContratadaRepresentante(contratoEdicao.contratada_representante || "");
     setContratadaAssinaturaAutomatica(contratoEdicao.contratada_assinatura_automatica !== false);
     setContratadaManualMode(!!contratoEdicao.contratada_manual_mode);
+    setLembreteAtivo(contratoEdicao.lembrete_ativo !== false);
+    const dias = (contratoEdicao.lembrete_dias as number[] | null) || [3, 7, 14];
+    setLembreteDiasStr(dias.join(", "));
   }, [open, contratoEdicao]);
 
   // Substituir variáveis no conteúdo (apenas para templates HTML)
