@@ -47,6 +47,7 @@ import NovoContratoDialog from "@/components/gestao/NovoContratoDialog";
 import TemplateContratoDialog from "@/components/gestao/TemplateContratoDialog";
 import VisualizarContratoDialog from "@/components/gestao/VisualizarContratoDialog";
 import PdfCamposAssinaturaDialog from "@/components/gestao/PdfCamposAssinaturaDialog";
+import EnviarLinkSignatariosDialog from "@/components/gestao/EnviarLinkSignatariosDialog";
 import { downloadContratoPDF } from "@/components/gestao/utils/downloadContratoPDF";
 import { PageHeader } from "@/components/ui/page-header";
 
