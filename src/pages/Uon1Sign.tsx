@@ -47,6 +47,7 @@ import NovoContratoDialog from "@/components/gestao/NovoContratoDialog";
 import TemplateContratoDialog from "@/components/gestao/TemplateContratoDialog";
 import VisualizarContratoDialog from "@/components/gestao/VisualizarContratoDialog";
 import PdfCamposAssinaturaDialog from "@/components/gestao/PdfCamposAssinaturaDialog";
+import EnviarLinkSignatariosDialog from "@/components/gestao/EnviarLinkSignatariosDialog";
 import { downloadContratoPDF } from "@/components/gestao/utils/downloadContratoPDF";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -113,6 +114,17 @@ export default function Uon1Sign() {
   const [visualizarContrato, setVisualizarContrato] = useState<any>(null);
   const [editandoContrato, setEditandoContrato] = useState<any | null>(null);
   const [pdfCamposContrato, setPdfCamposContrato] = useState<any | null>(null);
+  const [enviarLinkContrato, setEnviarLinkContrato] = useState<any | null>(null);
+  const [enviarLinkCanal, setEnviarLinkCanal] = useState<"whatsapp" | "email">("whatsapp");
+
+  const abrirEnvio = (contrato: any, canal: "whatsapp" | "email") => {
+    if (!contrato.link_token) {
+      toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
+      return;
+    }
+    setEnviarLinkCanal(canal);
+    setEnviarLinkContrato(contrato);
+  };
 
   const { data: contratos, isLoading } = useQuery({
     queryKey: ["contratos", statusFilter, showArchived],
@@ -612,11 +624,11 @@ export default function Uon1Sign() {
                                   <Copy className="h-4 w-4 mr-2" />
                                   Copiar Link
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => sendWhatsApp(contrato)}>
+                                <DropdownMenuItem onClick={() => abrirEnvio(contrato, "whatsapp")}>
                                   <MessageCircle className="h-4 w-4 mr-2" />
                                   Enviar WhatsApp
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => sendEmail(contrato)}>
+                                <DropdownMenuItem onClick={() => abrirEnvio(contrato, "email")}>
                                   <Mail className="h-4 w-4 mr-2" />
                                   Enviar E-mail
                                 </DropdownMenuItem>
@@ -665,6 +677,14 @@ export default function Uon1Sign() {
         contrato={editandoContrato}
       />
       <TemplateContratoDialog open={templateOpen} onOpenChange={setTemplateOpen} />
+      {enviarLinkContrato && (
+        <EnviarLinkSignatariosDialog
+          open={!!enviarLinkContrato}
+          onOpenChange={(o) => { if (!o) setEnviarLinkContrato(null); }}
+          canal={enviarLinkCanal}
+          contrato={enviarLinkContrato}
+        />
+      )}
       {visualizarContrato &&
       <VisualizarContratoDialog
         contrato={visualizarContrato}

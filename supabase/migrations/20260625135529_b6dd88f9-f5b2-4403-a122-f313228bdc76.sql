@@ -1,0 +1,1 @@
+ALTER TABLE public.contrato_assinaturas ADD COLUMN IF NOT EXISTS telefone TEXT;

@@ -1662,6 +1662,7 @@ export type Database = {
           ordem: number | null
           posicoes: Json | null
           status: string
+          telefone: string | null
           tipo: string
           ultimo_lembrete_em: string | null
           updated_at: string
@@ -1686,6 +1687,7 @@ export type Database = {
           ordem?: number | null
           posicoes?: Json | null
           status?: string
+          telefone?: string | null
           tipo?: string
           ultimo_lembrete_em?: string | null
           updated_at?: string
@@ -1710,6 +1712,7 @@ export type Database = {
           ordem?: number | null
           posicoes?: Json | null
           status?: string
+          telefone?: string | null
           tipo?: string
           ultimo_lembrete_em?: string | null
           updated_at?: string
