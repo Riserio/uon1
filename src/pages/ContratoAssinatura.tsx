@@ -61,10 +61,9 @@ export default function ContratoAssinatura() {
   const assinaturaPorParam = signatarioParam
     ? assinaturasList.find((a) => a.id === signatarioParam)
     : null;
-  const currentAssinatura =
-    (assinaturaPorParam && assinaturaPorParam.status === "pendente"
-      ? assinaturaPorParam
-      : null) || assinaturasList.find((a) => a.status === "pendente");
+  const currentAssinatura = signatarioParam
+    ? (assinaturaPorParam && assinaturaPorParam.status === "pendente" ? assinaturaPorParam : null)
+    : assinaturasList.find((a) => a.status === "pendente");
 
   // Resize canvas based on container
   useEffect(() => {
