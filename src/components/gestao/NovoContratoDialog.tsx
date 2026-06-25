@@ -33,6 +33,17 @@ import { sugerirPapelContratante } from "./utils/papeisPorTipoContrato";
 import { Switch } from "@/components/ui/switch";
 import SignatariosSalvosPicker from "./SignatariosSalvosPicker";
 
+function parseLembreteDias(s: string): number[] {
+  return Array.from(
+    new Set(
+      s
+        .split(/[,\s;]+/)
+        .map((x) => parseInt(x.trim(), 10))
+        .filter((n) => Number.isFinite(n) && n > 0 && n <= 365)
+    )
+  ).sort((a, b) => a - b);
+}
+
 interface Signatario {
   nome: string;
   email: string;
