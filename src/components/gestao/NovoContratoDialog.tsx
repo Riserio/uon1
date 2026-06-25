@@ -450,12 +450,12 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contratos"] });
-      toast.success("Contrato criado com sucesso!");
+      toast.success(isEdicao ? "Contrato atualizado com sucesso!" : "Contrato criado com sucesso!");
       onOpenChange(false);
       resetForm();
     },
     onError: (error) => {
-      toast.error("Erro ao criar contrato: " + error.message);
+      toast.error((isEdicao ? "Erro ao salvar contrato: " : "Erro ao criar contrato: ") + error.message);
     },
   });
 
@@ -481,6 +481,16 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
     setSignatarios([]);
     setShowReceipt(false);
     setSelectedTemplate(null);
+    setContratadaTipo("pj");
+    setContratadaPapel("Contratada");
+    setContratadaNome("");
+    setContratadaDocumento("");
+    setContratadaEmail("");
+    setContratadaTelefone("");
+    setContratadaEndereco("");
+    setContratadaRepresentante("");
+    setContratadaAssinaturaAutomatica(true);
+    setContratadaManualMode(false);
   };
 
   // Formatar valor para exibição
@@ -598,9 +608,11 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo Contrato</DialogTitle>
+          <DialogTitle>{isEdicao ? "Editar Contrato" : "Novo Contrato"}</DialogTitle>
           <DialogDescription>
-            Crie um novo contrato para enviar para assinatura
+            {isEdicao
+              ? "Atualize os dados do contrato antes da assinatura. Assinaturas já coletadas são preservadas."
+              : "Crie um novo contrato para enviar para assinatura"}
           </DialogDescription>
         </DialogHeader>
 
