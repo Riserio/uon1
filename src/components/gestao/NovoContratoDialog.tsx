@@ -631,15 +631,6 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl h-[92vh] p-0 overflow-hidden flex flex-col gap-0">
-        {(() => {
-          const steps = [
-            { id: 0, label: "Documento", desc: "Título, template e datas", icon: FileSignature },
-            { id: 1, label: "Signatários", desc: "Quem irá assinar", icon: Users },
-            { id: 2, label: "Configurações", desc: "Lembretes e prazo", icon: Settings2 },
-            { id: 3, label: "Revisão", desc: "Confirme e envie", icon: ClipboardCheck },
-          ];
-          return null;
-        })()}
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="text-xl">{isEdicao ? "Editar Contrato" : "Novo Contrato"}</DialogTitle>
           <DialogDescription>
