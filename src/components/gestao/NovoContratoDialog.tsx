@@ -514,6 +514,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
     setContratadaRepresentante("");
     setContratadaAssinaturaAutomatica(true);
     setContratadaManualMode(false);
+    setCurrentStep(0);
   };
 
   // Formatar valor para exibição
