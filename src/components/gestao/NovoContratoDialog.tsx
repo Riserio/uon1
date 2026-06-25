@@ -796,6 +796,85 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
           </div>
 
           {/* Signatários Adicionais — logo abaixo do signatário principal */}
+          {/* Dados da Contratada (espelha o signatário) */}
+          <div className="border rounded-lg p-4 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="font-medium">Dados da Contratada</h4>
+              <div className="flex gap-2">
+                <Button type="button" variant={contratadaTipo === "pf" ? "default" : "outline"} size="sm" onClick={() => setContratadaTipo("pf")}>Pessoa Física</Button>
+                <Button type="button" variant={contratadaTipo === "pj" ? "default" : "outline"} size="sm" onClick={() => setContratadaTipo("pj")}>Pessoa Jurídica</Button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 p-3 bg-muted/40 rounded-lg">
+              <div className="space-y-0.5">
+                <Label className="text-sm">Assinatura automática da contratada</Label>
+                <p className="text-xs text-muted-foreground">
+                  Quando ligada, a contratada já é considerada assinada no momento da criação. Desligue para coletar a assinatura no mesmo fluxo do contratante.
+                </p>
+              </div>
+              <Switch checked={contratadaAssinaturaAutomatica} onCheckedChange={setContratadaAssinaturaAutomatica} />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">Informar dados manualmente</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setContratadaManualMode(!contratadaManualMode)}
+              >
+                {contratadaManualMode ? "Usar padrão da associação" : "Informar outra empresa"}
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2">
+                <Label>Papel da Contratada</Label>
+                <Select value={contratadaPapel} onValueChange={setContratadaPapel}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o papel" /></SelectTrigger>
+                  <SelectContent>
+                    {PAPEIS_SIGNATARIO.map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{contratadaTipo === "pf" ? "Nome Completo" : "Razão Social"}</Label>
+                <Input value={contratadaNome} onChange={(e) => setContratadaNome(e.target.value)} placeholder={contratadaTipo === "pf" ? "Nome completo" : "Razão Social"} />
+              </div>
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <Input type="email" value={contratadaEmail} onChange={(e) => setContratadaEmail(e.target.value)} placeholder="email@exemplo.com" />
+              </div>
+              {contratadaTipo === "pf" ? (
+                <div className="space-y-2">
+                  <Label>CPF</Label>
+                  <MaskedInput format="###.###.###-##" value={contratadaDocumento} onValueChange={(values) => setContratadaDocumento(values.value)} placeholder="000.000.000-00" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>CNPJ</Label>
+                  <MaskedInput format="##.###.###/####-##" value={contratadaDocumento} onValueChange={(values) => setContratadaDocumento(values.value)} placeholder="00.000.000/0000-00" />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Telefone / WhatsApp</Label>
+                <MaskedInput format="(##) #####-####" value={contratadaTelefone} onValueChange={(values) => setContratadaTelefone(values.value)} placeholder="(00) 00000-0000" />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Endereço</Label>
+                <Input value={contratadaEndereco} onChange={(e) => setContratadaEndereco(e.target.value)} placeholder="Rua, número, bairro, cidade - UF" />
+              </div>
+              {contratadaTipo === "pj" && (
+                <div className="space-y-2 col-span-2">
+                  <Label>Representante Legal</Label>
+                  <Input value={contratadaRepresentante} onChange={(e) => setContratadaRepresentante(e.target.value)} placeholder="Nome do representante legal" />
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
             <div className="flex items-center justify-between">
               <div>
