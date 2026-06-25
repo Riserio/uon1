@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { Loader2, Plus, Trash2, FileText, Download, Eye } from "lucide-react";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import PreviewContratoPDFDialog from "./PreviewContratoPDFDialog";
 
 interface Signatario {
   nome: string;
@@ -92,6 +93,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const [conteudoHtml, setConteudoHtml] = useState("");
   const [signatarios, setSignatarios] = useState<Signatario[]>([]);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [previewPdfOpen, setPreviewPdfOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
 
   // Fetch contratos anteriores para reaproveitar dados
@@ -902,6 +904,14 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
             Cancelar
           </Button>
           <Button
+            variant="outline"
+            onClick={() => setPreviewPdfOpen(true)}
+            disabled={!titulo && !conteudoHtml}
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            Visualizar PDF
+          </Button>
+          <Button
             onClick={() => criarContrato.mutate()}
             disabled={criarContrato.isPending}
           >
@@ -910,6 +920,32 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           </Button>
         </DialogFooter>
       </DialogContent>
+      <PreviewContratoPDFDialog
+        open={previewPdfOpen}
+        onOpenChange={setPreviewPdfOpen}
+        contrato={{
+          titulo,
+          conteudo_html: processarConteudo(conteudoHtml),
+          contratante_nome: contratanteNome,
+          contratante_email: contratanteEmail,
+          contratante_cpf: contratanteTipo === "pf" ? contratanteCpf : "",
+          contratante_cnpj: contratanteTipo === "pj" ? contratanteCnpj : "",
+          contratante_papel: contratantePapel,
+          contratante_telefone: contratanteTelefone,
+          valor_contrato: valorContrato ? parseFloat(valorContrato) : null,
+          data_inicio: dataInicio,
+          data_fim: dataFim,
+          numero: "PRÉVIA",
+        }}
+        logoUrl={selectedTemplate?.logo_url}
+        signatarios={signatarios.map((s) => ({
+          nome: s.nome,
+          email: s.email,
+          cpf: s.tipoPessoa === "pj" ? "" : s.cpf,
+          cnpj: s.tipoPessoa === "pj" ? s.cnpj : "",
+          tipo: s.tipo,
+        }))}
+      />
     </Dialog>
   );
 }
