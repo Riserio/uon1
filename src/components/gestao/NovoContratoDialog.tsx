@@ -930,7 +930,29 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
                       <Badge variant="outline" className="text-xs">
                         Signatário #{index + 2}
                       </Badge>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <SignatariosSalvosPicker
+                          currentData={{
+                            nome: sig.nome,
+                            email: sig.email,
+                            telefone: sig.telefone,
+                            documento: sig.tipoPessoa === "pj" ? (sig.cnpj || "") : sig.cpf,
+                            tipo_pessoa: (sig.tipoPessoa || "pf") as any,
+                            papel: sig.tipo,
+                          }}
+                          onSelect={(s) => {
+                            updateSignatario(index, "tipoPessoa" as any, s.tipo_pessoa);
+                            updateSignatario(index, "nome", s.nome);
+                            updateSignatario(index, "email", s.email || "");
+                            updateSignatario(index, "telefone" as any, s.telefone || "");
+                            if (s.tipo_pessoa === "pf") {
+                              updateSignatario(index, "cpf", s.documento || "");
+                            } else {
+                              updateSignatario(index, "cnpj" as any, s.documento || "");
+                            }
+                            if (s.papel) updateSignatario(index, "tipo", s.papel);
+                          }}
+                        />
                         <div className="flex gap-1">
                           <Button
                             type="button"
