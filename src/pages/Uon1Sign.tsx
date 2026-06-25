@@ -114,6 +114,17 @@ export default function Uon1Sign() {
   const [visualizarContrato, setVisualizarContrato] = useState<any>(null);
   const [editandoContrato, setEditandoContrato] = useState<any | null>(null);
   const [pdfCamposContrato, setPdfCamposContrato] = useState<any | null>(null);
+  const [enviarLinkContrato, setEnviarLinkContrato] = useState<any | null>(null);
+  const [enviarLinkCanal, setEnviarLinkCanal] = useState<"whatsapp" | "email">("whatsapp");
+
+  const abrirEnvio = (contrato: any, canal: "whatsapp" | "email") => {
+    if (!contrato.link_token) {
+      toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
+      return;
+    }
+    setEnviarLinkCanal(canal);
+    setEnviarLinkContrato(contrato);
+  };
 
   const { data: contratos, isLoading } = useQuery({
     queryKey: ["contratos", statusFilter, showArchived],
