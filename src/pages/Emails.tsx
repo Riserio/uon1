@@ -59,7 +59,7 @@ interface SMTPConfig {
   from_name: string;
 }
 
-type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_alerta" | "ouvidoria_finalizado";
+type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_alerta" | "ouvidoria_finalizado" | "contrato_assinatura";
 type TemplateFrequencia = "manual" | "diario" | "semanal" | "mensal";
 
 interface EmailTemplate {
@@ -1425,6 +1425,7 @@ export default function Emails() {
                         {novoTemplate.tipo === "ouvidoria" && " {protocolo}, {nome_cliente}, {nome_associacao}, {logo_url}, {tipo}, {data}, {cor_primaria}"}
                         {novoTemplate.tipo === "ouvidoria_alerta" && " {protocolo}, {nome_manifestante}, {nome_associacao}, {logo_url}, {tipo}, {prioridade}, {descricao}, {data}, {hora}"}
                         {novoTemplate.tipo === "ouvidoria_finalizado" && " {protocolo}, {nome_cliente}, {nome_associacao}, {logo_url}, {tipo}, {status}, {resposta}, {data}, {cor_primaria}"}
+                        {novoTemplate.tipo === "contrato_assinatura" && " {{nome}}, {{titulo}}, {{numero}}, {{link}}, {{empresa}}, {{vencimento}}"}
                       </p>
                     </div>
 
