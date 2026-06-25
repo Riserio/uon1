@@ -1660,6 +1660,7 @@ export type Database = {
           nome: string
           notificado_em: string | null
           ordem: number | null
+          posicoes: Json | null
           status: string
           tipo: string
           updated_at: string
@@ -1682,6 +1683,7 @@ export type Database = {
           nome: string
           notificado_em?: string | null
           ordem?: number | null
+          posicoes?: Json | null
           status?: string
           tipo?: string
           updated_at?: string
@@ -1704,6 +1706,7 @@ export type Database = {
           nome?: string
           notificado_em?: string | null
           ordem?: number | null
+          posicoes?: Json | null
           status?: string
           tipo?: string
           updated_at?: string
@@ -1879,6 +1882,10 @@ export type Database = {
       contratos: {
         Row: {
           arquivado: boolean
+          arquivo_pdf_nome: string | null
+          arquivo_pdf_path: string | null
+          arquivo_pdf_url: string | null
+          campos_assinatura: Json
           conteudo_html: string
           contratada_assinatura_automatica: boolean
           contratada_documento: string | null
@@ -1918,6 +1925,10 @@ export type Database = {
         }
         Insert: {
           arquivado?: boolean
+          arquivo_pdf_nome?: string | null
+          arquivo_pdf_path?: string | null
+          arquivo_pdf_url?: string | null
+          campos_assinatura?: Json
           conteudo_html: string
           contratada_assinatura_automatica?: boolean
           contratada_documento?: string | null
@@ -1957,6 +1968,10 @@ export type Database = {
         }
         Update: {
           arquivado?: boolean
+          arquivo_pdf_nome?: string | null
+          arquivo_pdf_path?: string | null
+          arquivo_pdf_url?: string | null
+          campos_assinatura?: Json
           conteudo_html?: string
           contratada_assinatura_automatica?: boolean
           contratada_documento?: string | null
