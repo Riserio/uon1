@@ -33,8 +33,31 @@ interface Signatario {
   nome: string;
   email: string;
   cpf: string;
-  tipo: "contratante" | "contratado" | "testemunha";
+  tipo: string;
 }
+
+const PAPEIS_CONTRATANTE = [
+  "Contratante",
+  "Contratado",
+  "Locatário",
+  "Locador",
+  "Franqueado",
+  "Franqueador",
+  "Comprador",
+  "Vendedor",
+  "Prestador de Serviços",
+  "Tomador de Serviços",
+  "Cliente",
+  "Fornecedor",
+  "Fiador",
+  "Sócio",
+  "Avalista",
+  "Cedente",
+  "Cessionário",
+  "Parte Interessada",
+  "Testemunha",
+  "Outro",
+];
 
 interface NovoContratoDialogProps {
   open: boolean;
@@ -52,6 +75,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const [contratanteNome, setContratanteNome] = useState("");
   const [contratanteEmail, setContratanteEmail] = useState("");
   const [contratanteTipo, setContratanteTipo] = useState<"pf" | "pj">("pf");
+  const [contratantePapel, setContratantePapel] = useState<string>("Contratante");
   const [contratanteCpf, setContratanteCpf] = useState("");
   const [contratanteCnpj, setContratanteCnpj] = useState("");
   const [contratanteTelefone, setContratanteTelefone] = useState("");
@@ -60,6 +84,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const [dataFim, setDataFim] = useState("");
   const [prazoAssinatura, setPrazoAssinatura] = useState("");
   const [corretoraId, setCorretoraId] = useState<string>("");
+  const [corretoraManualMode, setCorretoraManualMode] = useState(false);
+  const [corretoraNomeManual, setCorretoraNomeManual] = useState("");
   const [conteudoHtml, setConteudoHtml] = useState("");
   const [signatarios, setSignatarios] = useState<Signatario[]>([]);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -180,11 +206,13 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           contratante_cpf: contratanteTipo === "pf" ? contratanteCpf : null,
           contratado_cnpj: contratanteTipo === "pj" ? contratanteCnpj : null,
           contratante_telefone: contratanteTelefone,
+          contratante_papel: contratantePapel || null,
           valor_contrato: valorContrato ? parseFloat(valorContrato) : null,
           data_inicio: dataInicio || null,
           data_fim: dataFim || null,
           link_expires_at: linkExpiresAt,
-          corretora_id: corretoraId || null,
+          corretora_id: corretoraManualMode ? null : (corretoraId || null),
+          corretora_nome_manual: corretoraManualMode ? (corretoraNomeManual || null) : null,
           template_id: templateId || null,
           status: "rascunho",
           created_by: user.id,
@@ -307,6 +335,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
     setContratanteNome("");
     setContratanteEmail("");
     setContratanteTipo("pf");
+    setContratantePapel("Contratante");
     setContratanteCpf("");
     setContratanteCnpj("");
     setContratanteTelefone("");
@@ -315,6 +344,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
     setDataFim("");
     setPrazoAssinatura("");
     setCorretoraId("");
+    setCorretoraManualMode(false);
+    setCorretoraNomeManual("");
     setConteudoHtml("");
     setSignatarios([]);
     setShowReceipt(false);
@@ -491,19 +522,42 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
 
           {/* Associação */}
           <div className="space-y-2">
-            <Label>Associação</Label>
-            <Select value={corretoraId} onValueChange={setCorretoraId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma associação" />
-              </SelectTrigger>
-              <SelectContent>
-                {corretoras?.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center justify-between">
+              <Label>Associação / Empresa</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  setCorretoraManualMode(!corretoraManualMode);
+                  setCorretoraId("");
+                  setCorretoraNomeManual("");
+                }}
+              >
+                {corretoraManualMode ? "Selecionar cadastrada" : "Informar outra empresa"}
+              </Button>
+            </div>
+            {corretoraManualMode ? (
+              <Input
+                value={corretoraNomeManual}
+                onChange={(e) => setCorretoraNomeManual(e.target.value)}
+                placeholder="Nome da empresa (não cadastrada)"
+              />
+            ) : (
+              <Select value={corretoraId} onValueChange={setCorretoraId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma associação (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {corretoras?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Dados do Contratante */}
@@ -530,6 +584,24 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2">
+                <Label>Papel do Contratante</Label>
+                <Select value={contratantePapel} onValueChange={setContratantePapel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o papel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAPEIS_CONTRATANTE.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Ex.: locatário, franqueado, comprador, testemunha, etc.
+                </p>
+              </div>
               <div className="space-y-2">
                 <Label>{contratanteTipo === "pf" ? "Nome Completo *" : "Razão Social *"}</Label>
                 <Input
@@ -652,8 +724,11 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="contratado">Contratado</SelectItem>
-                    <SelectItem value="testemunha">Testemunha</SelectItem>
+                    {PAPEIS_CONTRATANTE.map((p) => (
+                      <SelectItem key={p} value={p.toLowerCase()}>
+                        {p}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button
