@@ -629,17 +629,84 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEdicao ? "Editar Contrato" : "Novo Contrato"}</DialogTitle>
+      <DialogContent className="max-w-5xl h-[92vh] p-0 overflow-hidden flex flex-col gap-0">
+        {(() => {
+          const steps = [
+            { id: 0, label: "Documento", desc: "Título, template e datas", icon: FileSignature },
+            { id: 1, label: "Signatários", desc: "Quem irá assinar", icon: Users },
+            { id: 2, label: "Configurações", desc: "Lembretes e prazo", icon: Settings2 },
+            { id: 3, label: "Revisão", desc: "Confirme e envie", icon: ClipboardCheck },
+          ];
+          return null;
+        })()}
+        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+          <DialogTitle className="text-xl">{isEdicao ? "Editar Contrato" : "Novo Contrato"}</DialogTitle>
           <DialogDescription>
             {isEdicao
-              ? "Atualize os dados do contrato antes da assinatura. Assinaturas já coletadas são preservadas."
-              : "Crie um novo contrato para enviar para assinatura"}
+              ? "Atualize os dados antes da assinatura. Assinaturas já coletadas são preservadas."
+              : "Siga as etapas abaixo para criar e enviar seu contrato."}
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex flex-1 min-h-0">
+          {/* Stepper lateral estilo Clicksign */}
+          <aside className="w-64 shrink-0 border-r bg-muted/30 px-4 py-6 overflow-y-auto hidden md:block">
+            <nav className="space-y-1">
+              {[
+                { id: 0, label: "Documento", desc: "Título, template e datas", icon: FileSignature },
+                { id: 1, label: "Signatários", desc: "Quem irá assinar", icon: Users },
+                { id: 2, label: "Configurações", desc: "Lembretes e prazo", icon: Settings2 },
+                { id: 3, label: "Revisão", desc: "Confirme e envie", icon: ClipboardCheck },
+              ].map((s) => {
+                const Icon = s.icon;
+                const isActive = currentStep === s.id;
+                const isDone = currentStep > s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setCurrentStep(s.id)}
+                    className={`w-full text-left flex items-start gap-3 rounded-xl px-3 py-3 transition-all ${
+                      isActive
+                        ? "bg-primary/10 border border-primary/30"
+                        : "hover:bg-muted border border-transparent"
+                    }`}
+                  >
+                    <div
+                      className={`mt-0.5 h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${
+                        isDone
+                          ? "bg-primary text-primary-foreground"
+                          : isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background border text-muted-foreground"
+                      }`}
+                    >
+                      {isDone ? <Check className="h-4 w-4" /> : s.id + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-medium ${isActive ? "text-foreground" : "text-foreground/80"}`}>
+                        {s.label}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{s.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          {/* Conteúdo da etapa */}
+          <div className="flex-1 overflow-y-auto px-6 py-6">
+            {/* Stepper compacto mobile */}
+            <div className="md:hidden mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Etapa {currentStep + 1} de 4</span>
+              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-primary transition-all" style={{ width: `${((currentStep + 1) / 4) * 100}%` }} />
+              </div>
+            </div>
+
         <div className="space-y-4">
+          {currentStep === 0 && (<>
           {/* Reaproveitar dados de contrato anterior */}
           {contratosAnteriores && contratosAnteriores.length > 0 && (
             <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-dashed">
@@ -725,7 +792,76 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
               </Select>
             )}
           </div>
+          {/* Valor e Datas */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Valor do Contrato</Label>
+              <CurrencyInput
+                value={valorContrato}
+                onValueChange={(values) => setValorContrato(values.value)}
+                placeholder="R$ 0,00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Data de Início do Contrato</Label>
+              <Input
+                type="date"
+                value={dataInicio}
+                onChange={(e) => setDataInicio(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Data de Fim do Contrato</Label>
+              <Input
+                type="date"
+                value={dataFim}
+                onChange={(e) => setDataFim(e.target.value)}
+              />
+            </div>
+          </div>
 
+          {/* Conteúdo do Contrato - apenas para HTML ou sem template */}
+          {(!selectedTemplate || selectedTemplate?.tipo_template === "html") && (
+            <div className="space-y-2">
+              <Label>Conteúdo do Contrato</Label>
+              <p className="text-xs text-muted-foreground">
+                Use variáveis: {"{{nome}}"}, {"{{cpf}}"}, {"{{email}}"}, {"{{valor}}"}, {"{{data_inicio}}"}, {"{{data_fim}}"}, {"{{data_atual}}"}
+              </p>
+              <Textarea
+                value={conteudoHtml}
+                onChange={(e) => setConteudoHtml(e.target.value)}
+                placeholder="Digite o conteúdo do contrato..."
+                rows={10}
+              />
+            </div>
+          )}
+
+          {/* Aviso para templates Word/PDF */}
+          {selectedTemplate?.tipo_template && selectedTemplate.tipo_template !== "html" && (
+            <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <FileText className="h-4 w-4 text-amber-600" />
+              <span className="text-sm text-amber-700">
+                Este template usa um documento {selectedTemplate.tipo_template.toUpperCase()} pré-definido.
+                As variáveis não serão substituídas automaticamente.
+              </span>
+              {selectedTemplate.arquivo_url && (
+                <a
+                  href={selectedTemplate.arquivo_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto"
+                >
+                  <Button variant="outline" size="sm">
+                    <Eye className="h-4 w-4 mr-1" />
+                    Ver
+                  </Button>
+                </a>
+              )}
+            </div>
+          )}
+          </>)}
+
+          {currentStep === 1 && (<>
           {/* Dados do Signatário (principal) */}
           <div className="border rounded-lg p-4 space-y-4">
             <div className="flex items-center justify-between">
