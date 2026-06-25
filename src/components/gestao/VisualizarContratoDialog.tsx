@@ -22,6 +22,9 @@ import {
 import { toast } from "sonner";
 import { downloadContratoPDF } from "./utils/downloadContratoPDF";
 import { openWhatsApp } from "@/utils/whatsapp";
+import PreviewContratoPDFDialog from "./PreviewContratoPDFDialog";
+import { useState } from "react";
+import { Eye, AlertCircle } from "lucide-react";
 
 interface VisualizarContratoDialogProps {
   contrato: any;
@@ -59,6 +62,7 @@ const contratoStatusConfig: Record<string, { label: string; color: string; bgCol
 };
 
 export default function VisualizarContratoDialog({ contrato, open, onOpenChange }: VisualizarContratoDialogProps) {
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const { data: historico } = useQuery({
     queryKey: ["contrato_historico", contrato?.id],
     queryFn: async () => {
@@ -177,14 +181,14 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
             <TabsList className="h-10 w-full justify-start bg-transparent p-0 gap-4">
               <TabsTrigger 
                 value="documento" 
-                className="h-10 px-0 pb-3 pt-0 data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary rounded-none"
+                className="h-10 px-0 pb-3 pt-0 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary rounded-none"
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Documento
               </TabsTrigger>
               <TabsTrigger 
                 value="assinaturas"
-                className="h-10 px-0 pb-3 pt-0 data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary rounded-none"
+                className="h-10 px-0 pb-3 pt-0 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary rounded-none"
               >
                 <Users className="h-4 w-4 mr-2" />
                 Assinaturas
@@ -194,7 +198,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
               </TabsTrigger>
               <TabsTrigger 
                 value="historico"
-                className="h-10 px-0 pb-3 pt-0 data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary rounded-none"
+                className="h-10 px-0 pb-3 pt-0 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary rounded-none"
               >
                 <History className="h-4 w-4 mr-2" />
                 Histórico
@@ -243,36 +247,38 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                 />
               </div>
 
-              {/* Document Preview — visual estilo PDF Viewer */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Prévia do Documento
+              {/* Document Preview — abre em PDF viewer dedicado */}
+              <div className="rounded-2xl border bg-card p-5 sm:p-6 space-y-4">
+                <div>
+                  <h4 className="text-base font-semibold flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    Documento
                   </h4>
-                  <Button variant="ghost" size="sm" onClick={handleDownloadPDF} className="h-7 text-xs">
-                    <Download className="h-3.5 w-3.5 mr-1.5" /> Baixar PDF
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Para uma leitura confortável, abra o contrato em formato PDF.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Button
+                    onClick={() => setPdfPreviewOpen(true)}
+                    className="h-11 rounded-full"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Visualizar documento (PDF)
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleDownloadPDF}
+                    className="h-11 rounded-full"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar PDF
                   </Button>
                 </div>
-                <div className="rounded-xl border bg-neutral-200 dark:bg-neutral-900 p-3 sm:p-6 overflow-x-auto">
-                  <div className="mx-auto bg-white text-black shadow-[0_8px_24px_-8px_rgba(0,0,0,0.25)] ring-1 ring-black/5 rounded-sm"
-                    style={{
-                      width: "min(100%, 794px)",
-                      minHeight: "min(1123px, 70vh)",
-                      padding: "clamp(24px, 6vw, 72px)",
-                      fontFamily: "Georgia, 'Times New Roman', serif",
-                      fontSize: "14px",
-                      lineHeight: 1.7,
-                      color: "#1f2937",
-                    }}
-                  >
-                    <div
-                      className="prose prose-sm max-w-none"
-                      style={{ color: "inherit", fontFamily: "inherit", lineHeight: "inherit" }}
-                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contrato?.conteudo_html || "<p style='text-align:center;color:#9ca3af'>Sem conteúdo</p>") }}
-                    />
-                  </div>
-                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Visualize ou baixe o PDF para uma leitura fiel ao documento final.
+                </p>
               </div>
               </div>
               </ScrollArea>
@@ -413,6 +419,19 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
           </div>
         </Tabs>
       </DialogContent>
+      <PreviewContratoPDFDialog
+        open={pdfPreviewOpen}
+        onOpenChange={setPdfPreviewOpen}
+        contrato={contrato || {}}
+        logoUrl={contrato?.contrato_templates?.logo_url}
+        signatarios={(assinaturas || []).map((a: any) => ({
+          nome: a.nome,
+          email: a.email,
+          cpf: a.cpf,
+          cnpj: a.cnpj,
+          tipo: a.tipo,
+        }))}
+      />
     </Dialog>
   );
 }
