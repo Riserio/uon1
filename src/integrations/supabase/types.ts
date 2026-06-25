@@ -1818,6 +1818,16 @@ export type Database = {
         Row: {
           arquivado: boolean
           conteudo_html: string
+          contratada_assinatura_automatica: boolean
+          contratada_documento: string | null
+          contratada_email: string | null
+          contratada_endereco: string | null
+          contratada_manual_mode: boolean
+          contratada_nome: string | null
+          contratada_papel: string | null
+          contratada_representante: string | null
+          contratada_telefone: string | null
+          contratada_tipo_pessoa: string | null
           contratado_cnpj: string | null
           contratado_email: string | null
           contratado_nome: string | null
@@ -1847,6 +1857,16 @@ export type Database = {
         Insert: {
           arquivado?: boolean
           conteudo_html: string
+          contratada_assinatura_automatica?: boolean
+          contratada_documento?: string | null
+          contratada_email?: string | null
+          contratada_endereco?: string | null
+          contratada_manual_mode?: boolean
+          contratada_nome?: string | null
+          contratada_papel?: string | null
+          contratada_representante?: string | null
+          contratada_telefone?: string | null
+          contratada_tipo_pessoa?: string | null
           contratado_cnpj?: string | null
           contratado_email?: string | null
           contratado_nome?: string | null
@@ -1876,6 +1896,16 @@ export type Database = {
         Update: {
           arquivado?: boolean
           conteudo_html?: string
+          contratada_assinatura_automatica?: boolean
+          contratada_documento?: string | null
+          contratada_email?: string | null
+          contratada_endereco?: string | null
+          contratada_manual_mode?: boolean
+          contratada_nome?: string | null
+          contratada_papel?: string | null
+          contratada_representante?: string | null
+          contratada_telefone?: string | null
+          contratada_tipo_pessoa?: string | null
           contratado_cnpj?: string | null
           contratado_email?: string | null
           contratado_nome?: string | null
