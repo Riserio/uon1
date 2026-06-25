@@ -25,6 +25,7 @@ import { openWhatsApp } from "@/utils/whatsapp";
 import PreviewContratoPDFDialog from "./PreviewContratoPDFDialog";
 import { useState } from "react";
 import { Eye, AlertCircle } from "lucide-react";
+import EnviarLinkSignatariosDialog from "./EnviarLinkSignatariosDialog";
 
 interface VisualizarContratoDialogProps {
   contrato: any;
@@ -63,6 +64,7 @@ const contratoStatusConfig: Record<string, { label: string; color: string; bgCol
 
 export default function VisualizarContratoDialog({ contrato, open, onOpenChange }: VisualizarContratoDialogProps) {
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [envioCanal, setEnvioCanal] = useState<"whatsapp" | "email" | "link" | null>(null);
   const { data: historico } = useQuery({
     queryKey: ["contrato_historico", contrato?.id],
     queryFn: async () => {
@@ -80,40 +82,12 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
   const assinaturas = contrato?.contrato_assinaturas || [];
   const contratoStatus = contratoStatusConfig[contrato?.status] || contratoStatusConfig.rascunho;
 
-  const copyLink = () => {
+  const abrirEnvio = (canal: "whatsapp" | "email" | "link") => {
     if (!contrato.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
       return;
     }
-    const link = `${window.location.origin}/contrato/${contrato.link_token}`;
-    navigator.clipboard.writeText(link);
-    toast.success("Link copiado!");
-  };
-
-  const sendWhatsApp = () => {
-    if (!contrato.link_token) {
-      toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
-      return;
-    }
-    const link = `${window.location.origin}/contrato/${contrato.link_token}`;
-    openWhatsApp({
-      phone: contrato.contratante_telefone,
-      message: `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
-    });
-  };
-
-  const sendEmail = () => {
-    if (!contrato.link_token) {
-      toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
-      return;
-    }
-    const link = `${window.location.origin}/contrato/${contrato.link_token}`;
-    const subject = encodeURIComponent(`Contrato para assinatura: ${contrato.titulo}`);
-    const body = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
-    );
-    const mailtoUrl = `mailto:${contrato.contratante_email || ""}?subject=${subject}&body=${body}`;
-    window.open(mailtoUrl, "_blank");
+    setEnvioCanal(canal);
   };
 
   const handleDownloadPDF = () => {
@@ -151,13 +125,13 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
             </Button>
             {hasLink && (
               <>
-                <Button variant="outline" size="sm" onClick={copyLink} className="h-8">
+                <Button variant="outline" size="sm" onClick={() => abrirEnvio("link")} className="h-8">
                   <Copy className="h-3.5 w-3.5 mr-1.5" /> Link
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={sendWhatsApp} 
+                  onClick={() => abrirEnvio("whatsapp")} 
                   className="h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
                 >
                   <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> WhatsApp
@@ -165,7 +139,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={sendEmail} 
+                  onClick={() => abrirEnvio("email")} 
                   className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
                 >
                   <Mail className="h-3.5 w-3.5 mr-1.5" /> E-mail
@@ -432,6 +406,14 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
           tipo: a.tipo,
         }))}
       />
+      {envioCanal && (
+        <EnviarLinkSignatariosDialog
+          open={!!envioCanal}
+          onOpenChange={(o) => { if (!o) setEnvioCanal(null); }}
+          canal={envioCanal}
+          contrato={contrato}
+        />
+      )}
     </Dialog>
   );
 }
