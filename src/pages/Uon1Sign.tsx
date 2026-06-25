@@ -112,6 +112,7 @@ export default function Uon1Sign() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [visualizarContrato, setVisualizarContrato] = useState<any>(null);
   const [editandoContrato, setEditandoContrato] = useState<any | null>(null);
+  const [pdfCamposContrato, setPdfCamposContrato] = useState<any | null>(null);
 
   const { data: contratos, isLoading } = useQuery({
     queryKey: ["contratos", statusFilter, showArchived],
