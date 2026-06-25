@@ -115,7 +115,7 @@ export default function Uon1Sign() {
   const [editandoContrato, setEditandoContrato] = useState<any | null>(null);
   const [pdfCamposContrato, setPdfCamposContrato] = useState<any | null>(null);
   const [enviarLinkContrato, setEnviarLinkContrato] = useState<any | null>(null);
-  const [enviarLinkCanal, setEnviarLinkCanal] = useState<"whatsapp" | "email">("whatsapp");
+  const [enviarLinkCanal, setEnviarLinkCanal] = useState<"whatsapp" | "email" | "link">("whatsapp");
 
   const abrirEnvio = (contrato: any, canal: "whatsapp" | "email") => {
     if (!contrato.link_token) {
@@ -228,9 +228,7 @@ export default function Uon1Sign() {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
       return;
     }
-    const link = `${window.location.origin}/contrato/${contrato.link_token}`;
-    navigator.clipboard.writeText(link);
-    toast.success("Link copiado!");
+    abrirEnvio(contrato, "link");
   };
 
   const sendWhatsApp = (contrato: any) => {
