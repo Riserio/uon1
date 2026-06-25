@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   CalendarDays,
   Archive,
-  EyeOff } from
+  EyeOff,
+  Pencil } from
 "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import {
@@ -108,6 +109,7 @@ export default function Uon1Sign() {
   const [novoContratoOpen, setNovoContratoOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [visualizarContrato, setVisualizarContrato] = useState<any>(null);
+  const [editandoContrato, setEditandoContrato] = useState<any | null>(null);
 
   const { data: contratos, isLoading } = useQuery({
     queryKey: ["contratos", statusFilter, showArchived],
@@ -507,6 +509,20 @@ export default function Uon1Sign() {
                           </Button>
                       }
 
+                        {(() => {
+                          const podeEditar = (contrato.status === "rascunho" || contrato.status === "aguardando_assinatura")
+                            && !assinaturas.some((a: any) => a.status === "assinado" && a.tipo !== "contratada" && a.tipo !== "contratado");
+                          return podeEditar ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => { setEditandoContrato(contrato); setNovoContratoOpen(true); }}
+                              title="Editar contrato">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          ) : null;
+                        })()}
+
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
@@ -581,7 +597,12 @@ export default function Uon1Sign() {
       </div>
 
       {/* Dialogs */}
-      <NovoContratoDialog open={novoContratoOpen} onOpenChange={setNovoContratoOpen} templates={templates || []} />
+      <NovoContratoDialog
+        open={novoContratoOpen}
+        onOpenChange={(o) => { setNovoContratoOpen(o); if (!o) setEditandoContrato(null); }}
+        templates={templates || []}
+        contrato={editandoContrato}
+      />
       <TemplateContratoDialog open={templateOpen} onOpenChange={setTemplateOpen} />
       {visualizarContrato &&
       <VisualizarContratoDialog
