@@ -1358,6 +1358,7 @@ export default function Emails() {
                           <option value="ouvidoria">Ouvidoria - Confirmação</option>
                           <option value="ouvidoria_alerta">Ouvidoria - Alerta Associação</option>
                           <option value="ouvidoria_finalizado">Ouvidoria - Finalizado</option>
+                          <option value="contrato_assinatura">Contrato - Assinatura</option>
                         </select>
                       </div>
 
