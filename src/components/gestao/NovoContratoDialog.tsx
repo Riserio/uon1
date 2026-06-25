@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2, FileText, Download, Eye } from "lucide-react";
+import { Check, FileSignature, Users, Settings2, ClipboardCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import PreviewContratoPDFDialog from "./PreviewContratoPDFDialog";
@@ -93,6 +94,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
   const isEdicao = !!contratoEdicao?.id;
   
   const [contratoAnteriorId, setContratoAnteriorId] = useState<string>("");
+  const [currentStep, setCurrentStep] = useState(0);
   const [templateId, setTemplateId] = useState<string>("");
   const [titulo, setTitulo] = useState("");
   const [contratanteNome, setContratanteNome] = useState("");
