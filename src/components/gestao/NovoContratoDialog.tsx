@@ -34,9 +34,12 @@ interface Signatario {
   email: string;
   cpf: string;
   tipo: string;
+  tipoPessoa?: "pf" | "pj";
+  cnpj?: string;
+  telefone?: string;
 }
 
-const PAPEIS_CONTRATANTE = [
+const PAPEIS_SIGNATARIO = [
   "Contratante",
   "Contratado",
   "Locatário",
