@@ -630,8 +630,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[92vh] p-0 overflow-hidden flex flex-col gap-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+      <DialogContent className="max-w-5xl w-[96vw] sm:w-[92vw] h-[95vh] sm:h-[92vh] p-0 overflow-hidden flex flex-col gap-0">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b shrink-0">
           <DialogTitle className="text-xl">{isEdicao ? "Editar Contrato" : "Novo Contrato"}</DialogTitle>
           <DialogDescription>
             {isEdicao
@@ -688,7 +688,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
           </aside>
 
           {/* Conteúdo da etapa */}
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 min-w-0">
             {/* Stepper compacto mobile */}
             <div className="md:hidden mb-4 flex items-center gap-2 text-xs text-muted-foreground">
               <span>Etapa {currentStep + 1} de 4</span>
@@ -1280,7 +1280,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t bg-muted/20">
+        <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 border-t bg-muted/20 shrink-0">
           <div className="flex w-full items-center justify-between gap-2">
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar
