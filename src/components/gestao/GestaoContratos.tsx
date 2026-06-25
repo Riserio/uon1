@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, FileText, Send, Eye, CheckCircle2, Clock, XCircle, FileSignature, Filter, Download, Copy, MessageCircle, Mail } from "lucide-react";
+import { Plus, Search, FileText, Send, Eye, CheckCircle2, Clock, XCircle, FileSignature, Filter, Download, Copy, MessageCircle, Mail, Pencil } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
@@ -56,6 +56,7 @@ export default function GestaoContratos() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [novoContratoOpen, setNovoContratoOpen] = useState(false);
+  const [editandoContrato, setEditandoContrato] = useState<any | null>(null);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [visualizarContrato, setVisualizarContrato] = useState<any>(null);
 
@@ -284,7 +285,15 @@ export default function GestaoContratos() {
                       <Button variant="ghost" size="icon" onClick={() => setVisualizarContrato(contrato)} title="Visualizar">
                         <Eye className="h-4 w-4" />
                       </Button>
-                      
+                      {(() => {
+                        const podeEditar = (contrato.status === "rascunho" || contrato.status === "aguardando_assinatura")
+                          && !assinaturas.some((a: any) => a.status === "assinado" && a.tipo !== "contratada" && a.tipo !== "contratado");
+                        return podeEditar ? (
+                          <Button variant="ghost" size="icon" onClick={() => { setEditandoContrato(contrato); setNovoContratoOpen(true); }} title="Editar contrato">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        ) : null;
+                      })()}
                       {hasLink && <>
                           
                           
@@ -301,7 +310,12 @@ export default function GestaoContratos() {
       </div>
 
       {/* Dialogs */}
-      <NovoContratoDialog open={novoContratoOpen} onOpenChange={setNovoContratoOpen} templates={templates || []} />
+      <NovoContratoDialog
+        open={novoContratoOpen}
+        onOpenChange={(o) => { setNovoContratoOpen(o); if (!o) setEditandoContrato(null); }}
+        templates={templates || []}
+        contrato={editandoContrato}
+      />
       <TemplateContratoDialog open={templateOpen} onOpenChange={setTemplateOpen} />
       {visualizarContrato && <VisualizarContratoDialog contrato={visualizarContrato} open={!!visualizarContrato} onOpenChange={() => setVisualizarContrato(null)} />}
     </div>;
