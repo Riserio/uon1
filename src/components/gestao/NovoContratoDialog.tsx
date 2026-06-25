@@ -29,6 +29,8 @@ import { Loader2, Plus, Trash2, FileText, Download, Eye } from "lucide-react";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import PreviewContratoPDFDialog from "./PreviewContratoPDFDialog";
+import { sugerirPapelContratante } from "./utils/papeisPorTipoContrato";
+import { Switch } from "@/components/ui/switch";
 
 interface Signatario {
   nome: string;
@@ -55,6 +57,9 @@ const PAPEIS_SIGNATARIO = [
   "Fornecedor",
   "Fiador",
   "Sócio",
+  "Cotista",
+  "Acionista",
+  "Gestora",
   "Avalista",
   "Cedente",
   "Cessionário",
@@ -67,11 +72,13 @@ interface NovoContratoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templates: any[];
+  contrato?: any | null;
 }
 
-export default function NovoContratoDialog({ open, onOpenChange, templates }: NovoContratoDialogProps) {
+export default function NovoContratoDialog({ open, onOpenChange, templates, contrato: contratoEdicao }: NovoContratoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const isEdicao = !!contratoEdicao?.id;
   
   const [contratoAnteriorId, setContratoAnteriorId] = useState<string>("");
   const [templateId, setTemplateId] = useState<string>("");
@@ -90,6 +97,17 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const [corretoraId, setCorretoraId] = useState<string>("");
   const [corretoraManualMode, setCorretoraManualMode] = useState(false);
   const [corretoraNomeManual, setCorretoraNomeManual] = useState("");
+  // Dados da Contratada (espelha o signatário)
+  const [contratadaTipo, setContratadaTipo] = useState<"pf" | "pj">("pj");
+  const [contratadaPapel, setContratadaPapel] = useState("Contratada");
+  const [contratadaNome, setContratadaNome] = useState("");
+  const [contratadaDocumento, setContratadaDocumento] = useState("");
+  const [contratadaEmail, setContratadaEmail] = useState("");
+  const [contratadaTelefone, setContratadaTelefone] = useState("");
+  const [contratadaEndereco, setContratadaEndereco] = useState("");
+  const [contratadaRepresentante, setContratadaRepresentante] = useState("");
+  const [contratadaAssinaturaAutomatica, setContratadaAssinaturaAutomatica] = useState(true);
+  const [contratadaManualMode, setContratadaManualMode] = useState(false);
   const [conteudoHtml, setConteudoHtml] = useState("");
   const [signatarios, setSignatarios] = useState<Signatario[]>([]);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -146,11 +164,47 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
         setSelectedTemplate(template);
         setConteudoHtml(template.conteudo_html || "");
         setTitulo(template.titulo);
+        // Sugerir papel do contratante conforme tipo do template
+        if (!isEdicao) {
+          setContratantePapel(sugerirPapelContratante(template));
+        }
       }
     } else {
       setSelectedTemplate(null);
     }
-  }, [templateId, templates]);
+  }, [templateId, templates, isEdicao]);
+
+  // Modo edição: pré-preenche os campos com os dados do contrato existente
+  useEffect(() => {
+    if (!open || !contratoEdicao) return;
+    setTemplateId(contratoEdicao.template_id || "");
+    setTitulo(contratoEdicao.titulo || "");
+    setContratanteNome(contratoEdicao.contratante_nome || "");
+    setContratanteEmail(contratoEdicao.contratante_email || "");
+    setContratanteTipo(contratoEdicao.contratado_cnpj ? "pj" : "pf");
+    setContratantePapel(contratoEdicao.contratante_papel || "Contratante");
+    setContratanteCpf(contratoEdicao.contratante_cpf || "");
+    setContratanteCnpj(contratoEdicao.contratado_cnpj || "");
+    setContratanteTelefone(contratoEdicao.contratante_telefone || "");
+    setValorContrato(contratoEdicao.valor_contrato ? String(contratoEdicao.valor_contrato) : "");
+    setDataInicio(contratoEdicao.data_inicio || "");
+    setDataFim(contratoEdicao.data_fim || "");
+    setCorretoraId(contratoEdicao.corretora_id || "");
+    setCorretoraManualMode(!!contratoEdicao.corretora_nome_manual);
+    setCorretoraNomeManual(contratoEdicao.corretora_nome_manual || "");
+    setConteudoHtml(contratoEdicao.conteudo_html || "");
+    // Contratada
+    setContratadaTipo((contratoEdicao.contratada_tipo_pessoa as any) || "pj");
+    setContratadaPapel(contratoEdicao.contratada_papel || "Contratada");
+    setContratadaNome(contratoEdicao.contratada_nome || "");
+    setContratadaDocumento(contratoEdicao.contratada_documento || "");
+    setContratadaEmail(contratoEdicao.contratada_email || "");
+    setContratadaTelefone(contratoEdicao.contratada_telefone || "");
+    setContratadaEndereco(contratoEdicao.contratada_endereco || "");
+    setContratadaRepresentante(contratoEdicao.contratada_representante || "");
+    setContratadaAssinaturaAutomatica(contratoEdicao.contratada_assinatura_automatica !== false);
+    setContratadaManualMode(!!contratoEdicao.contratada_manual_mode);
+  }, [open, contratoEdicao]);
 
   // Substituir variáveis no conteúdo (apenas para templates HTML)
   const processarConteudo = (html: string) => {
