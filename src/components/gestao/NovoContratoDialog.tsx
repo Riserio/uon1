@@ -816,6 +816,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
               <Switch checked={contratadaAssinaturaAutomatica} onCheckedChange={setContratadaAssinaturaAutomatica} />
             </div>
 
+            {contratadaAssinaturaAutomatica && (
             <div className="flex items-center justify-between">
               <Label className="text-xs text-muted-foreground">Informar dados manualmente</Label>
               <Button
@@ -828,8 +829,15 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
                 {contratadaManualMode ? "Usar padrão da associação" : "Informar outra empresa"}
               </Button>
             </div>
+            )}
 
+            {(!contratadaAssinaturaAutomatica || contratadaManualMode) && (
             <div className="grid grid-cols-2 gap-4">
+              {!contratadaAssinaturaAutomatica && (
+                <div className="col-span-2 text-xs text-muted-foreground bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-2">
+                  Como a assinatura automática está desligada, preencha os dados da contratada para que ela receba o link de assinatura.
+                </div>
+              )}
               <div className="space-y-2 col-span-2">
                 <Label>Papel da Contratada</Label>
                 <Select value={contratadaPapel} onValueChange={setContratadaPapel}>
@@ -873,6 +881,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
                 </div>
               )}
             </div>
+            )}
           </div>
 
           <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
