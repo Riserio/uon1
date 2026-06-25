@@ -672,6 +672,26 @@ export default function Uon1Sign() {
         onOpenChange={() => setVisualizarContrato(null)} />
 
       }
+      {pdfCamposContrato && (
+        <PdfCamposAssinaturaDialog
+          open={!!pdfCamposContrato}
+          onOpenChange={(o) => { if (!o) setPdfCamposContrato(null); }}
+          contratoId={pdfCamposContrato.id}
+          signatarios={[
+            ...(pdfCamposContrato.contratante_nome || pdfCamposContrato.contratante_email
+              ? [{ nome: pdfCamposContrato.contratante_nome || "", email: pdfCamposContrato.contratante_email || "" }]
+              : []),
+            ...((pdfCamposContrato.contrato_assinaturas || [])
+              .filter((a: any) => a.email && a.email !== pdfCamposContrato.contratante_email)
+              .map((a: any) => ({ nome: a.nome || "", email: a.email || "" }))),
+          ]}
+          pdfUrl={pdfCamposContrato.arquivo_pdf_url}
+          pdfPath={pdfCamposContrato.arquivo_pdf_path}
+          pdfNome={pdfCamposContrato.arquivo_pdf_nome}
+          campos={(pdfCamposContrato.campos_assinatura || []) as any}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ["contratos"] })}
+        />
+      )}
     </div>);
 
 }
