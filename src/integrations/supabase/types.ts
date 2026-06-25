@@ -1824,8 +1824,10 @@ export type Database = {
           contratante_cpf: string | null
           contratante_email: string | null
           contratante_nome: string | null
+          contratante_papel: string | null
           contratante_telefone: string | null
           corretora_id: string | null
+          corretora_nome_manual: string | null
           created_at: string
           created_by: string
           data_fim: string | null
@@ -1851,8 +1853,10 @@ export type Database = {
           contratante_cpf?: string | null
           contratante_email?: string | null
           contratante_nome?: string | null
+          contratante_papel?: string | null
           contratante_telefone?: string | null
           corretora_id?: string | null
+          corretora_nome_manual?: string | null
           created_at?: string
           created_by: string
           data_fim?: string | null
@@ -1878,8 +1882,10 @@ export type Database = {
           contratante_cpf?: string | null
           contratante_email?: string | null
           contratante_nome?: string | null
+          contratante_papel?: string | null
           contratante_telefone?: string | null
           corretora_id?: string | null
+          corretora_nome_manual?: string | null
           created_at?: string
           created_by?: string
           data_fim?: string | null
