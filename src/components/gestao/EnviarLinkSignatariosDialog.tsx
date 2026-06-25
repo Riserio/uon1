@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageCircle, Mail, AlertCircle, Copy, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { openWhatsApp } from "@/utils/whatsapp";
+import { supabase } from "@/integrations/supabase/client";
 
 type Canal = "whatsapp" | "email" | "link";
 
@@ -84,7 +85,7 @@ export default function EnviarLinkSignatariosDialog({ open, onOpenChange, canal,
     }
   };
 
-  const handleEnviar = () => {
+  const handleEnviar = async () => {
     if (!contrato.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
       return;
@@ -130,25 +131,30 @@ export default function EnviarLinkSignatariosDialog({ open, onOpenChange, canal,
         toast.success("WhatsApp aberto para os destinatários selecionados.");
       }
     } else {
-      // E-mail: abre um mailto por destinatário com link personalizado
+      // E-mail: dispara via edge function (Resend + histórico)
       const comEmail = alvos.filter((a) => a.email);
       if (comEmail.length === 0) {
         toast.error("Nenhum destinatário selecionado possui e-mail cadastrado.");
         return;
       }
-      comEmail.forEach((a) => {
-        const link = `${baseLink}?s=${a.id}`;
-        const subject = encodeURIComponent(`Contrato para assinatura: ${contrato.titulo}`);
-        const body = encodeURIComponent(
-          `Olá ${a.nome}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
+      const toastId = toast.loading("Enviando e-mails...");
+      try {
+        const { data, error } = await supabase.functions.invoke("enviar-email-contrato", {
+          body: {
+            contrato_id: contrato.id,
+            assinatura_ids: comEmail.map((a) => a.id),
+          },
+        });
+        if (error) throw error;
+        const enviados = (data as any)?.enviados ?? comEmail.length;
+        const semEmail = alvos.length - comEmail.length;
+        toast.success(
+          `E-mail enviado para ${enviados} destinatário(s)${semEmail > 0 ? ` (${semEmail} sem e-mail ignorados)` : ""}.`,
+          { id: toastId },
         );
-        window.open(`mailto:${a.email}?subject=${subject}&body=${body}`, "_blank");
-      });
-      const semEmail = alvos.length - comEmail.length;
-      if (semEmail > 0) {
-        toast.warning(`${semEmail} destinatário(s) sem e-mail foram ignorados.`);
-      } else {
-        toast.success("E-mail preparado para os destinatários selecionados.");
+      } catch (e: any) {
+        toast.error(`Falha no envio: ${e?.message || e}`, { id: toastId });
+        return;
       }
     }
 
