@@ -480,6 +480,54 @@ export default function Uon1Sign() {
                           </div>
                       }
 
+                        {/* Timeline de signatários — estilo Clicksign */}
+                        {assinaturas.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-dashed">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                Assinantes ({assinaturasCompletas}/{assinaturas.length})
+                              </span>
+                              <div className="flex-1 mx-3 h-1 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-emerald-500 transition-all"
+                                  style={{ width: `${(assinaturasCompletas / assinaturas.length) * 100}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {Math.round((assinaturasCompletas / assinaturas.length) * 100)}%
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {assinaturas.map((a: any) => {
+                                const assinado = a.status === "assinado";
+                                return (
+                                  <div
+                                    key={a.id}
+                                    className={`inline-flex items-center gap-1.5 text-xs rounded-full px-2 py-1 border ${
+                                      assinado
+                                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400"
+                                        : "bg-muted/40 border-border text-muted-foreground"
+                                    }`}
+                                    title={a.email || ""}
+                                  >
+                                    {assinado ? (
+                                      <CheckCircle2 className="h-3 w-3" />
+                                    ) : (
+                                      <Clock className="h-3 w-3" />
+                                    )}
+                                    <span className="font-medium truncate max-w-[140px]">
+                                      {a.nome || a.email || "Signatário"}
+                                    </span>
+                                    {a.tipo && (
+                                      <span className="text-[10px] opacity-70">· {a.tipo}</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
                         <p className="text-xs text-muted-foreground mt-1.5">
                           Criado em {format(new Date(contrato.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                         </p>
