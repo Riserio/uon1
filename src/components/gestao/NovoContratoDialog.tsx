@@ -447,6 +447,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
           nome: s.nome,
           email: s.email,
           cpf: s.cpf,
+          telefone: s.telefone || null,
           tipo: s.tipo,
           ordem: i + 2,
           status: "pendente",
