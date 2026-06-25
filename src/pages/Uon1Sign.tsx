@@ -677,6 +677,14 @@ export default function Uon1Sign() {
         contrato={editandoContrato}
       />
       <TemplateContratoDialog open={templateOpen} onOpenChange={setTemplateOpen} />
+      {enviarLinkContrato && (
+        <EnviarLinkSignatariosDialog
+          open={!!enviarLinkContrato}
+          onOpenChange={(o) => { if (!o) setEnviarLinkContrato(null); }}
+          canal={enviarLinkCanal}
+          contrato={enviarLinkContrato}
+        />
+      )}
       {visualizarContrato &&
       <VisualizarContratoDialog
         contrato={visualizarContrato}
