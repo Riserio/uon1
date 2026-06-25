@@ -1222,7 +1222,9 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
               </div>
             )}
           </div>
+          </>)}
 
+          {currentStep === 2 && (<>
           {/* Lembretes automáticos */}
           <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
             <div className="flex items-center justify-between gap-3">
@@ -1254,124 +1256,66 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
             )}
           </div>
 
-          {/* Valor e Datas */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Valor do Contrato</Label>
-              <CurrencyInput
-                value={valorContrato}
-                onValueChange={(values) => setValorContrato(values.value)}
-                placeholder="R$ 0,00"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Prazo para Assinatura</Label>
-              <Input
-                type="date"
-                value={prazoAssinatura}
-                onChange={(e) => setPrazoAssinatura(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-              />
-              <p className="text-xs text-muted-foreground">
-                Após essa data, o link de assinatura expira
-              </p>
-            </div>
+          {/* Prazo para assinatura */}
+          <div className="border rounded-lg p-4 space-y-2">
+            <Label>Prazo para Assinatura</Label>
+            <Input
+              type="date"
+              value={prazoAssinatura}
+              onChange={(e) => setPrazoAssinatura(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+            />
+            <p className="text-xs text-muted-foreground">
+              Após essa data, o link de assinatura expira automaticamente.
+            </p>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Data de Início do Contrato</Label>
-              <Input
-                type="date"
-                value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Data de Fim do Contrato</Label>
-              <Input
-                type="date"
-                value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
-              />
-            </div>
-          </div>
+          </>)}
 
-          {/* Conteúdo do Contrato - apenas para HTML ou sem template */}
-          {(!selectedTemplate || selectedTemplate?.tipo_template === "html") && (
-            <div className="space-y-2">
-              <Label>Conteúdo do Contrato</Label>
-              <p className="text-xs text-muted-foreground">
-                Use variáveis: {"{{nome}}"}, {"{{cpf}}"}, {"{{email}}"}, {"{{valor}}"}, {"{{data_inicio}}"}, {"{{data_fim}}"}, {"{{data_atual}}"}
-              </p>
-              <Textarea
-                value={conteudoHtml}
-                onChange={(e) => setConteudoHtml(e.target.value)}
-                placeholder="Digite o conteúdo do contrato..."
-                rows={10}
-              />
-            </div>
-          )}
-
-          {/* Aviso para templates Word/PDF */}
-          {selectedTemplate?.tipo_template && selectedTemplate.tipo_template !== "html" && (
-            <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-              <FileText className="h-4 w-4 text-amber-600" />
-              <span className="text-sm text-amber-700">
-                Este template usa um documento {selectedTemplate.tipo_template.toUpperCase()} pré-definido.
-                As variáveis não serão substituídas automaticamente.
-              </span>
-              {selectedTemplate.arquivo_url && (
-                <a 
-                  href={selectedTemplate.arquivo_url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="ml-auto"
-                >
-                  <Button variant="outline" size="sm">
-                    <Eye className="h-4 w-4 mr-1" />
-                    Ver
-                  </Button>
-                </a>
-              )}
-            </div>
-          )}
-
-          {/* Resumo do Contrato */}
-          {(contratanteNome || valorContrato || dataInicio) && (
-            <div className="space-y-2">
+          {currentStep === 3 && (<>
+            <ReceiptSummary />
+            <div className="flex justify-end">
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowReceipt(!showReceipt)}
-                className="w-full justify-start text-muted-foreground hover:text-foreground"
+                variant="outline"
+                onClick={() => setPreviewPdfOpen(true)}
+                disabled={!titulo && !conteudoHtml}
               >
                 <Eye className="h-4 w-4 mr-2" />
-                {showReceipt ? "Ocultar Resumo" : "Ver Resumo do Contrato"}
+                Visualizar PDF
               </Button>
-              {showReceipt && <ReceiptSummary />}
             </div>
-          )}
+          </>)}
+        </div>
+          </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setPreviewPdfOpen(true)}
-            disabled={!titulo && !conteudoHtml}
-          >
-            <Eye className="h-4 w-4 mr-2" />
-            Visualizar PDF
-          </Button>
-          <Button
-            onClick={() => criarContrato.mutate()}
-            disabled={criarContrato.isPending}
-          >
-            {criarContrato.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {isEdicao ? "Salvar Alterações" : "Criar Contrato"}
-          </Button>
+        <DialogFooter className="px-6 py-4 border-t bg-muted/20">
+          <div className="flex w-full items-center justify-between gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep((s) => Math.max(0, s - 1))}
+                disabled={currentStep === 0}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
+              </Button>
+              {currentStep < 3 ? (
+                <Button onClick={() => setCurrentStep((s) => Math.min(3, s + 1))}>
+                  Avançar <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => criarContrato.mutate()}
+                  disabled={criarContrato.isPending}
+                >
+                  {criarContrato.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {isEdicao ? "Salvar Alterações" : "Criar Contrato"}
+                </Button>
+              )}
+            </div>
+          </div>
         </DialogFooter>
       </DialogContent>
       <PreviewContratoPDFDialog
