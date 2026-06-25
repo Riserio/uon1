@@ -33,6 +33,17 @@ import { sugerirPapelContratante } from "./utils/papeisPorTipoContrato";
 import { Switch } from "@/components/ui/switch";
 import SignatariosSalvosPicker from "./SignatariosSalvosPicker";
 
+function parseLembreteDias(s: string): number[] {
+  return Array.from(
+    new Set(
+      s
+        .split(/[,\s;]+/)
+        .map((x) => parseInt(x.trim(), 10))
+        .filter((n) => Number.isFinite(n) && n > 0 && n <= 365)
+    )
+  ).sort((a, b) => a - b);
+}
+
 interface Signatario {
   nome: string;
   email: string;
@@ -109,6 +120,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
   const [contratadaRepresentante, setContratadaRepresentante] = useState("");
   const [contratadaAssinaturaAutomatica, setContratadaAssinaturaAutomatica] = useState(true);
   const [contratadaManualMode, setContratadaManualMode] = useState(false);
+  const [lembreteAtivo, setLembreteAtivo] = useState(true);
+  const [lembreteDiasStr, setLembreteDiasStr] = useState("3, 7, 14");
   const [conteudoHtml, setConteudoHtml] = useState("");
   const [signatarios, setSignatarios] = useState<Signatario[]>([]);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -205,6 +218,9 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
     setContratadaRepresentante(contratoEdicao.contratada_representante || "");
     setContratadaAssinaturaAutomatica(contratoEdicao.contratada_assinatura_automatica !== false);
     setContratadaManualMode(!!contratoEdicao.contratada_manual_mode);
+    setLembreteAtivo(contratoEdicao.lembrete_ativo !== false);
+    const dias = (contratoEdicao.lembrete_dias as number[] | null) || [3, 7, 14];
+    setLembreteDiasStr(dias.join(", "));
   }, [open, contratoEdicao]);
 
   // Substituir variáveis no conteúdo (apenas para templates HTML)
@@ -287,6 +303,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
             contratada_representante: contratadaRepresentante || null,
             contratada_assinatura_automatica: contratadaAssinaturaAutomatica,
             contratada_manual_mode: contratadaManualMode,
+            lembrete_ativo: lembreteAtivo,
+            lembrete_dias: parseLembreteDias(lembreteDiasStr),
           } as any)
           .eq("id", contratoEdicao.id);
         if (updErr) throw updErr;
@@ -330,6 +348,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
           contratada_representante: contratadaRepresentante || null,
           contratada_assinatura_automatica: contratadaAssinaturaAutomatica,
           contratada_manual_mode: contratadaManualMode,
+          lembrete_ativo: lembreteAtivo,
+          lembrete_dias: parseLembreteDias(lembreteDiasStr),
           status: "rascunho",
           created_by: user.id,
           variaveis_preenchidas: {
@@ -1061,6 +1081,37 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Lembretes automáticos */}
+          <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <h4 className="font-medium text-sm">Lembretes automáticos por e-mail</h4>
+                <p className="text-xs text-muted-foreground">
+                  Cobra automaticamente os signatários que ainda não assinaram, nos dias configurados. Inspirado no Clicksign.
+                </p>
+              </div>
+              <Switch checked={lembreteAtivo} onCheckedChange={setLembreteAtivo} />
+            </div>
+            {lembreteAtivo && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Dias após o envio para cobrar</Label>
+                <Input
+                  value={lembreteDiasStr}
+                  onChange={(e) => setLembreteDiasStr(e.target.value)}
+                  placeholder="Ex.: 3, 7, 14"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Separe por vírgula. Padrão: 3, 7 e 14 dias. O lembrete sai 09:00 (UTC) e respeita a data de expiração do link.
+                </p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {parseLembreteDias(lembreteDiasStr).map((d) => (
+                    <Badge key={d} variant="secondary" className="text-xs">{d} dias</Badge>
+                  ))}
+                </div>
               </div>
             )}
           </div>

@@ -1663,6 +1663,7 @@ export type Database = {
           posicoes: Json | null
           status: string
           tipo: string
+          ultimo_lembrete_em: string | null
           updated_at: string
           user_agent: string | null
         }
@@ -1686,6 +1687,7 @@ export type Database = {
           posicoes?: Json | null
           status?: string
           tipo?: string
+          ultimo_lembrete_em?: string | null
           updated_at?: string
           user_agent?: string | null
         }
@@ -1709,6 +1711,7 @@ export type Database = {
           posicoes?: Json | null
           status?: string
           tipo?: string
+          ultimo_lembrete_em?: string | null
           updated_at?: string
           user_agent?: string | null
         }
@@ -1912,6 +1915,8 @@ export type Database = {
           data_fim: string | null
           data_inicio: string | null
           id: string
+          lembrete_ativo: boolean
+          lembrete_dias: number[]
           link_expires_at: string | null
           link_token: string | null
           numero: string
@@ -1955,6 +1960,8 @@ export type Database = {
           data_fim?: string | null
           data_inicio?: string | null
           id?: string
+          lembrete_ativo?: boolean
+          lembrete_dias?: number[]
           link_expires_at?: string | null
           link_token?: string | null
           numero: string
@@ -1998,6 +2005,8 @@ export type Database = {
           data_fim?: string | null
           data_inicio?: string | null
           id?: string
+          lembrete_ativo?: boolean
+          lembrete_dias?: number[]
           link_expires_at?: string | null
           link_token?: string | null
           numero?: string

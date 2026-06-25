@@ -1,0 +1,7 @@
+
+ALTER TABLE public.contratos
+  ADD COLUMN IF NOT EXISTS lembrete_dias INTEGER[] NOT NULL DEFAULT ARRAY[3,7,14],
+  ADD COLUMN IF NOT EXISTS lembrete_ativo BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE public.contrato_assinaturas
+  ADD COLUMN IF NOT EXISTS ultimo_lembrete_em TIMESTAMPTZ;
