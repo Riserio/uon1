@@ -117,7 +117,7 @@ export default function Uon1Sign() {
   const [enviarLinkContrato, setEnviarLinkContrato] = useState<any | null>(null);
   const [enviarLinkCanal, setEnviarLinkCanal] = useState<"whatsapp" | "email" | "link">("whatsapp");
 
-  const abrirEnvio = (contrato: any, canal: "whatsapp" | "email") => {
+  const abrirEnvio = (contrato: any, canal: "whatsapp" | "email" | "link") => {
     if (!contrato.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
       return;
