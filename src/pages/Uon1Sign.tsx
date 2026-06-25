@@ -172,6 +172,23 @@ export default function Uon1Sign() {
         descricao: "Contrato enviado para assinatura",
         user_id: user?.id
       });
+
+      // Auto-envio de e-mail (Resend) se habilitado
+      const { data: c } = await supabase
+        .from("contratos")
+        .select("auto_envio_email_assinatura")
+        .eq("id", contratoId)
+        .maybeSingle();
+
+      if (c?.auto_envio_email_assinatura !== false) {
+        try {
+          await supabase.functions.invoke("enviar-email-contrato", {
+            body: { contrato_id: contratoId },
+          });
+        } catch (e) {
+          console.warn("Falha no auto-envio do e-mail de assinatura:", e);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contratos"] });

@@ -1891,6 +1891,7 @@ export type Database = {
           arquivo_pdf_nome: string | null
           arquivo_pdf_path: string | null
           arquivo_pdf_url: string | null
+          auto_envio_email_assinatura: boolean
           campos_assinatura: Json
           conteudo_html: string
           contratada_assinatura_automatica: boolean
@@ -1936,6 +1937,7 @@ export type Database = {
           arquivo_pdf_nome?: string | null
           arquivo_pdf_path?: string | null
           arquivo_pdf_url?: string | null
+          auto_envio_email_assinatura?: boolean
           campos_assinatura?: Json
           conteudo_html: string
           contratada_assinatura_automatica?: boolean
@@ -1981,6 +1983,7 @@ export type Database = {
           arquivo_pdf_nome?: string | null
           arquivo_pdf_path?: string | null
           arquivo_pdf_url?: string | null
+          auto_envio_email_assinatura?: boolean
           campos_assinatura?: Json
           conteudo_html?: string
           contratada_assinatura_automatica?: boolean
@@ -2279,6 +2282,8 @@ export type Database = {
         Row: {
           assunto: string
           atendimento_id: string | null
+          contrato_assinatura_id: string | null
+          contrato_id: string | null
           corpo: string
           created_at: string | null
           destinatario: string
@@ -2291,6 +2296,8 @@ export type Database = {
         Insert: {
           assunto: string
           atendimento_id?: string | null
+          contrato_assinatura_id?: string | null
+          contrato_id?: string | null
           corpo: string
           created_at?: string | null
           destinatario: string
@@ -2303,6 +2310,8 @@ export type Database = {
         Update: {
           assunto?: string
           atendimento_id?: string | null
+          contrato_assinatura_id?: string | null
+          contrato_id?: string | null
           corpo?: string
           created_at?: string | null
           destinatario?: string
@@ -2318,6 +2327,20 @@ export type Database = {
             columns: ["atendimento_id"]
             isOneToOne: false
             referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_historico_contrato_assinatura_id_fkey"
+            columns: ["contrato_assinatura_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_assinaturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_historico_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
             referencedColumns: ["id"]
           },
         ]
