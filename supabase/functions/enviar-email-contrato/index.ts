@@ -145,8 +145,15 @@ serve(async (req) => {
         ? renderTemplate(template.assunto, vars)
         : `Contrato para assinatura: ${contrato.titulo}`;
       const corpoTpl = template?.corpo ? renderTemplate(template.corpo, vars) : null;
-      const html = corpoTpl
-        ? `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;line-height:1.6;white-space:pre-wrap">${corpoTpl.replace(/\n/g, "<br>")}<p style="text-align:center;margin:24px 0"><a href="${link}" style="background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Assinar contrato</a></p></div>`
+      const isHtml = !!corpoTpl && /<\/?[a-z][\s\S]*>/i.test(corpoTpl);
+      const corpoRender = corpoTpl
+        ? (isHtml ? corpoTpl : corpoTpl.replace(/\n/g, "<br>"))
+        : null;
+      const ctaButton = `<p style="text-align:center;margin:28px 0"><a href="${link}" style="background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;font-family:Arial,sans-serif">Assinar contrato</a></p>`;
+      // Append CTA only if the template body doesn't already include the link
+      const incluiCta = corpoTpl ? corpoTpl.includes(link) : false;
+      const html = corpoRender
+        ? `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5"><div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#333;line-height:1.6;background:#ffffff">${corpoRender}${incluiCta ? "" : ctaButton}</div></body></html>`
         : defaultHtml(a.nome || "", contrato.titulo || "", link, empresa);
 
       let status = "enviado";
