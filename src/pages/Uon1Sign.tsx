@@ -28,7 +28,8 @@ import {
   CalendarDays,
   Archive,
   EyeOff,
-  Pencil } from
+  Pencil,
+  UploadCloud } from
 "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import {
@@ -45,6 +46,7 @@ import { ptBR } from "date-fns/locale";
 import NovoContratoDialog from "@/components/gestao/NovoContratoDialog";
 import TemplateContratoDialog from "@/components/gestao/TemplateContratoDialog";
 import VisualizarContratoDialog from "@/components/gestao/VisualizarContratoDialog";
+import PdfCamposAssinaturaDialog from "@/components/gestao/PdfCamposAssinaturaDialog";
 import { downloadContratoPDF } from "@/components/gestao/utils/downloadContratoPDF";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -110,6 +112,7 @@ export default function Uon1Sign() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [visualizarContrato, setVisualizarContrato] = useState<any>(null);
   const [editandoContrato, setEditandoContrato] = useState<any | null>(null);
+  const [pdfCamposContrato, setPdfCamposContrato] = useState<any | null>(null);
 
   const { data: contratos, isLoading } = useQuery({
     queryKey: ["contratos", statusFilter, showArchived],
@@ -571,6 +574,16 @@ export default function Uon1Sign() {
                           ) : null;
                         })()}
 
+                        {(contrato.status === "rascunho" || contrato.status === "aguardando_assinatura") && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setPdfCamposContrato(contrato)}
+                            title="PDF próprio e campos de assinatura">
+                            <UploadCloud className="h-4 w-4" />
+                          </Button>
+                        )}
+
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
@@ -659,6 +672,26 @@ export default function Uon1Sign() {
         onOpenChange={() => setVisualizarContrato(null)} />
 
       }
+      {pdfCamposContrato && (
+        <PdfCamposAssinaturaDialog
+          open={!!pdfCamposContrato}
+          onOpenChange={(o) => { if (!o) setPdfCamposContrato(null); }}
+          contratoId={pdfCamposContrato.id}
+          signatarios={[
+            ...(pdfCamposContrato.contratante_nome || pdfCamposContrato.contratante_email
+              ? [{ nome: pdfCamposContrato.contratante_nome || "", email: pdfCamposContrato.contratante_email || "" }]
+              : []),
+            ...((pdfCamposContrato.contrato_assinaturas || [])
+              .filter((a: any) => a.email && a.email !== pdfCamposContrato.contratante_email)
+              .map((a: any) => ({ nome: a.nome || "", email: a.email || "" }))),
+          ]}
+          pdfUrl={pdfCamposContrato.arquivo_pdf_url}
+          pdfPath={pdfCamposContrato.arquivo_pdf_path}
+          pdfNome={pdfCamposContrato.arquivo_pdf_nome}
+          campos={(pdfCamposContrato.campos_assinatura || []) as any}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ["contratos"] })}
+        />
+      )}
     </div>);
 
 }
