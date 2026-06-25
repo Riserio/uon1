@@ -292,6 +292,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
             contratada_representante: contratadaRepresentante || null,
             contratada_assinatura_automatica: contratadaAssinaturaAutomatica,
             contratada_manual_mode: contratadaManualMode,
+            lembrete_ativo: lembreteAtivo,
+            lembrete_dias: parseLembreteDias(lembreteDiasStr),
           } as any)
           .eq("id", contratoEdicao.id);
         if (updErr) throw updErr;
@@ -335,6 +337,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
           contratada_representante: contratadaRepresentante || null,
           contratada_assinatura_automatica: contratadaAssinaturaAutomatica,
           contratada_manual_mode: contratadaManualMode,
+          lembrete_ativo: lembreteAtivo,
+          lembrete_dias: parseLembreteDias(lembreteDiasStr),
           status: "rascunho",
           created_by: user.id,
           variaveis_preenchidas: {
