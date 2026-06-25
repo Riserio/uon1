@@ -574,6 +574,16 @@ export default function Uon1Sign() {
                           ) : null;
                         })()}
 
+                        {(contrato.status === "rascunho" || contrato.status === "aguardando_assinatura") && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setPdfCamposContrato(contrato)}
+                            title="PDF próprio e campos de assinatura">
+                            <UploadCloud className="h-4 w-4" />
+                          </Button>
+                        )}
+
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
