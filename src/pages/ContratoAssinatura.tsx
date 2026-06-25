@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import { downloadContratoPDF } from "@/components/gestao/utils/downloadContratoP
 
 export default function ContratoAssinatura() {
   const { token } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
+  const signatarioParam = searchParams.get("s");
   const [aceito, setAceito] = useState(false);
   const [assinando, setAssinando] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,10 +55,16 @@ export default function ContratoAssinatura() {
     (contrato as any)?.corretoras?.logo_url ||
     "/images/vangard-logo.png";
 
-  // Get current signatory (first pending one for this token)
-  const currentAssinatura = contrato?.contrato_assinaturas?.find(
-    (a: any) => a.status === "pendente"
-  );
+  // Get current signatory: prefer ?s=<id> when present and still pending,
+  // fallback to the first pending signatory.
+  const assinaturasList: any[] = contrato?.contrato_assinaturas || [];
+  const assinaturaPorParam = signatarioParam
+    ? assinaturasList.find((a) => a.id === signatarioParam)
+    : null;
+  const currentAssinatura =
+    (assinaturaPorParam && assinaturaPorParam.status === "pendente"
+      ? assinaturaPorParam
+      : null) || assinaturasList.find((a) => a.status === "pendente");
 
   // Resize canvas based on container
   useEffect(() => {
