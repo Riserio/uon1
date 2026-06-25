@@ -28,7 +28,8 @@ import {
   CalendarDays,
   Archive,
   EyeOff,
-  Pencil } from
+  Pencil,
+  UploadCloud } from
 "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import {
@@ -45,6 +46,7 @@ import { ptBR } from "date-fns/locale";
 import NovoContratoDialog from "@/components/gestao/NovoContratoDialog";
 import TemplateContratoDialog from "@/components/gestao/TemplateContratoDialog";
 import VisualizarContratoDialog from "@/components/gestao/VisualizarContratoDialog";
+import PdfCamposAssinaturaDialog from "@/components/gestao/PdfCamposAssinaturaDialog";
 import { downloadContratoPDF } from "@/components/gestao/utils/downloadContratoPDF";
 import { PageHeader } from "@/components/ui/page-header";
 
