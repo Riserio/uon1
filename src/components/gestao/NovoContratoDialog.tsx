@@ -33,8 +33,31 @@ interface Signatario {
   nome: string;
   email: string;
   cpf: string;
-  tipo: "contratante" | "contratado" | "testemunha";
+  tipo: string;
 }
+
+const PAPEIS_CONTRATANTE = [
+  "Contratante",
+  "Contratado",
+  "Locatário",
+  "Locador",
+  "Franqueado",
+  "Franqueador",
+  "Comprador",
+  "Vendedor",
+  "Prestador de Serviços",
+  "Tomador de Serviços",
+  "Cliente",
+  "Fornecedor",
+  "Fiador",
+  "Sócio",
+  "Avalista",
+  "Cedente",
+  "Cessionário",
+  "Parte Interessada",
+  "Testemunha",
+  "Outro",
+];
 
 interface NovoContratoDialogProps {
   open: boolean;
@@ -52,6 +75,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const [contratanteNome, setContratanteNome] = useState("");
   const [contratanteEmail, setContratanteEmail] = useState("");
   const [contratanteTipo, setContratanteTipo] = useState<"pf" | "pj">("pf");
+  const [contratantePapel, setContratantePapel] = useState<string>("Contratante");
   const [contratanteCpf, setContratanteCpf] = useState("");
   const [contratanteCnpj, setContratanteCnpj] = useState("");
   const [contratanteTelefone, setContratanteTelefone] = useState("");
@@ -60,6 +84,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const [dataFim, setDataFim] = useState("");
   const [prazoAssinatura, setPrazoAssinatura] = useState("");
   const [corretoraId, setCorretoraId] = useState<string>("");
+  const [corretoraManualMode, setCorretoraManualMode] = useState(false);
+  const [corretoraNomeManual, setCorretoraNomeManual] = useState("");
   const [conteudoHtml, setConteudoHtml] = useState("");
   const [signatarios, setSignatarios] = useState<Signatario[]>([]);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -180,11 +206,13 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           contratante_cpf: contratanteTipo === "pf" ? contratanteCpf : null,
           contratado_cnpj: contratanteTipo === "pj" ? contratanteCnpj : null,
           contratante_telefone: contratanteTelefone,
+          contratante_papel: contratantePapel || null,
           valor_contrato: valorContrato ? parseFloat(valorContrato) : null,
           data_inicio: dataInicio || null,
           data_fim: dataFim || null,
           link_expires_at: linkExpiresAt,
-          corretora_id: corretoraId || null,
+          corretora_id: corretoraManualMode ? null : (corretoraId || null),
+          corretora_nome_manual: corretoraManualMode ? (corretoraNomeManual || null) : null,
           template_id: templateId || null,
           status: "rascunho",
           created_by: user.id,
@@ -307,6 +335,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
     setContratanteNome("");
     setContratanteEmail("");
     setContratanteTipo("pf");
+    setContratantePapel("Contratante");
     setContratanteCpf("");
     setContratanteCnpj("");
     setContratanteTelefone("");
@@ -315,6 +344,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
     setDataFim("");
     setPrazoAssinatura("");
     setCorretoraId("");
+    setCorretoraManualMode(false);
+    setCorretoraNomeManual("");
     setConteudoHtml("");
     setSignatarios([]);
     setShowReceipt(false);
