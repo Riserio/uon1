@@ -31,6 +31,7 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import PreviewContratoPDFDialog from "./PreviewContratoPDFDialog";
 import { sugerirPapelContratante } from "./utils/papeisPorTipoContrato";
 import { Switch } from "@/components/ui/switch";
+import SignatariosSalvosPicker from "./SignatariosSalvosPicker";
 
 interface Signatario {
   nome: string;
@@ -707,7 +708,26 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
           <div className="border rounded-lg p-4 space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="font-medium">Dados do Signatário</h4>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <SignatariosSalvosPicker
+                  currentData={{
+                    nome: contratanteNome,
+                    email: contratanteEmail,
+                    telefone: contratanteTelefone,
+                    documento: contratanteTipo === "pf" ? contratanteCpf : contratanteCnpj,
+                    tipo_pessoa: contratanteTipo,
+                    papel: contratantePapel,
+                  }}
+                  onSelect={(s) => {
+                    setContratanteTipo(s.tipo_pessoa);
+                    setContratanteNome(s.nome);
+                    setContratanteEmail(s.email || "");
+                    setContratanteTelefone(s.telefone || "");
+                    if (s.tipo_pessoa === "pf") setContratanteCpf(s.documento || "");
+                    else setContratanteCnpj(s.documento || "");
+                    if (s.papel) setContratantePapel(s.papel);
+                  }}
+                />
                 <Button
                   type="button"
                   variant={contratanteTipo === "pf" ? "default" : "outline"}
@@ -910,7 +930,29 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
                       <Badge variant="outline" className="text-xs">
                         Signatário #{index + 2}
                       </Badge>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <SignatariosSalvosPicker
+                          currentData={{
+                            nome: sig.nome,
+                            email: sig.email,
+                            telefone: sig.telefone,
+                            documento: sig.tipoPessoa === "pj" ? (sig.cnpj || "") : sig.cpf,
+                            tipo_pessoa: (sig.tipoPessoa || "pf") as any,
+                            papel: sig.tipo,
+                          }}
+                          onSelect={(s) => {
+                            updateSignatario(index, "tipoPessoa" as any, s.tipo_pessoa);
+                            updateSignatario(index, "nome", s.nome);
+                            updateSignatario(index, "email", s.email || "");
+                            updateSignatario(index, "telefone" as any, s.telefone || "");
+                            if (s.tipo_pessoa === "pf") {
+                              updateSignatario(index, "cpf", s.documento || "");
+                            } else {
+                              updateSignatario(index, "cnpj" as any, s.documento || "");
+                            }
+                            if (s.papel) updateSignatario(index, "tipo", s.papel);
+                          }}
+                        />
                         <div className="flex gap-1">
                           <Button
                             type="button"

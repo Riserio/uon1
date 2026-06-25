@@ -1763,6 +1763,68 @@ export type Database = {
           },
         ]
       }
+      contrato_signatarios_salvos: {
+        Row: {
+          corretora_id: string | null
+          created_at: string
+          criado_por: string | null
+          documento: string | null
+          email: string | null
+          endereco: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          papel: string | null
+          representante_legal: string | null
+          telefone: string | null
+          tipo_pessoa: string
+          ultimo_uso_em: string | null
+          updated_at: string
+        }
+        Insert: {
+          corretora_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          documento?: string | null
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          papel?: string | null
+          representante_legal?: string | null
+          telefone?: string | null
+          tipo_pessoa?: string
+          ultimo_uso_em?: string | null
+          updated_at?: string
+        }
+        Update: {
+          corretora_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          documento?: string | null
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          papel?: string | null
+          representante_legal?: string | null
+          telefone?: string | null
+          tipo_pessoa?: string
+          ultimo_uso_em?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contrato_signatarios_salvos_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contrato_templates: {
         Row: {
           arquivo_nome: string | null
