@@ -120,9 +120,9 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-5xl w-[96vw] sm:w-[92vw] h-[95vh] sm:h-[90vh] p-0 gap-0 overflow-hidden flex flex-col">
         {/* Header */}
-        <DialogHeader className="p-6 pb-4 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent border-b">
+        <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent border-b shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
               <FileText className="h-5 w-5 text-primary" />
@@ -172,8 +172,8 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
         </DialogHeader>
 
         {/* Content */}
-        <Tabs defaultValue="documento" className="w-full">
-          <div className="px-6 pt-4 border-b bg-muted/30">
+        <Tabs defaultValue="documento" className="w-full flex-1 flex flex-col min-h-0">
+          <div className="px-3 sm:px-6 pt-3 sm:pt-4 border-b bg-muted/30 shrink-0 overflow-x-auto">
             <TabsList className="h-10 w-full justify-start bg-transparent p-0 gap-4">
               <TabsTrigger 
                 value="documento" 
@@ -202,10 +202,12 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
             </TabsList>
           </div>
 
-          <ScrollArea className="h-[60vh]">
-            <TabsContent value="documento" className="m-0 p-6 animate-in fade-in-50 duration-200">
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <TabsContent value="documento" className="m-0 h-full data-[state=active]:flex data-[state=active]:flex-col animate-in fade-in-50 duration-200">
               {/* Info Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+              <ScrollArea className="flex-1">
+              <div className="p-4 sm:p-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-6">
                 <InfoCard 
                   icon={<User className="h-4 w-4" />}
                   label="Contratante"
@@ -241,21 +243,44 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                 />
               </div>
 
-              {/* Document Preview */}
+              {/* Document Preview — visual estilo PDF Viewer */}
               <div className="space-y-3">
-                <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Prévia do Documento
-                </h4>
-                <div
-                  className="prose prose-sm max-w-none border rounded-xl p-6 bg-white text-black shadow-sm"
-                  style={{ background: "#ffffff", color: "#222", fontFamily: "inherit", lineHeight: 1.5 }}
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contrato?.conteudo_html || "") }}
-                />
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Prévia do Documento
+                  </h4>
+                  <Button variant="ghost" size="sm" onClick={handleDownloadPDF} className="h-7 text-xs">
+                    <Download className="h-3.5 w-3.5 mr-1.5" /> Baixar PDF
+                  </Button>
+                </div>
+                <div className="rounded-xl border bg-neutral-200 dark:bg-neutral-900 p-3 sm:p-6 overflow-x-auto">
+                  <div className="mx-auto bg-white text-black shadow-[0_8px_24px_-8px_rgba(0,0,0,0.25)] ring-1 ring-black/5 rounded-sm"
+                    style={{
+                      width: "min(100%, 794px)",
+                      minHeight: "min(1123px, 70vh)",
+                      padding: "clamp(24px, 6vw, 72px)",
+                      fontFamily: "Georgia, 'Times New Roman', serif",
+                      fontSize: "14px",
+                      lineHeight: 1.7,
+                      color: "#1f2937",
+                    }}
+                  >
+                    <div
+                      className="prose prose-sm max-w-none"
+                      style={{ color: "inherit", fontFamily: "inherit", lineHeight: "inherit" }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contrato?.conteudo_html || "<p style='text-align:center;color:#9ca3af'>Sem conteúdo</p>") }}
+                    />
+                  </div>
+                </div>
               </div>
+              </div>
+              </ScrollArea>
             </TabsContent>
 
-            <TabsContent value="assinaturas" className="m-0 p-6 animate-in fade-in-50 duration-200">
+            <TabsContent value="assinaturas" className="m-0 h-full data-[state=active]:flex data-[state=active]:flex-col animate-in fade-in-50 duration-200">
+              <ScrollArea className="flex-1">
+              <div className="p-4 sm:p-6">
               {assinaturas.length === 0 ? (
                 <EmptyState 
                   icon={<Users className="h-8 w-8" />}
@@ -341,9 +366,13 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                   })}
                 </div>
               )}
+              </div>
+              </ScrollArea>
             </TabsContent>
 
-            <TabsContent value="historico" className="m-0 p-6 animate-in fade-in-50 duration-200">
+            <TabsContent value="historico" className="m-0 h-full data-[state=active]:flex data-[state=active]:flex-col animate-in fade-in-50 duration-200">
+              <ScrollArea className="flex-1">
+              <div className="p-4 sm:p-6">
               {!historico || historico.length === 0 ? (
                 <EmptyState 
                   icon={<History className="h-8 w-8" />}
@@ -378,8 +407,10 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                   </div>
                 </div>
               )}
+              </div>
+              </ScrollArea>
             </TabsContent>
-          </ScrollArea>
+          </div>
         </Tabs>
       </DialogContent>
     </Dialog>
