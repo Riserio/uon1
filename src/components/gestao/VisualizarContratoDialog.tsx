@@ -406,6 +406,14 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
           tipo: a.tipo,
         }))}
       />
+      {envioCanal && (
+        <EnviarLinkSignatariosDialog
+          open={!!envioCanal}
+          onOpenChange={(o) => { if (!o) setEnvioCanal(null); }}
+          canal={envioCanal}
+          contrato={contrato}
+        />
+      )}
     </Dialog>
   );
 }
