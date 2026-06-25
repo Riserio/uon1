@@ -624,11 +624,11 @@ export default function Uon1Sign() {
                                   <Copy className="h-4 w-4 mr-2" />
                                   Copiar Link
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => sendWhatsApp(contrato)}>
+                                <DropdownMenuItem onClick={() => abrirEnvio(contrato, "whatsapp")}>
                                   <MessageCircle className="h-4 w-4 mr-2" />
                                   Enviar WhatsApp
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => sendEmail(contrato)}>
+                                <DropdownMenuItem onClick={() => abrirEnvio(contrato, "email")}>
                                   <Mail className="h-4 w-4 mr-2" />
                                   Enviar E-mail
                                 </DropdownMenuItem>
