@@ -169,7 +169,10 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   };
 
   const addSignatario = () => {
-    setSignatarios([...signatarios, { nome: "", email: "", cpf: "", tipo: "testemunha" }]);
+    setSignatarios([
+      ...signatarios,
+      { nome: "", email: "", cpf: "", cnpj: "", telefone: "", tipo: "Testemunha", tipoPessoa: "pf" },
+    ]);
   };
 
   const removeSignatario = (index: number) => {
@@ -563,10 +566,10 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
             )}
           </div>
 
-          {/* Dados do Contratante */}
+          {/* Dados do Signatário (principal) */}
           <div className="border rounded-lg p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium">Dados do Contratante</h4>
+              <h4 className="font-medium">Dados do Signatário</h4>
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -588,13 +591,13 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2">
-                <Label>Papel do Contratante</Label>
+                <Label>Papel do Signatário</Label>
                 <Select value={contratantePapel} onValueChange={setContratantePapel}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o papel" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PAPEIS_CONTRATANTE.map((p) => (
+                    {PAPEIS_SIGNATARIO.map((p) => (
                       <SelectItem key={p} value={p}>
                         {p}
                       </SelectItem>
@@ -655,6 +658,146 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
             </div>
           </div>
 
+          {/* Signatários Adicionais — logo abaixo do signatário principal */}
+          <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium">Signatários Adicionais</h4>
+                <p className="text-xs text-muted-foreground">
+                  Adicione testemunhas, fiadores, sócios ou qualquer outra parte do contrato.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={addSignatario}>
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar signatário
+              </Button>
+            </div>
+
+            {signatarios.length === 0 ? (
+              <div className="text-center py-6 text-sm text-muted-foreground border border-dashed rounded-lg">
+                Nenhum signatário adicional. Clique em "Adicionar signatário" para incluir.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {signatarios.map((sig, index) => (
+                  <div key={index} className="border rounded-lg p-4 space-y-3 bg-background">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="text-xs">
+                        Signatário #{index + 2}
+                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            variant={(sig.tipoPessoa || "pf") === "pf" ? "default" : "outline"}
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => updateSignatario(index, "tipoPessoa" as any, "pf")}
+                          >
+                            PF
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={sig.tipoPessoa === "pj" ? "default" : "outline"}
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => updateSignatario(index, "tipoPessoa" as any, "pj")}
+                          >
+                            PJ
+                          </Button>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => removeSignatario(index)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5 col-span-2">
+                        <Label className="text-xs">Papel do Signatário</Label>
+                        <Select
+                          value={sig.tipo}
+                          onValueChange={(v) => updateSignatario(index, "tipo", v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o papel" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PAPEIS_SIGNATARIO.map((p) => (
+                              <SelectItem key={p} value={p}>
+                                {p}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">
+                          {sig.tipoPessoa === "pj" ? "Razão Social" : "Nome Completo"}
+                        </Label>
+                        <Input
+                          value={sig.nome}
+                          onChange={(e) => updateSignatario(index, "nome", e.target.value)}
+                          placeholder={sig.tipoPessoa === "pj" ? "Razão Social" : "Nome completo"}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">E-mail</Label>
+                        <Input
+                          type="email"
+                          value={sig.email}
+                          onChange={(e) => updateSignatario(index, "email", e.target.value)}
+                          placeholder="email@exemplo.com"
+                        />
+                      </div>
+                      {sig.tipoPessoa === "pj" ? (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">CNPJ</Label>
+                          <MaskedInput
+                            format="##.###.###/####-##"
+                            value={sig.cnpj || ""}
+                            onValueChange={(values) =>
+                              updateSignatario(index, "cnpj" as any, values.value)
+                            }
+                            placeholder="00.000.000/0000-00"
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">CPF</Label>
+                          <MaskedInput
+                            format="###.###.###-##"
+                            value={sig.cpf}
+                            onValueChange={(values) =>
+                              updateSignatario(index, "cpf", values.value)
+                            }
+                            placeholder="000.000.000-00"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Telefone / WhatsApp</Label>
+                        <MaskedInput
+                          format="(##) #####-####"
+                          value={sig.telefone || ""}
+                          onValueChange={(values) =>
+                            updateSignatario(index, "telefone" as any, values.value)
+                          }
+                          placeholder="(00) 00000-0000"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Valor e Datas */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -695,54 +838,6 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
                 onChange={(e) => setDataFim(e.target.value)}
               />
             </div>
-          </div>
-
-          {/* Signatários Adicionais */}
-          <div className="border rounded-lg p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium">Signatários Adicionais</h4>
-              <Button variant="outline" size="sm" onClick={addSignatario}>
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar
-              </Button>
-            </div>
-            {signatarios.map((sig, index) => (
-              <div key={index} className="grid grid-cols-4 gap-2 items-end">
-                <Input
-                  placeholder="Nome"
-                  value={sig.nome}
-                  onChange={(e) => updateSignatario(index, "nome", e.target.value)}
-                />
-                <Input
-                  placeholder="E-mail"
-                  type="email"
-                  value={sig.email}
-                  onChange={(e) => updateSignatario(index, "email", e.target.value)}
-                />
-                <Select
-                  value={sig.tipo}
-                  onValueChange={(v) => updateSignatario(index, "tipo", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAPEIS_CONTRATANTE.map((p) => (
-                      <SelectItem key={p} value={p.toLowerCase()}>
-                        {p}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeSignatario(index)}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            ))}
           </div>
 
           {/* Conteúdo do Contrato - apenas para HTML ou sem template */}
