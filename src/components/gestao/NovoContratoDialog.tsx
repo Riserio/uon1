@@ -257,6 +257,49 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
         linkExpiresAt = expirationDate.toISOString();
       }
 
+      // MODO EDIÇÃO: somente atualiza dados, sem mexer em assinaturas já coletadas
+      if (isEdicao && contratoEdicao?.id) {
+        const { error: updErr } = await supabase
+          .from("contratos")
+          .update({
+            titulo,
+            conteudo_html: conteudoProcessado,
+            contratante_nome: contratanteNome,
+            contratante_email: contratanteEmail,
+            contratante_cpf: contratanteTipo === "pf" ? contratanteCpf : null,
+            contratado_cnpj: contratanteTipo === "pj" ? contratanteCnpj : null,
+            contratante_telefone: contratanteTelefone,
+            contratante_papel: contratantePapel || null,
+            valor_contrato: valorContrato ? parseFloat(valorContrato) : null,
+            data_inicio: dataInicio || null,
+            data_fim: dataFim || null,
+            corretora_id: corretoraManualMode ? null : (corretoraId || null),
+            corretora_nome_manual: corretoraManualMode ? (corretoraNomeManual || null) : null,
+            template_id: templateId || null,
+            contratada_tipo_pessoa: contratadaTipo,
+            contratada_papel: contratadaPapel || null,
+            contratada_nome: contratadaNome || null,
+            contratada_documento: contratadaDocumento || null,
+            contratada_email: contratadaEmail || null,
+            contratada_telefone: contratadaTelefone || null,
+            contratada_endereco: contratadaEndereco || null,
+            contratada_representante: contratadaRepresentante || null,
+            contratada_assinatura_automatica: contratadaAssinaturaAutomatica,
+            contratada_manual_mode: contratadaManualMode,
+          } as any)
+          .eq("id", contratoEdicao.id);
+        if (updErr) throw updErr;
+
+        await supabase.from("contrato_historico").insert({
+          contrato_id: contratoEdicao.id,
+          acao: "editado",
+          descricao: "Contrato editado antes da assinatura",
+          user_id: user.id,
+        });
+
+        return contratoEdicao;
+      }
+
       // Criar contrato
       const { data: contrato, error: contratoError } = await supabase
         .from("contratos")
@@ -276,6 +319,16 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
           corretora_id: corretoraManualMode ? null : (corretoraId || null),
           corretora_nome_manual: corretoraManualMode ? (corretoraNomeManual || null) : null,
           template_id: templateId || null,
+          contratada_tipo_pessoa: contratadaTipo,
+          contratada_papel: contratadaPapel || null,
+          contratada_nome: contratadaNome || null,
+          contratada_documento: contratadaDocumento || null,
+          contratada_email: contratadaEmail || null,
+          contratada_telefone: contratadaTelefone || null,
+          contratada_endereco: contratadaEndereco || null,
+          contratada_representante: contratadaRepresentante || null,
+          contratada_assinatura_automatica: contratadaAssinaturaAutomatica,
+          contratada_manual_mode: contratadaManualMode,
           status: "rascunho",
           created_by: user.id,
           variaveis_preenchidas: {
@@ -324,7 +377,37 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const contratadaHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 
-      // Criar assinatura do contratante (pendente) e da contratada (já assinada automaticamente)
+      // Assinaturas:
+      // - Contratante sempre pendente
+      // - Contratada: automática (já assinada) OU pendente conforme flag
+      const contratadaDisplayNome = contratadaNome || "Vangard Gestora";
+      const contratadaDisplayEmail = contratadaEmail || "contatos@vangardgestora.com.br";
+      const contratadaAssinatura: any = contratadaAssinaturaAutomatica
+        ? {
+            contrato_id: contrato.id,
+            nome: contratadaDisplayNome,
+            email: contratadaDisplayEmail,
+            cpf: null,
+            tipo: contratadaPapel?.toLowerCase() || "contratada",
+            ordem: 0,
+            status: "assinado",
+            assinado_em: new Date().toISOString(),
+            ip_assinatura: contratadaIp,
+            latitude: contratadaLatitude,
+            longitude: contratadaLongitude,
+            hash_documento: contratadaHash,
+            user_agent: navigator.userAgent,
+          }
+        : {
+            contrato_id: contrato.id,
+            nome: contratadaDisplayNome,
+            email: contratadaDisplayEmail,
+            cpf: contratadaDocumento || null,
+            tipo: contratadaPapel?.toLowerCase() || "contratada",
+            ordem: 0,
+            status: "pendente",
+          };
+
       const assinaturas = [
         {
           contrato_id: contrato.id,
@@ -335,21 +418,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates, cont
           ordem: 1,
           status: "pendente",
         },
-        {
-          contrato_id: contrato.id,
-          nome: "Vangard Gestora",
-          email: "contatos@vangardgestora.com.br",
-          cpf: null,
-          tipo: "contratado",
-          ordem: 0,
-          status: "assinado",
-          assinado_em: new Date().toISOString(),
-          ip_assinatura: contratadaIp,
-          latitude: contratadaLatitude,
-          longitude: contratadaLongitude,
-          hash_documento: contratadaHash,
-          user_agent: navigator.userAgent,
-        },
+        contratadaAssinatura,
         ...signatarios.map((s, i) => ({
           contrato_id: contrato.id,
           nome: s.nome,
