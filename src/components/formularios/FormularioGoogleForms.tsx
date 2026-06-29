@@ -170,6 +170,15 @@ function renderCampo(
       return <Input inputMode="numeric" value={v} onChange={(e) => set(maskCNPJ(e.target.value))} placeholder="00.000.000/0000-00" maxLength={18} />;
     case "cep":
       return <Input inputMode="numeric" value={v} onChange={(e) => set(maskCEP(e.target.value))} placeholder="00000-000" maxLength={9} />;
+    case "estado":
+      return (
+        <Select value={v} onValueChange={set}>
+          <SelectTrigger><SelectValue placeholder="Selecione o estado..." /></SelectTrigger>
+          <SelectContent>
+            {ESTADOS_BR.map((e) => (<SelectItem key={e.sigla} value={e.sigla}>{e.sigla} — {e.nome}</SelectItem>))}
+          </SelectContent>
+        </Select>
+      );
     case "radio":
       return (
         <RadioGroup value={v} onValueChange={set} className="space-y-1">
