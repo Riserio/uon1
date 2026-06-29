@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import FormularioGoogleForms from "@/components/formularios/FormularioGoogleForms";
 import FormularioTypeform from "@/components/formularios/FormularioTypeform";
-import FormularioSinistro from "@/components/formularios/sinistro/FormularioSinistro";
+import FormularioColapse from "@/components/formularios/FormularioColapse";
 
 export default function FormularioPublico() {
   const { slug } = useParams<{ slug: string }>();
