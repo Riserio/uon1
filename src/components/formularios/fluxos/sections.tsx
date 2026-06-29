@@ -806,12 +806,7 @@ export function S11_Nexo({ form, update }: { form: FormDataFluxos; update: Updat
   );
 }
 
-export function S12_Parecer({ form, update, classificacaoAuto }: { form: FormDataFluxos; update: UpdateFn; classificacaoAuto: string | null }) {
-  const divergencia = form.parecerAnalista && classificacaoAuto && (
-    (form.parecerAnalista === "Aprovado" && classificacaoAuto !== "APROVACAO") ||
-    (form.parecerAnalista === "Negado" && classificacaoAuto !== "NEGATIVA") ||
-    (form.parecerAnalista === "Sindicância" && classificacaoAuto !== "SINDICANCIA")
-  );
+export function S12_Parecer({ form, update }: { form: FormDataFluxos; update: UpdateFn; classificacaoAuto?: string | null }) {
   const acoes = ["Aguardar laudo técnico", "BO complementar", "Novo contato associado", "Consulta jurídica", "Relatório rastreador", "Contato terceiro", "Verificação câmeras", "Sindicância em andamento"];
   if (form.tipoSinistro === "incendio") acoes.push("Laudo Corpo de Bombeiros");
   if (form.tipoSinistro === "fenomeno") acoes.push("Registro meteorológico");
@@ -825,11 +820,6 @@ export function S12_Parecer({ form, update, classificacaoAuto }: { form: FormDat
       <Field label="Parecer do analista" full>
         <SimChoice value={form.parecerAnalista || ""} onChange={(v) => update({ parecerAnalista: v })} options={["Aprovado", "Negado", "Sindicância", "Análise jurídica", "Perícia técnica", "A definir"]} />
       </Field>
-      {divergencia && (
-        <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 text-xs text-amber-900 flex items-start gap-2">
-          ⚠ O parecer manual diverge da classificação automática ({classificacaoAuto}). Justifique abaixo.
-        </div>
-      )}
       <Grid>
         <Field label="Passivo de negativa"><SimChoice value={form.passivoNeg || ""} onChange={(v) => update({ passivoNeg: v })} options={["Sim", "Não", "A definir"]} /></Field>
         <Field label="Causa da negativa" badge="REVISADO">
