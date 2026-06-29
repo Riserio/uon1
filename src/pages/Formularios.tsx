@@ -39,6 +39,7 @@ type Formulario = {
   status: "rascunho" | "publicado" | "arquivado";
   created_at: string;
   cor_tema: string | null;
+  estilo?: string | null;
 };
 
 export default function Formularios() {
@@ -52,7 +53,7 @@ export default function Formularios() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("formularios")
-        .select("id,titulo,descricao,slug,status,cor_tema,created_at")
+        .select("id,titulo,descricao,slug,status,cor_tema,estilo,created_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as Formulario[];
@@ -228,6 +229,13 @@ export default function Formularios() {
                       {f.status}
                     </Badge>
                   </div>
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                    {f.estilo === "sinistro"
+                      ? "Sinistro"
+                      : f.estilo === "google_forms"
+                      ? "Google Forms"
+                      : "Typeform"}
+                  </Badge>
                   {f.descricao && (
                     <p className="text-xs text-muted-foreground line-clamp-2">
                       {f.descricao}
