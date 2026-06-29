@@ -42,6 +42,12 @@ export function BrandingCompartilhamento() {
         og_imagem_url:
           corretora.og_imagem_url || `${window.location.origin}/images/vangard-logo.png`,
       });
+    } else {
+      setOg({
+        og_titulo: "Vangard",
+        og_descricao: "",
+        og_imagem_url: `${window.location.origin}/images/vangard-logo.png`,
+      });
     }
   }, [corretora]);
 
