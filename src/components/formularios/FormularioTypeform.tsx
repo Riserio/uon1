@@ -298,6 +298,14 @@ function renderInputBig(p: any, valores: Record<string, any>, setValores: (v: an
       return <Input autoFocus inputMode="numeric" value={v} onChange={(e) => set(maskCNPJ(e.target.value))} placeholder="00.000.000/0000-00" maxLength={18} className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
     case "cep":
       return <Input autoFocus inputMode="numeric" value={v} onChange={(e) => set(maskCEP(e.target.value))} placeholder="00000-000" maxLength={9} className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
+    case "moeda":
+      return <Input autoFocus inputMode="numeric" value={v} onChange={(e) => set(maskMoeda(e.target.value))} placeholder="R$ 0,00" className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
+    case "cidade":
+      return <Input autoFocus value={v} onChange={(e) => set(maskCidade(e.target.value))} placeholder="Cidade" className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
+    case "dia":
+      return <Input autoFocus inputMode="numeric" value={v} onChange={(e) => set(maskDia(e.target.value))} placeholder="DD" maxLength={2} className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
+    case "mes":
+      return <Input autoFocus inputMode="numeric" value={v} onChange={(e) => set(maskMes(e.target.value))} placeholder="MM" maxLength={2} className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
     case "estado":
       return (
         <Select value={v} onValueChange={set}>
