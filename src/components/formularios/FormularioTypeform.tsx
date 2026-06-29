@@ -26,6 +26,7 @@ import {
   maskPlaca,
   maskTelefone,
 } from "@/components/formularios/masks";
+import { ESTADOS_BR } from "@/components/formularios/estados";
 
 export default function FormularioTypeform({ form }: { form: any }) {
   const [valores, setValores] = useState<Record<string, any>>({});
