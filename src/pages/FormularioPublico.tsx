@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import FormularioGoogleForms from "@/components/formularios/FormularioGoogleForms";
 import FormularioTypeform from "@/components/formularios/FormularioTypeform";
-import FormularioSinistro from "@/components/formularios/sinistro/FormularioSinistro";
+import FormularioColapse from "@/components/formularios/FormularioColapse";
 
 export default function FormularioPublico() {
   const { slug } = useParams<{ slug: string }>();
@@ -53,7 +53,7 @@ export default function FormularioPublico() {
 
   const estilo = ((form as any).estilo as string) || "typeform";
 
-  if (estilo === "sinistro") return <FormularioSinistro form={form} />;
+  if (estilo === "sinistro") return <FormularioColapse form={form} />;
   if (estilo === "google_forms") return <FormularioGoogleForms form={form} />;
   return <FormularioTypeform form={form} />;
 }

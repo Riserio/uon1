@@ -231,7 +231,7 @@ export default function Formularios() {
                   </div>
                   <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
                     {f.estilo === "sinistro"
-                      ? "Sinistro"
+                      ? "Colapse"
                       : f.estilo === "google_forms"
                       ? "Google Forms"
                       : "Typeform"}

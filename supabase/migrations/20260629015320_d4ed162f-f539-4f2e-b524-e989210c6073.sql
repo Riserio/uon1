@@ -1,0 +1,4 @@
+
+ALTER TABLE public.formulario_perguntas DROP CONSTRAINT IF EXISTS formulario_perguntas_tipo_check;
+ALTER TABLE public.formulario_perguntas ADD CONSTRAINT formulario_perguntas_tipo_check
+  CHECK (tipo IN ('texto_curto','texto_longo','radio','checkbox','dropdown','numero','data','email','telefone','placa','cpf','cnpj','cep','secao'));
