@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { CheckCircle2, Shield } from "lucide-react";
 import { maskCEP, maskCNPJ, maskCPF, maskPlaca, maskTelefone } from "./masks";
+import { ESTADOS_BR } from "./estados";
 
 /**
  * Colapse style (antigo "sinistro"): cabeçalho fixo Vangard + perguntas dinâmicas
@@ -119,42 +120,31 @@ export default function FormularioColapse({ form }: { form: any }) {
 
   return (
     <div className="min-h-screen bg-stone-50 font-sans text-[14px] text-stone-800">
-      <header className="sticky top-0 z-50 text-white" style={{ backgroundColor: cor }}>
-        <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center gap-2 bg-white/95 rounded-md px-2 py-1 shrink-0">
-              <img
-                src={vangardLogo}
-                alt="Vangard"
-                className="h-7 object-contain"
-              />
-              {parceiroLogo && (
-                <>
-                  <span className="h-6 w-px bg-stone-300" aria-hidden />
-                  <img
-                    src={parceiroLogo}
-                    alt="Parceiro"
-                    className="h-7 object-contain"
-                  />
-                </>
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="font-semibold text-base truncate">{headerTitulo}</div>
-              <div className="text-[11px] text-white/70 truncate flex items-center gap-1">
-                <Shield className="h-3 w-3" /> Vangard Gestora
-              </div>
-            </div>
+      <header className="sticky top-0 z-50 bg-white border-b border-stone-200">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <img src={vangardLogo} alt="Vangard" className="h-10 object-contain" />
+            {parceiroLogo && (
+              <>
+                <span className="h-10 w-px bg-stone-300" aria-hidden />
+                <img src={parceiroLogo} alt="Parceiro" className="h-10 object-contain" />
+              </>
+            )}
           </div>
           <div className="text-right shrink-0">
-            <div className="text-[10px] uppercase tracking-wider text-white/60">
-              Progresso
+            <div className="text-[10px] uppercase tracking-wider text-stone-500 flex items-center gap-1 justify-end">
+              <Shield className="h-3 w-3" /> Progresso
             </div>
-            <div className="text-xl font-bold tabular-nums">{progresso}%</div>
+            <div className="text-xl font-bold tabular-nums" style={{ color: cor }}>{progresso}%</div>
           </div>
         </div>
-        <Progress value={progresso} className="h-[3px] rounded-none bg-black/30 [&>div]:bg-white" />
+        <Progress value={progresso} className="h-[3px] rounded-none bg-stone-100 [&>div]:bg-current" style={{ color: cor }} />
       </header>
+      {headerTitulo && (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+          <h1 className="text-2xl font-bold text-stone-900">{headerTitulo}</h1>
+        </div>
+      )}
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-4">
         {form.descricao && (
@@ -264,6 +254,21 @@ function CampoColapse({
         return <Input inputMode="numeric" value={v} onChange={(e) => setValor(maskCNPJ(e.target.value))} placeholder="00.000.000/0000-00" maxLength={18} />;
       case "cep":
         return <Input inputMode="numeric" value={v} onChange={(e) => setValor(maskCEP(e.target.value))} placeholder="00000-000" maxLength={9} />;
+      case "estado":
+        return (
+          <Select value={v} onValueChange={setValor}>
+            <SelectTrigger className="bg-white">
+              <SelectValue placeholder="Selecione o estado..." />
+            </SelectTrigger>
+            <SelectContent>
+              {ESTADOS_BR.map((e) => (
+                <SelectItem key={e.sigla} value={e.sigla}>
+                  {e.sigla} — {e.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
       case "radio":
         return (
           <RadioGroup value={v} onValueChange={setValor} className="flex flex-wrap gap-3">

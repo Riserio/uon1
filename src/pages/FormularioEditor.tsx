@@ -66,6 +66,7 @@ type TipoPergunta =
   | "cpf"
   | "cnpj"
   | "cep"
+  | "estado"
   | "secao";
 
 type Pergunta = {
@@ -93,6 +94,7 @@ const TIPOS: { value: TipoPergunta; label: string; opcoes: boolean }[] = [
   { value: "cpf", label: "CPF", opcoes: false },
   { value: "cnpj", label: "CNPJ", opcoes: false },
   { value: "cep", label: "CEP", opcoes: false },
+  { value: "estado", label: "Estado (UF)", opcoes: false },
 ];
 
 function slugify(text: string) {
