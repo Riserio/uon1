@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import FormularioGoogleForms from "@/components/formularios/FormularioGoogleForms";
 import FormularioTypeform from "@/components/formularios/FormularioTypeform";
 import FormularioColapse from "@/components/formularios/FormularioColapse";
+import FormularioFluxos from "@/components/formularios/FormularioFluxos";
 
 export default function FormularioPublico() {
   const { slug } = useParams<{ slug: string }>();
@@ -54,6 +55,7 @@ export default function FormularioPublico() {
   const estilo = ((form as any).estilo as string) || "typeform";
 
   if (estilo === "sinistro") return <FormularioColapse form={form} />;
+  if (estilo === "fluxos") return <FormularioFluxos form={form} />;
   if (estilo === "google_forms") return <FormularioGoogleForms form={form} />;
   return <FormularioTypeform form={form} />;
 }
