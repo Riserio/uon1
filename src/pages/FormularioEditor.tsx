@@ -27,6 +27,29 @@ import {
   GripVertical,
 } from "lucide-react";
 
+type EstiloForm = "google_forms" | "typeform" | "sinistro";
+
+const ESTILOS: { value: EstiloForm; titulo: string; descricao: string; emoji: string }[] = [
+  {
+    value: "google_forms",
+    titulo: "Google Forms",
+    descricao: "Clássico. Todas as perguntas em uma página.",
+    emoji: "📋",
+  },
+  {
+    value: "typeform",
+    titulo: "Typeform",
+    descricao: "Imersivo. Uma pergunta por vez, tela cheia.",
+    emoji: "✨",
+  },
+  {
+    value: "sinistro",
+    titulo: "Análise de Sinistro",
+    descricao: "Estrutura fixa antifraude + nexo causal + red flags.",
+    emoji: "🛡️",
+  },
+];
+
 type TipoPergunta =
   | "texto_curto"
   | "texto_longo"
@@ -90,6 +113,7 @@ export default function FormularioEditor() {
   const [slugDirty, setSlugDirty] = useState(false);
   const [corTema, setCorTema] = useState("#362C89");
   const [status, setStatus] = useState<"rascunho" | "publicado">("rascunho");
+  const [estilo, setEstilo] = useState<EstiloForm>("google_forms");
   const [mensagemAgradecimento, setMensagemAgradecimento] = useState(
     "Resposta enviada com sucesso!"
   );
@@ -116,6 +140,7 @@ export default function FormularioEditor() {
     setSlug(form.slug);
     setCorTema(form.cor_tema || "#362C89");
     setStatus(form.status === "publicado" ? "publicado" : "rascunho");
+    setEstilo(((form as any).estilo as EstiloForm) || "google_forms");
     setMensagemAgradecimento(
       (form.config as any)?.mensagem_agradecimento || "Resposta enviada com sucesso!"
     );
@@ -174,8 +199,9 @@ export default function FormularioEditor() {
     mutationFn: async (publicar?: boolean) => {
       if (!titulo.trim()) throw new Error("Informe um título");
       if (!slug.trim()) throw new Error("Informe o slug do link público");
-      if (perguntas.length === 0) throw new Error("Adicione ao menos uma pergunta");
-      for (const p of perguntas) {
+      if (estilo !== "sinistro" && perguntas.length === 0)
+        throw new Error("Adicione ao menos uma pergunta");
+      for (const p of estilo === "sinistro" ? [] : perguntas) {
         if (!p.enunciado.trim()) throw new Error("Toda pergunta precisa de enunciado");
         const precisaOpcoes = TIPOS.find((t) => t.value === p.tipo)?.opcoes;
         if (precisaOpcoes && p.opcoes.filter((o) => o.trim()).length < 2)
@@ -187,6 +213,7 @@ export default function FormularioEditor() {
         descricao,
         slug,
         cor_tema: corTema,
+        estilo,
         status: publicar ? "publicado" : status,
         config: { mensagem_agradecimento: mensagemAgradecimento },
       };
@@ -210,6 +237,9 @@ export default function FormularioEditor() {
 
       // Reset perguntas: delete + insert (forma mais simples e correta)
       await supabase.from("formulario_perguntas").delete().eq("formulario_id", formId!);
+      if (estilo === "sinistro") {
+        return formId!;
+      }
       const { error: errP } = await supabase.from("formulario_perguntas").insert(
         perguntas.map((p, i) => ({
           formulario_id: formId,
@@ -332,6 +362,51 @@ export default function FormularioEditor() {
         </CardContent>
       </Card>
 
+      <Card className="rounded-2xl bg-muted/40 backdrop-blur">
+        <CardContent className="p-6 space-y-3">
+          <div>
+            <Label className="text-base font-semibold">Estilo do formulário</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Define como o formulário será exibido para quem responde.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {ESTILOS.map((e) => {
+              const ativo = estilo === e.value;
+              return (
+                <button
+                  key={e.value}
+                  type="button"
+                  onClick={() => setEstilo(e.value)}
+                  className={`text-left rounded-xl border-2 p-4 transition-all ${
+                    ativo
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border bg-background hover:border-primary/40"
+                  }`}
+                >
+                  <div className="text-2xl mb-1">{e.emoji}</div>
+                  <div className="font-semibold text-sm">{e.titulo}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{e.descricao}</div>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {estilo === "sinistro" ? (
+        <Card className="rounded-2xl border-2 border-dashed">
+          <CardContent className="p-6 space-y-2 text-sm">
+            <p className="font-semibold">Formulário de Análise de Sinistro</p>
+            <p className="text-muted-foreground">
+              Este estilo usa uma estrutura fixa com 12 seções (identificação, associado,
+              condutor, veículo, evento, BO, fotos, terceiro, entrevista, red flags, nexo
+              causal e parecer). Não é necessário cadastrar perguntas — apenas título,
+              descrição e branding.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
       <div className="space-y-3">
         {perguntas.map((p, idx) => {
           const precisaOpcoes = TIPOS.find((t) => t.value === p.tipo)?.opcoes;
@@ -465,10 +540,13 @@ export default function FormularioEditor() {
           );
         })}
       </div>
+      )}
 
-      <Button onClick={addPergunta} variant="outline" className="w-full gap-2">
-        <Plus className="h-4 w-4" /> Adicionar pergunta
-      </Button>
+      {estilo !== "sinistro" && (
+        <Button onClick={addPergunta} variant="outline" className="w-full gap-2">
+          <Plus className="h-4 w-4" /> Adicionar pergunta
+        </Button>
+      )}
     </div>
   );
 }
