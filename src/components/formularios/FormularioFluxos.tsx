@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { CheckCircle2, Shield } from "lucide-react";
 import { INITIAL_FORM, FormDataFluxos } from "./fluxos/types";
 import { classificar, RED_FLAGS, SECOES_POR_TIPO, getClassificacaoStyle } from "./fluxos/motor";
-import PainelClassificacao from "./fluxos/PainelClassificacao";
 import {
   S01_Identificacao,
   S02_Associado,
@@ -144,11 +143,6 @@ export default function FormularioFluxos({ form }: { form: any }) {
               </div>
               <div className="text-lg font-bold tabular-nums" style={{ color: cor }}>{progresso}%</div>
             </div>
-            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full ${s.bg} ${s.border} border`}>
-              <span>{s.icon}</span>
-              <span className={`text-xs font-bold ${s.text}`}>{s.label}</span>
-              <span className={`text-xs font-bold tabular-nums ${s.text}`}>{resultado.scoreNormalizado > 0 ? "+" : ""}{resultado.scoreNormalizado}</span>
-            </div>
           </div>
         </div>
         <Progress value={progresso} className="h-[3px] rounded-none bg-stone-100 [&>div]:bg-current" style={{ color: cor }} />
@@ -159,15 +153,12 @@ export default function FormularioFluxos({ form }: { form: any }) {
           <h1 className="text-2xl font-bold text-stone-900">{form?.titulo || "Análise de Sinistro"}</h1>
           {form?.descricao && <p className="text-sm text-stone-600 mt-1">{form.descricao}</p>}
         </div>
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6 items-start">
+        <div className="grid grid-cols-1 gap-6 items-start">
           <form
             onSubmit={(e) => { e.preventDefault(); enviar.mutate(); }}
             className="space-y-4"
           >
             <S01_Identificacao form={data} update={update} />
-            <div className="xl:hidden">
-              <PainelClassificacao resultado={resultado} scoreAntifraude={scoreAntifraude} />
-            </div>
             {data.tipoSinistro && (
               <>
                 {visivel("associado") && <S02_Associado form={data} update={update} />}
@@ -196,12 +187,6 @@ export default function FormularioFluxos({ form }: { form: any }) {
               </div>
             )}
           </form>
-
-          <aside className="hidden xl:block">
-            <div className="sticky top-[80px]">
-              <PainelClassificacao resultado={resultado} scoreAntifraude={scoreAntifraude} />
-            </div>
-          </aside>
         </div>
       </div>
     </div>
