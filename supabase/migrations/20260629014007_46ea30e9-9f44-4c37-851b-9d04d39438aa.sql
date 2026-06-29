@@ -1,0 +1,1 @@
+ALTER TABLE public.formularios ADD COLUMN IF NOT EXISTS estilo text NOT NULL DEFAULT 'google_forms';
