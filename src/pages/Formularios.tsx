@@ -410,6 +410,69 @@ export default function Formularios() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={brandingOpen} onOpenChange={setBrandingOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Branding de compartilhamento</DialogTitle>
+            <DialogDescription>
+              Estas informações aparecem quando alguém compartilha o link de um formulário desta associação no WhatsApp, redes sociais e e-mail. Use o botão "Compartilhar" em cada formulário para copiar o link com preview.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!minhaCorretora ? (
+            <p className="text-sm text-muted-foreground">Nenhuma associação vinculada ao seu usuário.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
+                Editando: <span className="font-medium text-foreground">{minhaCorretora.nome}</span>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Título</Label>
+                <Input
+                  value={og.og_titulo}
+                  onChange={(e) => setOg({ ...og, og_titulo: e.target.value })}
+                  placeholder={`Ex.: ${minhaCorretora.nome} · Formulários`}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Descrição</Label>
+                <Textarea
+                  rows={2}
+                  value={og.og_descricao}
+                  onChange={(e) => setOg({ ...og, og_descricao: e.target.value })}
+                  placeholder="Curta frase exibida abaixo do título no preview."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>URL da imagem / logo</Label>
+                <Input
+                  value={og.og_imagem_url}
+                  onChange={(e) => setOg({ ...og, og_imagem_url: e.target.value })}
+                  placeholder="https://..."
+                />
+                {og.og_imagem_url && (
+                  <img
+                    src={og.og_imagem_url}
+                    alt=""
+                    className="mt-2 h-14 object-contain rounded-md bg-muted/40 p-1"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBrandingOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => salvarBranding.mutate()}
+              disabled={!minhaCorretora || salvarBranding.isPending}
+            >
+              {salvarBranding.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
