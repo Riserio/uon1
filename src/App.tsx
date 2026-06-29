@@ -87,6 +87,11 @@ const OuvidoriaEmbed = lazy(() => import("./pages/OuvidoriaEmbed"));
 const Treinamento = lazy(() => import("./pages/Treinamento"));
 const DebitosVeiculares = lazy(() => import("./pages/DebitosVeiculares"));
 const GestaoCobranca = lazy(() => import("./pages/GestaoCobranca"));
+const Formularios = lazy(() => import("./pages/Formularios"));
+const FormularioEditor = lazy(() => import("./pages/FormularioEditor"));
+const FormularioRespostas = lazy(() => import("./pages/FormularioRespostas"));
+const FormularioPublico = lazy(() => import("./pages/FormularioPublico"));
+const DispositivosPonto = lazy(() => import("./pages/DispositivosPonto"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -243,6 +248,7 @@ const App = () => (
               <Route path="/ouvidoria/:slug" element={<OuvidoriaPublica />} />
               <Route path="/embed/ouvidoria/:slug" element={<OuvidoriaEmbed />} />
               <Route path="/gestao-cobranca" element={<GestaoCobranca />} />
+              <Route path="/f/:slug" element={<FormularioPublico />} />
               <Route path="/" element={<DomainBasedRoute />} />
               
               {/* All protected routes share sidebar via AppLayout */}
@@ -295,6 +301,11 @@ const App = () => (
                 <Route path="/ouvidoria-backoffice" element={<ProtectedRoute><OuvidoriaBackoffice /></ProtectedRoute>} />
                 <Route path="/ajuda" element={<ProtectedRoute><Treinamento /></ProtectedRoute>} />
                 <Route path="/debitos-veiculares" element={<ProtectedRoute><DebitosVeiculares /></ProtectedRoute>} />
+                <Route path="/formularios" element={<ProtectedRoute><Formularios /></ProtectedRoute>} />
+                <Route path="/formularios/novo" element={<ProtectedRoute><FormularioEditor /></ProtectedRoute>} />
+                <Route path="/formularios/:id/editar" element={<ProtectedRoute><FormularioEditor /></ProtectedRoute>} />
+                <Route path="/formularios/:id/respostas" element={<ProtectedRoute><FormularioRespostas /></ProtectedRoute>} />
+                <Route path="/dispositivos-ponto" element={<ProtectedRoute><DispositivosPonto /></ProtectedRoute>} />
                 <Route path="/talk" element={<Navigate to="/video" replace />} />
               </Route>
               
