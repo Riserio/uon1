@@ -740,21 +740,8 @@ export function S10_RedFlags({ form, update, scoreAntifraude }: { form: FormData
   const t = form.tipoSinistro;
   const flags = RED_FLAGS.filter((f) => f.tipos === "all" || (t && f.tipos.includes(t)));
   const grupos = Array.from(new Set(flags.map((f) => f.grupo)));
-  const nivel = scoreAntifraude <= 5 ? { c: "bg-green-100 text-green-800 border-green-300", t: "Baixo" } : scoreAntifraude <= 12 ? { c: "bg-amber-100 text-amber-800 border-amber-300", t: "Alto" } : { c: "bg-red-100 text-red-800 border-red-400", t: "Crítico" };
   return (
     <SecaoCard numero={10} titulo="Red Flags antifraude" descricao="Marque todos os indicadores objetivos presentes.">
-      <div className={`rounded-xl p-4 border-2 ${nivel.c} flex items-center justify-between`}>
-        <div>
-          <div className="text-[10px] uppercase font-bold tracking-wider">Score antifraude</div>
-          <div className="text-2xl font-bold tabular-nums">{scoreAntifraude}</div>
-        </div>
-        <div className="text-sm font-semibold">{nivel.t}</div>
-      </div>
-      {scoreAntifraude > 5 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-          Atenção: nível antifraude elevado. Considere sindicância.
-        </div>
-      )}
       {grupos.map((g) => (
         <div key={g} className="space-y-2">
           <Subhead>{g}</Subhead>
@@ -766,7 +753,6 @@ export function S10_RedFlags({ form, update, scoreAntifraude }: { form: FormData
                   <Checkbox checked={checked} onCheckedChange={(c) => update({ redFlags: { ...form.redFlags, [f.id]: !!c } })} />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-stone-800 font-medium">{f.label}</div>
-                    <div className="text-[10px] text-stone-500">Peso {f.peso}</div>
                   </div>
                 </label>
               );
@@ -820,12 +806,7 @@ export function S11_Nexo({ form, update }: { form: FormDataFluxos; update: Updat
   );
 }
 
-export function S12_Parecer({ form, update, classificacaoAuto }: { form: FormDataFluxos; update: UpdateFn; classificacaoAuto: string | null }) {
-  const divergencia = form.parecerAnalista && classificacaoAuto && (
-    (form.parecerAnalista === "Aprovado" && classificacaoAuto !== "APROVACAO") ||
-    (form.parecerAnalista === "Negado" && classificacaoAuto !== "NEGATIVA") ||
-    (form.parecerAnalista === "Sindicância" && classificacaoAuto !== "SINDICANCIA")
-  );
+export function S12_Parecer({ form, update }: { form: FormDataFluxos; update: UpdateFn; classificacaoAuto?: string | null }) {
   const acoes = ["Aguardar laudo técnico", "BO complementar", "Novo contato associado", "Consulta jurídica", "Relatório rastreador", "Contato terceiro", "Verificação câmeras", "Sindicância em andamento"];
   if (form.tipoSinistro === "incendio") acoes.push("Laudo Corpo de Bombeiros");
   if (form.tipoSinistro === "fenomeno") acoes.push("Registro meteorológico");
@@ -839,11 +820,6 @@ export function S12_Parecer({ form, update, classificacaoAuto }: { form: FormDat
       <Field label="Parecer do analista" full>
         <SimChoice value={form.parecerAnalista || ""} onChange={(v) => update({ parecerAnalista: v })} options={["Aprovado", "Negado", "Sindicância", "Análise jurídica", "Perícia técnica", "A definir"]} />
       </Field>
-      {divergencia && (
-        <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 text-xs text-amber-900 flex items-start gap-2">
-          ⚠ O parecer manual diverge da classificação automática ({classificacaoAuto}). Justifique abaixo.
-        </div>
-      )}
       <Grid>
         <Field label="Passivo de negativa"><SimChoice value={form.passivoNeg || ""} onChange={(v) => update({ passivoNeg: v })} options={["Sim", "Não", "A definir"]} /></Field>
         <Field label="Causa da negativa" badge="REVISADO">
