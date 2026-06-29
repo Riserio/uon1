@@ -66,16 +66,18 @@ export default function Formularios() {
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
-      const { data: p } = await supabase
-        .from("profiles")
+      const { data: link } = await supabase
+        .from("corretora_usuarios")
         .select("corretora_id")
-        .eq("id", u.user.id)
+        .eq("profile_id", u.user.id)
+        .eq("ativo", true)
+        .limit(1)
         .maybeSingle();
-      if (!p?.corretora_id) return null;
+      if (!link?.corretora_id) return null;
       const { data: c } = await supabase
         .from("corretoras")
         .select("id, nome, og_titulo, og_descricao, og_imagem_url, logo_url")
-        .eq("id", p.corretora_id)
+        .eq("id", link.corretora_id)
         .maybeSingle();
       return c;
     },
