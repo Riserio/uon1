@@ -384,6 +384,72 @@ export default function FormularioEditor() {
               onChange={(e) => setMensagemAgradecimento(e.target.value)}
             />
           </div>
+
+          <div className="space-y-2">
+            <Label>Logo do parceiro (opcional)</Label>
+            <p className="text-xs text-muted-foreground">
+              A logo da Vangard é exibida sempre. Se enviar uma logo aqui, ela aparecerá ao lado da Vangard com um separador.
+            </p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 bg-stone-900 rounded-md px-3 py-2">
+                <img
+                  src="/images/vangard-logo.png"
+                  alt="Vangard"
+                  className="h-7 object-contain bg-white/95 rounded px-1"
+                />
+                {logoParceiroUrl && (
+                  <>
+                    <span className="h-6 w-px bg-white/40" />
+                    <img
+                      src={logoParceiroUrl}
+                      alt="Parceiro"
+                      className="h-7 object-contain bg-white/95 rounded px-1"
+                    />
+                  </>
+                )}
+              </div>
+              <label className="inline-flex">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingLogo}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadLogoParceiro(f);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploadingLogo}
+                  asChild
+                >
+                  <span>
+                    <Upload className="h-4 w-4 mr-1" />
+                    {uploadingLogo
+                      ? "Enviando..."
+                      : logoParceiroUrl
+                      ? "Trocar logo parceiro"
+                      : "Enviar logo parceiro"}
+                  </span>
+                </Button>
+              </label>
+              {logoParceiroUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() => setLogoParceiroUrl(null)}
+                >
+                  <X className="h-4 w-4 mr-1" /> Remover
+                </Button>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
