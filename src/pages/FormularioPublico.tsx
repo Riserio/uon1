@@ -207,22 +207,39 @@ export default function FormularioPublico() {
     </div>
   );
 
-  const baixarPDF = () => {
+  const baixarPDF = async () => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Logo Vangard (minimalista, topo)
+    try {
+      const res = await fetch("/images/vangard-logo.png");
+      const blob = await res.blob();
+      const dataUrl: string = await new Promise((resolve) => {
+        const r = new FileReader();
+        r.onloadend = () => resolve(r.result as string);
+        r.readAsDataURL(blob);
+      });
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise((r) => (img.onload = r));
+      const h = 28;
+      const w = (img.width / img.height) * h;
+      doc.addImage(dataUrl, "PNG", 40, 36, w, h);
+    } catch {
+      /* ignora */
+    }
+
     // Título
-    doc.setFontSize(16);
+    doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text(form.titulo || "Respostas", 40, 50);
+    doc.setTextColor(20, 20, 30);
+    doc.text(form.titulo || "Respostas", 40, 100);
+
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(120);
-    doc.text(
-      `Enviado em ${new Date().toLocaleString("pt-BR")}`,
-      40,
-      68
-    );
-    doc.setTextColor(0);
+    doc.setTextColor(130);
+    doc.text(`Enviado em ${new Date().toLocaleString("pt-BR")}`, 40, 118);
 
     const rows = perguntas.map((p: any, i: number) => {
       const v = valores[p.id];
@@ -231,16 +248,43 @@ export default function FormularioPublico() {
     });
 
     autoTable(doc, {
-      startY: 90,
+      startY: 140,
       head: [["Pergunta", "Resposta"]],
       body: rows,
-      styles: { fontSize: 10, cellPadding: 8, valign: "top" },
-      headStyles: { fillColor: cor, textColor: 255 },
+      theme: "plain",
+      styles: {
+        fontSize: 10,
+        cellPadding: 10,
+        valign: "top",
+        textColor: [40, 40, 50],
+        lineColor: [230, 230, 235],
+        lineWidth: 0.5,
+      },
+      headStyles: {
+        fillColor: [248, 248, 250],
+        textColor: [90, 90, 110],
+        fontStyle: "bold",
+        fontSize: 9,
+      },
       columnStyles: {
-        0: { cellWidth: pageWidth * 0.45, fontStyle: "bold" },
+        0: { cellWidth: pageWidth * 0.45, fontStyle: "bold", textColor: [20, 20, 30] },
         1: { cellWidth: pageWidth * 0.45 },
       },
     });
+
+    // Rodapé minimalista
+    const pages = doc.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(160);
+      doc.text(
+        `Processado pela plataforma Uon1 · ${i}/${pages}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 24,
+        { align: "center" }
+      );
+    }
 
     const safe = (form.titulo || "respostas")
       .toLowerCase()
