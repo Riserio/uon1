@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Share2, Save, Upload } from "lucide-react";
+import { Share2, Save, Upload, RotateCcw } from "lucide-react";
 
 export function BrandingCompartilhamento() {
   const qc = useQueryClient();
@@ -41,6 +41,12 @@ export function BrandingCompartilhamento() {
         og_descricao: corretora.og_descricao || "",
         og_imagem_url:
           corretora.og_imagem_url || `${window.location.origin}/images/vangard-logo.png`,
+      });
+    } else {
+      setOg({
+        og_titulo: "Vangard",
+        og_descricao: "",
+        og_imagem_url: `${window.location.origin}/images/vangard-logo.png`,
       });
     }
   }, [corretora]);
@@ -164,14 +170,31 @@ export function BrandingCompartilhamento() {
             </div>
           </div>
 
-          <Button
-            onClick={() => salvar.mutate()}
-            disabled={salvar.isPending}
-            className="rounded-xl gap-2"
-          >
-            <Save className="h-4 w-4" />
-            {salvar.isPending ? "Salvando..." : "Salvar"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => salvar.mutate()}
+              disabled={salvar.isPending}
+              className="rounded-xl gap-2"
+            >
+              <Save className="h-4 w-4" />
+              {salvar.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl gap-2"
+              onClick={() =>
+                setOg({
+                  og_titulo: "Vangard",
+                  og_descricao: "",
+                  og_imagem_url: `${window.location.origin}/images/vangard-logo.png`,
+                })
+              }
+            >
+              <RotateCcw className="h-4 w-4" />
+              Usar padrão Vangard
+            </Button>
+          </div>
         </>
       )}
     </div>
