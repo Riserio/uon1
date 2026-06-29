@@ -399,7 +399,7 @@ export default function GestaoJornada() {
       if (targetFuncionarioId === funcionarioId) {
         const { validarDispositivoPonto } = await import("@/lib/validarDispositivoPonto");
         const validacao = await validarDispositivoPonto(targetFuncionarioId);
-        if (!validacao.permitido) {
+        if (validacao.permitido === false) {
           throw new Error(validacao.motivo);
         }
       }
