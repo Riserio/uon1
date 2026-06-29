@@ -29,7 +29,7 @@ import {
   X,
 } from "lucide-react";
 
-type EstiloForm = "google_forms" | "typeform" | "sinistro";
+type EstiloForm = "google_forms" | "typeform" | "sinistro" | "fluxos";
 
 const ESTILOS: { value: EstiloForm; titulo: string; descricao: string; emoji: string }[] = [
   {
@@ -49,6 +49,12 @@ const ESTILOS: { value: EstiloForm; titulo: string; descricao: string; emoji: st
     titulo: "Colapse",
     descricao: "Layout Vangard com cabeçalho fixo e seções. Perguntas customizáveis.",
     emoji: "🛡️",
+  },
+  {
+    value: "fluxos",
+    titulo: "Fluxos",
+    descricao: "Análise de sinistro com motor de classificação automática (7 dimensões + gatilhos + red flags). Estrutura fixa.",
+    emoji: "🧭",
   },
 ];
 
