@@ -37,13 +37,10 @@ export function BrandingCompartilhamento() {
   useEffect(() => {
     if (corretora) {
       setOg({
-        og_titulo: corretora.og_titulo || "",
+        og_titulo: corretora.og_titulo || "Vangard",
         og_descricao: corretora.og_descricao || "",
         og_imagem_url:
-          corretora.og_imagem_url ||
-          corretora.logo_expanded_url ||
-          corretora.logo_url ||
-          "",
+          corretora.og_imagem_url || `${window.location.origin}/images/vangard-logo.png`,
       });
     }
   }, [corretora]);
@@ -120,7 +117,7 @@ export function BrandingCompartilhamento() {
             <Input
               value={og.og_titulo}
               onChange={(e) => setOg({ ...og, og_titulo: e.target.value })}
-              placeholder={`Ex.: ${corretora.nome}`}
+              placeholder="Vangard"
             />
           </div>
 
