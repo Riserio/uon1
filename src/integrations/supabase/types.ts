@@ -2126,6 +2126,9 @@ export type Database = {
           logo_url: string | null
           nome: string
           observacoes: string | null
+          og_descricao: string | null
+          og_imagem_url: string | null
+          og_titulo: string | null
           responsavel: string | null
           slug: string | null
           susep: string | null
@@ -2147,6 +2150,9 @@ export type Database = {
           logo_url?: string | null
           nome: string
           observacoes?: string | null
+          og_descricao?: string | null
+          og_imagem_url?: string | null
+          og_titulo?: string | null
           responsavel?: string | null
           slug?: string | null
           susep?: string | null
@@ -2168,6 +2174,9 @@ export type Database = {
           logo_url?: string | null
           nome?: string
           observacoes?: string | null
+          og_descricao?: string | null
+          og_imagem_url?: string | null
+          og_titulo?: string | null
           responsavel?: string | null
           slug?: string | null
           susep?: string | null
