@@ -727,7 +727,7 @@ export function S10_RedFlags({ form, update, scoreAntifraude }: { form: FormData
   const flags = RED_FLAGS.filter((f) => f.tipos === "all" || (t && f.tipos.includes(t)));
   const grupos = Array.from(new Set(flags.map((f) => f.grupo)));
   return (
-    <SecaoCard numero={10} titulo="Red Flags antifraude" descricao="Marque todos os indicadores objetivos presentes.">
+    <SecaoCard numero={10} titulo="Indicadores adicionais" descricao="Marque os itens objetivos observados no caso.">
       {grupos.map((g) => (
         <div key={g} className="space-y-2">
           <Subhead>{g}</Subhead>
