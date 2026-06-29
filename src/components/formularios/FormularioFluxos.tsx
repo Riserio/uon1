@@ -6,7 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { CheckCircle2, Shield } from "lucide-react";
 import { INITIAL_FORM, FormDataFluxos } from "./fluxos/types";
-import { classificar, RED_FLAGS, SECOES_POR_TIPO, getClassificacaoStyle } from "./fluxos/motor";
+import { classificar, RED_FLAGS, SECOES_POR_TIPO } from "./fluxos/motor";
 import {
   S01_Identificacao,
   S02_Associado,
@@ -106,7 +106,6 @@ export default function FormularioFluxos({ form }: { form: any }) {
 
   const vangardLogo = "/images/vangard-logo.png";
   const parceiroLogo: string | null = form?.logo_url || null;
-  const s = getClassificacaoStyle(resultado.classificacao);
 
   if (enviado) {
     return (
@@ -114,7 +113,7 @@ export default function FormularioFluxos({ form }: { form: any }) {
         <div className="max-w-md w-full bg-white rounded-2xl border border-stone-200 p-10 text-center space-y-4 shadow-sm">
           <CheckCircle2 className="h-14 w-14 mx-auto" style={{ color: cor }} />
           <h1 className="text-2xl font-bold">Caso enviado ao comitê</h1>
-          <p className="text-sm text-stone-600">Classificação: <strong className={s.text}>{s.label}</strong> · Score {resultado.scoreNormalizado > 0 ? "+" : ""}{resultado.scoreNormalizado}</p>
+          <p className="text-sm text-stone-600">O caso foi registrado e seguirá para análise interna do comitê.</p>
           <Button onClick={() => { setData(INITIAL_FORM); setEnviado(false); }} className="rounded-md text-white hover:opacity-90" style={{ backgroundColor: cor }}>
             Novo caso
           </Button>
