@@ -440,7 +440,7 @@ function renderInputBig(
   const v = valores[p.id] ?? (p.tipo === "checkbox" ? [] : "");
   const set = (val: any) => setValores({ ...valores, [p.id]: val });
   const underline =
-    "w-full bg-transparent border-0 border-b-2 border-muted-foreground/30 rounded-none px-0 text-xl sm:text-2xl py-3 focus-visible:ring-0 transition-colors h-auto";
+    "w-full bg-transparent border-0 border-b-2 border-foreground/20 rounded-none px-0 text-xl sm:text-2xl py-3 focus-visible:ring-0 transition-colors h-auto text-foreground placeholder:text-muted-foreground/60 font-medium";
   const focusStyle = { caretColor: cor } as React.CSSProperties;
 
   switch (p.tipo) {
@@ -497,8 +497,59 @@ function renderInputBig(
           autoFocus
           type="tel"
           value={v}
-          onChange={(e) => set(e.target.value)}
+          onChange={(e) => set(maskTelefone(e.target.value))}
           placeholder="(00) 00000-0000"
+          className={underline}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
+    case "placa":
+      return (
+        <Input
+          autoFocus
+          value={v}
+          onChange={(e) => set(maskPlaca(e.target.value))}
+          placeholder="ABC-1D23"
+          maxLength={8}
+          className={`${underline} uppercase tracking-widest`}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
+    case "cpf":
+      return (
+        <Input
+          autoFocus
+          inputMode="numeric"
+          value={v}
+          onChange={(e) => set(maskCPF(e.target.value))}
+          placeholder="000.000.000-00"
+          maxLength={14}
+          className={underline}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
+    case "cnpj":
+      return (
+        <Input
+          autoFocus
+          inputMode="numeric"
+          value={v}
+          onChange={(e) => set(maskCNPJ(e.target.value))}
+          placeholder="00.000.000/0000-00"
+          maxLength={18}
+          className={underline}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
+    case "cep":
+      return (
+        <Input
+          autoFocus
+          inputMode="numeric"
+          value={v}
+          onChange={(e) => set(maskCEP(e.target.value))}
+          placeholder="00000-000"
+          maxLength={9}
           className={underline}
           style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
         />
