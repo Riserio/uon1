@@ -159,10 +159,10 @@ export default function FormularioRespostas() {
       </div>
 
       <Tabs defaultValue="resumo" className="space-y-6">
-        <TabsList className="h-12 p-1.5 bg-muted/60 rounded-2xl gap-1">
-          <TabsTrigger value="resumo" className="rounded-xl px-6 h-9 data-[state=active]:bg-background data-[state=active]:shadow-sm">Resumo</TabsTrigger>
-          <TabsTrigger value="individual" className="rounded-xl px-6 h-9 data-[state=active]:bg-background data-[state=active]:shadow-sm">Individual</TabsTrigger>
-          <TabsTrigger value="tabela" className="rounded-xl px-6 h-9 data-[state=active]:bg-background data-[state=active]:shadow-sm">Tabela</TabsTrigger>
+        <TabsList className="h-12 p-1.5 bg-muted/60 rounded-2xl gap-1 text-muted-foreground">
+          <TabsTrigger value="resumo" className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Resumo</TabsTrigger>
+          <TabsTrigger value="individual" className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Individual</TabsTrigger>
+          <TabsTrigger value="tabela" className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Tabela</TabsTrigger>
         </TabsList>
 
         <TabsContent value="resumo" className="space-y-4">

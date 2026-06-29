@@ -20,6 +20,42 @@ import { toast } from "sonner";
 import { CheckCircle2, ArrowLeft, ArrowRight, CornerDownLeft, Download } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+// === Máscaras ===
+function maskPlaca(v: string) {
+  const s = v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
+  if (s.length <= 3) return s;
+  return `${s.slice(0, 3)}-${s.slice(3)}`;
+}
+function maskCPF(v: string) {
+  const s = v.replace(/\D/g, "").slice(0, 11);
+  return s
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+}
+function maskCNPJ(v: string) {
+  const s = v.replace(/\D/g, "").slice(0, 14);
+  return s
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+}
+function maskCEP(v: string) {
+  const s = v.replace(/\D/g, "").slice(0, 8);
+  return s.replace(/^(\d{5})(\d)/, "$1-$2");
+}
+function maskTelefone(v: string) {
+  const s = v.replace(/\D/g, "").slice(0, 11);
+  if (s.length <= 10) {
+    return s
+      .replace(/^(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+  return s
+    .replace(/^(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d)/, "$1-$2");
+}
 
 export default function FormularioPublico() {
   const { slug } = useParams<{ slug: string }>();
@@ -171,22 +207,39 @@ export default function FormularioPublico() {
     </div>
   );
 
-  const baixarPDF = () => {
+  const baixarPDF = async () => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Logo Vangard (minimalista, topo)
+    try {
+      const res = await fetch("/images/vangard-logo.png");
+      const blob = await res.blob();
+      const dataUrl: string = await new Promise((resolve) => {
+        const r = new FileReader();
+        r.onloadend = () => resolve(r.result as string);
+        r.readAsDataURL(blob);
+      });
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise((r) => (img.onload = r));
+      const h = 28;
+      const w = (img.width / img.height) * h;
+      doc.addImage(dataUrl, "PNG", 40, 36, w, h);
+    } catch {
+      /* ignora */
+    }
+
     // Título
-    doc.setFontSize(16);
+    doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text(form.titulo || "Respostas", 40, 50);
+    doc.setTextColor(20, 20, 30);
+    doc.text(form.titulo || "Respostas", 40, 100);
+
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(120);
-    doc.text(
-      `Enviado em ${new Date().toLocaleString("pt-BR")}`,
-      40,
-      68
-    );
-    doc.setTextColor(0);
+    doc.setTextColor(130);
+    doc.text(`Enviado em ${new Date().toLocaleString("pt-BR")}`, 40, 118);
 
     const rows = perguntas.map((p: any, i: number) => {
       const v = valores[p.id];
@@ -195,16 +248,43 @@ export default function FormularioPublico() {
     });
 
     autoTable(doc, {
-      startY: 90,
+      startY: 140,
       head: [["Pergunta", "Resposta"]],
       body: rows,
-      styles: { fontSize: 10, cellPadding: 8, valign: "top" },
-      headStyles: { fillColor: cor, textColor: 255 },
+      theme: "plain",
+      styles: {
+        fontSize: 10,
+        cellPadding: 10,
+        valign: "top",
+        textColor: [40, 40, 50],
+        lineColor: [230, 230, 235],
+        lineWidth: 0.5,
+      },
+      headStyles: {
+        fillColor: [248, 248, 250],
+        textColor: [90, 90, 110],
+        fontStyle: "bold",
+        fontSize: 9,
+      },
       columnStyles: {
-        0: { cellWidth: pageWidth * 0.45, fontStyle: "bold" },
+        0: { cellWidth: pageWidth * 0.45, fontStyle: "bold", textColor: [20, 20, 30] },
         1: { cellWidth: pageWidth * 0.45 },
       },
     });
+
+    // Rodapé minimalista
+    const pages = doc.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(160);
+      doc.text(
+        `Processado pela plataforma Uon1 · ${i}/${pages}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 24,
+        { align: "center" }
+      );
+    }
 
     const safe = (form.titulo || "respostas")
       .toLowerCase()
@@ -360,7 +440,7 @@ function renderInputBig(
   const v = valores[p.id] ?? (p.tipo === "checkbox" ? [] : "");
   const set = (val: any) => setValores({ ...valores, [p.id]: val });
   const underline =
-    "w-full bg-transparent border-0 border-b-2 border-muted-foreground/30 rounded-none px-0 text-xl sm:text-2xl py-3 focus-visible:ring-0 transition-colors h-auto";
+    "w-full bg-transparent border-0 border-b-2 border-foreground/20 rounded-none px-0 text-xl sm:text-2xl py-3 focus-visible:ring-0 transition-colors h-auto text-foreground placeholder:text-muted-foreground/60 font-medium";
   const focusStyle = { caretColor: cor } as React.CSSProperties;
 
   switch (p.tipo) {
@@ -417,8 +497,59 @@ function renderInputBig(
           autoFocus
           type="tel"
           value={v}
-          onChange={(e) => set(e.target.value)}
+          onChange={(e) => set(maskTelefone(e.target.value))}
           placeholder="(00) 00000-0000"
+          className={underline}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
+    case "placa":
+      return (
+        <Input
+          autoFocus
+          value={v}
+          onChange={(e) => set(maskPlaca(e.target.value))}
+          placeholder="ABC-1D23"
+          maxLength={8}
+          className={`${underline} uppercase tracking-widest`}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
+    case "cpf":
+      return (
+        <Input
+          autoFocus
+          inputMode="numeric"
+          value={v}
+          onChange={(e) => set(maskCPF(e.target.value))}
+          placeholder="000.000.000-00"
+          maxLength={14}
+          className={underline}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
+    case "cnpj":
+      return (
+        <Input
+          autoFocus
+          inputMode="numeric"
+          value={v}
+          onChange={(e) => set(maskCNPJ(e.target.value))}
+          placeholder="00.000.000/0000-00"
+          maxLength={18}
+          className={underline}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
+    case "cep":
+      return (
+        <Input
+          autoFocus
+          inputMode="numeric"
+          value={v}
+          onChange={(e) => set(maskCEP(e.target.value))}
+          placeholder="00000-000"
+          maxLength={9}
           className={underline}
           style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
         />

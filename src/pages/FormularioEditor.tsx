@@ -36,7 +36,11 @@ type TipoPergunta =
   | "numero"
   | "data"
   | "email"
-  | "telefone";
+  | "telefone"
+  | "placa"
+  | "cpf"
+  | "cnpj"
+  | "cep";
 
 type Pergunta = {
   id?: string;
@@ -58,6 +62,10 @@ const TIPOS: { value: TipoPergunta; label: string; opcoes: boolean }[] = [
   { value: "data", label: "Data", opcoes: false },
   { value: "email", label: "E-mail", opcoes: false },
   { value: "telefone", label: "Telefone", opcoes: false },
+  { value: "placa", label: "Placa de veículo", opcoes: false },
+  { value: "cpf", label: "CPF", opcoes: false },
+  { value: "cnpj", label: "CNPJ", opcoes: false },
+  { value: "cep", label: "CEP", opcoes: false },
 ];
 
 function slugify(text: string) {
