@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { CheckCircle2, Shield } from "lucide-react";
-import { maskCEP, maskCNPJ, maskCPF, maskPlaca, maskTelefone } from "./masks";
+import { maskCEP, maskCNPJ, maskCPF, maskPlaca, maskTelefone, maskMoeda, maskCidade, maskDia, maskMes } from "./masks";
 import { ESTADOS_BR } from "./estados";
 
 /**
@@ -254,6 +254,14 @@ function CampoColapse({
         return <Input inputMode="numeric" value={v} onChange={(e) => setValor(maskCNPJ(e.target.value))} placeholder="00.000.000/0000-00" maxLength={18} />;
       case "cep":
         return <Input inputMode="numeric" value={v} onChange={(e) => setValor(maskCEP(e.target.value))} placeholder="00000-000" maxLength={9} />;
+      case "moeda":
+        return <Input inputMode="numeric" value={v} onChange={(e) => setValor(maskMoeda(e.target.value))} placeholder="R$ 0,00" />;
+      case "cidade":
+        return <Input value={v} onChange={(e) => setValor(maskCidade(e.target.value))} placeholder="Cidade" />;
+      case "dia":
+        return <Input inputMode="numeric" value={v} onChange={(e) => setValor(maskDia(e.target.value))} placeholder="DD" maxLength={2} />;
+      case "mes":
+        return <Input inputMode="numeric" value={v} onChange={(e) => setValor(maskMes(e.target.value))} placeholder="MM" maxLength={2} />;
       case "estado":
         return (
           <Select value={v} onValueChange={setValor}>
