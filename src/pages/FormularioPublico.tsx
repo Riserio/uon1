@@ -17,13 +17,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ArrowLeft, ArrowRight, CornerDownLeft } from "lucide-react";
 
 export default function FormularioPublico() {
   const { slug } = useParams<{ slug: string }>();
   const [valores, setValores] = useState<Record<string, any>>({});
   const [honey, setHoney] = useState("");
   const [enviado, setEnviado] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [step, setStep] = useState(0); // 1..N
 
   const { data: form, isLoading, error } = useQuery({
     queryKey: ["formulario_publico", slug],
@@ -48,6 +50,8 @@ export default function FormularioPublico() {
   );
 
   const cor = form?.cor_tema || "#362C89";
+  const total = perguntas.length;
+  const perguntaAtual = started && step >= 1 && step <= total ? perguntas[step - 1] : null;
 
   useEffect(() => {
     if (form?.titulo) document.title = form.titulo;
@@ -55,7 +59,7 @@ export default function FormularioPublico() {
 
   const enviar = useMutation({
     mutationFn: async () => {
-      if (honey) return; // bot
+      if (honey) return;
       for (const p of perguntas) {
         if (p.obrigatorio) {
           const v = valores[p.id];
@@ -77,6 +81,40 @@ export default function FormularioPublico() {
     },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const validarAtual = (): boolean => {
+    if (!perguntaAtual) return true;
+    if (!perguntaAtual.obrigatorio) return true;
+    const v = valores[perguntaAtual.id];
+    const vazio = v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
+    if (vazio) {
+      toast.error("Esta pergunta é obrigatória");
+      return false;
+    }
+    return true;
+  };
+
+  const avancar = () => {
+    if (!validarAtual()) return;
+    if (step >= total) enviar.mutate();
+    else setStep((s) => s + 1);
+  };
+  const voltar = () => setStep((s) => Math.max(1, s - 1));
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!started || enviado) return;
+      if (e.key === "Enter" && !e.shiftKey) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === "TEXTAREA") return;
+        e.preventDefault();
+        avancar();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [started, enviado, step, valores, total]);
 
   if (isLoading) {
     return (
@@ -101,65 +139,112 @@ export default function FormularioPublico() {
     );
   }
 
+  const Shell = ({ children }: { children: React.ReactNode }) => (
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: `linear-gradient(135deg, ${cor}0d 0%, ${cor}03 60%, #ffffff 100%)` }}
+    >
+      <header className="w-full border-b border-border/40 bg-white/70 backdrop-blur-md">
+        <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
+          <img src="/images/vangard-logo.png" alt="Vangard" className="h-9 object-contain" />
+          {started && !enviado && total > 0 && (
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {Math.min(step, total)} / {total}
+            </span>
+          )}
+        </div>
+        {started && !enviado && total > 0 && (
+          <div className="h-1 bg-muted/40">
+            <div
+              className="h-full transition-all duration-500 ease-out"
+              style={{ width: `${(Math.min(step, total) / total) * 100}%`, backgroundColor: cor }}
+            />
+          </div>
+        )}
+      </header>
+      <div className="flex-1 flex items-center justify-center px-6 py-10">{children}</div>
+      <footer className="text-center text-[11px] text-muted-foreground py-4">
+        Processado pela plataforma <span className="font-medium">Uon1</span>
+      </footer>
+    </div>
+  );
+
   if (enviado) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center p-6"
-        style={{
-          background: `linear-gradient(135deg, ${cor}11 0%, ${cor}05 100%)`,
-        }}
-      >
-        <Card className="max-w-lg w-full rounded-2xl">
-          <CardContent className="p-10 text-center space-y-4">
+      <Shell>
+        <Card className="max-w-lg w-full rounded-3xl border-0 shadow-xl">
+          <CardContent className="p-12 text-center space-y-5">
             <CheckCircle2 className="h-16 w-16 mx-auto" style={{ color: cor }} />
-            <h1 className="text-2xl font-bold">{form.titulo}</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Obrigado!</h1>
             <p className="text-muted-foreground">
-              {(form.config as any)?.mensagem_agradecimento ||
-                "Resposta enviada com sucesso!"}
+              {(form.config as any)?.mensagem_agradecimento || "Resposta enviada com sucesso!"}
             </p>
             <Button
               variant="outline"
               onClick={() => {
                 setValores({});
                 setEnviado(false);
+                setStarted(false);
+                setStep(0);
               }}
             >
               Enviar outra resposta
             </Button>
           </CardContent>
         </Card>
-      </div>
+      </Shell>
     );
   }
 
-  return (
-    <div
-      className="min-h-screen py-10 px-4"
-      style={{ background: `linear-gradient(135deg, ${cor}11 0%, ${cor}05 100%)` }}
-    >
-      <div className="max-w-2xl mx-auto space-y-4">
-        <Card className="rounded-2xl overflow-hidden">
-          <div className="h-2" style={{ backgroundColor: cor }} />
-          <CardContent className="p-6 space-y-2">
-            {form.logo_url && (
-              <img src={form.logo_url} alt="" className="h-12 mb-2 object-contain" />
-            )}
-            <h1 className="text-2xl font-bold">{form.titulo}</h1>
+  if (!started) {
+    return (
+      <Shell>
+        <div className="max-w-2xl w-full text-center space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {form.logo_url && (
+            <img src={form.logo_url} alt="" className="h-16 mx-auto object-contain" />
+          )}
+          <div className="space-y-4">
+            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">{form.titulo}</h1>
             {form.descricao && (
-              <p className="text-muted-foreground text-sm">{form.descricao}</p>
+              <p className="text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
+                {form.descricao}
+              </p>
             )}
-            <p className="text-xs text-destructive">* Indica pergunta obrigatória</p>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="flex flex-col items-center gap-3 pt-4">
+            <Button
+              size="lg"
+              className="text-base px-8 h-12 rounded-full shadow-lg hover:shadow-xl transition-all"
+              style={{ backgroundColor: cor, color: "white" }}
+              onClick={() => {
+                setStarted(true);
+                setStep(1);
+              }}
+            >
+              Começar <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              Pressione{" "}
+              <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">Enter</kbd> a
+              qualquer momento
+            </p>
+          </div>
+        </div>
+      </Shell>
+    );
+  }
 
+  if (perguntaAtual) {
+    return (
+      <Shell>
         <form
+          key={perguntaAtual.id}
           onSubmit={(e) => {
             e.preventDefault();
-            enviar.mutate();
+            avancar();
           }}
-          className="space-y-4"
+          className="max-w-2xl w-full space-y-8 animate-in fade-in slide-in-from-bottom-3 duration-300"
         >
-          {/* honeypot */}
           <input
             type="text"
             value={honey}
@@ -170,97 +255,193 @@ export default function FormularioPublico() {
             aria-hidden
           />
 
-          {perguntas.map((p: any) => (
-            <Card key={p.id} className="rounded-2xl">
-              <CardContent className="p-5 space-y-3">
-                <Label className="text-base font-medium">
-                  {p.enunciado}
-                  {p.obrigatorio && <span className="text-destructive ml-1">*</span>}
-                </Label>
-                {p.descricao && (
-                  <p className="text-xs text-muted-foreground -mt-2">{p.descricao}</p>
-                )}
-                {renderInput(p, valores, setValores)}
-              </CardContent>
-            </Card>
-          ))}
-
-          <div className="flex justify-end pt-2">
-            <Button
-              type="submit"
-              size="lg"
-              disabled={enviar.isPending}
-              style={{ backgroundColor: cor, color: "white" }}
-            >
-              {enviar.isPending ? "Enviando..." : "Enviar"}
-            </Button>
+          <div className="flex items-start gap-3">
+            <span className="text-sm font-semibold tabular-nums shrink-0 mt-2" style={{ color: cor }}>
+              {step}.
+            </span>
+            <div className="space-y-2 flex-1">
+              <Label className="text-2xl sm:text-3xl font-semibold leading-snug block">
+                {perguntaAtual.enunciado}
+                {perguntaAtual.obrigatorio && <span className="text-destructive ml-1">*</span>}
+              </Label>
+              {perguntaAtual.descricao && (
+                <p className="text-sm text-muted-foreground">{perguntaAtual.descricao}</p>
+              )}
+            </div>
           </div>
 
-          <p className="text-xs text-center text-muted-foreground pt-4">
-            Este formulário é processado pela plataforma Uon1.
-          </p>
+          <div className="pl-7">{renderInputBig(perguntaAtual, valores, setValores, cor)}</div>
+
+          <div className="flex items-center justify-between pl-7 pt-4">
+            <Button type="button" variant="ghost" onClick={voltar} disabled={step <= 1} className="gap-1">
+              <ArrowLeft className="h-4 w-4" /> Voltar
+            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                type="submit"
+                size="lg"
+                disabled={enviar.isPending}
+                className="rounded-full px-7 shadow-md hover:shadow-lg gap-2"
+                style={{ backgroundColor: cor, color: "white" }}
+              >
+                {step >= total ? (enviar.isPending ? "Enviando..." : "Enviar") : "OK"}
+                <CornerDownLeft className="h-4 w-4" />
+              </Button>
+              {step < total && (
+                <span className="hidden sm:inline text-xs text-muted-foreground">
+                  pressione{" "}
+                  <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">Enter</kbd>
+                </span>
+              )}
+            </div>
+          </div>
         </form>
-      </div>
-    </div>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <div />
+    </Shell>
   );
 }
 
-function renderInput(
+function renderInputBig(
   p: any,
   valores: Record<string, any>,
-  setValores: (v: any) => void
+  setValores: (v: any) => void,
+  cor: string
 ) {
   const v = valores[p.id] ?? (p.tipo === "checkbox" ? [] : "");
   const set = (val: any) => setValores({ ...valores, [p.id]: val });
+  const underline =
+    "w-full bg-transparent border-0 border-b-2 border-muted-foreground/30 rounded-none px-0 text-xl sm:text-2xl py-3 focus-visible:ring-0 transition-colors h-auto";
+  const focusStyle = { caretColor: cor } as React.CSSProperties;
+
   switch (p.tipo) {
     case "texto_longo":
-      return <Textarea value={v} onChange={(e) => set(e.target.value)} rows={4} />;
+      return (
+        <Textarea
+          autoFocus
+          value={v}
+          onChange={(e) => set(e.target.value)}
+          rows={4}
+          placeholder="Sua resposta..."
+          className="text-lg rounded-xl border-2 focus-visible:ring-2"
+          style={{ ...focusStyle, borderColor: `${cor}33` }}
+        />
+      );
     case "numero":
-      return <Input type="number" value={v} onChange={(e) => set(e.target.value)} />;
+      return (
+        <Input
+          autoFocus
+          type="number"
+          value={v}
+          onChange={(e) => set(e.target.value)}
+          placeholder="Digite um número..."
+          className={underline}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
     case "data":
-      return <Input type="date" value={v} onChange={(e) => set(e.target.value)} />;
+      return (
+        <Input
+          autoFocus
+          type="date"
+          value={v}
+          onChange={(e) => set(e.target.value)}
+          className={underline}
+          style={focusStyle}
+        />
+      );
     case "email":
-      return <Input type="email" value={v} onChange={(e) => set(e.target.value)} />;
+      return (
+        <Input
+          autoFocus
+          type="email"
+          value={v}
+          onChange={(e) => set(e.target.value)}
+          placeholder="nome@email.com"
+          className={underline}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
     case "telefone":
-      return <Input type="tel" value={v} onChange={(e) => set(e.target.value)} />;
+      return (
+        <Input
+          autoFocus
+          type="tel"
+          value={v}
+          onChange={(e) => set(e.target.value)}
+          placeholder="(00) 00000-0000"
+          className={underline}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
     case "radio":
       return (
-        <RadioGroup value={v} onValueChange={set}>
-          {(p.opcoes || []).map((o: string, i: number) => (
-            <div key={i} className="flex items-center gap-2">
-              <RadioGroupItem value={o} id={`${p.id}-${i}`} />
-              <Label htmlFor={`${p.id}-${i}`} className="font-normal cursor-pointer">
-                {o}
-              </Label>
-            </div>
-          ))}
+        <RadioGroup value={v} onValueChange={set} className="space-y-2">
+          {(p.opcoes || []).map((o: string, i: number) => {
+            const selected = v === o;
+            return (
+              <label
+                key={i}
+                htmlFor={`${p.id}-${i}`}
+                className="flex items-center gap-3 rounded-xl border-2 px-4 py-3 cursor-pointer transition-all hover:bg-muted/40"
+                style={{
+                  borderColor: selected ? cor : "hsl(var(--border))",
+                  backgroundColor: selected ? `${cor}10` : undefined,
+                }}
+              >
+                <span
+                  className="h-7 w-7 rounded-md border-2 flex items-center justify-center text-xs font-bold shrink-0 bg-white"
+                  style={{
+                    borderColor: selected ? cor : "hsl(var(--border))",
+                    color: cor,
+                  }}
+                >
+                  {String.fromCharCode(65 + i)}
+                </span>
+                <RadioGroupItem value={o} id={`${p.id}-${i}`} className="sr-only" />
+                <span className="text-base flex-1">{o}</span>
+              </label>
+            );
+          })}
         </RadioGroup>
       );
     case "checkbox": {
       const arr: string[] = Array.isArray(v) ? v : [];
       return (
         <div className="space-y-2">
-          {(p.opcoes || []).map((o: string, i: number) => (
-            <div key={i} className="flex items-center gap-2">
-              <Checkbox
-                id={`${p.id}-${i}`}
-                checked={arr.includes(o)}
-                onCheckedChange={(c) =>
-                  set(c ? [...arr, o] : arr.filter((x) => x !== o))
-                }
-              />
-              <Label htmlFor={`${p.id}-${i}`} className="font-normal cursor-pointer">
-                {o}
-              </Label>
-            </div>
-          ))}
+          {(p.opcoes || []).map((o: string, i: number) => {
+            const selected = arr.includes(o);
+            return (
+              <label
+                key={i}
+                className="flex items-center gap-3 rounded-xl border-2 px-4 py-3 cursor-pointer transition-all hover:bg-muted/40"
+                style={{
+                  borderColor: selected ? cor : "hsl(var(--border))",
+                  backgroundColor: selected ? `${cor}10` : undefined,
+                }}
+              >
+                <Checkbox
+                  checked={selected}
+                  onCheckedChange={(c) =>
+                    set(c ? [...arr, o] : arr.filter((x) => x !== o))
+                  }
+                />
+                <span className="text-base flex-1">{o}</span>
+              </label>
+            );
+          })}
         </div>
       );
     }
     case "dropdown":
       return (
         <Select value={v} onValueChange={set}>
-          <SelectTrigger>
+          <SelectTrigger className="text-lg h-12 rounded-xl">
             <SelectValue placeholder="Selecione..." />
           </SelectTrigger>
           <SelectContent>
@@ -273,6 +454,15 @@ function renderInput(
         </Select>
       );
     default:
-      return <Input value={v} onChange={(e) => set(e.target.value)} />;
+      return (
+        <Input
+          autoFocus
+          value={v}
+          onChange={(e) => set(e.target.value)}
+          placeholder="Digite aqui..."
+          className={underline}
+          style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }}
+        />
+      );
   }
 }
