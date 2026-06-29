@@ -89,7 +89,8 @@ export default function FormularioColapse({ form }: { form: any }) {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const headerLogo = form?.logo_url || "/images/vangard-logo.png";
+  const vangardLogo = "/images/vangard-logo.png";
+  const parceiroLogo: string | null = form?.logo_url || null;
   const headerTitulo = form?.titulo || "Formulário";
 
   if (enviado) {
@@ -121,11 +122,23 @@ export default function FormularioColapse({ form }: { form: any }) {
       <header className="sticky top-0 z-50 text-white" style={{ backgroundColor: cor }}>
         <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <img
-              src={headerLogo}
-              alt="Vangard"
-              className="h-9 object-contain bg-white/95 rounded-md px-2 py-1"
-            />
+            <div className="flex items-center gap-2 bg-white/95 rounded-md px-2 py-1 shrink-0">
+              <img
+                src={vangardLogo}
+                alt="Vangard"
+                className="h-7 object-contain"
+              />
+              {parceiroLogo && (
+                <>
+                  <span className="h-6 w-px bg-stone-300" aria-hidden />
+                  <img
+                    src={parceiroLogo}
+                    alt="Parceiro"
+                    className="h-7 object-contain"
+                  />
+                </>
+              )}
+            </div>
             <div className="min-w-0">
               <div className="font-semibold text-base truncate">{headerTitulo}</div>
               <div className="text-[11px] text-white/70 truncate flex items-center gap-1">
