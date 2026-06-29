@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { TIPOS_SINISTRO, RED_FLAGS } from "./motor";
 import type { FormDataFluxos, TipoSinistro } from "./types";
-import { maskPlaca, maskCPF, maskCNPJ, maskTelefone } from "../masks";
+import { maskPlaca, maskCPF, maskCNPJ, maskTelefone, maskMoeda, maskCidade, maskData } from "../masks";
 
 // ───── Helpers ─────
 type UpdateFn = (patch: Partial<FormDataFluxos>) => void;
@@ -197,7 +197,7 @@ export function S02_Associado({ form, update }: { form: FormDataFluxos; update: 
             ]}
           />
         </Field>
-        <Field label="Último vencimento / pagamento"><Input value={form.ultimoVencimento || ""} onChange={(e) => update({ ultimoVencimento: e.target.value })} /></Field>
+        <Field label="Último vencimento / pagamento"><Input type="date" value={form.ultimoVencimento || ""} onChange={(e) => update({ ultimoVencimento: e.target.value })} /></Field>
         <Field label="Dias até próximo vencimento" badge="NOVO" hint="Menos de 15 dias = red flag de temporalidade">
           <Input type="number" value={form.diasProxVenc || ""} onChange={(e) => update({ diasProxVenc: e.target.value })} />
         </Field>
@@ -321,7 +321,7 @@ export function S04_Veiculo({ form, update }: { form: FormDataFluxos; update: Up
         <Field label="Marca/Modelo"><Input value={form.veicMM || ""} onChange={(e) => update({ veicMM: e.target.value })} /></Field>
         <Field label="Ano fabricação"><Input value={form.veicAno || ""} onChange={(e) => update({ veicAno: e.target.value })} /></Field>
         <Field label="Cota de participação"><Input value={form.cotaPart || ""} onChange={(e) => update({ cotaPart: e.target.value })} /></Field>
-        <Field label="Valor FIPE" badge="NOVO"><Input value={form.fipe || ""} onChange={(e) => update({ fipe: e.target.value })} /></Field>
+        <Field label="Valor FIPE" badge="NOVO"><Input inputMode="numeric" placeholder="R$ 0,00" value={form.fipe || ""} onChange={(e) => update({ fipe: maskMoeda(e.target.value) })} /></Field>
         <Field label="KM odômetro" badge="NOVO"><Input value={form.km || ""} onChange={(e) => update({ km: e.target.value })} /></Field>
       </Grid>
       <Subhead>Situação documental</Subhead>
