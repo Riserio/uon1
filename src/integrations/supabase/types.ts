@@ -2176,6 +2176,74 @@ export type Database = {
         }
         Relationships: []
       }
+      dispositivos_ponto: {
+        Row: {
+          apelido: string | null
+          aprovado_em: string | null
+          aprovado_por: string | null
+          created_at: string
+          exigir_ip: boolean
+          fingerprint: string
+          funcionario_id: string
+          id: string
+          ip: string | null
+          ip_aprovado: string | null
+          navegador: string | null
+          observacao: string | null
+          plataforma: string | null
+          status: string
+          ultimo_uso_em: string | null
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          apelido?: string | null
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          created_at?: string
+          exigir_ip?: boolean
+          fingerprint: string
+          funcionario_id: string
+          id?: string
+          ip?: string | null
+          ip_aprovado?: string | null
+          navegador?: string | null
+          observacao?: string | null
+          plataforma?: string | null
+          status?: string
+          ultimo_uso_em?: string | null
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          apelido?: string | null
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          created_at?: string
+          exigir_ip?: boolean
+          fingerprint?: string
+          funcionario_id?: string
+          id?: string
+          ip?: string | null
+          ip_aprovado?: string | null
+          navegador?: string | null
+          observacao?: string | null
+          plataforma?: string | null
+          status?: string
+          ultimo_uso_em?: string | null
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispositivos_ponto_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documentos: {
         Row: {
           arquivo_nome: string
@@ -2931,6 +2999,141 @@ export type Database = {
           },
         ]
       }
+      formulario_perguntas: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          enunciado: string
+          formulario_id: string
+          id: string
+          obrigatorio: boolean
+          opcoes: Json
+          ordem: number
+          tipo: string
+          validacao: Json
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          enunciado: string
+          formulario_id: string
+          id?: string
+          obrigatorio?: boolean
+          opcoes?: Json
+          ordem?: number
+          tipo: string
+          validacao?: Json
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          enunciado?: string
+          formulario_id?: string
+          id?: string
+          obrigatorio?: boolean
+          opcoes?: Json
+          ordem?: number
+          tipo?: string
+          validacao?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formulario_perguntas_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formulario_respostas: {
+        Row: {
+          dados: Json
+          enviado_em: string
+          formulario_id: string
+          id: string
+          ip: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          dados?: Json
+          enviado_em?: string
+          formulario_id: string
+          id?: string
+          ip?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          dados?: Json
+          enviado_em?: string
+          formulario_id?: string
+          id?: string
+          ip?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formulario_respostas_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formularios: {
+        Row: {
+          config: Json
+          cor_tema: string | null
+          corretora_id: string | null
+          created_at: string
+          criado_por: string | null
+          descricao: string | null
+          id: string
+          logo_url: string | null
+          slug: string
+          status: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          cor_tema?: string | null
+          corretora_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          logo_url?: string | null
+          slug: string
+          status?: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          cor_tema?: string | null
+          corretora_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          logo_url?: string | null
+          slug?: string
+          status?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formularios_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funcionario_feedback_notas: {
         Row: {
           ano: number
@@ -3306,6 +3509,8 @@ export type Database = {
       jornada_config: {
         Row: {
           created_at: string
+          exigir_aprovacao_dispositivo: boolean
+          exigir_ip_dispositivo: boolean
           horario_entrada_padrao: string
           horario_saida_almoco_padrao: string
           horario_saida_padrao: string
@@ -3321,6 +3526,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          exigir_aprovacao_dispositivo?: boolean
+          exigir_ip_dispositivo?: boolean
           horario_entrada_padrao?: string
           horario_saida_almoco_padrao?: string
           horario_saida_padrao?: string
@@ -3336,6 +3543,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          exigir_aprovacao_dispositivo?: boolean
+          exigir_ip_dispositivo?: boolean
           horario_entrada_padrao?: string
           horario_saida_almoco_padrao?: string
           horario_saida_padrao?: string
