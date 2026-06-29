@@ -25,6 +25,10 @@ import {
   maskCPF,
   maskPlaca,
   maskTelefone,
+  maskMoeda,
+  maskCidade,
+  maskDia,
+  maskMes,
 } from "@/components/formularios/masks";
 import { ESTADOS_BR } from "@/components/formularios/estados";
 
