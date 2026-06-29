@@ -17,7 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { CheckCircle2, ArrowLeft, ArrowRight, CornerDownLeft } from "lucide-react";
+import { CheckCircle2, ArrowLeft, ArrowRight, CornerDownLeft, Download } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function FormularioPublico() {
   const { slug } = useParams<{ slug: string }>();
@@ -139,7 +141,7 @@ export default function FormularioPublico() {
     );
   }
 
-  const Shell = ({ children }: { children: React.ReactNode }) => (
+  const renderShell = (children: React.ReactNode) => (
     <div
       className="min-h-screen flex flex-col"
       style={{ background: `linear-gradient(135deg, ${cor}0d 0%, ${cor}03 60%, #ffffff 100%)` }}
@@ -169,9 +171,50 @@ export default function FormularioPublico() {
     </div>
   );
 
+  const baixarPDF = () => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    // Título
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(form.titulo || "Respostas", 40, 50);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120);
+    doc.text(
+      `Enviado em ${new Date().toLocaleString("pt-BR")}`,
+      40,
+      68
+    );
+    doc.setTextColor(0);
+
+    const rows = perguntas.map((p: any, i: number) => {
+      const v = valores[p.id];
+      const texto = Array.isArray(v) ? v.join(", ") : v ?? "—";
+      return [`${i + 1}. ${p.enunciado}`, String(texto || "—")];
+    });
+
+    autoTable(doc, {
+      startY: 90,
+      head: [["Pergunta", "Resposta"]],
+      body: rows,
+      styles: { fontSize: 10, cellPadding: 8, valign: "top" },
+      headStyles: { fillColor: cor, textColor: 255 },
+      columnStyles: {
+        0: { cellWidth: pageWidth * 0.45, fontStyle: "bold" },
+        1: { cellWidth: pageWidth * 0.45 },
+      },
+    });
+
+    const safe = (form.titulo || "respostas")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    doc.save(`${safe}-${Date.now()}.pdf`);
+  };
+
   if (enviado) {
-    return (
-      <Shell>
+    return renderShell(
         <Card className="max-w-lg w-full rounded-3xl border-0 shadow-xl">
           <CardContent className="p-12 text-center space-y-5">
             <CheckCircle2 className="h-16 w-16 mx-auto" style={{ color: cor }} />
@@ -179,26 +222,34 @@ export default function FormularioPublico() {
             <p className="text-muted-foreground">
               {(form.config as any)?.mensagem_agradecimento || "Resposta enviada com sucesso!"}
             </p>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setValores({});
-                setEnviado(false);
-                setStarted(false);
-                setStep(0);
-              }}
-            >
-              Enviar outra resposta
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+              <Button
+                onClick={baixarPDF}
+                className="gap-2 rounded-full"
+                style={{ backgroundColor: cor, color: "white" }}
+              >
+                <Download className="h-4 w-4" /> Baixar PDF das respostas
+              </Button>
+              <Button
+                variant="outline"
+                className="rounded-full"
+                onClick={() => {
+                  setValores({});
+                  setEnviado(false);
+                  setStarted(false);
+                  setStep(0);
+                }}
+              >
+                Enviar outra resposta
+              </Button>
+            </div>
           </CardContent>
         </Card>
-      </Shell>
     );
   }
 
   if (!started) {
-    return (
-      <Shell>
+    return renderShell(
         <div className="max-w-2xl w-full text-center space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {form.logo_url && (
             <img src={form.logo_url} alt="" className="h-16 mx-auto object-contain" />
@@ -230,13 +281,11 @@ export default function FormularioPublico() {
             </p>
           </div>
         </div>
-      </Shell>
     );
   }
 
   if (perguntaAtual) {
-    return (
-      <Shell>
+    return renderShell(
         <form
           key={perguntaAtual.id}
           onSubmit={(e) => {
@@ -296,15 +345,10 @@ export default function FormularioPublico() {
             </div>
           </div>
         </form>
-      </Shell>
     );
   }
 
-  return (
-    <Shell>
-      <div />
-    </Shell>
-  );
+  return renderShell(<div />);
 }
 
 function renderInputBig(
