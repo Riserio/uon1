@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
- import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront, SearchCheck, ClipboardCheck, FileEdit, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront, SearchCheck, ClipboardCheck, FileEdit } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,6 @@ import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useSignedContracts } from "@/hooks/useSignedContracts";
 import { useOuvidoriaPendentes } from "@/hooks/useOuvidoriaPendentes";
-import { useDispositivosPendentes } from "@/hooks/useDispositivosPendentes";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -71,7 +70,6 @@ function useMenuItems() {
   const whatsAppUnread = useWhatsAppUnread();
   const signedContracts = useSignedContracts();
   const ouvidoriaPendentes = useOuvidoriaPendentes();
-  const dispositivosPendentes = useDispositivosPendentes();
 
   const items: MenuItem[] = [
     // Navegação
@@ -95,7 +93,6 @@ function useMenuItems() {
      { id: "comunicados", label: "Comunicados", to: "/comunicados", icon: Megaphone, group: "ferramentas" },
      { id: "gestao", label: "Gestão", to: "/gestao", icon: Briefcase, group: "ferramentas" },
     { id: "formularios", label: "Formulários", to: "/formularios", icon: FileEdit, group: "ferramentas" },
-    { id: "dispositivos_ponto", label: "Dispositivos do Ponto", to: "/dispositivos-ponto", icon: ShieldCheck, badge: dispositivosPendentes, group: "ferramentas" },
       { id: "ppr", label: "PPR", to: "/ppr", icon: ClipboardCheck, group: "ferramentas" },
     { id: "debitos_veiculares", label: "Débitos Veiculares", to: "/debitos-veiculares", icon: CarFront, group: "ferramentas" },
     { id: "ajuda", label: "Ajuda", to: "/ajuda", icon: HelpCircle, group: "ferramentas" },
