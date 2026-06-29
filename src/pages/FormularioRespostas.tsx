@@ -123,33 +123,33 @@ export default function FormularioRespostas() {
   ];
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/formularios")}>
+    <div className="container mx-auto p-6 space-y-8 max-w-7xl">
+      <div className="flex flex-wrap items-center gap-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/formularios")} className="rounded-xl">
           <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
         </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold truncate">{form?.titulo}</h1>
-          <p className="text-sm text-muted-foreground">
+        <div className="flex-1 min-w-[240px]">
+          <h1 className="text-3xl font-bold tracking-tight truncate">{form?.titulo}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Última resposta: <span className="font-medium text-foreground">{ultimaResposta}</span>
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={exportarXLSX} disabled={total === 0}>
+        <Button size="sm" variant="outline" onClick={exportarXLSX} disabled={total === 0} className="rounded-xl">
           <Download className="h-4 w-4 mr-1" /> Exportar XLSX
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((k) => {
           const Icon = k.icon;
           return (
-            <Card key={k.label} className="rounded-2xl bg-muted/40 backdrop-blur">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${k.color}`}>
+            <Card key={k.label} className="rounded-2xl bg-muted/40 backdrop-blur border-border/50">
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ${k.color}`}>
                   <Icon className="h-5 w-5" />
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">{k.label}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground truncate">{k.label}</p>
                   <p className="text-2xl font-bold tabular-nums leading-tight">{k.value}</p>
                 </div>
               </CardContent>
@@ -158,11 +158,11 @@ export default function FormularioRespostas() {
         })}
       </div>
 
-      <Tabs defaultValue="resumo">
-        <TabsList>
-          <TabsTrigger value="resumo">Resumo</TabsTrigger>
-          <TabsTrigger value="individual">Individual</TabsTrigger>
-          <TabsTrigger value="tabela">Tabela</TabsTrigger>
+      <Tabs defaultValue="resumo" className="space-y-6">
+        <TabsList className="h-12 p-1.5 bg-muted/60 rounded-2xl gap-1">
+          <TabsTrigger value="resumo" className="rounded-xl px-6 h-9 data-[state=active]:bg-background data-[state=active]:shadow-sm">Resumo</TabsTrigger>
+          <TabsTrigger value="individual" className="rounded-xl px-6 h-9 data-[state=active]:bg-background data-[state=active]:shadow-sm">Individual</TabsTrigger>
+          <TabsTrigger value="tabela" className="rounded-xl px-6 h-9 data-[state=active]:bg-background data-[state=active]:shadow-sm">Tabela</TabsTrigger>
         </TabsList>
 
         <TabsContent value="resumo" className="space-y-4">
