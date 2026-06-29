@@ -69,18 +69,18 @@ Deno.serve(async (req) => {
 
     const destino = `https://${host}/f/${slug}`;
 
-    const titulo =
-      corretora?.og_titulo ||
-      (corretora?.nome ? `${corretora.nome} · ${form?.titulo ?? ""}` : form?.titulo) ||
-      "Formulário";
+    // Padrão institucional: Vangard (administradora da plataforma)
+    const VANGARD_NOME = "Vangard";
+    const VANGARD_LOGO = `https://${host}/images/vangard-logo.png`;
+
+    const titulo = corretora?.og_titulo || VANGARD_NOME;
     const descricao =
-      corretora?.og_descricao || form?.descricao || "Preencha o formulário online.";
-    const imagem =
-      corretora?.og_imagem_url ||
-      corretora?.logo_expanded_url ||
-      corretora?.logo_url ||
-      form?.logo_url ||
-      `https://${host}/images/vangard-logo.png`;
+      corretora?.og_descricao ||
+      form?.descricao ||
+      form?.titulo ||
+      "Preencha o formulário online.";
+    const imagem = corretora?.og_imagem_url || VANGARD_LOGO;
+    const siteName = corretora?.og_titulo || VANGARD_NOME;
 
     const ua = req.headers.get("user-agent") || "";
     const isBot = BOT_REGEX.test(ua);
@@ -94,12 +94,12 @@ Deno.serve(async (req) => {
 <meta name="description" content="${esc(descricao)}" />
 <link rel="canonical" href="${esc(destino)}" />
 <meta property="og:type" content="website" />
-<meta property="og:site_name" content="${esc(corretora?.nome || "Uon1")}" />
+<meta property="og:site_name" content="${esc(siteName)}" />
 <meta property="og:title" content="${esc(titulo)}" />
 <meta property="og:description" content="${esc(descricao)}" />
 <meta property="og:url" content="${esc(destino)}" />
 <meta property="og:image" content="${esc(imagem)}" />
-<meta property="og:image:alt" content="${esc(corretora?.nome || titulo)}" />
+<meta property="og:image:alt" content="${esc(titulo)}" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="${esc(titulo)}" />
 <meta name="twitter:description" content="${esc(descricao)}" />
@@ -116,7 +116,7 @@ ${isBot ? "" : `<meta http-equiv="refresh" content="0; url=${esc(destino)}" />`}
 </head>
 <body>
   <div class="card">
-    <img src="${esc(imagem)}" alt="${esc(corretora?.nome || titulo)}" />
+    <img src="${esc(imagem)}" alt="${esc(titulo)}" />
     <h1>${esc(titulo)}</h1>
     <p>${esc(descricao)}</p>
     <a href="${esc(destino)}">Abrir formulário →</a>
