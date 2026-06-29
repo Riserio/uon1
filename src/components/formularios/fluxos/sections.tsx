@@ -208,7 +208,7 @@ export function S02_Associado({ form, update }: { form: FormDataFluxos; update: 
         <Field label="Eventos anteriores"><SimChoice value={form.eventosAnteriores || ""} onChange={(v) => update({ eventosAnteriores: v })} /></Field>
         <Field label="Quantidade últimos 24m" badge="NOVO"><Input type="number" value={form.qtd24m || ""} onChange={(e) => update({ qtd24m: e.target.value })} /></Field>
         <Field label="Intervalo desde o último (dias)" badge="NOVO"><Input type="number" value={form.intervaloUltimo || ""} onChange={(e) => update({ intervaloUltimo: e.target.value })} /></Field>
-        <Field label="Mesmo tipo que o atual" badge="RED FLAG">
+        <Field label="Mesmo veiculo que o atual" badge="RED FLAG">
           <SimChoice
             value={form.mesmoTipoAnterior || ""}
             onChange={(v) => {
@@ -410,6 +410,12 @@ function SubBloco({ form, update }: { form: FormDataFluxos; update: UpdateFn }) 
           </Field>
           <Field label="Envolvimento"><SimChoice value={form.envolvimento || ""} onChange={(v) => update({ envolvimento: v })} options={["Causador", "Vítima"]} /></Field>
           <Field label="Dano a terceiro"><SimChoice value={form.danoTerceiro || ""} onChange={(v) => update({ danoTerceiro: v })} /></Field>
+          {form.danoTerceiro === "Sim" && (
+            <>
+              <Field label="Placa do veículo de terceiro"><Input value={form.terceiroPlaca || ""} onChange={(e) => update({ terceiroPlaca: e.target.value.toUpperCase() })} /></Field>
+              <Field label="Modelo do veículo de terceiro"><Input value={form.terceiroModelo || ""} onChange={(e) => update({ terceiroModelo: e.target.value })} /></Field>
+            </>
+          )}
         </Grid>
       );
     case "roubo":
@@ -626,7 +632,7 @@ export function S07_Fotos({ form, update }: { form: FormDataFluxos; update: Upda
         </Field>
         <Field label="Mostram ambiente"><SimChoice value={form.f6 || ""} onChange={(v) => update({ f6: v })} /></Field>
         <Field label="Coerência consolidada (D1)" full>
-          <Radio value={form.d1_coerenciaDanos} onChange={(v) => update({ d1_coerenciaDanos: v })} opcoes={[{value:"coerente_triplo",label:"Coerente triplo"},{value:"coerente_parcial",label:"Coerente parcial"},{value:"posicao_errada",label:"Posição errada"},{value:"incompativel",label:"Incompatível"},{value:"ferrugem_preexistente",label:"Ferrugem pré-existente"}]} />
+          <Radio value={form.d1_coerenciaDanos} onChange={(v) => update({ d1_coerenciaDanos: v })} opcoes={[{value:"coerente_triplo",label:"Coerente triplo"},{value:"coerente_parcial",label:"Coerente parcial"},{value:"posicao_errada",label:"Posição errada"}]} />
         </Field>
       </Grid>
       <Subhead>Checklist de documentação</Subhead>

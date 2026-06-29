@@ -145,6 +145,11 @@ export default function FormularioFluxos({ form }: { form: any }) {
           </div>
         </div>
         <Progress value={progresso} className="h-[3px] rounded-none bg-stone-100 [&>div]:bg-current" style={{ color: cor }} />
+        {data.periodo === "Madrugada 0-6h" && (
+          <div className="bg-emerald-50 border-t border-emerald-200 text-emerald-800 text-xs sm:text-sm font-semibold px-4 sm:px-6 py-2 text-center">
+            ⚠️ ATENÇÃO: SINISTROS OCORRIDOS ENTRE 0:00 E 6:00 OBRIGATÓRIO EXAME DE ALCOOLEMIA
+          </div>
+        )}
       </header>
 
       <div className="max-w-[1400px] mx-auto px-4 py-6">
