@@ -10,10 +10,11 @@ import { toast } from "sonner";
 import { 
   Palette, Image as ImageIcon, Settings, Shield, Bell, 
   Monitor, Moon, Sun, Upload, RotateCcw, Save, Eye,
-  Globe, Lock, Mail, Smartphone, Users
+  Globe, Lock, Mail, Smartphone, Users, Share2
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import Usuarios from "@/pages/Usuarios";
+import { BrandingCompartilhamento } from "@/components/configuracoes/BrandingCompartilhamento";
 
 interface ConfigColors {
   primary: string;
@@ -140,6 +141,7 @@ export default function Configuracoes() {
   const sections = [
     { id: "aparencia", label: "Aparência", icon: Palette, description: "Cores e personalização visual" },
     { id: "imagens", label: "Imagens", icon: ImageIcon, description: "Logo e imagem de login" },
+    { id: "compartilhamento", label: "Compartilhamento", icon: Share2, description: "Preview de links (logo da administradora)" },
     ...(canManageUsers ? [{ id: "usuarios", label: "Usuários", icon: Users, description: "Gerenciar usuários e permissões" }] : []),
     { id: "seguranca", label: "Segurança", icon: Shield, description: "Configurações de acesso" },
     { id: "notificacoes", label: "Notificações", icon: Bell, description: "Alertas e avisos" },
@@ -303,6 +305,9 @@ export default function Configuracoes() {
                 <Usuarios />
               </div>
             )}
+
+            {/* COMPARTILHAMENTO */}
+            {activeSection === "compartilhamento" && <BrandingCompartilhamento />}
 
             {/* SEGURANÇA */}
             {activeSection === "seguranca" && (
