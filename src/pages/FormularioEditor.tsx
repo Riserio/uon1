@@ -73,6 +73,10 @@ type TipoPergunta =
   | "cnpj"
   | "cep"
   | "estado"
+  | "moeda"
+  | "cidade"
+  | "dia"
+  | "mes"
   | "secao";
 
 type Pergunta = {
@@ -101,6 +105,10 @@ const TIPOS: { value: TipoPergunta; label: string; opcoes: boolean }[] = [
   { value: "cnpj", label: "CNPJ", opcoes: false },
   { value: "cep", label: "CEP", opcoes: false },
   { value: "estado", label: "Estado (UF)", opcoes: false },
+  { value: "cidade", label: "Cidade", opcoes: false },
+  { value: "moeda", label: "Valor (R$)", opcoes: false },
+  { value: "dia", label: "Dia (1-31)", opcoes: false },
+  { value: "mes", label: "Mês (1-12)", opcoes: false },
 ];
 
 function slugify(text: string) {

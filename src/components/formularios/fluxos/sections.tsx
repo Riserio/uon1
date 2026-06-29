@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { TIPOS_SINISTRO, RED_FLAGS } from "./motor";
 import type { FormDataFluxos, TipoSinistro } from "./types";
-import { maskPlaca, maskCPF, maskCNPJ, maskTelefone } from "../masks";
+import { maskPlaca, maskCPF, maskCNPJ, maskTelefone, maskMoeda, maskCidade, maskData } from "../masks";
 
 // ───── Helpers ─────
 type UpdateFn = (patch: Partial<FormDataFluxos>) => void;
@@ -197,7 +197,7 @@ export function S02_Associado({ form, update }: { form: FormDataFluxos; update: 
             ]}
           />
         </Field>
-        <Field label="Último vencimento / pagamento"><Input value={form.ultimoVencimento || ""} onChange={(e) => update({ ultimoVencimento: e.target.value })} /></Field>
+        <Field label="Último vencimento / pagamento"><Input type="date" value={form.ultimoVencimento || ""} onChange={(e) => update({ ultimoVencimento: e.target.value })} /></Field>
         <Field label="Dias até próximo vencimento" badge="NOVO" hint="Menos de 15 dias = red flag de temporalidade">
           <Input type="number" value={form.diasProxVenc || ""} onChange={(e) => update({ diasProxVenc: e.target.value })} />
         </Field>
@@ -321,7 +321,7 @@ export function S04_Veiculo({ form, update }: { form: FormDataFluxos; update: Up
         <Field label="Marca/Modelo"><Input value={form.veicMM || ""} onChange={(e) => update({ veicMM: e.target.value })} /></Field>
         <Field label="Ano fabricação"><Input value={form.veicAno || ""} onChange={(e) => update({ veicAno: e.target.value })} /></Field>
         <Field label="Cota de participação"><Input value={form.cotaPart || ""} onChange={(e) => update({ cotaPart: e.target.value })} /></Field>
-        <Field label="Valor FIPE" badge="NOVO"><Input value={form.fipe || ""} onChange={(e) => update({ fipe: e.target.value })} /></Field>
+        <Field label="Valor FIPE" badge="NOVO"><Input inputMode="numeric" placeholder="R$ 0,00" value={form.fipe || ""} onChange={(e) => update({ fipe: maskMoeda(e.target.value) })} /></Field>
         <Field label="KM odômetro" badge="NOVO"><Input value={form.km || ""} onChange={(e) => update({ km: e.target.value })} /></Field>
       </Grid>
       <Subhead>Situação documental</Subhead>
@@ -476,7 +476,7 @@ function SubBloco({ form, update }: { form: FormDataFluxos; update: UpdateFn }) 
         <Grid>
           <Field label="Origem" full><Radio value={form.subTotal || ""} onChange={(v) => update({ subTotal: v })} opcoes={["Colisão", "Incêndio", "Roubo/furto", "Alagamento", "Múltiplos"].map((o) => ({ value: o, label: o }))} /></Field>
           <Field label="% em relação ao FIPE"><SimChoice value={form.pctFipe || ""} onChange={(v) => update({ pctFipe: v })} options={["Acima 75%", "50-75%", "Abaixo 50%"]} /></Field>
-          <Field label="Valor estimado dos danos"><Input value={form.valorEstimado || ""} onChange={(e) => update({ valorEstimado: e.target.value })} /></Field>
+          <Field label="Valor estimado dos danos"><Input inputMode="numeric" placeholder="R$ 0,00" value={form.valorEstimado || ""} onChange={(e) => update({ valorEstimado: maskMoeda(e.target.value) })} /></Field>
           <Field label="Laudo de PT"><SimChoice value={form.laudoPT || ""} onChange={(v) => update({ laudoPT: v })} options={["Recebido", "Aguardando", "Não solicitado"]} /></Field>
         </Grid>
       );
@@ -589,7 +589,7 @@ export function S06_BO({ form, update }: { form: FormDataFluxos; update: UpdateF
       </Grid>
       <Subhead>Valor do sinistro</Subhead>
       <Grid>
-        <Field label="Valor dos danos/orçamento"><Input value={form.valorDanos || ""} onChange={(e) => update({ valorDanos: e.target.value })} /></Field>
+        <Field label="Valor dos danos/orçamento"><Input inputMode="numeric" placeholder="R$ 0,00" value={form.valorDanos || ""} onChange={(e) => update({ valorDanos: maskMoeda(e.target.value) })} /></Field>
         <Field label="Classificação"><SimChoice value={form.classValor || ""} onChange={(v) => update({ classValor: v })} options={["Pequeno até R$3k", "Médio R$3-15k", "Grande >R$15k", "Perda total"]} /></Field>
       </Grid>
     </SecaoCard>
