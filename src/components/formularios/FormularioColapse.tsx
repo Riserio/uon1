@@ -27,6 +27,7 @@ export default function FormularioColapse({ form }: { form: any }) {
   const [valores, setValores] = useState<Record<string, any>>({});
   const [honey, setHoney] = useState("");
   const [enviado, setEnviado] = useState(false);
+  const cor = form?.cor_tema || "#1c1917";
 
   const perguntas = useMemo(
     () =>
@@ -95,7 +96,7 @@ export default function FormularioColapse({ form }: { form: any }) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white rounded-2xl border border-stone-200 p-10 text-center space-y-4">
-          <CheckCircle2 className="h-14 w-14 mx-auto text-green-600" />
+          <CheckCircle2 className="h-14 w-14 mx-auto" style={{ color: cor }} />
           <h1 className="text-2xl font-bold">Resposta enviada</h1>
           <p className="text-sm text-stone-600">
             {(form.config as any)?.mensagem_agradecimento || "Recebemos suas informações."}
@@ -105,7 +106,8 @@ export default function FormularioColapse({ form }: { form: any }) {
               setValores({});
               setEnviado(false);
             }}
-            className="rounded-md bg-stone-900 hover:bg-stone-700"
+            className="rounded-md text-white hover:opacity-90"
+            style={{ backgroundColor: cor }}
           >
             Enviar nova resposta
           </Button>
@@ -116,7 +118,7 @@ export default function FormularioColapse({ form }: { form: any }) {
 
   return (
     <div className="min-h-screen bg-stone-50 font-sans text-[14px] text-stone-800">
-      <header className="sticky top-0 z-50 bg-stone-900 text-white">
+      <header className="sticky top-0 z-50 text-white" style={{ backgroundColor: cor }}>
         <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <img
@@ -126,19 +128,19 @@ export default function FormularioColapse({ form }: { form: any }) {
             />
             <div className="min-w-0">
               <div className="font-semibold text-base truncate">{headerTitulo}</div>
-              <div className="text-[11px] text-stone-300 truncate flex items-center gap-1">
+              <div className="text-[11px] text-white/70 truncate flex items-center gap-1">
                 <Shield className="h-3 w-3" /> Vangard Gestora
               </div>
             </div>
           </div>
           <div className="text-right shrink-0">
-            <div className="text-[10px] uppercase tracking-wider text-stone-400">
+            <div className="text-[10px] uppercase tracking-wider text-white/60">
               Progresso
             </div>
             <div className="text-xl font-bold tabular-nums">{progresso}%</div>
           </div>
         </div>
-        <Progress value={progresso} className="h-[3px] rounded-none bg-stone-800" />
+        <Progress value={progresso} className="h-[3px] rounded-none bg-black/30 [&>div]:bg-white" />
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-4">
@@ -171,12 +173,12 @@ export default function FormularioColapse({ form }: { form: any }) {
               className="bg-white border border-stone-200 rounded-xl overflow-hidden"
             >
               {b.titulo && (
-                <div className="px-5 py-3 bg-stone-900 text-white">
+                <div className="px-5 py-3 text-white" style={{ backgroundColor: cor }}>
                   <div className="font-semibold text-sm uppercase tracking-wide">
                     {b.titulo}
                   </div>
                   {b.descricao && (
-                    <div className="text-[11px] text-stone-300 mt-0.5">{b.descricao}</div>
+                    <div className="text-[11px] text-white/70 mt-0.5">{b.descricao}</div>
                   )}
                 </div>
               )}
@@ -187,6 +189,7 @@ export default function FormularioColapse({ form }: { form: any }) {
                       key={p.id}
                       p={p}
                       valor={valores[p.id]}
+                      cor={cor}
                       setValor={(v) => setValores((prev) => ({ ...prev, [p.id]: v }))}
                     />
                   ))}
@@ -199,7 +202,8 @@ export default function FormularioColapse({ form }: { form: any }) {
             <Button
               type="submit"
               disabled={enviar.isPending}
-              className="bg-stone-900 hover:bg-stone-700 text-white rounded-md px-6"
+              className="text-white rounded-md px-6 hover:opacity-90"
+              style={{ backgroundColor: cor }}
             >
               {enviar.isPending ? "Enviando..." : "Enviar"}
             </Button>
@@ -218,10 +222,12 @@ function CampoColapse({
   p,
   valor,
   setValor,
+  cor,
 }: {
   p: any;
   valor: any;
   setValor: (v: any) => void;
+  cor: string;
 }) {
   const fullWidth = p.tipo === "texto_longo" || p.tipo === "checkbox" || p.tipo === "radio";
   const v = valor ?? (p.tipo === "checkbox" ? [] : "");
@@ -250,7 +256,7 @@ function CampoColapse({
           <RadioGroup value={v} onValueChange={setValor} className="flex flex-wrap gap-3">
             {(p.opcoes || []).map((o: string, i: number) => (
               <label key={i} className="flex items-center gap-2 cursor-pointer bg-stone-50 border border-stone-200 rounded-md px-3 py-1.5">
-                <RadioGroupItem value={o} id={`${p.id}-${i}`} />
+                <RadioGroupItem value={o} id={`${p.id}-${i}`} style={{ borderColor: cor, color: cor }} />
                 <span className="text-sm">{o}</span>
               </label>
             ))}
@@ -266,6 +272,7 @@ function CampoColapse({
                 <label key={i} className="flex items-center gap-2 cursor-pointer">
                   <Checkbox
                     checked={selected}
+                    style={{ borderColor: cor, backgroundColor: selected ? cor : undefined }}
                     onCheckedChange={(c) =>
                       setValor(c ? [...arr, o] : arr.filter((x) => x !== o))
                     }
