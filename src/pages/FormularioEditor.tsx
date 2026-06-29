@@ -25,6 +25,8 @@ import {
   Save,
   Eye,
   GripVertical,
+  Upload,
+  X,
 } from "lucide-react";
 
 type EstiloForm = "google_forms" | "typeform" | "sinistro";
@@ -120,6 +122,8 @@ export default function FormularioEditor() {
     "Resposta enviada com sucesso!"
   );
   const [perguntas, setPerguntas] = useState<Pergunta[]>([]);
+  const [logoParceiroUrl, setLogoParceiroUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const { data: form } = useQuery({
     queryKey: ["formulario", id],
@@ -143,6 +147,7 @@ export default function FormularioEditor() {
     setCorTema(form.cor_tema || "#362C89");
     setStatus(form.status === "publicado" ? "publicado" : "rascunho");
     setEstilo(((form as any).estilo as EstiloForm) || "google_forms");
+    setLogoParceiroUrl((form as any).logo_url || null);
     setMensagemAgradecimento(
       (form.config as any)?.mensagem_agradecimento || "Resposta enviada com sucesso!"
     );
@@ -216,6 +221,7 @@ export default function FormularioEditor() {
         slug,
         cor_tema: corTema,
         estilo,
+        logo_url: logoParceiroUrl,
         status: publicar ? "publicado" : status,
         config: { mensagem_agradecimento: mensagemAgradecimento },
       };
@@ -268,6 +274,26 @@ export default function FormularioEditor() {
     () => (slug ? `${window.location.origin}/f/${slug}` : ""),
     [slug]
   );
+
+  const uploadLogoParceiro = async (file: File) => {
+    try {
+      setUploadingLogo(true);
+      const ext = file.name.split(".").pop() || "png";
+      const path = `formularios/parceiros/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("logos").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from("logos").getPublicUrl(path);
+      setLogoParceiroUrl(data.publicUrl);
+      toast.success("Logo do parceiro enviada");
+    } catch (e: any) {
+      toast.error(e.message || "Falha ao enviar logo");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
 
   return (
     <div className="container mx-auto p-6 max-w-4xl space-y-6">
