@@ -493,6 +493,18 @@ export default function FormularioEditor() {
         </CardContent>
       </Card>
 
+      {estilo === "fluxos" ? (
+        <Card className="rounded-2xl bg-amber-50/40 border-amber-200">
+          <CardContent className="p-6 text-sm text-amber-900 space-y-2">
+            <p className="font-semibold">Estilo Fluxos: estrutura fixa</p>
+            <p className="text-xs">
+              Este modelo já contém todas as seções de análise de sinistro (Identificação, Associado, Condutor, Veículo, Evento,
+              BO, Fotos, Terceiro, Entrevista, Red Flags, Nexo Causal, Parecer) com motor de classificação automática.
+              Não é necessário cadastrar perguntas — basta publicar.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
       <div className="space-y-3">
         {perguntas.map((p, idx) => {
           const precisaOpcoes = TIPOS.find((t) => t.value === p.tipo)?.opcoes;
@@ -626,10 +638,13 @@ export default function FormularioEditor() {
           );
         })}
       </div>
+      )}
 
-      <Button onClick={addPergunta} variant="outline" className="w-full gap-2">
-        <Plus className="h-4 w-4" /> Adicionar pergunta
-      </Button>
+      {estilo !== "fluxos" && (
+        <Button onClick={addPergunta} variant="outline" className="w-full gap-2">
+          <Plus className="h-4 w-4" /> Adicionar pergunta
+        </Button>
+      )}
     </div>
   );
 }
