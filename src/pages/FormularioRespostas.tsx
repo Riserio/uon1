@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, Inbox, CalendarDays, Activity, Hash } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -102,19 +102,60 @@ export default function FormularioRespostas() {
   const total = respostas?.length || 0;
   const resp = respostas?.[respIdx];
 
+  const ultimaResposta = respostas?.[0]?.enviado_em
+    ? new Date(respostas[0].enviado_em).toLocaleString("pt-BR")
+    : "—";
+  const respostasHoje = (respostas || []).filter((r: any) => {
+    const d = new Date(r.enviado_em);
+    const h = new Date();
+    return d.toDateString() === h.toDateString();
+  }).length;
+  const respostas7d = (respostas || []).filter((r: any) => {
+    const d = new Date(r.enviado_em).getTime();
+    return Date.now() - d <= 7 * 24 * 60 * 60 * 1000;
+  }).length;
+
+  const kpis = [
+    { label: "Total de respostas", value: total, icon: Inbox, color: "text-primary bg-primary/10" },
+    { label: "Hoje", value: respostasHoje, icon: Activity, color: "text-emerald-600 bg-emerald-500/10" },
+    { label: "Últimos 7 dias", value: respostas7d, icon: CalendarDays, color: "text-blue-600 bg-blue-500/10" },
+    { label: "Perguntas", value: perguntas.length, icon: Hash, color: "text-amber-600 bg-amber-500/10" },
+  ];
+
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate("/formularios")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{form?.titulo}</h1>
-          <p className="text-sm text-muted-foreground">{total} respostas</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold truncate">{form?.titulo}</h1>
+          <p className="text-sm text-muted-foreground">
+            Última resposta: <span className="font-medium text-foreground">{ultimaResposta}</span>
+          </p>
         </div>
         <Button size="sm" variant="outline" onClick={exportarXLSX} disabled={total === 0}>
           <Download className="h-4 w-4 mr-1" /> Exportar XLSX
         </Button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map((k) => {
+          const Icon = k.icon;
+          return (
+            <Card key={k.label} className="rounded-2xl bg-muted/40 backdrop-blur">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${k.color}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">{k.label}</p>
+                  <p className="text-2xl font-bold tabular-nums leading-tight">{k.value}</p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Tabs defaultValue="resumo">
