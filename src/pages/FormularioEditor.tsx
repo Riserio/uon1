@@ -44,8 +44,8 @@ const ESTILOS: { value: EstiloForm; titulo: string; descricao: string; emoji: st
   },
   {
     value: "sinistro",
-    titulo: "Análise de Sinistro",
-    descricao: "Estrutura fixa antifraude + nexo causal + red flags.",
+    titulo: "Colapse",
+    descricao: "Layout Vangard com cabeçalho fixo e seções. Perguntas customizáveis.",
     emoji: "🛡️",
   },
 ];
@@ -63,7 +63,8 @@ type TipoPergunta =
   | "placa"
   | "cpf"
   | "cnpj"
-  | "cep";
+  | "cep"
+  | "secao";
 
 type Pergunta = {
   id?: string;
@@ -76,6 +77,7 @@ type Pergunta = {
 };
 
 const TIPOS: { value: TipoPergunta; label: string; opcoes: boolean }[] = [
+  { value: "secao", label: "— Cabeçalho de seção —", opcoes: false },
   { value: "texto_curto", label: "Texto curto", opcoes: false },
   { value: "texto_longo", label: "Texto longo (parágrafo)", opcoes: false },
   { value: "radio", label: "Escolha única (radio)", opcoes: true },
@@ -199,9 +201,9 @@ export default function FormularioEditor() {
     mutationFn: async (publicar?: boolean) => {
       if (!titulo.trim()) throw new Error("Informe um título");
       if (!slug.trim()) throw new Error("Informe o slug do link público");
-      if (estilo !== "sinistro" && perguntas.length === 0)
+      if (perguntas.length === 0)
         throw new Error("Adicione ao menos uma pergunta");
-      for (const p of estilo === "sinistro" ? [] : perguntas) {
+      for (const p of perguntas) {
         if (!p.enunciado.trim()) throw new Error("Toda pergunta precisa de enunciado");
         const precisaOpcoes = TIPOS.find((t) => t.value === p.tipo)?.opcoes;
         if (precisaOpcoes && p.opcoes.filter((o) => o.trim()).length < 2)
@@ -237,9 +239,6 @@ export default function FormularioEditor() {
 
       // Reset perguntas: delete + insert (forma mais simples e correta)
       await supabase.from("formulario_perguntas").delete().eq("formulario_id", formId!);
-      if (estilo === "sinistro") {
-        return formId!;
-      }
       const { error: errP } = await supabase.from("formulario_perguntas").insert(
         perguntas.map((p, i) => ({
           formulario_id: formId,
@@ -394,19 +393,6 @@ export default function FormularioEditor() {
         </CardContent>
       </Card>
 
-      {estilo === "sinistro" ? (
-        <Card className="rounded-2xl border-2 border-dashed">
-          <CardContent className="p-6 space-y-2 text-sm">
-            <p className="font-semibold">Formulário de Análise de Sinistro</p>
-            <p className="text-muted-foreground">
-              Este estilo usa uma estrutura fixa com 12 seções (identificação, associado,
-              condutor, veículo, evento, BO, fotos, terceiro, entrevista, red flags, nexo
-              causal e parecer). Não é necessário cadastrar perguntas — apenas título,
-              descrição e branding.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
       <div className="space-y-3">
         {perguntas.map((p, idx) => {
           const precisaOpcoes = TIPOS.find((t) => t.value === p.tipo)?.opcoes;
@@ -540,13 +526,10 @@ export default function FormularioEditor() {
           );
         })}
       </div>
-      )}
 
-      {estilo !== "sinistro" && (
-        <Button onClick={addPergunta} variant="outline" className="w-full gap-2">
-          <Plus className="h-4 w-4" /> Adicionar pergunta
-        </Button>
-      )}
+      <Button onClick={addPergunta} variant="outline" className="w-full gap-2">
+        <Plus className="h-4 w-4" /> Adicionar pergunta
+      </Button>
     </div>
   );
 }
