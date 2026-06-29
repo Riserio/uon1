@@ -40,11 +40,7 @@ export function SecaoCard({
           <h2 className="text-sm font-semibold text-stone-800">{titulo}</h2>
           {descricao && <p className="text-[11px] text-stone-500">{descricao}</p>}
         </div>
-        {badge && (
-          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${badge.cor || "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-            {badge.label}
-          </span>
-        )}
+        {/* badge interno omitido na visualização do associado */}
       </div>
       <div className="p-5 space-y-5">{children}</div>
     </section>
@@ -71,13 +67,7 @@ function Field({
       <Label className="text-xs font-semibold text-stone-600 flex items-center gap-2">
         {label}
         {obrig && <span className="text-red-600">*</span>}
-        {badge && (
-          <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full ${
-            badge === "NOVO" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-            badge === "REVISADO" ? "bg-amber-50 text-amber-700 border border-amber-200" :
-            "bg-red-50 text-red-700 border border-red-200"
-          }`}>{badge}</span>
-        )}
+        {/* badge interno omitido na visualização do associado */}
       </Label>
       {children}
       {hint && <p className="text-[10px] text-stone-400">{hint}</p>}
@@ -158,11 +148,7 @@ export function TipoSinistroSelector({
           );
         })}
       </div>
-      {tipo && (
-        <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider bg-stone-900 text-white rounded-full px-3 py-1">
-          Configurado para: {TIPOS_SINISTRO.find((t) => t.valor === tipo)?.nome}
-        </div>
-      )}
+      {/* pill "Configurado para" removida — informação interna */}
     </div>
   );
 }
