@@ -158,7 +158,7 @@ export default function FormularioRespostas() {
         })}
       </div>
 
-      <Tabs defaultValue="resumo" className="space-y-6">
+      <Tabs defaultValue={resumo.length > 0 ? "resumo" : "individual"} className="space-y-6">
         <TabsList className="h-12 p-1.5 bg-muted/60 rounded-2xl gap-1 text-muted-foreground">
           <TabsTrigger value="resumo" className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Resumo</TabsTrigger>
           <TabsTrigger value="individual" className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Individual</TabsTrigger>
@@ -170,6 +170,14 @@ export default function FormularioRespostas() {
             <Card className="rounded-2xl bg-muted/40">
               <CardContent className="p-8 text-center text-muted-foreground">
                 Nenhuma resposta ainda
+              </CardContent>
+            </Card>
+          )}
+          {total > 0 && resumo.length === 0 && (
+            <Card className="rounded-2xl bg-muted/40">
+              <CardContent className="p-8 text-center text-muted-foreground text-sm space-y-1">
+                <p>Este formulário não possui perguntas de escolha (radio/checkbox/dropdown).</p>
+                <p>Use as abas <strong>Individual</strong> ou <strong>Tabela</strong> para ver as {total} resposta{total === 1 ? "" : "s"}.</p>
               </CardContent>
             </Card>
           )}
