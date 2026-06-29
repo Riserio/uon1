@@ -53,7 +53,7 @@ export default function FormularioPublico() {
 
   const estilo = ((form as any).estilo as string) || "typeform";
 
-  if (estilo === "sinistro") return <FormularioSinistro form={form} />;
+  if (estilo === "sinistro") return <FormularioColapse form={form} />;
   if (estilo === "google_forms") return <FormularioGoogleForms form={form} />;
   return <FormularioTypeform form={form} />;
 }
