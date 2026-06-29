@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
 import { maskCEP, maskCNPJ, maskCPF, maskPlaca, maskTelefone } from "./masks";
+import { ESTADOS_BR } from "./estados";
 
 export default function FormularioGoogleForms({ form }: { form: any }) {
   const [valores, setValores] = useState<Record<string, any>>({});
