@@ -20,8 +20,6 @@ import { toast } from "sonner";
 import { CheckCircle2, ArrowLeft, ArrowRight, CornerDownLeft, Download } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import vangardLogo from "/images/vangard-logo.png";
-
 // === Máscaras ===
 function maskPlaca(v: string) {
   const s = v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
