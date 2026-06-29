@@ -476,7 +476,7 @@ function SubBloco({ form, update }: { form: FormDataFluxos; update: UpdateFn }) 
         <Grid>
           <Field label="Origem" full><Radio value={form.subTotal || ""} onChange={(v) => update({ subTotal: v })} opcoes={["Colisão", "Incêndio", "Roubo/furto", "Alagamento", "Múltiplos"].map((o) => ({ value: o, label: o }))} /></Field>
           <Field label="% em relação ao FIPE"><SimChoice value={form.pctFipe || ""} onChange={(v) => update({ pctFipe: v })} options={["Acima 75%", "50-75%", "Abaixo 50%"]} /></Field>
-          <Field label="Valor estimado dos danos"><Input value={form.valorEstimado || ""} onChange={(e) => update({ valorEstimado: e.target.value })} /></Field>
+          <Field label="Valor estimado dos danos"><Input inputMode="numeric" placeholder="R$ 0,00" value={form.valorEstimado || ""} onChange={(e) => update({ valorEstimado: maskMoeda(e.target.value) })} /></Field>
           <Field label="Laudo de PT"><SimChoice value={form.laudoPT || ""} onChange={(v) => update({ laudoPT: v })} options={["Recebido", "Aguardando", "Não solicitado"]} /></Field>
         </Grid>
       );
@@ -589,7 +589,7 @@ export function S06_BO({ form, update }: { form: FormDataFluxos; update: UpdateF
       </Grid>
       <Subhead>Valor do sinistro</Subhead>
       <Grid>
-        <Field label="Valor dos danos/orçamento"><Input value={form.valorDanos || ""} onChange={(e) => update({ valorDanos: e.target.value })} /></Field>
+        <Field label="Valor dos danos/orçamento"><Input inputMode="numeric" placeholder="R$ 0,00" value={form.valorDanos || ""} onChange={(e) => update({ valorDanos: maskMoeda(e.target.value) })} /></Field>
         <Field label="Classificação"><SimChoice value={form.classValor || ""} onChange={(v) => update({ classValor: v })} options={["Pequeno até R$3k", "Médio R$3-15k", "Grande >R$15k", "Perda total"]} /></Field>
       </Grid>
     </SecaoCard>
