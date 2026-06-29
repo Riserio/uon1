@@ -395,6 +395,15 @@ export default function GestaoJornada() {
       if (registroExistente)
         throw new Error(`${tiposPonto.find((t) => t.value === tipo)?.label} já foi registrado(a) hoje`);
 
+      // Valida dispositivo (aprovação por gestor) — apenas para o próprio colaborador
+      if (targetFuncionarioId === funcionarioId) {
+        const { validarDispositivoPonto } = await import("@/lib/validarDispositivoPonto");
+        const validacao = await validarDispositivoPonto(targetFuncionarioId);
+        if (!validacao.permitido) {
+          throw new Error(validacao.motivo);
+        }
+      }
+
       const { error } = await supabase.from("registros_ponto").insert({
         funcionario_id: targetFuncionarioId,
         tipo,
