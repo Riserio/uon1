@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,6 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   ClipboardList,
@@ -18,6 +28,8 @@ import {
   EyeOff,
   Eye,
   Search,
+  Share2,
+  Settings2,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -45,6 +57,60 @@ export default function Formularios() {
   const qc = useQueryClient();
   const [busca, setBusca] = useState("");
   const [paraExcluir, setParaExcluir] = useState<Formulario | null>(null);
+  const [brandingOpen, setBrandingOpen] = useState(false);
+  const [og, setOg] = useState({ og_titulo: "", og_descricao: "", og_imagem_url: "" });
+
+  // Associação do usuário atual (para branding de compartilhamento)
+  const { data: minhaCorretora } = useQuery({
+    queryKey: ["minha_corretora_og"],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return null;
+      const { data: p } = await supabase
+        .from("profiles")
+        .select("corretora_id")
+        .eq("id", u.user.id)
+        .maybeSingle();
+      if (!p?.corretora_id) return null;
+      const { data: c } = await supabase
+        .from("corretoras")
+        .select("id, nome, og_titulo, og_descricao, og_imagem_url, logo_url")
+        .eq("id", p.corretora_id)
+        .maybeSingle();
+      return c;
+    },
+  });
+
+  useEffect(() => {
+    if (minhaCorretora) {
+      setOg({
+        og_titulo: minhaCorretora.og_titulo || "",
+        og_descricao: minhaCorretora.og_descricao || "",
+        og_imagem_url: minhaCorretora.og_imagem_url || minhaCorretora.logo_url || "",
+      });
+    }
+  }, [minhaCorretora]);
+
+  const salvarBranding = useMutation({
+    mutationFn: async () => {
+      if (!minhaCorretora?.id) throw new Error("Associação não encontrada");
+      const { error } = await supabase
+        .from("corretoras")
+        .update({
+          og_titulo: og.og_titulo || null,
+          og_descricao: og.og_descricao || null,
+          og_imagem_url: og.og_imagem_url || null,
+        })
+        .eq("id", minhaCorretora.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Branding de compartilhamento salvo");
+      qc.invalidateQueries({ queryKey: ["minha_corretora_og"] });
+      setBrandingOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const { data: forms, isLoading } = useQuery({
     queryKey: ["formularios"],
@@ -160,6 +226,11 @@ export default function Formularios() {
   );
 
   const linkPublico = (slug: string) => `${window.location.origin}/f/${slug}`;
+  const linkCompartilhar = (slug: string) => {
+    const supaUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+    if (!supaUrl) return linkPublico(slug);
+    return `${supaUrl}/functions/v1/og-share?slug=${encodeURIComponent(slug)}&host=${encodeURIComponent(window.location.host)}`;
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -172,9 +243,14 @@ export default function Formularios() {
             Crie formulários públicos e receba respostas diretamente no sistema.
           </p>
         </div>
-        <Button onClick={() => navigate("/formularios/novo")} className="gap-2">
-          <Plus className="h-4 w-4" /> Novo formulário
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setBrandingOpen(true)} className="gap-2">
+            <Settings2 className="h-4 w-4" /> Branding de compartilhamento
+          </Button>
+          <Button onClick={() => navigate("/formularios/novo")} className="gap-2">
+            <Plus className="h-4 w-4" /> Novo formulário
+          </Button>
+        </div>
       </div>
 
       <div className="relative max-w-md">
@@ -271,6 +347,17 @@ export default function Formularios() {
                           }}
                         >
                           <Copy className="h-3.5 w-3.5 mr-1" /> Link
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(linkCompartilhar(f.slug));
+                            toast.success("Link de compartilhamento copiado (com preview da gestora)");
+                          }}
+                          title="Link com preview (Open Graph) — use ao compartilhar em WhatsApp, redes sociais, etc."
+                        >
+                          <Share2 className="h-3.5 w-3.5 mr-1" /> Compartilhar
                         </Button>
                         <Button size="sm" variant="outline" asChild>
                           <Link to={`/f/${f.slug}`} target="_blank" rel="noopener">
