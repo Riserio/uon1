@@ -604,7 +604,7 @@ export default function SGAInsights() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' })
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
                         .format(filteredEventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0))}
                     </p>
                     <p className="text-xs text-muted-foreground">Custo Total</p>
