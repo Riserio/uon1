@@ -116,7 +116,20 @@ export default function SGAInsights() {
       });
     }
     
-    return result;
+    // Deduplicar: um evento por protocolo (fallback: placa+data_evento).
+    // O arquivo do Hinova traz várias linhas por evento (itens/descrições), o que
+    // inflava o "Total Eventos" e somava custos várias vezes.
+    const seen = new Set<string>();
+    const deduped: any[] = [];
+    for (const e of result) {
+      const key = e.protocolo
+        ? `p:${e.protocolo}`
+        : `k:${e.placa || ""}|${e.data_evento || ""}|${e.motivo_evento || ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(e);
+    }
+    return deduped;
   }, [eventos, filters]);
 
   // Sync from shared BILayout context when available (internal access)
