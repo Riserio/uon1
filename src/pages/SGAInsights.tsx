@@ -593,7 +593,7 @@ export default function SGAInsights() {
                         return s && !s.includes("FINALIZADO");
                       }).length.toLocaleString()}
                     </p>
-                    <p className="text-xs text-muted-foreground">Em Análise</p>
+                    <p className="text-xs text-muted-foreground">Em Andamento</p>
                   </div>
                 </div>
               </CardContent>
