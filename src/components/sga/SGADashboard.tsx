@@ -23,11 +23,8 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-const formatCompactCurrency = (value: number) => {
-  if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
-  return `R$ ${value.toFixed(0)}`;
-};
+const formatCompactCurrency = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
 const ttStyle = { borderRadius: 10, fontSize: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" };
 
