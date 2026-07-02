@@ -16,9 +16,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { CheckCircle2, Shield } from "lucide-react";
+import { CheckCircle2, Shield, Download } from "lucide-react";
 import { maskCEP, maskCNPJ, maskCPF, maskPlaca, maskTelefone, maskMoeda, maskCidade, maskDia, maskMes } from "./masks";
 import { ESTADOS_BR } from "./estados";
+import { baixarRespostasPDF } from "./pdfExport";
 
 /**
  * Colapse style (antigo "sinistro"): cabeçalho fixo Vangard + perguntas dinâmicas
@@ -103,16 +104,32 @@ export default function FormularioColapse({ form }: { form: any }) {
           <p className="text-sm text-stone-600">
             {(form.config as any)?.mensagem_agradecimento || "Recebemos suas informações."}
           </p>
-          <Button
-            onClick={() => {
-              setValores({});
-              setEnviado(false);
-            }}
-            className="rounded-md text-white hover:opacity-90"
-            style={{ backgroundColor: cor }}
-          >
-            Enviar nova resposta
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+            <Button
+              onClick={async () => {
+                try {
+                  await baixarRespostasPDF(form, valores, perguntas);
+                } catch (e) {
+                  console.error("Erro ao gerar PDF:", e);
+                  toast.error("Não foi possível gerar o PDF");
+                }
+              }}
+              className="rounded-md text-white hover:opacity-90 gap-2"
+              style={{ backgroundColor: cor }}
+            >
+              <Download className="h-4 w-4" /> Baixar PDF
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setValores({});
+                setEnviado(false);
+              }}
+              className="rounded-md"
+            >
+              Enviar nova resposta
+            </Button>
+          </div>
         </div>
       </div>
     );
