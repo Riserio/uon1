@@ -755,11 +755,14 @@ export type Database = {
       bug_reports: {
         Row: {
           anexos: Json | null
+          arquivado: boolean
           categoria: string
           created_at: string
           descricao: string
           diagnostico: Json | null
           id: string
+          previsao_entrega: string | null
+          resolvido_em: string | null
           severidade: string
           status: string
           titulo: string
@@ -771,11 +774,14 @@ export type Database = {
         }
         Insert: {
           anexos?: Json | null
+          arquivado?: boolean
           categoria?: string
           created_at?: string
           descricao: string
           diagnostico?: Json | null
           id?: string
+          previsao_entrega?: string | null
+          resolvido_em?: string | null
           severidade?: string
           status?: string
           titulo: string
@@ -787,11 +793,14 @@ export type Database = {
         }
         Update: {
           anexos?: Json | null
+          arquivado?: boolean
           categoria?: string
           created_at?: string
           descricao?: string
           diagnostico?: Json | null
           id?: string
+          previsao_entrega?: string | null
+          resolvido_em?: string | null
           severidade?: string
           status?: string
           titulo?: string

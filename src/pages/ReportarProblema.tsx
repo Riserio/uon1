@@ -7,6 +7,7 @@ import { Bug, CheckCircle2, AlertTriangle, RefreshCw, Plus, Loader2, ShieldCheck
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ReportDialog, coletarDiagnostico } from "@/components/report/ReportDialog";
+import { RelatoDetailDialog } from "@/components/report/RelatoDetailDialog";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -22,6 +23,9 @@ interface BugReport {
   updated_at: string;
   diagnostico: any;
   anexos: any;
+  previsao_entrega: string | null;
+  arquivado: boolean;
+  resolvido_em: string | null;
 }
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
@@ -49,6 +53,8 @@ export default function ReportarProblema() {
   const [loading, setLoading] = useState(true);
   const [checks, setChecks] = useState<Check[]>([]);
   const [rodandoDiag, setRodandoDiag] = useState(false);
+  const [selecionado, setSelecionado] = useState<BugReport | null>(null);
+  const [verArquivados, setVerArquivados] = useState(false);
   const diagnostico = useMemo(() => coletarDiagnostico(), []);
 
   const carregarRelatos = async () => {
@@ -114,6 +120,11 @@ export default function ReportarProblema() {
     return c;
   }, [relatos]);
 
+  const relatosFiltrados = useMemo(
+    () => relatos.filter(r => (verArquivados ? r.arquivado : !r.arquivado)),
+    [relatos, verArquivados]
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -164,23 +175,32 @@ export default function ReportarProblema() {
 
           {/* Relatos */}
           <TabsContent value="relatos" className="space-y-3">
+            <div className="flex items-center justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setVerArquivados(v => !v)} className="text-xs">
+                {verArquivados ? "Ver ativos" : `Ver arquivados (${relatos.filter(r => r.arquivado).length})`}
+              </Button>
+            </div>
             {loading ? (
               <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-            ) : relatos.length === 0 ? (
+            ) : relatosFiltrados.length === 0 ? (
               <Card className="rounded-2xl bg-muted/40 backdrop-blur">
                 <CardContent className="p-10 text-center space-y-3">
                   <Bug className="h-10 w-10 mx-auto text-muted-foreground" />
-                  <p className="text-muted-foreground">Nenhum relato enviado ainda.</p>
+                  <p className="text-muted-foreground">{verArquivados ? "Nenhum relato arquivado." : "Nenhum relato ativo."}</p>
                   <Button onClick={() => setOpenDialog(true)} className="gap-2 bg-orange-500 hover:bg-orange-600 text-white">
                     <Plus className="h-4 w-4" /> Criar meu primeiro relato
                   </Button>
                 </CardContent>
               </Card>
             ) : (
-              relatos.map(r => {
+              relatosFiltrados.map(r => {
                 const st = STATUS_STYLES[r.status] || STATUS_STYLES.aberto;
                 return (
-                  <Card key={r.id} className="rounded-2xl bg-muted/40 backdrop-blur">
+                  <Card
+                    key={r.id}
+                    onClick={() => setSelecionado(r)}
+                    className="rounded-2xl bg-muted/40 backdrop-blur cursor-pointer hover:bg-muted/60 transition-colors"
+                  >
                     <CardContent className="p-4 space-y-2">
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="space-y-1 min-w-0 flex-1">
@@ -188,10 +208,12 @@ export default function ReportarProblema() {
                             <span className="font-semibold truncate">{r.titulo}</span>
                             <Badge variant="outline" className={SEV_STYLES[r.severidade] || ""}>{r.severidade}</Badge>
                             <Badge variant="outline" className="capitalize">{r.categoria.replace("_", " ")}</Badge>
+                            {r.arquivado && <Badge variant="outline" className="bg-muted">Arquivado</Badge>}
                           </div>
                           <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{r.descricao}</p>
                           <p className="text-xs text-muted-foreground">
                             Enviado {formatDistanceToNow(new Date(r.created_at), { addSuffix: true, locale: ptBR })}
+                            {r.previsao_entrega && <> · Previsão: {new Date(r.previsao_entrega + "T00:00:00").toLocaleDateString("pt-BR")}</>}
                             {r.url && <> · <span className="truncate">{r.url}</span></>}
                           </p>
                         </div>
@@ -276,6 +298,12 @@ export default function ReportarProblema() {
       </div>
 
       <ReportDialog open={openDialog} onOpenChange={(v) => { setOpenDialog(v); if (!v) carregarRelatos(); }} />
+      <RelatoDetailDialog
+        relato={selecionado}
+        open={!!selecionado}
+        onOpenChange={(v) => !v && setSelecionado(null)}
+        onSaved={() => { carregarRelatos(); setSelecionado(null); }}
+      />
     </div>
   );
 }
