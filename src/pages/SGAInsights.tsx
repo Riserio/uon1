@@ -132,9 +132,18 @@ export default function SGAInsights() {
       ) {
         continue;
       }
-      const key = e.protocolo
-        ? `p:${e.protocolo}`
-        : `k:${e.placa || ""}|${e.data_evento || ""}|${e.motivo_evento || ""}`;
+      // Um evento por linha lógica. O Hinova pode repetir a mesma linha
+      // (itens/descrições) — evitamos isso combinando protocolo + tipo_evento +
+      // placa do associado + placa do terceiro + data. Assim, um protocolo com
+      // ASSOCIADO e TERCEIRO conta como 2 eventos (bate com o relatório do
+      // Hinova), mas linhas de itens duplicados colapsam para 1.
+      const key = [
+        e.protocolo || "",
+        e.tipo_evento || "",
+        e.placa || "",
+        e.placa_terceiro || "",
+        e.data_evento || "",
+      ].join("|");
       if (seen.has(key)) continue;
       seen.add(key);
       deduped.push(e);
