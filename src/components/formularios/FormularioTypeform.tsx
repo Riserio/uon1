@@ -17,8 +17,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { CheckCircle2, ArrowLeft, ArrowRight, CornerDownLeft, Download } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { baixarRespostasPDF } from "./pdfExport";
 import {
   maskCEP,
   maskCNPJ,
