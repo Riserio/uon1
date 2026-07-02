@@ -103,7 +103,15 @@ export default function FormularioGoogleForms({ form }: { form: any }) {
       <div className="max-w-2xl mx-auto space-y-4">
         <Card className="rounded-2xl border-t-8" style={{ borderTopColor: cor }}>
           <CardContent className="p-8 space-y-3">
-            <img src="/images/vangard-logo.png" alt="Vangard" className="h-8 object-contain mb-2" />
+            <div className="flex items-center gap-3 mb-2">
+              <img src="/images/vangard-logo.png" alt="Vangard" className="h-8 object-contain" />
+              {form?.logo_url && (
+                <>
+                  <span className="h-7 w-px bg-border" aria-hidden />
+                  <img src={form.logo_url} alt="Parceiro" className="h-8 object-contain" />
+                </>
+              )}
+            </div>
             <h1 className="text-3xl font-bold">{form.titulo}</h1>
             {form.descricao && <p className="text-muted-foreground">{form.descricao}</p>}
           </CardContent>

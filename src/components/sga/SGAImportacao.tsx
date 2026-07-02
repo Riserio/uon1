@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { invalidateBICache } from "@/hooks/useBIGlobalCache";
 import * as XLSX from "xlsx";
 import SGAHistoricoImportacoes from "./SGAHistoricoImportacoes";
 // Automação agora é gerenciada pelo BISyncButton no header
@@ -387,6 +388,8 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
       });
 
       toast.success(`${jsonData.length} registros importados com sucesso para ${corretoraNome}!`);
+      // Invalida cache do BI para forçar releitura dos novos dados
+      invalidateBICache(corretoraId);
       setFile(null);
       setPreview([]);
       if (fileInputRef.current) fileInputRef.current.value = "";

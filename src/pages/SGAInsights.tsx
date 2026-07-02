@@ -233,10 +233,22 @@ export default function SGAInsights() {
     if (!forceRefresh) {
       const globalCached = getBICachedData(selectedAssociacao, 'eventos');
       if (globalCached && globalCached.data.length > 0) {
-        setEventos(globalCached.data);
-        setImportacaoAtiva(globalCached.importacao);
-        setLoading(false);
-        return;
+        // Valida se a importação em cache ainda é a mais recente ativa
+        const { data: latest } = await supabase
+          .from("sga_importacoes")
+          .select("id")
+          .eq("ativo", true)
+          .eq("corretora_id", selectedAssociacao)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!latest || latest.id === globalCached.importacao?.id) {
+          setEventos(globalCached.data);
+          setImportacaoAtiva(globalCached.importacao);
+          setLoading(false);
+          return;
+        }
+        // Cache obsoleto: prossegue para refetch
       }
       // Portal prefetch cache: show immediately but fetch full data in background
       if (isPortalAccess) {
