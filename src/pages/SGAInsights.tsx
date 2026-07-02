@@ -572,8 +572,8 @@ export default function SGAInsights() {
                     <TrendingUp className="h-5 w-5 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">
-                      {filteredEventos.filter(e => e.situacao_evento === "FINALIZADO").length.toLocaleString()}
+                     <p className="text-2xl font-bold">
+                      {filteredEventos.filter(e => (e.situacao_evento || "").toUpperCase().includes("FINALIZADO")).length.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground">Finalizados</p>
                   </div>
@@ -588,7 +588,10 @@ export default function SGAInsights() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
-                      {filteredEventos.filter(e => e.situacao_evento === "EM ANALISE" || e.situacao_evento === "ABERTO").length.toLocaleString()}
+                      {filteredEventos.filter(e => {
+                        const s = (e.situacao_evento || "").toUpperCase();
+                        return s && !s.includes("FINALIZADO");
+                      }).length.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground">Em Análise</p>
                   </div>
