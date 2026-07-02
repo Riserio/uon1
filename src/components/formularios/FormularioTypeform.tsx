@@ -178,7 +178,6 @@ export default function FormularioTypeform({ form }: { form: any }) {
   if (!started) {
     return renderShell(
       <div className="max-w-2xl w-full text-center space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {form.logo_url && <img src={form.logo_url} alt="" className="h-16 mx-auto object-contain" />}
         <div className="space-y-4">
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">{form.titulo}</h1>
           {form.descricao && (
