@@ -630,18 +630,7 @@ export default function Auth() {
         </CardContent>
 
         <CardFooter className="flex flex-col space-y-4">
-          {showCredentialsStep ? (
-            <div className="text-sm text-center text-muted-foreground">
-              {isSignUp ? "Já tem uma conta?" : "Não tem uma conta?"}
-              <button
-                type="button"
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="ml-2 text-[#362c89] hover:text-[#362c89]/80 font-medium"
-              >
-                {isSignUp ? "Fazer login" : "Cadastre-se"}
-              </button>
-            </div>
-          ) : (
+          {showCredentialsStep ? null : (
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <button
                 type="button"
