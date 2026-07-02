@@ -141,6 +141,7 @@ export default function FormularioTypeform({ form }: { form: any }) {
       await baixarRespostasPDF(form, valores, perguntas);
     } catch (e) {
       console.error("Erro ao gerar PDF:", e);
+      toast.error("Não foi possível gerar o PDF");
     }
   };
 
