@@ -127,11 +127,11 @@ export default function FormularioFluxos({ form }: { form: any }) {
       <header className="sticky top-0 z-50 bg-white border-b border-stone-200">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
-            <img src={vangardLogo} alt="Vangard" className="h-9 object-contain" />
+            <img src={vangardLogo} alt="Vangard" className="h-12 w-auto object-contain" />
             {parceiroLogo && (
               <>
-                <span className="h-9 w-px bg-stone-300" aria-hidden />
-                <img src={parceiroLogo} alt="Parceiro" className="h-9 object-contain" />
+                <span className="h-12 w-px bg-stone-300" aria-hidden />
+                <img src={parceiroLogo} alt="Parceiro" className="h-12 w-auto object-contain" />
               </>
             )}
           </div>

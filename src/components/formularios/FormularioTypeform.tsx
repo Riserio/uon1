@@ -114,11 +114,11 @@ export default function FormularioTypeform({ form }: { form: any }) {
       <header className="w-full border-b border-border/40 bg-white/70 backdrop-blur-md">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <img src="/images/vangard-logo.png" alt="Vangard" className="h-9 object-contain" />
+            <img src="/images/vangard-logo.png" alt="Vangard" className="h-12 w-auto object-contain" />
             {form?.logo_url && (
               <>
-                <span className="h-8 w-px bg-border" aria-hidden />
-                <img src={form.logo_url} alt="Parceiro" className="h-9 object-contain" />
+                <span className="h-12 w-px bg-border" aria-hidden />
+                <img src={form.logo_url} alt="Parceiro" className="h-12 w-auto object-contain" />
               </>
             )}
           </div>

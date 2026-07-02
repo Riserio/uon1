@@ -140,11 +140,11 @@ export default function FormularioColapse({ form }: { form: any }) {
       <header className="sticky top-0 z-50 bg-white border-b border-stone-200">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
-            <img src={vangardLogo} alt="Vangard" className="h-10 object-contain" />
+            <img src={vangardLogo} alt="Vangard" className="h-12 w-auto object-contain" />
             {parceiroLogo && (
               <>
-                <span className="h-10 w-px bg-stone-300" aria-hidden />
-                <img src={parceiroLogo} alt="Parceiro" className="h-10 object-contain" />
+                <span className="h-12 w-px bg-stone-300" aria-hidden />
+                <img src={parceiroLogo} alt="Parceiro" className="h-12 w-auto object-contain" />
               </>
             )}
           </div>
