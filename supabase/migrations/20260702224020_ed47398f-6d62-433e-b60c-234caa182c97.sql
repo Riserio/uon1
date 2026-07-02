@@ -1,0 +1,1 @@
+CREATE POLICY "Users update own reports" ON public.bug_reports FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
