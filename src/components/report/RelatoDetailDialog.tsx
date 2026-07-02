@@ -98,8 +98,8 @@ export function RelatoDetailDialog({ relato, open, onOpenChange, onSaved }: Prop
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[92vh] p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/50 shrink-0">
           <DialogTitle className="flex items-center gap-2 flex-wrap">
             {relato.titulo}
             <Badge variant="outline" className="capitalize">{relato.categoria.replace("_", " ")}</Badge>
@@ -111,27 +111,51 @@ export function RelatoDetailDialog({ relato, open, onOpenChange, onSaved }: Prop
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
           <div>
             <Label className="text-xs text-muted-foreground">Descrição</Label>
-            <p className="text-sm whitespace-pre-wrap rounded-lg bg-muted/40 p-3">{relato.descricao}</p>
+            <p className="text-sm whitespace-pre-wrap rounded-lg bg-muted/40 p-3 min-h-[80px]">{relato.descricao}</p>
           </div>
 
-          {relato.url && (
-            <div>
+          <div className="space-y-3">
+            {relato.url && (
+              <div>
               <Label className="text-xs text-muted-foreground">Página</Label>
-              <a href={relato.url} target="_blank" rel="noreferrer" className="text-sm text-primary flex items-center gap-1 truncate">
-                {relato.url} <ExternalLink className="h-3 w-3" />
+              <a href={relato.url} target="_blank" rel="noreferrer" className="text-sm text-primary flex items-center gap-1 break-all">
+                <span className="truncate">{relato.url}</span> <ExternalLink className="h-3 w-3 shrink-0" />
               </a>
+              </div>
+            )}
+            <div className="grid gap-3 grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Status do reparo</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTS.map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Previsão de entrega</Label>
+                <Input type="date" value={previsao} onChange={(e) => setPrevisao(e.target.value)} />
+              </div>
             </div>
-          )}
+            {relato.resolvido_em && (
+              <p className="text-xs text-emerald-600">
+                Concluído em {new Date(relato.resolvido_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+              </p>
+            )}
+          </div>
+          </div>
 
           <div>
             <Label className="text-xs text-muted-foreground">Evidências</Label>
             {anexosUrls.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum anexo enviado.</p>
             ) : (
-              <div className="grid grid-cols-2 gap-2 mt-1">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-1">
                 {anexosUrls.map((a, i) => (
                   <div key={i} className="rounded-lg border border-border/50 overflow-hidden bg-background/60">
                     {a.tipo?.startsWith("image/") ? (
@@ -144,8 +168,8 @@ export function RelatoDetailDialog({ relato, open, onOpenChange, onSaved }: Prop
                       <div className="p-3 flex items-center gap-2 text-sm"><FileText className="h-4 w-4" /> {a.nome}</div>
                     )}
                     <a href={a.url} target="_blank" rel="noreferrer" download={a.nome}
-                       className="flex items-center gap-1 text-xs px-2 py-1 border-t border-border/50 hover:bg-muted/50">
-                      <Download className="h-3 w-3" /> {a.nome}
+                       className="flex items-center gap-1 text-xs px-2 py-1 border-t border-border/50 hover:bg-muted/50 truncate">
+                      <Download className="h-3 w-3 shrink-0" /> <span className="truncate">{a.nome}</span>
                     </a>
                   </div>
                 ))}
@@ -153,37 +177,13 @@ export function RelatoDetailDialog({ relato, open, onOpenChange, onSaved }: Prop
             )}
           </div>
 
-          <Separator />
-
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Status do reparo</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTS.map(o => <SelectItem key={o.v} value={o.v}>{o.l}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Previsão de entrega</Label>
-              <Input type="date" value={previsao} onChange={(e) => setPrevisao(e.target.value)} />
-            </div>
-          </div>
-
-          {relato.resolvido_em && (
-            <p className="text-xs text-emerald-600">
-              Concluído em {new Date(relato.resolvido_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
-            </p>
-          )}
-
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground">Ver diagnóstico técnico</summary>
-            <pre className="mt-2 p-2 rounded bg-muted/40 overflow-x-auto text-[10px]">{JSON.stringify(relato.diagnostico, null, 2)}</pre>
+            <pre className="mt-2 p-3 rounded bg-muted/40 overflow-x-auto text-[11px] max-h-64">{JSON.stringify(relato.diagnostico, null, 2)}</pre>
           </details>
         </div>
 
-        <DialogFooter className="gap-2 flex-wrap">
+        <DialogFooter className="gap-2 flex-wrap px-6 py-4 border-t border-border/50 shrink-0 bg-background">
           <Button variant="outline" onClick={alternarArquivo} disabled={salvando} className="gap-2">
             {relato.arquivado ? <><ArchiveRestore className="h-4 w-4" /> Desarquivar</> : <><Archive className="h-4 w-4" /> Arquivar</>}
           </Button>
