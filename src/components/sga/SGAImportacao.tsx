@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { invalidateBICache } from "@/hooks/useBIGlobalCache";
 import * as XLSX from "xlsx";
 import SGAHistoricoImportacoes from "./SGAHistoricoImportacoes";
 // Automação agora é gerenciada pelo BISyncButton no header
