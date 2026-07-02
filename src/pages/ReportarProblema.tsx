@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bug, CheckCircle2, AlertTriangle, RefreshCw, Plus, Loader2, ShieldCheck, Wifi, Database, ServerCog, Cpu, Monitor, Globe, Clock, HardDrive, Languages, Chrome, Activity, Gauge } from "lucide-react";
+import { Bug, CheckCircle2, AlertTriangle, RefreshCw, Plus, Loader2, ShieldCheck, Wifi, Database, ServerCog, Cpu, Monitor, Globe, Clock, HardDrive, Languages, Chrome, Activity, Gauge, ShieldAlert, Zap, Signal } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -47,6 +47,17 @@ const SEV_STYLES: Record<string, string> = {
 
 type Check = { nome: string; ok: boolean | null; detalhe?: string; icon: any };
 
+const CHECK_STEPS = [
+  "Conexão de rede",
+  "Banco de dados",
+  "Sessão de autenticação",
+  "Armazenamento",
+  "Firewall / proxy",
+  "Velocidade da rede",
+  "Memória",
+  "Renderização",
+];
+
 export default function ReportarProblema() {
   const { user } = useAuth();
   const [openDialog, setOpenDialog] = useState(false);
@@ -54,6 +65,8 @@ export default function ReportarProblema() {
   const [loading, setLoading] = useState(true);
   const [checks, setChecks] = useState<Check[]>([]);
   const [rodandoDiag, setRodandoDiag] = useState(false);
+  const [progresso, setProgresso] = useState(0);
+  const [etapaAtual, setEtapaAtual] = useState<string>("");
   const [selecionado, setSelecionado] = useState<BugReport | null>(null);
   const [verArquivados, setVerArquivados] = useState(false);
   const diagnostico = useMemo(() => coletarDiagnostico(), []);
@@ -74,42 +87,123 @@ export default function ReportarProblema() {
 
   const rodarDiagnostico = async () => {
     setRodandoDiag(true);
+    setChecks([]);
+    setProgresso(0);
     const results: Check[] = [];
-    // 1. Online
-    results.push({ nome: "Conexão de rede", ok: navigator.onLine, detalhe: (navigator as any).connection?.effectiveType || "n/a", icon: Wifi });
-    // 2. Supabase (banco)
+    const total = CHECK_STEPS.length;
+    const avanca = (i: number, r: Check) => {
+      results.push(r);
+      setChecks([...results]);
+      setEtapaAtual(CHECK_STEPS[i + 1] || "Concluindo...");
+      setProgresso(Math.round(((i + 1) / total) * 100));
+    };
+
+    // 0. Conexão de rede + tipo (WiFi/celular)
+    setEtapaAtual(CHECK_STEPS[0]);
+    const conn = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    const tipoRede = conn?.type ? conn.type : "desconhecido";
+    const eff = conn?.effectiveType ? ` · ${conn.effectiveType}` : "";
+    const rtt = conn?.rtt ? ` · rtt ${conn.rtt}ms` : "";
+    avanca(0, {
+      nome: "Conexão de rede",
+      ok: navigator.onLine,
+      detalhe: `${tipoRede === "wifi" ? "Wi-Fi" : tipoRede === "cellular" ? "Celular" : tipoRede}${eff}${rtt}`,
+      icon: tipoRede === "cellular" ? Signal : Wifi,
+    });
+
+    // 1. Banco de dados
     try {
       const t0 = performance.now();
       const { error } = await supabase.from("app_config").select("id", { count: "exact", head: true }).limit(1);
       const ms = Math.round(performance.now() - t0);
-      results.push({ nome: "Banco de dados", ok: !error, detalhe: error ? error.message : `latência ${ms} ms`, icon: Database });
+      avanca(1, { nome: "Banco de dados", ok: !error, detalhe: error ? error.message : `latência ${ms} ms`, icon: Database });
     } catch (e: any) {
-      results.push({ nome: "Banco de dados", ok: false, detalhe: e?.message, icon: Database });
+      avanca(1, { nome: "Banco de dados", ok: false, detalhe: e?.message, icon: Database });
     }
-    // 3. Sessão
+
+    // 2. Sessão
     try {
       const { data } = await supabase.auth.getSession();
-      results.push({ nome: "Sessão de autenticação", ok: !!data.session, detalhe: data.session ? "sessão ativa" : "não autenticado", icon: ShieldCheck });
+      avanca(2, { nome: "Sessão de autenticação", ok: !!data.session, detalhe: data.session ? "sessão ativa" : "não autenticado", icon: ShieldCheck });
     } catch {
-      results.push({ nome: "Sessão de autenticação", ok: false, icon: ShieldCheck });
+      avanca(2, { nome: "Sessão de autenticação", ok: false, icon: ShieldCheck });
     }
-    // 4. Storage
+
+    // 3. Storage
     try {
       const { error } = await supabase.storage.from("bug-reports").list("", { limit: 1 });
-      results.push({ nome: "Armazenamento de arquivos", ok: !error, detalhe: error?.message, icon: ServerCog });
+      avanca(3, { nome: "Armazenamento de arquivos", ok: !error, detalhe: error?.message, icon: ServerCog });
     } catch (e: any) {
-      results.push({ nome: "Armazenamento de arquivos", ok: false, detalhe: e?.message, icon: ServerCog });
+      avanca(3, { nome: "Armazenamento de arquivos", ok: false, detalhe: e?.message, icon: ServerCog });
     }
-    // 5. Memória JS
+
+    // 4. Firewall / proxy — testa múltiplos endpoints públicos
+    const endpoints = [
+      { nome: "Google", url: "https://www.google.com/generate_204" },
+      { nome: "Cloudflare", url: "https://cloudflare.com/cdn-cgi/trace" },
+      { nome: "Lovable", url: "https://lovable.dev/favicon.ico" },
+    ];
+    let bloqueados = 0;
+    const detalheBloq: string[] = [];
+    await Promise.all(endpoints.map(async (ep) => {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 4000);
+        await fetch(ep.url, { mode: "no-cors", cache: "no-store", signal: ctrl.signal });
+        clearTimeout(t);
+      } catch {
+        bloqueados++;
+        detalheBloq.push(ep.nome);
+      }
+    }));
+    avanca(4, {
+      nome: "Firewall / proxy",
+      ok: bloqueados === 0,
+      detalhe: bloqueados === 0
+        ? `Sem bloqueios detectados (${endpoints.length}/${endpoints.length} OK)`
+        : `Possível bloqueio em: ${detalheBloq.join(", ")}`,
+      icon: ShieldAlert,
+    });
+
+    // 5. Velocidade — baixa arquivo pequeno e mede
+    try {
+      const url = `https://www.gstatic.com/generate_204?cachebust=${Date.now()}`;
+      const t0 = performance.now();
+      // Tenta com um recurso pequeno (~50KB) para medir throughput
+      const testUrl = `https://speed.cloudflare.com/__down?bytes=${100 * 1024}&t=${Date.now()}`;
+      const resp = await fetch(testUrl, { cache: "no-store" });
+      const buf = await resp.arrayBuffer();
+      const ms = performance.now() - t0;
+      const bytes = buf.byteLength;
+      const mbps = (bytes * 8) / (ms / 1000) / 1_000_000;
+      const kbps = mbps * 1000;
+      const rating = mbps > 10 ? "excelente" : mbps > 3 ? "boa" : mbps > 1 ? "regular" : "lenta";
+      // avoid unused var warning
+      void url; void t0;
+      avanca(5, {
+        nome: "Velocidade da rede",
+        ok: mbps > 1,
+        detalhe: `${mbps >= 1 ? mbps.toFixed(1) + " Mbps" : Math.round(kbps) + " kbps"} · ${rating} · ${Math.round(ms)}ms`,
+        icon: Zap,
+      });
+    } catch (e: any) {
+      avanca(5, { nome: "Velocidade da rede", ok: false, detalhe: "não foi possível medir (bloqueado?)", icon: Zap });
+    }
+
+    // 6. Memória JS
     const mem = (performance as any).memory;
     if (mem) {
       const uso = Math.round(mem.usedJSHeapSize / 1048576);
       const limite = Math.round(mem.jsHeapSizeLimit / 1048576);
-      results.push({ nome: "Memória do navegador", ok: uso / limite < 0.85, detalhe: `${uso} MB / ${limite} MB`, icon: Cpu });
+      avanca(6, { nome: "Memória do navegador", ok: uso / limite < 0.85, detalhe: `${uso} MB / ${limite} MB`, icon: Cpu });
+    } else {
+      avanca(6, { nome: "Memória do navegador", ok: true, detalhe: "não disponível neste navegador", icon: Cpu });
     }
-    // 6. Viewport
-    results.push({ nome: "Renderização", ok: window.innerWidth > 320, detalhe: `${window.innerWidth}×${window.innerHeight}`, icon: Monitor });
-    setChecks(results);
+
+    // 7. Viewport
+    avanca(7, { nome: "Renderização", ok: window.innerWidth > 320, detalhe: `${window.innerWidth}×${window.innerHeight}`, icon: Monitor });
+
+    setEtapaAtual("");
     setRodandoDiag(false);
   };
 
@@ -286,7 +380,7 @@ export default function ReportarProblema() {
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold">{saude}%</span>
+                    <span className="text-2xl font-bold">{rodandoDiag ? <Loader2 className="h-6 w-6 animate-spin text-emerald-500" /> : `${saude}%`}</span>
                     <span className="text-[10px] text-muted-foreground uppercase">saúde</span>
                   </div>
                 </div>
@@ -294,12 +388,21 @@ export default function ReportarProblema() {
                   <div className="flex items-center gap-2 mb-1">
                     <Gauge className="h-5 w-5 text-emerald-500" />
                     <h3 className="font-semibold text-lg">
-                      {saude === 100 ? "Todos os sistemas operacionais" : saude >= 50 ? "Operação parcial" : "Problemas detectados"}
+                      {rodandoDiag
+                        ? `Analisando: ${etapaAtual || "iniciando"}...`
+                        : saude === 100 ? "Todos os sistemas operacionais" : saude >= 50 ? "Operação parcial" : "Problemas detectados"}
                     </h3>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {checks.filter(c => c.ok === true).length} de {checks.length} verificações passaram.
-                  </p>
+                  {rodandoDiag ? (
+                    <div className="space-y-1">
+                      <Progress value={progresso} className="h-2" />
+                      <p className="text-xs text-muted-foreground">{progresso}% — {checks.length} de {CHECK_STEPS.length} verificações</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {checks.filter(c => c.ok === true).length} de {checks.length} verificações passaram.
+                    </p>
+                  )}
                 </div>
                 <Button size="sm" variant="outline" onClick={rodarDiagnostico} disabled={rodandoDiag} className="gap-2">
                   <RefreshCw className={rodandoDiag ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Rodar novamente
@@ -313,11 +416,25 @@ export default function ReportarProblema() {
                 <CardDescription>Verificação em tempo real dos serviços críticos.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-2">
-                {checks.map((c, i) => {
+                {CHECK_STEPS.map((nome, i) => {
+                  const c = checks[i];
+                  if (!c) {
+                    // pending / skeleton
+                    return (
+                      <div key={i} className="flex items-center gap-3 rounded-xl border border-dashed border-border/50 p-3 bg-background/30 opacity-60">
+                        <div className="h-10 w-10 rounded-lg bg-muted animate-pulse shrink-0" />
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <p className="text-sm font-medium">{nome}</p>
+                          <p className="text-xs text-muted-foreground">Aguardando...</p>
+                        </div>
+                        {rodandoDiag && i === checks.length && <Loader2 className="h-5 w-5 animate-spin text-orange-500" />}
+                      </div>
+                    );
+                  }
                   const Icon = c.icon;
                   const okColor = c.ok === true ? "border-emerald-500/40 bg-emerald-500/5" : c.ok === false ? "border-red-500/40 bg-red-500/5" : "border-border/50 bg-background/60";
                   return (
-                    <div key={i} className={`flex items-center gap-3 rounded-xl border p-3 transition-all hover:scale-[1.01] ${okColor}`}>
+                    <div key={i} className={`flex items-center gap-3 rounded-xl border p-3 transition-all hover:scale-[1.01] animate-in fade-in slide-in-from-bottom-1 ${okColor}`}>
                       <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${c.ok === true ? "bg-emerald-500/15 text-emerald-600" : c.ok === false ? "bg-red-500/15 text-red-600" : "bg-muted text-muted-foreground"}`}>
                         <Icon className="h-5 w-5" />
                       </div>
