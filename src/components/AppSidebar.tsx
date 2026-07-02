@@ -108,8 +108,6 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
   const { signOut, userRole } = useAuth();
   const { canView } = useMenuPermissionsForRole(userRole);
   const items = useMenuItems();
-  const [reportOpen, setReportOpen] = useState(false);
-
   const groups = [
     { key: "nav", label: "Navegação" },
     { key: "cadastros", label: "Cadastros" },
