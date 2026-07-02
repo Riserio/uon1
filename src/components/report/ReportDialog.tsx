@@ -15,7 +15,7 @@ interface Props {
   onOpenChange: (v: boolean) => void;
 }
 
-function coletarDiagnostico() {
+export function coletarDiagnostico() {
   const nav: any = typeof navigator !== "undefined" ? navigator : {};
   const scr = typeof window !== "undefined" ? window.screen : ({} as Screen);
   const perf: any = typeof performance !== "undefined" ? performance : {};
