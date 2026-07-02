@@ -16,9 +16,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Download } from "lucide-react";
 import { maskCEP, maskCNPJ, maskCPF, maskPlaca, maskTelefone, maskMoeda, maskCidade, maskDia, maskMes } from "./masks";
 import { ESTADOS_BR } from "./estados";
+import { baixarRespostasPDF } from "./pdfExport";
 
 export default function FormularioGoogleForms({ form }: { form: any }) {
   const [valores, setValores] = useState<Record<string, any>>({});
@@ -66,16 +67,31 @@ export default function FormularioGoogleForms({ form }: { form: any }) {
             <p className="text-muted-foreground">
               {(form.config as any)?.mensagem_agradecimento || "Resposta enviada com sucesso!"}
             </p>
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={() => {
-                setValores({});
-                setEnviado(false);
-              }}
-            >
-              Enviar outra resposta
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+              <Button
+                className="gap-2"
+                style={{ backgroundColor: cor, color: "white" }}
+                onClick={async () => {
+                  try {
+                    await baixarRespostasPDF(form, valores, perguntas);
+                  } catch (e) {
+                    console.error("Erro ao gerar PDF:", e);
+                    toast.error("Não foi possível gerar o PDF");
+                  }
+                }}
+              >
+                <Download className="h-4 w-4" /> Baixar PDF das respostas
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setValores({});
+                  setEnviado(false);
+                }}
+              >
+                Enviar outra resposta
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
