@@ -122,6 +122,16 @@ export default function SGAInsights() {
     const seen = new Set<string>();
     const deduped: any[] = [];
     for (const e of result) {
+      // Ignorar linhas de cabeçalho que possam ter sido importadas como dados
+      const placaVal = (e.placa || "").toString().trim().toLowerCase();
+      const protoVal = (e.protocolo || "").toString().trim().toLowerCase();
+      if (
+        placaVal === "placa" ||
+        protoVal === "protocolo" ||
+        placaVal === "" && protoVal === "" && !e.data_evento && !e.motivo_evento
+      ) {
+        continue;
+      }
       const key = e.protocolo
         ? `p:${e.protocolo}`
         : `k:${e.placa || ""}|${e.data_evento || ""}|${e.motivo_evento || ""}`;
