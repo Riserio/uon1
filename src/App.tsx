@@ -33,6 +33,7 @@ const Documentos = lazy(() => import("./pages/Documentos"));
 const Mensagens = lazy(() => import("./pages/Mensagens"));
 const Emails = lazy(() => import("./pages/Emails"));
 const Configuracoes = lazy(() => import("./pages/Configuracoes"));
+const ReportarProblema = lazy(() => import("./pages/ReportarProblema"));
 const ComiteDeliberacao = lazy(() => import("./pages/ComiteDeliberacao"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const IndividualPerformance = lazy(() => import("./pages/IndividualPerformance"));
@@ -284,6 +285,7 @@ const App = () => (
                 <Route path="/whatsapp-flows" element={<Navigate to="/central-atendimento" replace />} />
                 <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
                 <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
+                <Route path="/reportar-problema" element={<ProtectedRoute><ReportarProblema /></ProtectedRoute>} />
                 <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
                 <Route element={<ProtectedRoute><BILayout /></ProtectedRoute>}>
                   <Route path="/pid" element={<PID />} />
