@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront, SearchCheck, ClipboardCheck, FileEdit } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug } from "lucide-react";
+import { ReportDialog } from "@/components/report/ReportDialog";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -108,6 +109,7 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
   const { signOut, userRole } = useAuth();
   const { canView } = useMenuPermissionsForRole(userRole);
   const items = useMenuItems();
+  const [reportOpen, setReportOpen] = useState(false);
 
   const groups = [
     { key: "nav", label: "Navegação" },
@@ -176,12 +178,21 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
       {/* Footer */}
       <div className="border-t border-sidebar-border p-2">
         <button
+          onClick={() => setReportOpen(true)}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+          title="Reportar problema"
+        >
+          <Bug className="h-4 w-4 flex-shrink-0" />
+          {!collapsed && <span>Reportar problema</span>}
+        </button>
+        <button
           onClick={() => { signOut(); onNavigate?.(); }}
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-orange-500 hover:bg-orange-500/10 transition-colors"
         >
           <LogOut className="h-4 w-4 flex-shrink-0" />
           {!collapsed && <span>Sair</span>}
         </button>
+        <ReportDialog open={reportOpen} onOpenChange={setReportOpen} />
       </div>
     </div>
   );

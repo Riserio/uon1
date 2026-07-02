@@ -752,6 +752,57 @@ export type Database = {
           },
         ]
       }
+      bug_reports: {
+        Row: {
+          anexos: Json | null
+          categoria: string
+          created_at: string
+          descricao: string
+          diagnostico: Json | null
+          id: string
+          severidade: string
+          status: string
+          titulo: string
+          updated_at: string
+          url: string | null
+          user_email: string | null
+          user_id: string | null
+          user_role: string | null
+        }
+        Insert: {
+          anexos?: Json | null
+          categoria?: string
+          created_at?: string
+          descricao: string
+          diagnostico?: Json | null
+          id?: string
+          severidade?: string
+          status?: string
+          titulo: string
+          updated_at?: string
+          url?: string | null
+          user_email?: string | null
+          user_id?: string | null
+          user_role?: string | null
+        }
+        Update: {
+          anexos?: Json | null
+          categoria?: string
+          created_at?: string
+          descricao?: string
+          diagnostico?: Json | null
+          id?: string
+          severidade?: string
+          status?: string
+          titulo?: string
+          updated_at?: string
+          url?: string | null
+          user_email?: string | null
+          user_id?: string | null
+          user_role?: string | null
+        }
+        Relationships: []
+      }
       cadastro_importacoes: {
         Row: {
           ativo: boolean | null
