@@ -116,36 +116,16 @@ export default function SGAInsights() {
       });
     }
     
-    // Deduplicar: um evento por protocolo (fallback: placa+data_evento).
-    // O arquivo do Hinova traz várias linhas por evento (itens/descrições), o que
-    // inflava o "Total Eventos" e somava custos várias vezes.
-    const seen = new Set<string>();
+    // Contagem de eventos: cada linha do relatório Hinova com PLACA preenchida
+    // é um evento distinto (inclusive quando o mesmo protocolo aparece como
+    // ASSOCIADO e TERCEIRO). Linhas de item/descrição do Hinova não trazem
+    // PLACA, então filtrar por placa != vazio já elimina esses "sub-rows"
+    // sem colapsar eventos legítimos.
     const deduped: any[] = [];
     for (const e of result) {
-      // Ignorar linhas de cabeçalho que possam ter sido importadas como dados
       const placaVal = (e.placa || "").toString().trim().toLowerCase();
-      const protoVal = (e.protocolo || "").toString().trim().toLowerCase();
-      if (
-        placaVal === "placa" ||
-        protoVal === "protocolo" ||
-        placaVal === "" && protoVal === "" && !e.data_evento && !e.motivo_evento
-      ) {
-        continue;
-      }
-      // Um evento por linha lógica. O Hinova pode repetir a mesma linha
-      // (itens/descrições) — evitamos isso combinando protocolo + tipo_evento +
-      // placa do associado + placa do terceiro + data. Assim, um protocolo com
-      // ASSOCIADO e TERCEIRO conta como 2 eventos (bate com o relatório do
-      // Hinova), mas linhas de itens duplicados colapsam para 1.
-      const key = [
-        e.protocolo || "",
-        e.tipo_evento || "",
-        e.placa || "",
-        e.placa_terceiro || "",
-        e.data_evento || "",
-      ].join("|");
-      if (seen.has(key)) continue;
-      seen.add(key);
+      // Ignorar linhas sem placa (itens/descrições, resumo, cabeçalho)
+      if (!placaVal || placaVal === "placa") continue;
       deduped.push(e);
     }
     return deduped;
@@ -592,8 +572,8 @@ export default function SGAInsights() {
                     <TrendingUp className="h-5 w-5 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">
-                      {filteredEventos.filter(e => e.situacao_evento === "FINALIZADO").length.toLocaleString()}
+                     <p className="text-2xl font-bold">
+                      {filteredEventos.filter(e => (e.situacao_evento || "").toUpperCase().includes("FINALIZADO")).length.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground">Finalizados</p>
                   </div>
@@ -608,7 +588,10 @@ export default function SGAInsights() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
-                      {filteredEventos.filter(e => e.situacao_evento === "EM ANALISE" || e.situacao_evento === "ABERTO").length.toLocaleString()}
+                      {filteredEventos.filter(e => {
+                        const s = (e.situacao_evento || "").toUpperCase();
+                        return s && !s.includes("FINALIZADO");
+                      }).length.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground">Em Análise</p>
                   </div>
