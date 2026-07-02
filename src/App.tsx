@@ -33,6 +33,7 @@ const Documentos = lazy(() => import("./pages/Documentos"));
 const Mensagens = lazy(() => import("./pages/Mensagens"));
 const Emails = lazy(() => import("./pages/Emails"));
 const Configuracoes = lazy(() => import("./pages/Configuracoes"));
+const ReportarProblema = lazy(() => import("./pages/ReportarProblema"));
 const ComiteDeliberacao = lazy(() => import("./pages/ComiteDeliberacao"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const IndividualPerformance = lazy(() => import("./pages/IndividualPerformance"));
