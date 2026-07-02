@@ -388,6 +388,8 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
       });
 
       toast.success(`${jsonData.length} registros importados com sucesso para ${corretoraNome}!`);
+      // Invalida cache do BI para forçar releitura dos novos dados
+      invalidateBICache(corretoraId);
       setFile(null);
       setPreview([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
