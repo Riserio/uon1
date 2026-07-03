@@ -225,13 +225,7 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
       setAllStatusConfigs((configs || []) as StatusConfig[]);
       setFluxos((fluxosData || []) as FluxoConfig[]);
 
-      if (!configs || configs.length === 0) {
-        setEventos([]);
-        setLoading(false);
-        return;
-      }
-
-      const activeStatusNames = configs.map(c => c.nome);
+      const activeStatusNames = (configs || []).map(c => c.nome);
       const mapped = await fetchAllBatched(activeStatusNames);
       setEventos(mapped);
 
