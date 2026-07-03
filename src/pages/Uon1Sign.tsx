@@ -635,16 +635,23 @@ export default function Uon1Sign() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-6 px-6">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <FileSignature className="h-6 w-6 text-primary" />
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary/90 to-violet-700 p-6 sm:p-8 text-primary-foreground shadow-lg mb-8">
+          <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+          <div className="absolute -bottom-20 -left-10 h-48 w-48 rounded-full bg-black/10 blur-2xl" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0">
+                <FileSignature className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Uon1 Sign</h1>
+                <p className="text-sm text-primary-foreground/80">Contratos e assinaturas digitais com validade jurídica</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Uon1 Sign</h1>
-              <p className="text-muted-foreground">Gestão de contratos e assinaturas digitais</p>
-            </div>
+            <Button onClick={() => setNovoContratoOpen(true)} size="lg" variant="secondary" className="gap-2 rounded-2xl shadow-md font-semibold w-full sm:w-auto">
+              <Plus className="h-4 w-4" /> Novo contrato
+            </Button>
           </div>
         </div>
 
