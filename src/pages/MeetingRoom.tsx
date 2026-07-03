@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { callLivekitFn } from "@/lib/livekitApi";
 
@@ -157,6 +158,8 @@ export default function MeetingRoomPage() {
   const [livekitReady, setLivekitReady] = useState(false);
   const [livekitError, setLivekitError] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [unreadChat, setUnreadChat] = useState(0);
+  const chatOpenRef = useRef(false);
   // Pré-join (padrão Meet): usuário escolhe mídia antes de conectar
   const [joined, setJoined] = useState(false);
   const [initialMedia, setInitialMedia] = useState<{ video: boolean; audio: boolean }>({ video: true, audio: true });
@@ -176,6 +179,25 @@ export default function MeetingRoomPage() {
     if (user && roomId && livekitReady) joinRoom();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, roomId, livekitReady]);
+
+  // Badge de mensagens não lidas no botão de chat (padrão Meet)
+  useEffect(() => {
+    chatOpenRef.current = chatOpen;
+    if (chatOpen) setUnreadChat(0);
+  }, [chatOpen]);
+
+  useEffect(() => {
+    if (!roomId) return;
+    const channel = supabase
+      .channel(`chat-unread-${roomId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "meeting_messages", filter: `room_id=eq.${roomId}` }, (payload) => {
+        const msg = payload.new as any;
+        if (chatOpenRef.current || msg.sender_id === user?.id) return;
+        setUnreadChat((u) => u + 1);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [roomId, user?.id]);
 
   const joinRoom = async () => {
     try {
@@ -327,7 +349,7 @@ export default function MeetingRoomPage() {
             {chatOpen && <ChatPanel roomId={roomId!} userId={user?.id || ""} userName={user?.user_metadata?.nome || user?.email || "Eu"} />}
             {isHost && <PendingRequestsPanel roomId={roomId!} />}
           </div>
-          <ControlBar isHost={isHost} onLeave={handleLeave} onEndForAll={handleEndForAll} chatOpen={chatOpen} onToggleChat={() => setChatOpen(!chatOpen)} />
+          <ControlBar isHost={isHost} onLeave={handleLeave} onEndForAll={handleEndForAll} chatOpen={chatOpen} onToggleChat={() => setChatOpen(!chatOpen)} unreadCount={unreadChat} />
         </LiveKitRoom>
       </LayoutSettingsProvider>
     </div>
@@ -1092,14 +1114,97 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   );
 }
 
+// ── Seleção de dispositivos em chamada (mic/câmera/alto-falante) — padrão Meet/Zoom ──
+function DeviceSettingsButton() {
+  const roomContext = useRoomContext?.() || null;
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [active, setActive] = useState<Record<string, string>>({});
+
+  const loadDevices = async () => {
+    try {
+      const list = await navigator.mediaDevices.enumerateDevices();
+      setDevices(list.filter((d) => d.deviceId));
+      const room = roomContext;
+      if (room?.getActiveDevice) {
+        setActive({
+          audioinput: room.getActiveDevice("audioinput") || "",
+          videoinput: room.getActiveDevice("videoinput") || "",
+          audiooutput: room.getActiveDevice("audiooutput") || "",
+        });
+      }
+    } catch (e) {
+      console.warn("[Devices] enumerateDevices falhou:", e);
+    }
+  };
+
+  const switchDevice = async (kind: "audioinput" | "videoinput" | "audiooutput", deviceId: string) => {
+    try {
+      await roomContext?.switchActiveDevice(kind, deviceId);
+      setActive((a) => ({ ...a, [kind]: deviceId }));
+      toast.success("Dispositivo alterado");
+    } catch {
+      toast.error("Não foi possível trocar o dispositivo");
+    }
+  };
+
+  const groups: { kind: "audioinput" | "videoinput" | "audiooutput"; label: string }[] = [
+    { kind: "audioinput", label: "Microfone" },
+    { kind: "videoinput", label: "Câmera" },
+    { kind: "audiooutput", label: "Alto-falante" },
+  ];
+
+  return (
+    <Popover onOpenChange={(o) => { if (o) loadDevices(); }}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 bg-muted text-muted-foreground hover:bg-accent">
+              <Settings2 className="h-5 w-5" />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top"><p>Dispositivos</p></TooltipContent>
+      </Tooltip>
+      <PopoverContent className="w-80" align="center" side="top">
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-semibold text-sm mb-1">Dispositivos</h4>
+            <p className="text-xs text-muted-foreground">Troque microfone, câmera e alto-falante sem sair da reunião</p>
+          </div>
+          {groups.map(({ kind, label }) => {
+            const options = devices.filter((d) => d.kind === kind);
+            if (options.length === 0) return null;
+            return (
+              <div key={kind} className="space-y-1.5">
+                <Label className="text-xs font-semibold">{label}</Label>
+                <Select value={active[kind] || undefined} onValueChange={(v) => switchDevice(kind, v)}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder={`Selecionar ${label.toLowerCase()}`} />
+                  </SelectTrigger>
+                  <SelectContent className="z-[130]">
+                    {options.map((d, i) => (
+                      <SelectItem key={d.deviceId} value={d.deviceId} className="text-xs">
+                        {d.label || `${label} ${i + 1}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ── Control Bar ──
-export function ControlBar({ isHost = false, onLeave, onEndForAll, chatOpen, onToggleChat }: { isHost?: boolean; onLeave: () => void; onEndForAll?: () => void; chatOpen: boolean; onToggleChat: () => void }) {
+export function ControlBar({ isHost = false, onLeave, onEndForAll, chatOpen, onToggleChat, unreadCount = 0 }: { isHost?: boolean; onLeave: () => void; onEndForAll?: () => void; chatOpen: boolean; onToggleChat: () => void; unreadCount?: number }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [blurEnabled, setBlurEnabled] = useState(false);
   const [blurLoading, setBlurLoading] = useState(false);
-  const blurEnabledRef = useRef(false);
   // Configurações de layout compartilhadas com o VideoGrid via contexto
   const { layoutMode, maxTiles, hideNoVideo, setLayoutMode, setMaxTiles, setHideNoVideo } = useLayoutSettings();
 
@@ -1162,87 +1267,34 @@ export function ControlBar({ isHost = false, onLeave, onEndForAll, chatOpen, onT
     try {
       const room = roomContext;
       const lp = room?.localParticipant;
-      
       if (!lp) {
         toast.error("Participante local não encontrado");
         setBlurLoading(false);
         return;
       }
-
       const cameraPub = lp.getTrackPublication(Track.Source.Camera);
-      const cameraTrack = cameraPub?.track;
-
+      const cameraTrack: any = cameraPub?.track;
       if (!cameraTrack) {
         toast.error("Câmera não está ativa. Ative a câmera primeiro.");
         setBlurLoading(false);
         return;
       }
 
-      const mediaTrack = cameraTrack.mediaStreamTrack;
-      if (!mediaTrack) {
-        toast.error("Track de mídia não disponível");
-        setBlurLoading(false);
-        return;
-      }
-
       if (!blurEnabled) {
-        // Apply blur using canvas processing
-        try {
-          const stream = new MediaStream([mediaTrack]);
-          const videoEl = document.createElement("video");
-          videoEl.srcObject = stream;
-          videoEl.muted = true;
-          await videoEl.play();
-
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d")!;
-          canvas.width = mediaTrack.getSettings().width || 640;
-          canvas.height = mediaTrack.getSettings().height || 480;
-
-          const processFrame = () => {
-            if (!blurEnabledRef.current) return;
-            ctx.filter = "blur(10px)";
-            ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-            ctx.filter = "none";
-            // Draw person area with less blur (center)
-            const cx = canvas.width * 0.15;
-            const cy = canvas.height * 0.05;
-            const cw = canvas.width * 0.7;
-            const ch = canvas.height * 0.9;
-            ctx.drawImage(videoEl, cx, cy, cw, ch, cx, cy, cw, ch);
-            requestAnimationFrame(processFrame);
-          };
-
-          blurEnabledRef.current = true;
-          processFrame();
-
-          const canvasStream = canvas.captureStream(30);
-          const canvasTrack = canvasStream.getVideoTracks()[0];
-          
-          // Store original track for restoration
-          (lp as any)._originalCameraTrack = mediaTrack;
-          
-          await cameraTrack.replaceTrack(canvasTrack);
-          setBlurEnabled(true);
-          toast.success("Ofuscação de fundo ativada");
-        } catch (err: any) {
-          console.error("Blur processing error:", err);
-          toast.error("Erro ao aplicar ofuscação: " + (err.message || ""));
-        }
+        // Desfoque real com segmentação de pessoa (mesma técnica do Meet/Zoom)
+        const { BackgroundBlur } = await import("@livekit/track-processors");
+        await cameraTrack.setProcessor(BackgroundBlur(10));
+        setBlurEnabled(true);
+        toast.success("Desfoque de fundo ativado");
       } else {
-        // Restore original track
-        blurEnabledRef.current = false;
-        const originalTrack = (lp as any)._originalCameraTrack;
-        if (originalTrack) {
-          await cameraTrack.replaceTrack(originalTrack);
-          delete (lp as any)._originalCameraTrack;
-        }
+        await cameraTrack.stopProcessor();
         setBlurEnabled(false);
-        toast.info("Ofuscação de fundo desativada");
+        toast.info("Desfoque de fundo desativado");
       }
     } catch (e: any) {
       console.error("Background blur error:", e);
-      toast.error("Erro ao aplicar ofuscação de fundo");
+      toast.error("Seu navegador não suporta desfoque de fundo (use Chrome ou Edge recentes)");
+      setBlurEnabled(false);
     } finally {
       setBlurLoading(false);
     }
@@ -1354,18 +1406,26 @@ export function ControlBar({ isHost = false, onLeave, onEndForAll, chatOpen, onT
             <TooltipContent side="top"><p>{blurEnabled ? "Desativar ofuscação" : "Ofuscar fundo"}</p></TooltipContent>
           </Tooltip>
 
+          {/* Dispositivos */}
+          <DeviceSettingsButton />
+
           {/* Chat */}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={onToggleChat}
-                className={`h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                className={`relative h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center transition-all duration-200 ${
                   chatOpen
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-accent"
                 }`}
               >
                 <MessageCircle className="h-5 w-5" />
+                {unreadCount > 0 && !chatOpen && (
+                  <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </button>
             </TooltipTrigger>
             <TooltipContent side="top"><p>Chat</p></TooltipContent>
@@ -1478,16 +1538,27 @@ export function ChatPanel({ roomId, userId, userName }: { roomId: string; userId
     return () => { supabase.removeChannel(channel); };
   }, [roomId]);
 
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll para a última mensagem (padrão Meet/Zoom)
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages]);
+
   const sendMessage = async () => {
     if (!text.trim()) return;
     const msg = text.trim();
     setText("");
-    await supabase.from("meeting_messages").insert({
+    const { error } = await supabase.from("meeting_messages").insert({
       room_id: roomId,
       sender_id: userId,
       sender_name: userName,
       message: msg,
     });
+    if (error) {
+      toast.error("Falha ao enviar mensagem. Tente novamente.");
+      setText(msg);
+    }
   };
 
   return (
@@ -1510,6 +1581,7 @@ export function ChatPanel({ roomId, userId, userName }: { roomId: string; userId
               </p>
             </div>
           ))}
+          <div ref={bottomRef} />
         </div>
       </ScrollArea>
       <div className="p-2 border-t border-border/50 flex gap-1.5">
