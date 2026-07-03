@@ -152,6 +152,7 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     const text = messageText.trim();
     setMessageText('');
     setSending(true);
+    let ok = false;
     try {
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       const { data: { session } } = await supabase.auth.getSession();
@@ -160,10 +161,15 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({ contact_id: selectedContact.id, message: text }),
       });
-      const result = await response.json();
-      if (!response.ok) toast.error(result.error || 'Erro ao enviar');
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) toast.error(result.error || 'Erro ao enviar mensagem');
+      else ok = true;
     } catch { toast.error('Erro ao enviar mensagem'); }
-    finally { setSending(false); }
+    finally {
+      setSending(false);
+      // Restaura o texto se falhou, para o operador nao perder a mensagem digitada
+      if (!ok) setMessageText((cur) => cur || text);
+    }
   };
 
   const openTemplatePicker = async () => {
@@ -641,15 +647,32 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
 
             {/* Input */}
             <div className="p-3 border-t border-border/50 bg-card">
-              <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center gap-2 max-w-3xl mx-auto">
-                <Input value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="Digite uma mensagem..." className="flex-1 rounded-xl" disabled={sending} />
-                <Button type="button" variant="outline" size="icon" className="rounded-xl shrink-0" onClick={openTemplatePicker} title="Enviar template (fora de 24h)">
-                  <FileText className="h-4 w-4" />
-                </Button>
-                <Button type="submit" size="icon" className="rounded-xl shrink-0" disabled={!messageText.trim() || sending}>
-                  <Send className="h-4 w-4" />
-                </Button>
-              </form>
+              {(() => {
+                const win = get24hWindowInfo(selectedContact);
+                const janelaExpirada = !!win?.expired;
+                return (
+                  <div className="max-w-3xl mx-auto space-y-2">
+                    {janelaExpirada && (
+                      <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                        <Timer className="h-3.5 w-3.5 shrink-0" />
+                        <span className="flex-1">Janela de 24h expirada. O WhatsApp só permite mensagem livre até 24h após a última resposta do cliente — envie um template aprovado.</span>
+                        <Button type="button" size="sm" variant="outline" className="h-7 text-xs rounded-lg shrink-0" onClick={openTemplatePicker}>
+                          <FileText className="h-3.5 w-3.5 mr-1" /> Template
+                        </Button>
+                      </div>
+                    )}
+                    <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center gap-2">
+                      <Input value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder={janelaExpirada ? 'Use um template para reabrir a conversa...' : 'Digite uma mensagem...'} className="flex-1 rounded-xl" disabled={sending || janelaExpirada} />
+                      <Button type="button" variant={janelaExpirada ? 'default' : 'outline'} size="icon" className="rounded-xl shrink-0" onClick={openTemplatePicker} title="Enviar template">
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                      <Button type="submit" size="icon" className="rounded-xl shrink-0" disabled={!messageText.trim() || sending || janelaExpirada}>
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </form>
+                  </div>
+                );
+              })()}
             </div>
           </>
         )}
