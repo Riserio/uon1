@@ -225,13 +225,7 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
       setAllStatusConfigs((configs || []) as StatusConfig[]);
       setFluxos((fluxosData || []) as FluxoConfig[]);
 
-      if (!configs || configs.length === 0) {
-        setEventos([]);
-        setLoading(false);
-        return;
-      }
-
-      const activeStatusNames = configs.map(c => c.nome);
+      const activeStatusNames = (configs || []).map(c => c.nome);
       const mapped = await fetchAllBatched(activeStatusNames);
       setEventos(mapped);
 
@@ -271,7 +265,9 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
     });
     const merged = [...allStatusConfigs, ...discovered];
     if (!selectedFluxoId) return merged;
-    return merged.filter(s => s.fluxo_id === selectedFluxoId);
+    // Include statuses linked to the selected fluxo AND unmapped statuses
+    // (fluxo_id = null, incl. auto-discovered) so imported events remain visible.
+    return merged.filter(s => s.fluxo_id === selectedFluxoId || s.fluxo_id === null);
   }, [allStatusConfigs, selectedFluxoId, eventos, effectiveCorretoraId]);
 
   const fluxoCardCounts = useMemo(() => {
