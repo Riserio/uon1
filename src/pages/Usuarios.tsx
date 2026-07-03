@@ -8,9 +8,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   Pencil,
+  MoreHorizontal,
+  MoreHorizontal,
   CheckCircle,
   Search,
   Copy,
@@ -1977,6 +1981,7 @@ export default function Usuarios() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
+                              {/* Acao primaria visivel + demais no menu (declutter) */}
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1986,40 +1991,33 @@ export default function Usuarios() {
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => {
-                                  setSelectedUserForPermissions({
-                                    id: item.id,
-                                    nome: item.nome,
-                                    role: userRoles[item.id] || "",
-                                  });
-                                  setFluxoPermissionsDialogOpen(true);
-                                }}
-                                title="Gerenciar permissões de fluxo"
-                              >
-                                <Lock className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleResetPassword(item)}
-                                title="Resetar senha"
-                              >
-                                <Key className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive"
-                                onClick={() => handleDeleteUser(item)}
-                                title="Inativar usuário"
-                              >
-                                <UserX className="h-4 w-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Mais ações">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openDialog(item)}>
+                                    <Pencil className="h-4 w-4 mr-2" /> Editar usuário
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setSelectedUserForPermissions({ id: item.id, nome: item.nome, role: userRoles[item.id] || "" });
+                                      setFluxoPermissionsDialogOpen(true);
+                                    }}
+                                  >
+                                    <Lock className="h-4 w-4 mr-2" /> Permissões de fluxo
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleResetPassword(item)}>
+                                    <Key className="h-4 w-4 mr-2" /> Resetar senha
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDeleteUser(item)}>
+                                    <UserX className="h-4 w-4 mr-2" /> Inativar usuário
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>
