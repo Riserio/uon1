@@ -12,12 +12,12 @@ const BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-room
 export async function callLivekitFn<T = any>(action: string, body?: unknown, retries = 1): Promise<T> {
   try {
     const session = (await supabase.auth.getSession()).data.session;
+    // Authorization só quando há sessão — endpoints públicos (convidados) funcionam sem login
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
     const res = await fetch(`${BASE_URL}?action=${action}`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${session?.access_token ?? ""}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify(body ?? {}),
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
