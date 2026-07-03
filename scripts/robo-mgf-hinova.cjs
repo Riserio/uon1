@@ -2254,10 +2254,19 @@ async function enviarWebhook(dados, nomeArquivo) {
     log(`   📦 Lote ${chunkIndex}/${totalChunks}: enviando ${batch.length.toLocaleString()} registros...`, LOG_LEVELS.DEBUG);
 
     try {
-      const response = await axios.post(CONFIG.WEBHOOK_URL, payload, {
-        headers,
-        timeout: 600000,
-      });
+      // Retry por lote: 3 tentativas com backoff antes de falhar a importação
+      let response = null;
+      let lastErr = null;
+      for (let tent = 1; tent <= 3 && !response; tent++) {
+        try {
+          response = await axios.post(CONFIG.WEBHOOK_URL, payload, { headers, timeout: 600000 });
+        } catch (err) {
+          lastErr = err;
+          log(`   ⚠️ Lote ${chunkIndex}: tentativa ${tent}/3 falhou (${err.response?.status || err.message})`, LOG_LEVELS.WARN);
+          if (tent < 3) await new Promise(r => setTimeout(r, tent * 5000));
+        }
+      }
+      if (!response) throw lastErr;
 
       if (!importacaoId && response.data?.importacao_id) {
         importacaoId = response.data.importacao_id;

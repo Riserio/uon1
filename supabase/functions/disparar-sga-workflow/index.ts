@@ -120,12 +120,13 @@ serve(async (req) => {
 
       // Verificar execução hoje
       const skipDailyGate = bypass_daily_limit === true && isServiceRole;
-      const hoje = new Date().toISOString().split('T')[0];
+      // "Hoje" no fuso de São Paulo (created_at é UTC) — evita gate diário errado na virada do dia
+      const hoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
       const { data: execucoesHoje } = skipDailyGate ? { data: [] as any[] } : await supabase
         .from("sga_automacao_execucoes")
         .select("id, status")
         .eq("corretora_id", corretora_id)
-        .gte("created_at", `${hoje}T00:00:00`)
+        .gte("created_at", `${hoje}T03:00:00.000Z`)
         .in("status", ["sucesso", "executando"])
         .limit(1);
 
@@ -272,6 +273,7 @@ serve(async (req) => {
           'X-GitHub-Api-Version': '2022-11-28',
           'Content-Type': 'application/json',
         },
+        signal: AbortSignal.timeout(20000),
         body: JSON.stringify({ ref: 'main', inputs: workflowInputs }),
       });
 
@@ -295,32 +297,41 @@ serve(async (req) => {
         );
       }
 
-      // Buscar run_id
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      const runsUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/runs?per_page=1`;
-      const runsResponse = await fetch(runsUrl, {
-        headers: { 'Authorization': `Bearer ${githubPat}`, 'Accept': 'application/vnd.github.v3+json' },
-      });
-
-      let githubRunId = null;
-      let githubRunUrl = null;
-
-      if (runsResponse.ok) {
-        const runsData = await runsResponse.json();
-        if (runsData.workflow_runs?.length > 0) {
-          const latestRun = runsData.workflow_runs[0];
-          githubRunId = String(latestRun.id);
-          githubRunUrl = latestRun.html_url;
-
-          await supabase
-            .from("sga_automacao_execucoes")
-            .update({ github_run_id: githubRunId, github_run_url: githubRunUrl })
-            .eq("id", execucao.id);
+      // Associar o run correto de forma determinística: o run-name contém o execucao_id
+      let githubRunId: string | null = null;
+      let githubRunUrl: string | null = null;
+      for (let attempt = 0; attempt < 4 && !githubRunId; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        try {
+          const runsUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/runs?event=workflow_dispatch&per_page=10`;
+          const runsResponse = await fetch(runsUrl, {
+            headers: { 'Authorization': `Bearer ${githubPat}`, 'Accept': 'application/vnd.github.v3+json' },
+            signal: AbortSignal.timeout(20000),
+          });
+          if (!runsResponse.ok) continue;
+          const runsData = await runsResponse.json();
+          const match = (runsData.workflow_runs || []).find((r: { display_title?: string }) =>
+            r.display_title?.includes(execucao.id),
+          );
+          if (match) {
+            githubRunId = String((match as { id: number }).id);
+            githubRunUrl = (match as { html_url: string }).html_url;
+          }
+        } catch (e) {
+          console.warn(`[SGA Workflow] Tentativa ${attempt + 1} de localizar run falhou:`, e);
         }
       }
 
-      await supabase.from("bi_audit_logs").insert({
+      if (githubRunId) {
+        await supabase
+          .from("sga_automacao_execucoes")
+          .update({ github_run_id: githubRunId, github_run_url: githubRunUrl })
+          .eq("id", execucao.id);
+      } else {
+        console.warn(`[SGA Workflow] Não foi possível associar github_run_id à execução ${execucao.id}`);
+      }
+
+            await supabase.from("bi_audit_logs").insert({
         modulo: "sga_insights",
         acao: "github_workflow_disparado",
         descricao: `Workflow SGA disparado por ${user.email}`,

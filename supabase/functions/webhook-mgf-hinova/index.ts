@@ -144,6 +144,16 @@ serve(async (req) => {
   }
 
   try {
+    // Verificar secret compartilhado (mesma proteção do webhook-sga-hinova)
+    const webhookSecret = Deno.env.get("WEBHOOK_SECRET");
+    const requestSecret = req.headers.get('x-webhook-secret');
+    if (webhookSecret && requestSecret !== webhookSecret) {
+      return new Response(
+        JSON.stringify({ success: false, message: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);

@@ -27,7 +27,7 @@ serve(async (req) => {
 
     // Verificar autenticação
     const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
+    if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
         JSON.stringify({ success: false, message: "Não autorizado" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -39,20 +39,21 @@ serve(async (req) => {
     // Decodificar JWT para obter dados do usuário
     let user: { id: string; email: string };
     if (token === supabaseServiceKey) {
+      // Chamada interna via service role (ex: backfill-worker/scheduler)
       user = { id: '00000000-0000-0000-0000-000000000000', email: 'system@backfill' };
-    } else try {
-      const payloadBase64 = token.split('.')[1];
-      const payload = JSON.parse(atob(payloadBase64));
-      if (!payload.sub || !payload.exp || payload.exp * 1000 < Date.now()) {
-        throw new Error("Token expirado ou inválido");
+    } else {
+      // Validação REAL do JWT (assinatura verificada pelo Auth server) — nunca decodificar manualmente
+      const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Token inválido" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-      user = { id: payload.sub, email: payload.email || "Usuário" };
-    } catch (e) {
-      console.error("Erro ao decodificar token:", e);
-      return new Response(
-        JSON.stringify({ success: false, message: "Token inválido" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      user = { id: claimsData.claims.sub as string, email: (claimsData.claims.email as string) || "Usuário" };
     }
 
     // Cliente com service role para operações de banco
@@ -128,12 +129,13 @@ serve(async (req) => {
 
       // Verificar se já houve execução com sucesso ou em andamento hoje
       const skipDailyGate = bypass_daily_limit === true && isServiceRole;
-      const hoje = new Date().toISOString().split('T')[0];
+      // "Hoje" no fuso de São Paulo (created_at é UTC) — evita gate diário errado na virada do dia
+      const hoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
       const { data: execucoesHoje } = skipDailyGate ? { data: [] as any[] } : await supabase
         .from("mgf_automacao_execucoes")
         .select("id, status")
         .eq("corretora_id", corretora_id)
-        .gte("created_at", `${hoje}T00:00:00`)
+        .gte("created_at", `${hoje}T03:00:00.000Z`)
         .in("status", ["sucesso", "executando"])
         .limit(1);
 
@@ -238,8 +240,10 @@ serve(async (req) => {
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-mgf-hinova`,
       };
-      if (data_inicio) (workflowInputs as any).data_inicio = data_inicio;
-      if (data_fim) (workflowInputs as any).data_fim = data_fim;
+      // Datas em DD/MM/YYYY (formato dos robôs); backfill envia ISO YYYY-MM-DD
+      const toBR = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : d);
+      if (data_inicio) (workflowInputs as any).data_inicio = toBR(data_inicio);
+      if (data_fim) (workflowInputs as any).data_fim = toBR(data_fim);
       // backfill_job_id não é input do workflow GitHub; vínculo via execucao_id.
 
       console.log(`[MGF GitHub Workflow] Disparando workflow para ${corretora_id}`);
@@ -255,6 +259,7 @@ serve(async (req) => {
           'X-GitHub-Api-Version': '2022-11-28',
           'Content-Type': 'application/json',
         },
+        signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           ref: 'main',
           inputs: workflowInputs,
@@ -290,38 +295,41 @@ serve(async (req) => {
         );
       }
 
-      // Aguardar e buscar o run_id
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      const runsUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/mgf-hinova.yml/runs?per_page=1`;
-      const runsResponse = await fetch(runsUrl, {
-        headers: {
-          'Authorization': `Bearer ${githubPat}`,
-          'Accept': 'application/vnd.github.v3+json',
-        },
-      });
-
-      let githubRunId = null;
-      let githubRunUrl = null;
-      
-      if (runsResponse.ok) {
-        const runsData = await runsResponse.json();
-        if (runsData.workflow_runs?.length > 0) {
-          const latestRun = runsData.workflow_runs[0];
-          githubRunId = String(latestRun.id);
-          githubRunUrl = latestRun.html_url;
-          
-          await supabase
-            .from("mgf_automacao_execucoes")
-            .update({
-              github_run_id: githubRunId,
-              github_run_url: githubRunUrl,
-            })
-            .eq("id", execucao.id);
+      // Associar o run correto de forma determinística: o run-name contém o execucao_id
+      let githubRunId: string | null = null;
+      let githubRunUrl: string | null = null;
+      for (let attempt = 0; attempt < 4 && !githubRunId; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        try {
+          const runsUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/mgf-hinova.yml/runs?event=workflow_dispatch&per_page=10`;
+          const runsResponse = await fetch(runsUrl, {
+            headers: { 'Authorization': `Bearer ${githubPat}`, 'Accept': 'application/vnd.github.v3+json' },
+            signal: AbortSignal.timeout(20000),
+          });
+          if (!runsResponse.ok) continue;
+          const runsData = await runsResponse.json();
+          const match = (runsData.workflow_runs || []).find((r: { display_title?: string }) =>
+            r.display_title?.includes(execucao.id),
+          );
+          if (match) {
+            githubRunId = String((match as { id: number }).id);
+            githubRunUrl = (match as { html_url: string }).html_url;
+          }
+        } catch (e) {
+          console.warn(`[MGF Workflow] Tentativa ${attempt + 1} de localizar run falhou:`, e);
         }
       }
 
-      // Registrar log de auditoria
+      if (githubRunId) {
+        await supabase
+          .from("mgf_automacao_execucoes")
+          .update({ github_run_id: githubRunId, github_run_url: githubRunUrl })
+          .eq("id", execucao.id);
+      } else {
+        console.warn(`[MGF Workflow] Não foi possível associar github_run_id à execução ${execucao.id}`);
+      }
+
+            // Registrar log de auditoria
       await supabase.from("bi_audit_logs").insert({
         modulo: "mgf_insights",
         acao: "github_workflow_disparado",
