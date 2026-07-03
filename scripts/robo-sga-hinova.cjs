@@ -2150,18 +2150,33 @@ async function coletarDadosDoPeriodoAdaptativo(context, page, periodo, index, to
 // NAVIGATION HELPER (com retry + fallback)
 // ============================================
 async function gotoComRetry(page, url, maxAttempts = 3) {
-  const waitStrategies = ['domcontentloaded', 'load', 'commit'];
+  // 'commit' resolve assim que a resposta HTTP chega (mesmo sem carregar tudo),
+  // permitindo capturar o status e o conteúdo devolvido pelo servidor.
+  const waitStrategies = ['domcontentloaded', 'commit', 'commit'];
+  // Falha rápido (45s/tentativa) em vez de pendurar por PAGE_LOAD (3min) sem info.
+  const NAV_TIMEOUT = 45000;
   let lastError;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const waitUntil = waitStrategies[Math.min(attempt - 1, waitStrategies.length - 1)];
     try {
-      log(`Navegando para ${url} (tentativa ${attempt}/${maxAttempts}, waitUntil=${waitUntil})`, LOG_LEVELS.INFO);
-      await page.goto(url, { waitUntil, timeout: TIMEOUTS.PAGE_LOAD });
-      log(`Navegação concluída em ${attempt} tentativa(s)`, LOG_LEVELS.SUCCESS);
+      log(`Navegando para ${url} (tentativa ${attempt}/${maxAttempts}, waitUntil=${waitUntil}, timeout=${NAV_TIMEOUT}ms)`, LOG_LEVELS.INFO);
+      const response = await page.goto(url, { waitUntil, timeout: NAV_TIMEOUT });
+      const status = response ? response.status() : 'sem resposta';
+      log(`Navegação concluída (HTTP ${status}) em ${attempt} tentativa(s)`, LOG_LEVELS.SUCCESS);
+      // Diagnóstico: se o servidor devolveu bloqueio/desafio, registra o que veio
+      if (response && (status === 403 || status === 429 || status === 503 || status >= 500)) {
+        const corpo = await page.content().catch(() => '');
+        const pista = /captcha|cloudflare|attention required|access denied|forbidden|blocked|unusual traffic/i.test(corpo)
+          ? ' (indício de proteção anti-bot/WAF)' : '';
+        log(`Servidor respondeu HTTP ${status}${pista}. Provável bloqueio do IP do runner.`, LOG_LEVELS.WARN);
+        await saveDebugInfo(page, page.context(), `nav_http_${status}`).catch(() => {});
+      }
       return;
     } catch (err) {
       lastError = err;
       log(`Falha na navegação (tentativa ${attempt}): ${err.message}`, LOG_LEVELS.WARN);
+      // Captura o que estiver na tela para diagnóstico (WAF, captcha, timeout)
+      await saveDebugInfo(page, page.context(), `nav_falha_tentativa_${attempt}`).catch(() => {});
       if (attempt < maxAttempts) {
         await new Promise((r) => setTimeout(r, 5000 * attempt));
       }
