@@ -227,7 +227,28 @@ serve(async (req) => {
         const [y, m, d] = iso.split('-');
         return `${d}/${m}/${y}`;
       };
-      const dataInicio = bodyDataInicio ? toBR(bodyDataInicio) : '01/01/2000';
+      let dataInicio: string;
+      if (bodyDataInicio) {
+        // Backfill: usa o periodo recebido
+        dataInicio = toBR(bodyDataInicio);
+      } else {
+        // Importacao incremental: 1a carga => 01/01/2000; depois => evento aberto mais antigo
+        let smart: string | null = null;
+        try {
+          const { data: rpc } = await supabase.rpc('sga_proxima_data_inicio', { _corretora_id: corretora_id });
+          smart = (rpc as string | null) ?? null;
+        } catch (e) {
+          console.warn('[SGA Workflow] Falha ao calcular data incremental, usando 01/01/2000:', e);
+        }
+        if (smart) {
+          const [yy, mm, dd] = smart.split('-');
+          dataInicio = `${dd}/${mm}/${yy}`;
+          console.log(`[SGA Workflow] Importacao incremental a partir de ${dataInicio}`);
+        } else {
+          dataInicio = '01/01/2000';
+          console.log('[SGA Workflow] Primeira carga: 01/01/2000');
+        }
+      }
       let dataFim: string;
       if (bodyDataFim) {
         dataFim = toBR(bodyDataFim);

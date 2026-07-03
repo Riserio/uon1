@@ -154,7 +154,7 @@ const LIMITS = {
   MAX_LOGIN_RETRIES: 5,
   MAX_POPUP_CLOSE_ATTEMPTS: 10,
   MAX_DOWNLOAD_RETRIES: 3,
-  INITIAL_WINDOW_DAYS: 90,
+  INITIAL_WINDOW_DAYS: 100000, // janela unica; adaptativo divide so em falha
   MIN_WINDOW_DAYS: 7,
 };
 
@@ -2347,7 +2347,7 @@ async function main() {
     await fecharPopups(page);
 
     const janelas = buildDateWindows(inicio, fim, LIMITS.INITIAL_WINDOW_DAYS);
-    log(`Coleta segmentada em ${janelas.length} janelas de até ${LIMITS.INITIAL_WINDOW_DAYS} dias com divisão automática em falhas`, LOG_LEVELS.INFO);
+    log(`Coleta em ${janelas.length} janela(s) — filtro único ${inicio} a ${fim}, com divisão automática apenas em falha`, LOG_LEVELS.INFO);
 
     const dadosAcumulados = [];
 
