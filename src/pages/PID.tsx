@@ -1,113 +1,1447 @@
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import PIDDashboard from "@/components/portal/PIDDashboard";
-import PIDOperacional from "@/components/portal/PIDOperacional";
-import PIDEstudoBase from "@/components/portal/PIDEstudoBase";
-import PIDHistorico from "@/components/portal/PIDHistorico";
-import PIDImportacao from "@/components/portal/PIDImportacao";
-import PortalSinistros from "@/components/portal/PortalSinistros";
-import PortalComite from "@/components/portal/PortalComite";
-import { GerenciarUsuariosCorretoraDialog } from "@/components/GerenciarUsuariosCorretoraDialog";
-import BIAdminDashboard from "@/components/bi/BIAdminDashboard";
-import { useBILayout } from "@/contexts/BILayoutContext";
-import { useState } from "react";
-import { Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity, Upload } from "lucide-react";
-export default function PID() {
-  const { associacoes, selectedAssociacao, isAdminView } = useBILayout();
-  const [usuariosDialogOpen, setUsuariosDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const selectedAssociacaoData = associacoes.find((c) => c.id === selectedAssociacao);
-  const tabs = [
-    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-    { id: "operacional", label: "Operacional", icon: Activity },
-    { id: "estudo-base", label: "Estudo de Base", icon: Car },
-    { id: "historico", label: "Histórico", icon: Calendar },
-    { id: "importacao", label: "Importação", icon: Upload },
-    { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
-    { id: "comite", label: "Comitê", icon: MessageSquare },
-  ];
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { formatCurrency, formatPercent, calcPercent } from "@/lib/formatters";
+import {
+  DollarSign,
+  Car,
+  AlertTriangle,
+  CheckCircle2,
+  Activity,
+  Percent,
+  BarChart3,
+  CreditCard,
+  Users,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  LayoutDashboard,
+} from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ComposedChart,
+} from "recharts";
+
+interface PIDDashboardProps {
+  corretoraId?: string;
+}
+
+const mesesNome = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+/* =====================================================================
+ * Formatação compartilhada
+ * ===================================================================== */
+type ValueFormat = "number" | "percent" | "currency" | "decimal";
+
+const fmtValue = (v: number, format: ValueFormat): string => {
+  switch (format) {
+    case "currency":
+      return formatCurrency(v || 0);
+    case "percent":
+      return `${Number(v || 0)
+        .toFixed(2)
+        .replace(".", ",")}%`;
+    case "decimal":
+      return Number(v || 0)
+        .toFixed(2)
+        .replace(".", ",");
+    default:
+      return (v || 0).toLocaleString("pt-BR");
+  }
+};
+
+const fmtAxis = (v: number, format: ValueFormat): string => {
+  switch (format) {
+    case "currency":
+      return Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toFixed(0);
+    case "percent":
+      return `${v.toFixed(1)}%`;
+    case "decimal":
+      return v.toFixed(2);
+    default:
+      return Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toLocaleString("pt-BR");
+  }
+};
+
+/** Moeda compacta para KPIs (evita estourar o card): R$ 954,4 mil / R$ 1,2 mi */
+const formatCurrencyCompact = (v: number): string => {
+  const abs = Math.abs(v || 0);
+  if (abs >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace(".", ",")} mi`;
+  if (abs >= 100_000) return `R$ ${(v / 1_000).toFixed(1).replace(".", ",")} mil`;
+  return formatCurrency(v || 0);
+};
+
+const EmptyChart = () => (
+  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Sem dados disponíveis</div>
+);
+
+/* =====================================================================
+ * Tooltip base (mesmo padrão visual para todos os gráficos)
+ * ===================================================================== */
+const DefaultTooltipContent = ({
+  active,
+  payload,
+  label,
+  formatter,
+  showTotal = false,
+}: {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+  formatter?: (value: number) => string;
+  showTotal?: boolean;
+}) => {
+  if (!active || !payload || !payload.length) return null;
+  const total = payload.reduce((acc, item) => acc + (item.value || 0), 0);
   return (
-    <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {isAdminView ? (
-        <BIAdminDashboard />
+    <div className="rounded-md border bg-background px-3 py-2 shadow-sm text-xs">
+      {label && <div className="font-semibold mb-1">{label}</div>}
+      {payload.map((item: any) => {
+        const value = item.value || 0;
+        const color = item.color || item.stroke || item.fill || "#6b7280";
+        return (
+          <div key={item.dataKey} className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+              <span>{item.name || item.dataKey}</span>
+            </span>
+            <span>{formatter ? formatter(value) : value.toLocaleString("pt-BR")}</span>
+          </div>
+        );
+      })}
+      {showTotal && (
+        <div className="mt-1 border-t pt-1 flex items-center justify-between font-semibold">
+          <span>Total :</span>
+          <span>{formatter ? formatter(total) : total.toLocaleString("pt-BR")}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PermanenciaTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || !payload.length) return null;
+  const entradaItem = payload.find((p: any) => p.dataKey === "entrada");
+  const perdasItem = payload.find((p: any) => p.dataKey === "perdas");
+  const variacaoItem = payload.find((p: any) => p.dataKey === "variacao_permanencia");
+  const entrada = entradaItem?.value || 0;
+  const perdas = perdasItem?.value || 0;
+  const saldo = entrada - perdas;
+  const variacao = variacaoItem?.value || 0;
+  return (
+    <div className="rounded-md border bg-background px-3 py-2 shadow-sm text-xs">
+      <div className="font-semibold mb-1">{label}</div>
+      {entradaItem && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: "#16a34a" }} />
+            <span>Entrada</span>
+          </span>
+          <span>{entrada.toLocaleString("pt-BR")}</span>
+        </div>
+      )}
+      {perdasItem && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: "#dc2626" }} />
+            <span>Perdas</span>
+          </span>
+          <span>{perdas.toLocaleString("pt-BR")}</span>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2 font-semibold mt-1 border-t pt-1">
+        <span>Saldo (Entrada - Perdas)</span>
+        <span>{saldo.toLocaleString("pt-BR")}</span>
+      </div>
+      {variacaoItem && (
+        <div className="flex items-center justify-between gap-2 mt-1">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: "#2563eb" }} />
+            <span>% Var. Saldo vs mês anterior</span>
+          </span>
+          <span>{formatPercent(variacao || 0)}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* =====================================================================
+ * Componentes genéricos de gráfico — garantem visual 100% consistente
+ * e eliminam repetição de código.
+ * ===================================================================== */
+interface ChartCardProps {
+  title: string;
+  subtitle?: string;
+  height?: number;
+  children: React.ReactNode;
+  hasData: boolean;
+  /** Cor de destaque do widget (mesma cor da série) */
+  accentColor?: string;
+}
+
+const ChartCard = ({ title, subtitle, height = 260, children, hasData, accentColor = "#64748b" }: ChartCardProps) => (
+  <Card className="rounded-xl border-border/60 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+    <CardHeader className="pb-1 pt-4 px-4">
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+          style={{ backgroundColor: accentColor }}
+        />
+        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+      </div>
+      {subtitle && <p className="text-xs text-muted-foreground pl-[18px]">{subtitle}</p>}
+    </CardHeader>
+    <CardContent className="px-2 pb-3" style={{ height }}>
+      {hasData ? children : <EmptyChart />}
+    </CardContent>
+  </Card>
+);
+
+/** Label de valor exibido apenas no último ponto — mantém o gráfico limpo. */
+const lastPointLabel =
+  (dataLength: number, color: string, format: ValueFormat) =>
+  ({ x, y, value, index, width }: any) => {
+    if (index !== dataLength - 1) return null;
+    const cx = width != null ? x + width / 2 : x;
+    return (
+      <text x={cx} y={y - 8} textAnchor="middle" fontSize={10} fontWeight={600} fill={color}>
+        {fmtValue(Number(value), format)}
+      </text>
+    );
+  };
+
+interface SingleSeriesChartProps {
+  data: any[];
+  dataKey: string;
+  name: string;
+  color: string;
+  kind: "line" | "bar";
+  format?: ValueFormat;
+}
+
+/** Gráfico de uma série só: sem legenda (o título do card já identifica). */
+const SingleSeriesChart = ({ data, dataKey, name, color, kind, format = "number" }: SingleSeriesChartProps) => {
+  const common = (
+    <>
+      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} vertical={false} />
+      <XAxis dataKey="mes" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+      <YAxis
+        tickFormatter={(v) => fmtAxis(v, format)}
+        tick={{ fontSize: 11 }}
+        tickLine={false}
+        axisLine={false}
+        width={52}
+      />
+      <Tooltip content={<DefaultTooltipContent formatter={(v: number) => fmtValue(v, format)} />} />
+    </>
+  );
+  if (kind === "bar") {
+    return (
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 18, right: 12, left: 0, bottom: 0 }}>
+          {common}
+          <Bar
+            dataKey={dataKey}
+            name={name}
+            fill={color}
+            radius={[4, 4, 0, 0]}
+            maxBarSize={36}
+            label={lastPointLabel(data.length, color, format)}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
+  // Linha com preenchimento em degradê (estilo widget)
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={{ top: 18, right: 12, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id={`grad-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.25} />
+            <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        {common}
+        <Area
+          type="monotone"
+          dataKey={dataKey}
+          name={name}
+          stroke={color}
+          strokeWidth={2.5}
+          fill={`url(#grad-${dataKey})`}
+          dot={{ r: 3, fill: color, strokeWidth: 0 }}
+          activeDot={{ r: 5 }}
+          label={lastPointLabel(data.length, color, format)}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+};
+
+interface MultiSeries {
+  dataKey: string;
+  name: string;
+  color: string;
+}
+
+interface MultiSeriesChartProps {
+  data: any[];
+  series: MultiSeries[];
+  kind: "line" | "bar";
+  format?: ValueFormat;
+  showTotal?: boolean;
+}
+
+/** Gráfico com poucas séries (2 a 4), com legenda compacta. */
+const MultiSeriesChart = ({ data, series, kind, format = "number", showTotal = false }: MultiSeriesChartProps) => {
+  const common = (
+    <>
+      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} vertical={false} />
+      <XAxis dataKey="mes" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+      <YAxis
+        tickFormatter={(v) => fmtAxis(v, format)}
+        tick={{ fontSize: 11 }}
+        tickLine={false}
+        axisLine={false}
+        width={52}
+      />
+      <Tooltip
+        content={<DefaultTooltipContent formatter={(v: number) => fmtValue(v, format)} showTotal={showTotal} />}
+      />
+      <Legend wrapperStyle={{ fontSize: 11 }} iconSize={10} />
+    </>
+  );
+  if (kind === "bar") {
+    return (
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          {common}
+          {series.map((s) => (
+            <Bar
+              key={s.dataKey}
+              dataKey={s.dataKey}
+              name={s.name}
+              fill={s.color}
+              radius={[3, 3, 0, 0]}
+              maxBarSize={24}
+            />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        {common}
+        {series.map((s) => (
+          <Line
+            key={s.dataKey}
+            type="monotone"
+            dataKey={s.dataKey}
+            name={s.name}
+            stroke={s.color}
+            strokeWidth={2}
+            dot={{ r: 2 }}
+            activeDot={{ r: 4 }}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+};
+
+/* =====================================================================
+ * Indicador de variação vs mês anterior
+ * ===================================================================== */
+interface VariationIndicatorProps {
+  current: number;
+  previous: number | null | undefined;
+  format?: "number" | "currency" | "percent";
+}
+
+const VariationIndicator = ({ current, previous, format = "number" }: VariationIndicatorProps) => {
+  if (previous === null || previous === undefined) {
+    return (
+      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+        <Minus className="h-3 w-3" />
+        <span>—</span>
+      </div>
+    );
+  }
+  const diff = current - previous;
+  const percentChange = previous !== 0 ? ((current - previous) / Math.abs(previous)) * 100 : current > 0 ? 100 : 0;
+  const isPositive = diff > 0;
+  const isNeutral = diff === 0;
+  const formatDiff = () => {
+    switch (format) {
+      case "currency":
+        return formatCurrency(Math.abs(diff));
+      case "percent":
+        return Math.abs(diff).toFixed(2).replace(".", ",") + " p.p.";
+      default:
+        return Math.abs(diff).toLocaleString("pt-BR");
+    }
+  };
+  const colorClass = isNeutral ? "text-muted-foreground" : isPositive ? "text-green-600" : "text-red-600";
+  const Icon = isNeutral ? Minus : isPositive ? TrendingUp : TrendingDown;
+  return (
+    <div className={`flex items-center gap-1 text-xs mt-1 ${colorClass}`}>
+      <Icon className="h-3 w-3" />
+      <span className="sm:hidden">
+        {isPositive ? "+" : isNeutral ? "" : "-"}
+        {Math.abs(percentChange).toFixed(1)}%
+      </span>
+      <span className="hidden sm:inline">
+        {isPositive ? "+" : isNeutral ? "" : "-"}
+        {formatDiff()} ({isPositive ? "+" : ""}
+        {percentChange.toFixed(1)}%)
+      </span>
+    </div>
+  );
+};
+
+/* =====================================================================
+ * Card de KPI padronizado
+ * ===================================================================== */
+type KpiAccent = "blue" | "green" | "emerald" | "purple" | "cyan" | "amber" | "red" | "rose";
+
+const accentClasses: Record<KpiAccent, string> = {
+  blue: "bg-gradient-to-br from-blue-500/10 to-transparent border-blue-500/20",
+  green: "bg-gradient-to-br from-green-500/10 to-transparent border-green-500/20",
+  emerald: "bg-gradient-to-br from-emerald-500/10 to-transparent border-emerald-500/20",
+  purple: "bg-gradient-to-br from-purple-500/10 to-transparent border-purple-500/20",
+  cyan: "bg-gradient-to-br from-cyan-500/10 to-transparent border-cyan-500/20",
+  amber: "bg-gradient-to-br from-amber-500/10 to-transparent border-amber-500/20",
+  red: "bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20",
+  rose: "bg-gradient-to-br from-rose-500/10 to-transparent border-rose-500/20",
+};
+
+interface KpiCardProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  /** Valor completo exibido no hover quando `value` está compactado */
+  fullValue?: string;
+  accent: KpiAccent;
+  badge?: string;
+  variation?: React.ReactNode;
+  valueClassName?: string;
+}
+
+const KpiCard = ({ icon, label, value, fullValue, accent, badge, variation, valueClassName }: KpiCardProps) => (
+  <Card className={`${accentClasses[accent]} shadow-sm min-w-0`}>
+    <CardContent className="p-4">
+      <div className="flex items-center justify-between">
+        {icon}
+        {badge && (
+          <Badge variant="outline" className="text-[10px]">
+            {badge}
+          </Badge>
+        )}
+      </div>
+      <div className="mt-2 min-w-0">
+        <div
+          className={`text-xl xl:text-2xl font-bold tracking-tight truncate ${valueClassName || ""}`}
+          title={fullValue || value}
+        >
+          {value}
+        </div>
+        <div className="text-xs text-muted-foreground truncate">{label}</div>
+        {variation}
+      </div>
+    </CardContent>
+  </Card>
+);
+
+/* =====================================================================
+ * Componente principal
+ * ===================================================================== */
+export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
+  const [loading, setLoading] = useState(true);
+  const [ano, setAno] = useState<string>("");
+  const [mes, setMes] = useState<string>("");
+  const [todoPeriodo, setTodoPeriodo] = useState(true);
+  const [dadosAno, setDadosAno] = useState<any[]>([]);
+  const [dadosAtual, setDadosAtual] = useState<any>(null);
+  const [dadosAnterior, setDadosAnterior] = useState<any>(null);
+  const [initialized, setInitialized] = useState(false);
+  const [ultimoMesComDados, setUltimoMesComDados] = useState<{ ano: string; mes: string } | null>(null);
+  const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
+
+  // Slot acima das abas (definido em PID.tsx) onde a barra de período é projetada
+  useEffect(() => {
+    setFilterSlot(document.getElementById("pid-filters-slot"));
+  }, []);
+
+  const currentYear = new Date().getFullYear();
+  const anos = Array.from({ length: 6 }, (_, i) => (currentYear + 1 - i).toString());
+
+  const mesesOptions = [
+    { value: "1", label: "Janeiro" },
+    { value: "2", label: "Fevereiro" },
+    { value: "3", label: "Março" },
+    { value: "4", label: "Abril" },
+    { value: "5", label: "Maio" },
+    { value: "6", label: "Junho" },
+    { value: "7", label: "Julho" },
+    { value: "8", label: "Agosto" },
+    { value: "9", label: "Setembro" },
+    { value: "10", label: "Outubro" },
+    { value: "11", label: "Novembro" },
+    { value: "12", label: "Dezembro" },
+  ];
+
+  const fetchMostRecentPeriod = async () => {
+    if (!corretoraId) return;
+    try {
+      const { data: results, error } = await supabase
+        .from("pid_operacional")
+        .select("ano, mes, placas_ativas, faturamento_operacional, total_recebido")
+        .eq("corretora_id", corretoraId)
+        .order("ano", { ascending: false })
+        .order("mes", { ascending: false })
+        .limit(12);
+      if (error) throw error;
+
+      if (results && results.length > 0) {
+        const registroComDados = results.find(
+          (r) =>
+            (r.placas_ativas && r.placas_ativas > 0) ||
+            (r.faturamento_operacional && r.faturamento_operacional > 0) ||
+            (r.total_recebido && r.total_recebido > 0),
+        );
+        const result = registroComDados || results[0];
+        const anoStr = result.ano.toString();
+        const mesStr = result.mes.toString();
+        setAno(anoStr);
+        setMes(mesStr);
+        setUltimoMesComDados({ ano: anoStr, mes: mesStr });
+      } else {
+        const anoStr = new Date().getFullYear().toString();
+        const mesStr = (new Date().getMonth() + 1).toString();
+        setAno(anoStr);
+        setMes(mesStr);
+        setUltimoMesComDados(null);
+      }
+      setInitialized(true);
+    } catch (error: any) {
+      console.error("Error fetching most recent period:", error);
+      const anoStr = new Date().getFullYear().toString();
+      const mesStr = (new Date().getMonth() + 1).toString();
+      setAno(anoStr);
+      setMes(mesStr);
+      setUltimoMesComDados(null);
+      setInitialized(true);
+    }
+  };
+
+  const handleTodoPeriodoToggle = () => {
+    if (todoPeriodo) {
+      if (ultimoMesComDados) {
+        setAno(ultimoMesComDados.ano);
+        setMes(ultimoMesComDados.mes);
+      }
+    }
+    setTodoPeriodo(!todoPeriodo);
+  };
+
+  const fetchDados = async () => {
+    if (!corretoraId) return;
+    setLoading(true);
+    try {
+      let query = supabase
+        .from("pid_operacional")
+        .select("*")
+        .eq("corretora_id", corretoraId)
+        .order("ano", { ascending: true })
+        .order("mes", { ascending: true });
+      if (!todoPeriodo && ano && mes) {
+        query = query.eq("ano", parseInt(ano)).eq("mes", parseInt(mes));
+      }
+      const { data: anoData, error } = await query;
+      if (error) throw error;
+      setDadosAno(anoData || []);
+      if (anoData && anoData.length > 0) {
+        const registrosComDados = anoData.filter(
+          (d) =>
+            (d.placas_ativas && d.placas_ativas > 0) ||
+            (d.faturamento_operacional && d.faturamento_operacional > 0) ||
+            (d.total_recebido && d.total_recebido > 0),
+        );
+        const dadoAtual =
+          registrosComDados.length > 0 ? registrosComDados[registrosComDados.length - 1] : anoData[anoData.length - 1];
+        setDadosAtual(dadoAtual);
+
+        const mesAtual = dadoAtual.mes;
+        const anoAtual = dadoAtual.ano;
+        const mesAnterior = mesAtual - 1;
+        if (mesAnterior >= 1) {
+          const { data: prevData } = await supabase
+            .from("pid_operacional")
+            .select("*")
+            .eq("corretora_id", corretoraId)
+            .eq("ano", anoAtual)
+            .eq("mes", mesAnterior)
+            .single();
+          setDadosAnterior(prevData || null);
+        } else {
+          const { data: prevData } = await supabase
+            .from("pid_operacional")
+            .select("*")
+            .eq("corretora_id", corretoraId)
+            .eq("ano", anoAtual - 1)
+            .eq("mes", 12)
+            .single();
+          setDadosAnterior(prevData || null);
+        }
+      } else {
+        setDadosAtual(null);
+        setDadosAnterior(null);
+      }
+    } catch (error: any) {
+      console.error("Error fetching dashboard data:", error);
+      toast.error("Erro ao carregar dados");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (corretoraId && !initialized) {
+      fetchMostRecentPeriod();
+    }
+  }, [corretoraId]);
+
+  useEffect(() => {
+    if (corretoraId && initialized) {
+      fetchDados();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [corretoraId, ano, mes, todoPeriodo, initialized]);
+
+  const chartData = useMemo(() => {
+    return dadosAno.map((d, index) => {
+      const prev = index > 0 ? dadosAno[index - 1] : null;
+      const currFaturamento = Number(d.faturamento_operacional ?? 0);
+      const currRecebido = Number(d.total_recebido ?? 0);
+      const prevFaturamento = Number(prev?.faturamento_operacional ?? 0);
+      const prevRecebido = Number(prev?.total_recebido ?? 0);
+      const crescimentoFaturamento =
+        prev && prevFaturamento > 0 ? ((currFaturamento - prevFaturamento) / prevFaturamento) * 100 : 0;
+      const crescimentoRecebido = prev && prevRecebido > 0 ? ((currRecebido - prevRecebido) / prevRecebido) * 100 : 0;
+      const indiceVeiculosPorAssociado = d.total_associados > 0 ? (d.placas_ativas || 0) / d.total_associados : 0;
+      const indiceNovosCadastros = d.placas_ativas > 0 ? calcPercent(d.cadastros_realizados, d.placas_ativas) : 0;
+      const totalEntrada = (d.cadastros_realizados || 0) + (d.reativacao || 0);
+      const totalPerdas = (d.cancelamentos || 0) + (d.inadimplentes || 0);
+      const permanencia = totalEntrada - totalPerdas;
+      const indicePermanencia = d.placas_ativas > 0 ? calcPercent(permanencia, d.placas_ativas) : 0;
+      const inadimplenciaBoletos =
+        d.percentual_inadimplencia_boletos || calcPercent(d.boletos_abertos, d.boletos_emitidos);
+      const cancelamentoBoletos =
+        d.percentual_cancelamento_boletos || calcPercent(d.boletos_cancelados, d.boletos_emitidos);
+      const inadimplenciaFinanceira =
+        d.percentual_inadimplencia_financeira || calcPercent(d.valor_boletos_abertos, d.faturamento_operacional);
+      const arrecadacaoJuros =
+        d.arrecadamento_juros && currRecebido ? (Number(d.arrecadamento_juros || 0) / currRecebido) * 100 : 0;
+      const descontadoBanco =
+        d.descontado_banco && currRecebido ? (Number(d.descontado_banco || 0) / currRecebido) * 100 : 0;
+      const custoTotalEventos =
+        d.custo_total_eventos ??
+        (d.pagamento_valor_parcial_associado || 0) +
+          (d.pagamento_valor_parcial_terceiro || 0) +
+          (d.pagamento_valor_integral_associado || 0) +
+          (d.pagamento_valor_integral_terceiro || 0) +
+          (d.pagamento_valor_vidros || 0) +
+          (d.pagamento_valor_carro_reserva || 0);
+      const sinistroFinanceiro = d.sinistralidade_financeira ?? calcPercent(custoTotalEventos, d.total_recebido);
+      const sinistroGeral = d.sinistralidade_geral ?? calcPercent(d.abertura_total_eventos, d.placas_ativas);
+      const mesLabel = todoPeriodo ? `${mesesNome[d.mes - 1]}/${String(d.ano).slice(-2)}` : mesesNome[d.mes - 1];
+      return {
+        mes: mesLabel,
+        placas_ativas: d.placas_ativas || 0,
+        total_cotas: d.total_cotas || 0,
+        total_associados: d.total_associados || 0,
+        indice_veiculos_por_associado: indiceVeiculosPorAssociado,
+        cadastros_realizados: d.cadastros_realizados || 0,
+        indice_novos_cadastros: indiceNovosCadastros,
+        indice_crescimento_bruto: (d.indice_crescimento_bruto || 0) * 100,
+        crescimento_liquido: d.crescimento_liquido || 0,
+        cancelamentos: d.cancelamentos || 0,
+        inadimplentes: d.inadimplentes || 0,
+        reativacao: d.reativacao || 0,
+        churn: (d.churn || 0) * 100,
+        permanencia: permanencia,
+        indice_permanencia: indicePermanencia,
+        boletos_emitidos: d.boletos_emitidos || 0,
+        boletos_liquidados: d.boletos_liquidados || 0,
+        boletos_abertos: d.boletos_abertos || 0,
+        boletos_cancelados: d.boletos_cancelados || 0,
+        faturamento_operacional: d.faturamento_operacional || 0,
+        total_recebido: d.total_recebido || 0,
+        baixado_pendencia: d.baixado_pendencia || 0,
+        valor_boletos_abertos: d.valor_boletos_abertos || 0,
+        valor_boletos_cancelados: d.valor_boletos_cancelados || 0,
+        recebimento_operacional: d.recebimento_operacional || 0,
+        arrecadamento_juros: d.arrecadamento_juros || 0,
+        descontado_banco: d.descontado_banco || 0,
+        percentual_inadimplencia_boletos: inadimplenciaBoletos,
+        percentual_cancelamento_boletos: cancelamentoBoletos,
+        percentual_inadimplencia_financeira: inadimplenciaFinanceira,
+        ticket_medio_boleto: d.ticket_medio_boleto || 0,
+        percentual_arrecadacao_juros: arrecadacaoJuros,
+        percentual_descontado_banco: descontadoBanco,
+        percentual_crescimento_faturamento: crescimentoFaturamento,
+        percentual_crescimento_recebido: crescimentoRecebido,
+        abertura_parcial_associado: d.abertura_indenizacao_parcial_associado || 0,
+        abertura_parcial_terceiro: d.abertura_indenizacao_parcial_terceiro || 0,
+        abertura_integral_associado: d.abertura_indenizacao_integral_associado || 0,
+        abertura_integral_terceiro: d.abertura_indenizacao_integral_terceiro || 0,
+        abertura_vidros: d.abertura_vidros || 0,
+        abertura_carro_reserva: d.abertura_carro_reserva || 0,
+        abertura_total_eventos: d.abertura_total_eventos || 0,
+        pagamento_qtd_parcial_associado: d.pagamento_qtd_parcial_associado || 0,
+        pagamento_qtd_parcial_terceiro: d.pagamento_qtd_parcial_terceiro || 0,
+        pagamento_qtd_integral_associado: d.pagamento_qtd_integral_associado || 0,
+        pagamento_qtd_integral_terceiro: d.pagamento_qtd_integral_terceiro || 0,
+        pagamento_qtd_vidros: d.pagamento_qtd_vidros || 0,
+        pagamento_qtd_carro_reserva: d.pagamento_qtd_carro_reserva || 0,
+        custo_total_eventos: d.custo_total_eventos || 0,
+        pagamento_valor_parcial_associado: d.pagamento_valor_parcial_associado || 0,
+        pagamento_valor_parcial_terceiro: d.pagamento_valor_parcial_terceiro || 0,
+        pagamento_valor_integral_associado: d.pagamento_valor_integral_associado || 0,
+        pagamento_valor_integral_terceiro: d.pagamento_valor_integral_terceiro || 0,
+        pagamento_valor_vidros: d.pagamento_valor_vidros || 0,
+        pagamento_valor_carro_reserva: d.pagamento_valor_carro_reserva || 0,
+        sinistralidade_financeira: sinistroFinanceiro * 100,
+        sinistralidade_geral: sinistroGeral * 100,
+        indice_dano_parcial: (d.indice_dano_parcial || 0) * 100,
+        indice_dano_integral: (d.indice_dano_integral || 0) * 100,
+        ticket_medio_parcial: d.ticket_medio_parcial || 0,
+        ticket_medio_integral: d.ticket_medio_integral || 0,
+        ticket_medio_vidros: d.ticket_medio_vidros || 0,
+        ticket_medio_carro_reserva: d.ticket_medio_carro_reserva || 0,
+        acionamentos_assistencia: d.acionamentos_assistencia || 0,
+        custo_assistencia: d.custo_assistencia || 0,
+        comprometimento_assistencia: (d.comprometimento_assistencia || 0) * 100,
+        veiculos_rastreados: d.veiculos_rastreados || 0,
+        instalacoes_rastreamento: d.instalacoes_rastreamento || 0,
+        custo_rastreamento: d.custo_rastreamento || 0,
+        comprometimento_rastreamento: (d.comprometimento_rastreamento || 0) * 100,
+        custo_total_rateavel: d.custo_total_rateavel || 0,
+        rateio_periodo: d.rateio_periodo || 0,
+        percentual_rateio: (d.percentual_rateio || 0) * 100,
+        cme_explit: d.cme_explit || 0,
+      };
+    });
+  }, [dadosAno, todoPeriodo]);
+
+  const permanenciaSeries = useMemo(() => {
+    if (!dadosAno || !dadosAno.length) return [];
+    return dadosAno.map((d, index) => {
+      const entrada = (d.cadastros_realizados || 0) + (d.reativacao || 0);
+      const perdas = (d.cancelamentos || 0) + (d.inadimplentes || 0);
+      const saldo = entrada - perdas;
+      let variacao = 0;
+      if (index > 0) {
+        const prev = dadosAno[index - 1];
+        const prevEntrada = (prev.cadastros_realizados || 0) + (prev.reativacao || 0);
+        const prevPerdas = (prev.cancelamentos || 0) + (prev.inadimplentes || 0);
+        const prevSaldo = prevEntrada - prevPerdas;
+        if (prevSaldo !== 0) {
+          variacao = calcPercent(saldo - prevSaldo, prevSaldo);
+        }
+      }
+      const mesLabel = todoPeriodo ? `${mesesNome[d.mes - 1]}/${String(d.ano).slice(-2)}` : mesesNome[d.mes - 1];
+      return { mes: mesLabel, entrada, perdas, saldo, variacao_permanencia: variacao };
+    });
+  }, [dadosAno, todoPeriodo]);
+
+  const mediasConsolidadas = useMemo(() => {
+    if (!todoPeriodo || !dadosAno || dadosAno.length === 0) return null;
+    const count = dadosAno.length;
+    const sum = (field: string) => dadosAno.reduce((acc, d) => acc + (d[field] || 0), 0);
+    const avg = (field: string) => sum(field) / count;
+    return {
+      sinistralidade_geral: avg("sinistralidade_geral"),
+      sinistralidade_financeira: avg("sinistralidade_financeira"),
+      percentual_inadimplencia: avg("percentual_inadimplencia"),
+      percentual_inadimplencia_boletos: avg("percentual_inadimplencia_boletos"),
+      percentual_inadimplencia_financeira: avg("percentual_inadimplencia_financeira"),
+    };
+  }, [todoPeriodo, dadosAno]);
+
+  const mesAtualLabel = useMemo(() => {
+    if (todoPeriodo) {
+      if (dadosAtual) return mesesNome[dadosAtual.mes - 1];
+      return "";
+    }
+    const mesIndex = parseInt(mes) - 1;
+    return mesesNome[mesIndex] || "";
+  }, [todoPeriodo, mes, dadosAtual]);
+
+  const hasData = chartData.length > 0;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  const filterBar = (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2">
+      <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+        <BarChart3 className="h-4 w-4" />
+        Período de análise
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant={todoPeriodo ? "default" : "outline"}
+          size="sm"
+          onClick={handleTodoPeriodoToggle}
+          className="whitespace-nowrap"
+        >
+          Todo Período
+        </Button>
+        <Select
+          value={mes}
+          onValueChange={(v) => {
+            setMes(v);
+            setTodoPeriodo(false);
+          }}
+          disabled={todoPeriodo}
+        >
+          <SelectTrigger className={`w-36 h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {mesesOptions.map((m) => (
+              <SelectItem key={m.value} value={m.value}>
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={ano}
+          onValueChange={(v) => {
+            setAno(v);
+            setTodoPeriodo(false);
+          }}
+          disabled={todoPeriodo}
+        >
+          <SelectTrigger className={`w-24 h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {anos.map((a) => (
+              <SelectItem key={a} value={a}>
+                {a}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Barra de período: projetada acima das abas quando o slot existe; senão, renderiza aqui */}
+      {filterSlot ? createPortal(filterBar, filterSlot) : filterBar}
+
+      {!dadosAtual ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            {todoPeriodo
+              ? "Nenhum dado histórico encontrado. Cadastre informações na aba Operacional."
+              : `Nenhum dado encontrado para ${mesesOptions.find((m) => m.value === mes)?.label} de ${ano}. Cadastre informações na aba Operacional.`}
+          </CardContent>
+        </Card>
       ) : (
         <>
-          {/* Abas centralizadas + ação à direita */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] items-center gap-3">
-            <div className="hidden lg:block" />
-            {/* Navegação centralizada, estilo pill */}
-            <div className="overflow-x-auto scrollbar-hide -mx-1 px-1 flex justify-start lg:justify-center">
-              <div className="inline-flex items-center gap-1 min-w-max">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-sm whitespace-nowrap transition-all duration-200 ${
-                        isActive
-                          ? "bg-card text-foreground font-semibold shadow-md"
-                          : "text-muted-foreground font-medium hover:text-foreground hover:bg-muted/50"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span className="hidden sm:inline">{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            {/* Gerenciar Usuários alinhado à direita */}
-            {selectedAssociacao ? (
-              <div className="lg:justify-self-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setUsuariosDialogOpen(true)}
-                  className="gap-1.5 rounded-xl shrink-0 h-9 text-xs"
-                >
-                  <Users className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Gerenciar Usuários</span>
-                </Button>
-              </div>
-            ) : (
-              <div className="hidden lg:block" />
-            )}
+          {/* ============ KPIs (sempre visíveis) ============ */}
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 2xl:grid-cols-8">
+            <KpiCard
+              icon={<Car className="h-5 w-5 text-blue-500" />}
+              accent="blue"
+              badge={mesAtualLabel || undefined}
+              value={dadosAtual.placas_ativas?.toLocaleString("pt-BR")}
+              label="Placas Ativas"
+              variation={
+                <VariationIndicator
+                  current={dadosAtual.placas_ativas || 0}
+                  previous={dadosAnterior?.placas_ativas}
+                  format="number"
+                />
+              }
+            />
+            <KpiCard
+              icon={<DollarSign className="h-5 w-5 text-green-500" />}
+              accent="green"
+              value={formatCurrencyCompact(dadosAtual.faturamento_operacional)}
+              fullValue={formatCurrency(dadosAtual.faturamento_operacional)}
+              label="Faturamento"
+              variation={
+                <VariationIndicator
+                  current={dadosAtual.faturamento_operacional || 0}
+                  previous={dadosAnterior?.faturamento_operacional}
+                  format="currency"
+                />
+              }
+            />
+            <KpiCard
+              icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />}
+              accent="emerald"
+              value={formatCurrencyCompact(dadosAtual.total_recebido)}
+              fullValue={formatCurrency(dadosAtual.total_recebido)}
+              label="Total Recebido"
+              variation={
+                <VariationIndicator
+                  current={dadosAtual.total_recebido || 0}
+                  previous={dadosAnterior?.total_recebido}
+                  format="currency"
+                />
+              }
+            />
+            <KpiCard
+              icon={<Activity className="h-5 w-5 text-purple-500" />}
+              accent="purple"
+              value={dadosAtual.crescimento_liquido?.toLocaleString("pt-BR")}
+              valueClassName={(dadosAtual.crescimento_liquido || 0) >= 0 ? "text-green-600" : "text-red-600"}
+              label="Crescimento Líquido"
+              variation={
+                <VariationIndicator
+                  current={dadosAtual.crescimento_liquido || 0}
+                  previous={dadosAnterior?.crescimento_liquido}
+                  format="number"
+                />
+              }
+            />
+            <KpiCard
+              icon={<CreditCard className="h-5 w-5 text-cyan-500" />}
+              accent="cyan"
+              value={formatCurrency(dadosAtual.ticket_medio_boleto || 0)}
+              label="Ticket Médio"
+              variation={
+                <VariationIndicator
+                  current={dadosAtual.ticket_medio_boleto || 0}
+                  previous={dadosAnterior?.ticket_medio_boleto}
+                  format="currency"
+                />
+              }
+            />
+            <KpiCard
+              icon={<AlertTriangle className="h-5 w-5 text-amber-500" />}
+              accent="amber"
+              badge={todoPeriodo ? "Média" : undefined}
+              value={formatPercent(
+                todoPeriodo && mediasConsolidadas
+                  ? mediasConsolidadas.sinistralidade_geral
+                  : dadosAtual.sinistralidade_geral || 0,
+              )}
+              label="Sinistralidade Geral"
+              variation={
+                !todoPeriodo ? (
+                  <VariationIndicator
+                    current={(dadosAtual.sinistralidade_geral || 0) * 100}
+                    previous={dadosAnterior ? (dadosAnterior.sinistralidade_geral || 0) * 100 : null}
+                    format="percent"
+                  />
+                ) : undefined
+              }
+            />
+            <KpiCard
+              icon={<Percent className="h-5 w-5 text-red-500" />}
+              accent="red"
+              badge={todoPeriodo ? "Média" : undefined}
+              value={formatPercent(
+                todoPeriodo && mediasConsolidadas
+                  ? mediasConsolidadas.percentual_inadimplencia_boletos
+                  : dadosAtual.percentual_inadimplencia_boletos || 0,
+              )}
+              label="Inadimpl. Boletos"
+              variation={
+                !todoPeriodo ? (
+                  <VariationIndicator
+                    current={(dadosAtual.percentual_inadimplencia_boletos || 0) * 100}
+                    previous={dadosAnterior ? (dadosAnterior.percentual_inadimplencia_boletos || 0) * 100 : null}
+                    format="percent"
+                  />
+                ) : undefined
+              }
+            />
+            <KpiCard
+              icon={<Percent className="h-5 w-5 text-rose-500" />}
+              accent="rose"
+              badge={todoPeriodo ? "Média" : undefined}
+              value={formatPercent(
+                todoPeriodo && mediasConsolidadas
+                  ? mediasConsolidadas.percentual_inadimplencia_financeira
+                  : dadosAtual.percentual_inadimplencia_financeira || 0,
+              )}
+              label="Inadimpl. Financeira"
+              variation={
+                !todoPeriodo ? (
+                  <VariationIndicator
+                    current={(dadosAtual.percentual_inadimplencia_financeira || 0) * 100}
+                    previous={dadosAnterior ? (dadosAnterior.percentual_inadimplencia_financeira || 0) * 100 : null}
+                    format="percent"
+                  />
+                ) : undefined
+              }
+            />
           </div>
-          {/* Tab contents */}
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsContent value="dashboard" className="space-y-4 mt-0">
-              <PIDDashboard corretoraId={selectedAssociacao} />
+
+          {/* ============ Abas por tema ============ */}
+          <Tabs defaultValue="visao-geral" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 md:w-auto">
+              <TabsTrigger value="visao-geral" className="gap-1.5">
+                <LayoutDashboard className="h-4 w-4" />
+                Visão Geral
+              </TabsTrigger>
+              <TabsTrigger value="base" className="gap-1.5">
+                <Users className="h-4 w-4" />
+                Base de Associados
+              </TabsTrigger>
+              <TabsTrigger value="financeiro" className="gap-1.5">
+                <CreditCard className="h-4 w-4" />
+                Financeiro
+              </TabsTrigger>
+              <TabsTrigger value="permanencia" className="gap-1.5">
+                <Activity className="h-4 w-4" />
+                Permanência
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ---------- VISÃO GERAL: só o essencial ---------- */}
+            <TabsContent value="visao-geral" className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ChartCard
+                  title="Placas Ativas"
+                  accentColor="#2563eb"
+                  subtitle="Evolução da frota protegida"
+                  hasData={hasData}
+                >
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="placas_ativas"
+                    name="Placas Ativas"
+                    color="#2563eb"
+                    kind="line"
+                  />
+                </ChartCard>
+                <ChartCard
+                  title="Faturamento vs Recebido"
+                  accentColor="#2563eb"
+                  subtitle="Comparativo mensal (R$)"
+                  hasData={hasData}
+                >
+                  <MultiSeriesChart
+                    data={chartData}
+                    kind="line"
+                    format="currency"
+                    series={[
+                      { dataKey: "faturamento_operacional", name: "Faturamento", color: "#2563eb" },
+                      { dataKey: "total_recebido", name: "Recebido", color: "#16a34a" },
+                    ]}
+                  />
+                </ChartCard>
+                <ChartCard
+                  title="Crescimento Líquido"
+                  accentColor="#16a34a"
+                  subtitle="Saldo de placas no mês"
+                  hasData={hasData}
+                >
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="crescimento_liquido"
+                    name="Crescimento Líquido"
+                    color="#16a34a"
+                    kind="bar"
+                  />
+                </ChartCard>
+                <ChartCard
+                  title="Churn (%)"
+                  accentColor="#dc2626"
+                  subtitle="Taxa de perda de associados"
+                  hasData={hasData}
+                >
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="churn"
+                    name="Churn"
+                    color="#dc2626"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+              </div>
             </TabsContent>
-            <TabsContent value="operacional" className="space-y-4 mt-0">
-              <PIDOperacional corretoraId={selectedAssociacao} />
+
+            {/* ---------- BASE DE ASSOCIADOS ---------- */}
+            <TabsContent value="base" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <ChartCard title="Total de Associados" accentColor="#8b5cf6" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="total_associados"
+                    name="Associados"
+                    color="#8b5cf6"
+                    kind="bar"
+                  />
+                </ChartCard>
+                <ChartCard title="Veículos por Associado" accentColor="#0ea5e9" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="indice_veiculos_por_associado"
+                    name="Veículos/Associado"
+                    color="#0ea5e9"
+                    kind="line"
+                    format="decimal"
+                  />
+                </ChartCard>
+                <ChartCard title="Cadastros Realizados" accentColor="#16a34a" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="cadastros_realizados"
+                    name="Cadastros"
+                    color="#16a34a"
+                    kind="bar"
+                  />
+                </ChartCard>
+                <ChartCard title="Novos Cadastros (%)" accentColor="#f59e0b" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="indice_novos_cadastros"
+                    name="% Novos Cadastros"
+                    color="#f59e0b"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+                <ChartCard title="Crescimento Bruto (%)" accentColor="#8b5cf6" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="indice_crescimento_bruto"
+                    name="Crescimento Bruto"
+                    color="#8b5cf6"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+                <ChartCard title="Crescimento Líquido" accentColor="#16a34a" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="crescimento_liquido"
+                    name="Crescimento Líquido"
+                    color="#16a34a"
+                    kind="bar"
+                  />
+                </ChartCard>
+                <ChartCard title="Cancelamentos" accentColor="#dc2626" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="cancelamentos"
+                    name="Cancelamentos"
+                    color="#dc2626"
+                    kind="bar"
+                  />
+                </ChartCard>
+                <ChartCard title="Veículos Inadimplentes" accentColor="#f97316" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="inadimplentes"
+                    name="Inadimplentes"
+                    color="#f97316"
+                    kind="bar"
+                  />
+                </ChartCard>
+                <ChartCard title="Reativações" accentColor="#14b8a6" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="reativacao"
+                    name="Reativações"
+                    color="#14b8a6"
+                    kind="bar"
+                  />
+                </ChartCard>
+              </div>
             </TabsContent>
-            <TabsContent value="estudo-base" className="space-y-4 mt-0">
-              <PIDEstudoBase corretoraId={selectedAssociacao} />
+
+            {/* ---------- FINANCEIRO ---------- */}
+            <TabsContent value="financeiro" className="space-y-4">
+              {/* Gráficos principais em destaque */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ChartCard
+                  title="Faturamento vs Recebido"
+                  accentColor="#2563eb"
+                  subtitle="Principais valores do mês (R$)"
+                  height={300}
+                  hasData={hasData}
+                >
+                  <MultiSeriesChart
+                    data={chartData}
+                    kind="line"
+                    format="currency"
+                    series={[
+                      { dataKey: "faturamento_operacional", name: "Faturamento", color: "#2563eb" },
+                      { dataKey: "total_recebido", name: "Recebido", color: "#16a34a" },
+                    ]}
+                  />
+                </ChartCard>
+                <ChartCard
+                  title="Boletos no Período"
+                  accentColor="#2563eb"
+                  subtitle="Quantidade por situação"
+                  height={300}
+                  hasData={hasData}
+                >
+                  <MultiSeriesChart
+                    data={chartData}
+                    kind="bar"
+                    series={[
+                      { dataKey: "boletos_emitidos", name: "Emitidos", color: "#2563eb" },
+                      { dataKey: "boletos_liquidados", name: "Liquidados", color: "#16a34a" },
+                      { dataKey: "boletos_abertos", name: "Em Aberto", color: "#f59e0b" },
+                      { dataKey: "boletos_cancelados", name: "Cancelados", color: "#dc2626" },
+                    ]}
+                  />
+                </ChartCard>
+                <ChartCard
+                  title="Recebimentos Detalhados"
+                  accentColor="#8b5cf6"
+                  subtitle="Composição do recebimento (R$)"
+                  height={300}
+                  hasData={hasData}
+                >
+                  <MultiSeriesChart
+                    data={chartData}
+                    kind="line"
+                    format="currency"
+                    series={[
+                      { dataKey: "recebimento_operacional", name: "Receb. Operacional", color: "#8b5cf6" },
+                      { dataKey: "baixado_pendencia", name: "Baixado c/ Pendência", color: "#f59e0b" },
+                      { dataKey: "valor_boletos_abertos", name: "Boletos em Aberto", color: "#dc2626" },
+                    ]}
+                  />
+                </ChartCard>
+                <ChartCard
+                  title="Juros e Tarifas Bancárias"
+                  accentColor="#0ea5e9"
+                  subtitle="Valores acessórios (R$)"
+                  height={300}
+                  hasData={hasData}
+                >
+                  <MultiSeriesChart
+                    data={chartData}
+                    kind="line"
+                    format="currency"
+                    series={[
+                      { dataKey: "arrecadamento_juros", name: "Juros Arrecadados", color: "#0ea5e9" },
+                      { dataKey: "descontado_banco", name: "Descontado Banco", color: "#ec4899" },
+                    ]}
+                  />
+                </ChartCard>
+              </div>
+              {/* Índices percentuais em grade compacta */}
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <ChartCard title="Inadimplência de Boletos (%)" accentColor="#dc2626" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="percentual_inadimplencia_boletos"
+                    name="% Inadimplência"
+                    color="#dc2626"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+                <ChartCard title="Cancelamento de Boletos (%)" accentColor="#f97316" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="percentual_cancelamento_boletos"
+                    name="% Cancelamento"
+                    color="#f97316"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+                <ChartCard title="Inadimplência Financeira (%)" accentColor="#dc2626" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="percentual_inadimplencia_financeira"
+                    name="% Inadimpl. Financeira"
+                    color="#dc2626"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+                <ChartCard title="Ticket Médio por Boleto (R$)" accentColor="#16a34a" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="ticket_medio_boleto"
+                    name="Ticket Médio"
+                    color="#16a34a"
+                    kind="line"
+                    format="currency"
+                  />
+                </ChartCard>
+                <ChartCard title="Arrecadação de Juros (%)" accentColor="#0ea5e9" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="percentual_arrecadacao_juros"
+                    name="% Juros"
+                    color="#0ea5e9"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+                <ChartCard title="Descontado Banco (%)" accentColor="#ec4899" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="percentual_descontado_banco"
+                    name="% Descontado"
+                    color="#ec4899"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+                <ChartCard title="Crescimento de Faturamento (%)" accentColor="#2563eb" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="percentual_crescimento_faturamento"
+                    name="% Cresc. Faturamento"
+                    color="#2563eb"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+                <ChartCard title="Crescimento de Recebido (%)" accentColor="#16a34a" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="percentual_crescimento_recebido"
+                    name="% Cresc. Recebido"
+                    color="#16a34a"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+              </div>
             </TabsContent>
-            <TabsContent value="historico" className="space-y-4 mt-0">
-              <PIDHistorico corretoraId={selectedAssociacao} />
-            </TabsContent>
-            <TabsContent value="importacao" className="space-y-4 mt-0">
-              <PIDImportacao corretoraId={selectedAssociacao} onImportSuccess={() => setActiveTab("operacional")} />
-            </TabsContent>
-            <TabsContent value="sinistros" className="space-y-4 mt-0">
-              <PortalSinistros corretoraId={selectedAssociacao} />
-            </TabsContent>
-            <TabsContent value="comite" className="space-y-4 mt-0">
-              <PortalComite corretoraId={selectedAssociacao} />
+
+            {/* ---------- PERMANÊNCIA ---------- */}
+            <TabsContent value="permanencia" className="space-y-4">
+              <ChartCard
+                title="Entrada vs Perdas (Mês a Mês)"
+                accentColor="#16a34a"
+                subtitle="Cadastros + Reativações vs Cancelamentos + Inadimplentes, com variação do saldo"
+                height={360}
+                hasData={permanenciaSeries.length > 0}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={permanenciaSeries} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} vertical={false} />
+                    <XAxis dataKey="mes" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={44} />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tickFormatter={(v) => `${v.toFixed(0)}%`}
+                      tick={{ fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={44}
+                    />
+                    <Tooltip content={<PermanenciaTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} iconSize={10} />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="entrada"
+                      name="Entrada (Cadastros + Reativ.)"
+                      fill="#16a34a"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={28}
+                    />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="perdas"
+                      name="Perdas (Cancelamentos + Inadimpl.)"
+                      fill="#dc2626"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={28}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="variacao_permanencia"
+                      name="% Var. Saldo"
+                      stroke="#2563eb"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </ChartCard>
+              <div className="grid gap-4 lg:grid-cols-3">
+                <ChartCard
+                  title="Saldo de Permanência"
+                  accentColor="#8b5cf6"
+                  subtitle="Entrada - Perdas"
+                  hasData={hasData}
+                >
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="permanencia"
+                    name="Permanência"
+                    color="#8b5cf6"
+                    kind="bar"
+                  />
+                </ChartCard>
+                <ChartCard title="Índice de Permanência (%)" accentColor="#16a34a" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="indice_permanencia"
+                    name="% Permanência"
+                    color="#16a34a"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+                <ChartCard title="Churn (%)" accentColor="#dc2626" hasData={hasData}>
+                  <SingleSeriesChart
+                    data={chartData}
+                    dataKey="churn"
+                    name="Churn"
+                    color="#dc2626"
+                    kind="line"
+                    format="percent"
+                  />
+                </ChartCard>
+              </div>
             </TabsContent>
           </Tabs>
         </>
-      )}
-      {selectedAssociacaoData && (
-        <GerenciarUsuariosCorretoraDialog
-          open={usuariosDialogOpen}
-          onOpenChange={setUsuariosDialogOpen}
-          corretoraId={selectedAssociacaoData.id}
-          corretoraNome={selectedAssociacaoData.nome}
-        />
       )}
     </div>
   );
