@@ -7,19 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import {
-  ClipboardList,
-  Plus,
-  Pencil,
-  BarChart3,
-  Trash2,
-  Copy,
-  ExternalLink,
-  EyeOff,
-  Eye,
-  Search,
-  Share2,
-} from "lucide-react";
+import { ClipboardList, Plus, Pencil, BarChart3, Trash2, Copy, ExternalLink, EyeOff, Eye, Search } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
 type Formulario = {
   id: string;
   titulo: string;
@@ -41,13 +28,11 @@ type Formulario = {
   cor_tema: string | null;
   estilo?: string | null;
 };
-
 export default function Formularios() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [busca, setBusca] = useState("");
   const [paraExcluir, setParaExcluir] = useState<Formulario | null>(null);
-
   const { data: forms, isLoading } = useQuery({
     queryKey: ["formularios"],
     queryFn: async () => {
@@ -59,13 +44,10 @@ export default function Formularios() {
       return data as Formulario[];
     },
   });
-
   const { data: contagens } = useQuery({
     queryKey: ["formularios_respostas_count"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("formulario_respostas")
-        .select("formulario_id");
+      const { data, error } = await supabase.from("formulario_respostas").select("formulario_id");
       if (error) throw error;
       const map: Record<string, number> = {};
       (data || []).forEach((r: any) => {
@@ -74,14 +56,10 @@ export default function Formularios() {
       return map;
     },
   });
-
   const togglePublicar = useMutation({
     mutationFn: async (form: Formulario) => {
       const novo = form.status === "publicado" ? "rascunho" : "publicado";
-      const { error } = await supabase
-        .from("formularios")
-        .update({ status: novo })
-        .eq("id", form.id);
+      const { error } = await supabase.from("formularios").update({ status: novo }).eq("id", form.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -90,14 +68,9 @@ export default function Formularios() {
     },
     onError: (e: any) => toast.error(e.message),
   });
-
   const duplicar = useMutation({
     mutationFn: async (form: Formulario) => {
-      const { data: original, error: e1 } = await supabase
-        .from("formularios")
-        .select("*")
-        .eq("id", form.id)
-        .single();
+      const { data: original, error: e1 } = await supabase.from("formularios").select("*").eq("id", form.id).single();
       if (e1) throw e1;
       const novoSlug = `${original.slug}-copia-${Date.now().toString(36)}`;
       const { data: novo, error: e2 } = await supabase
@@ -130,7 +103,7 @@ export default function Formularios() {
             obrigatorio: p.obrigatorio,
             opcoes: p.opcoes,
             validacao: p.validacao,
-          }))
+          })),
         );
         if (e4) throw e4;
       }
@@ -143,7 +116,6 @@ export default function Formularios() {
     },
     onError: (e: any) => toast.error(e.message),
   });
-
   const excluir = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("formularios").delete().eq("id", id);
@@ -156,18 +128,8 @@ export default function Formularios() {
     },
     onError: (e: any) => toast.error(e.message),
   });
-
-  const filtrados = (forms || []).filter((f) =>
-    f.titulo.toLowerCase().includes(busca.toLowerCase())
-  );
-
+  const filtrados = (forms || []).filter((f) => f.titulo.toLowerCase().includes(busca.toLowerCase()));
   const linkPublico = (slug: string) => `${window.location.origin}/f/${slug}`;
-  const linkCompartilhar = (slug: string) => {
-    const supaUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
-    if (!supaUrl) return linkPublico(slug);
-    return `${supaUrl}/functions/v1/og-share?slug=${encodeURIComponent(slug)}&host=${encodeURIComponent(window.location.host)}`;
-  };
-
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -183,7 +145,6 @@ export default function Formularios() {
           <Plus className="h-4 w-4" /> Novo formulário
         </Button>
       </div>
-
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
@@ -193,7 +154,6 @@ export default function Formularios() {
           className="pl-9"
         />
       </div>
-
       {isLoading ? (
         <p className="text-muted-foreground">Carregando...</p>
       ) : filtrados.length === 0 ? (
@@ -211,21 +171,12 @@ export default function Formularios() {
           {filtrados.map((f) => {
             const total = contagens?.[f.id] || 0;
             return (
-              <Card
-                key={f.id}
-                className="rounded-2xl bg-muted/40 backdrop-blur hover:shadow-md transition"
-              >
+              <Card key={f.id} className="rounded-2xl bg-muted/40 backdrop-blur hover:shadow-md transition">
                 <CardContent className="p-5 space-y-4">
-                  <div
-                    className="h-2 w-12 rounded-full"
-                    style={{ backgroundColor: f.cor_tema || "#362C89" }}
-                  />
+                  <div className="h-2 w-12 rounded-full" style={{ backgroundColor: f.cor_tema || "#362C89" }} />
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-semibold leading-tight">{f.titulo}</h3>
-                    <Badge
-                      variant={f.status === "publicado" ? "default" : "secondary"}
-                      className="shrink-0"
-                    >
+                    <Badge variant={f.status === "publicado" ? "default" : "secondary"} className="shrink-0">
                       {f.status}
                     </Badge>
                   </div>
@@ -233,39 +184,23 @@ export default function Formularios() {
                     {f.estilo === "sinistro"
                       ? "Colapse"
                       : f.estilo === "fluxos"
-                      ? "Fluxos"
-                      : f.estilo === "google_forms"
-                      ? "Google Forms"
-                      : "Typeform"}
+                        ? "Fluxos"
+                        : f.estilo === "google_forms"
+                          ? "Google Forms"
+                          : "Typeform"}
                   </Badge>
-                  {f.descricao && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">
-                      {f.descricao}
-                    </p>
-                  )}
+                  {f.descricao && <p className="text-xs text-muted-foreground line-clamp-2">{f.descricao}</p>}
                   <p className="text-xs text-muted-foreground">
                     {total} resposta{total === 1 ? "" : "s"}
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(`/formularios/${f.id}/editar`)}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => navigate(`/formularios/${f.id}/editar`)}>
                       <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(`/formularios/${f.id}/respostas`)}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => navigate(`/formularios/${f.id}/respostas`)}>
                       <BarChart3 className="h-3.5 w-3.5 mr-1" /> Respostas
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => togglePublicar.mutate(f)}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => togglePublicar.mutate(f)}>
                       {f.status === "publicado" ? (
                         <>
                           <EyeOff className="h-3.5 w-3.5 mr-1" /> Despublicar
@@ -288,17 +223,6 @@ export default function Formularios() {
                         >
                           <Copy className="h-3.5 w-3.5 mr-1" /> Link
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            navigator.clipboard.writeText(linkCompartilhar(f.slug));
-                            toast.success("Link de compartilhamento copiado (com preview da gestora)");
-                          }}
-                          title="Link com preview (Open Graph) — use ao compartilhar em WhatsApp, redes sociais, etc."
-                        >
-                          <Share2 className="h-3.5 w-3.5 mr-1" /> Compartilhar
-                        </Button>
                         <Button size="sm" variant="outline" asChild>
                           <Link to={`/f/${f.slug}`} target="_blank" rel="noopener">
                             <ExternalLink className="h-3.5 w-3.5" />
@@ -306,19 +230,10 @@ export default function Formularios() {
                         </Button>
                       </>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => duplicar.mutate(f)}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => duplicar.mutate(f)}>
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-destructive"
-                      onClick={() => setParaExcluir(f)}
-                    >
+                    <Button size="sm" variant="outline" className="text-destructive" onClick={() => setParaExcluir(f)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -328,7 +243,6 @@ export default function Formularios() {
           })}
         </div>
       )}
-
       <AlertDialog open={!!paraExcluir} onOpenChange={(o) => !o && setParaExcluir(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
