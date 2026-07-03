@@ -1,87 +1,89 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Users, Video } from "lucide-react";
 import { toast } from "sonner";
-import { Video, Users } from "lucide-react";
-import { RoomHeader, VideoGridWithReactions, ControlBar, ChatPanel, loadLiveKit, RoomReliabilityLayer, LayoutSettingsProvider } from "./MeetingRoom";
+import { callLivekitFn } from "@/lib/livekitApi";
+import { lk, loadLiveKit } from "@/features/talk/livekit";
+import { LayoutSettingsProvider } from "@/features/talk/context/LayoutSettingsContext";
+import ReliabilityLayer from "@/features/talk/components/ReliabilityLayer";
+import RoomHeader from "@/features/talk/components/RoomHeader";
+import VideoGrid from "@/features/talk/components/VideoGrid";
+import ChatPanel from "@/features/talk/components/ChatPanel";
+import ControlBar from "@/features/talk/components/ControlBar";
 
-// LiveKitRoom must be loaded via shared MeetingRoom loader so all hooks/components are initialized
-let LiveKitRoom: any;
+interface RoomInfo {
+  id: string;
+  nome: string;
+  descricao?: string;
+}
 
-const loadAll = async () => {
-  const ok = await loadLiveKit();
-  if (ok) {
-    const componentsReact = await import("@livekit/components-react");
-    LiveKitRoom = componentsReact.LiveKitRoom;
-  }
-  return ok;
-};
+function LogoBanner() {
+  return (
+    <div className="flex items-center justify-center gap-3">
+      <img src="/images/logo-full.png" alt="UON1" className="h-8 w-auto" />
+      <div className="h-6 w-px bg-border" />
+      <img src="/images/logo-vg.png" alt="Vangard" className="h-8 w-auto" />
+    </div>
+  );
+}
 
+/** Entrada de convidados via link de convite (sem autenticação) */
 export default function InviteEntry() {
   const { inviteId } = useParams<{ inviteId: string }>();
-  const [roomInfo, setRoomInfo] = useState<{ id: string; nome: string; descricao?: string } | null>(null);
+  const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Meeting state
   const [token, setToken] = useState<string | null>(null);
-  const [livekitUrl, setLivekitUrl] = useState<string>("");
-  const [participantIdentity, setParticipantIdentity] = useState<string>("");
-  const [roomId, setRoomId] = useState<string>("");
+  const [livekitUrl, setLivekitUrl] = useState("");
+  const [participantIdentity, setParticipantIdentity] = useState("");
+  const [roomId, setRoomId] = useState("");
   const [approved, setApproved] = useState(false);
   const [livekitReady, setLivekitReady] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
-    loadAll().then(setLivekitReady);
+    loadLiveKit().then(setLivekitReady);
   }, []);
+
+  const validateInvite = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=validateInvite&inviteId=${inviteId}`,
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.error) throw new Error(data?.error || "Convite inválido");
+      setRoomInfo(data.room);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Convite inválido");
+    }
+    setLoading(false);
+  }, [inviteId]);
 
   useEffect(() => {
     validateInvite();
-  }, [inviteId]);
+  }, [validateInvite]);
 
-  // Poll for approval (realtime requires auth/RLS which guests don't have)
+  // Polling de aprovação (convidados não têm realtime autenticado)
   useEffect(() => {
     if (!roomId || !participantIdentity || approved) return;
 
-    const pollInterval = setInterval(async () => {
+    const poll = setInterval(async () => {
       try {
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=checkGuestStatus`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ roomId, identity: participantIdentity }),
-          }
-        );
-        const data = await res.json();
-        if (data.error) return;
-
+        const data = await callLivekitFn("checkGuestStatus", { roomId, identity: participantIdentity });
         if (data.status === "approved") {
-          // Fetch new token with canPublish=true
-          const tokenRes = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=getGuestToken`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ roomId, identity: participantIdentity }),
-            }
-          );
-          const tokenData = await tokenRes.json();
-          if (tokenData.error) throw new Error(tokenData.error);
-          console.log("[Guest] Approved, got new token. livekitUrl:", tokenData.livekitUrl);
+          const tokenData = await callLivekitFn("getGuestToken", { roomId, identity: participantIdentity });
           if (!tokenData.token || !tokenData.livekitUrl) {
-            console.error("[Guest] Missing token or livekitUrl in response", tokenData);
             toast.error("Erro ao obter credenciais da sala");
             return;
           }
-          // Set all together so re-render sees consistent state
           setLivekitUrl(tokenData.livekitUrl);
           setToken(tokenData.token);
           setApproved(true);
@@ -94,69 +96,38 @@ export default function InviteEntry() {
       } catch (e) {
         console.warn("Poll error:", e);
       }
-    }, 2000); // Poll every 2 seconds
+    }, 2000);
 
-    return () => clearInterval(pollInterval);
+    return () => clearInterval(poll);
   }, [roomId, participantIdentity, approved]);
 
-  const validateInvite = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=validateInvite&inviteId=${inviteId}`
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setRoomInfo(data.room);
-    } catch (e: any) {
-      setError(e.message || "Convite inválido");
-    }
-    setLoading(false);
-  };
-
   const handleJoin = async () => {
-    if (!displayName.trim()) { toast.error("Informe seu nome"); return; }
+    if (!displayName.trim()) {
+      toast.error("Informe seu nome");
+      return;
+    }
     setJoining(true);
-    
-    // Request media permissions NOW (during user gesture) so they persist after approval
+
+    // Solicita permissões de mídia durante o gesto do usuário (persistem após aprovação)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      // Stop tracks immediately - we just needed the permission grant
-      stream.getTracks().forEach(t => t.stop());
+      stream.getTracks().forEach((t) => t.stop());
     } catch (e) {
-      console.warn("Media permission not granted upfront:", e);
-      // Continue anyway - user can enable later
+      console.warn("Permissão de mídia não concedida:", e);
     }
 
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=joinViaInvite`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ inviteId, displayName }),
-        }
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await callLivekitFn("joinViaInvite", { inviteId, displayName });
       setToken(data.token);
       setLivekitUrl(data.livekitUrl);
       setParticipantIdentity(data.participantIdentity);
       setRoomId(data.room.id);
       toast.success("Conectando... Aguarde aprovação do moderador.");
-    } catch (e: any) {
-      toast.error(e.message || "Erro ao entrar");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao entrar");
     }
     setJoining(false);
   };
-
-  const LogoBanner = () => (
-    <div className="flex items-center justify-center gap-3">
-      <img src="/images/logo-full.png" alt="UON1" className="h-8 w-auto" />
-      <div className="h-6 w-px bg-border" />
-      <img src="/images/logo-vg.png" alt="Vangard" className="h-8 w-auto" />
-    </div>
-  );
 
   if (loading) {
     return (
@@ -181,50 +152,48 @@ export default function InviteEntry() {
     );
   }
 
-  // Approved - show full meeting room
+  // Aprovado — sala completa (mesmos componentes do host)
   if (approved && token && livekitUrl) {
+    const { LiveKitRoom } = lk;
+    const leave = () => {
+      setApproved(false);
+      setToken(null);
+    };
     return (
       <div className="fixed inset-0 z-[100] bg-background flex flex-col">
         <LayoutSettingsProvider>
-        <LiveKitRoom
-          key={token}
-          serverUrl={livekitUrl}
-          token={token}
-          connect={true}
-          video={true}
-          audio={true}
-          options={{ adaptiveStream: true, dynacast: true }}
-          onDisconnected={() => { setApproved(false); setToken(null); }}
-          className="flex flex-col flex-1"
-        >
-          {/* Áudio confiável + banner de reconexão (mesma camada do host) */}
-          <RoomReliabilityLayer />
-          {/* Same layout as host: shared header + video grid + control bar */}
-          <RoomHeader
-            room={{ nome: roomInfo?.nome || "Reunião" }}
-            isHost={false}
-            roomId={roomId}
-            onLeave={() => { setApproved(false); setToken(null); }}
-            subtitleOverride={`${displayName} • Convidado`}
-          />
-          <div className="flex flex-1 overflow-hidden">
-            <VideoGridWithReactions />
-            {chatOpen && roomId && (
-              <ChatPanel roomId={roomId} userId={participantIdentity} userName={displayName} />
-            )}
-          </div>
-          <ControlBar
-            onLeave={() => { setApproved(false); setToken(null); }}
-            chatOpen={chatOpen}
-            onToggleChat={() => setChatOpen(!chatOpen)}
-          />
-        </LiveKitRoom>
+          <LiveKitRoom
+            key={token}
+            serverUrl={livekitUrl}
+            token={token}
+            connect
+            video
+            audio
+            options={{ adaptiveStream: true, dynacast: true }}
+            onDisconnected={leave}
+            className="flex flex-col flex-1"
+          >
+            <ReliabilityLayer />
+            <RoomHeader
+              room={{ nome: roomInfo?.nome || "Reunião" }}
+              isHost={false}
+              roomId={roomId}
+              subtitleOverride={`${displayName} • Convidado`}
+            />
+            <div className="flex flex-1 overflow-hidden relative">
+              <VideoGrid />
+              {chatOpen && roomId && (
+                <ChatPanel roomId={roomId} userId={participantIdentity} userName={displayName} onClose={() => setChatOpen(false)} />
+              )}
+            </div>
+            <ControlBar onLeave={leave} chatOpen={chatOpen} onToggleChat={() => setChatOpen(!chatOpen)} />
+          </LiveKitRoom>
         </LayoutSettingsProvider>
       </div>
     );
   }
 
-  // Waiting for approval
+  // Aguardando aprovação
   if (token && !approved) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
@@ -246,7 +215,7 @@ export default function InviteEntry() {
     );
   }
 
-  // Join form
+  // Formulário de entrada
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
       <Card className="max-w-md w-full mx-4">
@@ -282,4 +251,3 @@ export default function InviteEntry() {
     </div>
   );
 }
-
