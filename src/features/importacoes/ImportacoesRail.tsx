@@ -94,30 +94,26 @@ export default function ImportacoesRail() {
   const recentes = itens.filter((i) => i.status !== "executando").slice(0, 30);
 
   return (
-    <div className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 z-40">
+    <div className="hidden lg:block fixed right-0 bottom-20 z-40">
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
           <button
             aria-label="Acompanhar importações"
-            className="group relative flex flex-col items-center gap-1 rounded-l-2xl border border-r-0 border-border/60 bg-card/95 backdrop-blur-sm py-3 px-2 shadow-lg hover:bg-card transition-colors">
-            {/* Pulso quando há importação rodando */}
+            title="Importações"
+            className="group relative flex items-center justify-center h-10 w-8 rounded-l-lg border border-r-0 border-border/60 bg-card/90 backdrop-blur-sm shadow-sm hover:w-9 hover:bg-card transition-all">
+            {/* Pulso discreto quando há importação rodando */}
             {temImportacaoRodando && (
-              <span className="absolute inset-0 rounded-l-2xl ring-2 ring-blue-500/40 animate-pulse pointer-events-none" />
+              <span className="absolute inset-0 rounded-l-lg ring-2 ring-blue-500/40 animate-pulse pointer-events-none" />
             )}
-            <span className="relative">
-              <Activity className={`h-5 w-5 ${temImportacaoRodando ? "text-blue-600" : "text-muted-foreground group-hover:text-foreground"}`} />
-              {temImportacaoRodando && (
-                <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-60 animate-ping" />
-                  <span className="relative inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[9px] font-bold px-1">
-                    {emAndamento.length}
-                  </span>
+            <Activity className={`h-4 w-4 ${temImportacaoRodando ? "text-blue-600" : "text-muted-foreground group-hover:text-foreground"}`} />
+            {temImportacaoRodando && (
+              <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-60 animate-ping" />
+                <span className="relative inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-blue-600 text-white text-[8px] font-bold px-1">
+                  {emAndamento.length}
                 </span>
-              )}
-            </span>
-            <span className="text-[10px] font-medium text-muted-foreground [writing-mode:vertical-rl] rotate-180">
-              Importações
-            </span>
+              </span>
+            )}
           </button>
         </SheetTrigger>
 
