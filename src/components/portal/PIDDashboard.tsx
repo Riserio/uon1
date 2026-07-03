@@ -28,6 +28,8 @@ import {
   Bar,
   LineChart,
   Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -190,13 +192,21 @@ interface ChartCardProps {
   height?: number;
   children: React.ReactNode;
   hasData: boolean;
+  /** Cor de destaque do widget (mesma cor da série) */
+  accentColor?: string;
 }
 
-const ChartCard = ({ title, subtitle, height = 260, children, hasData }: ChartCardProps) => (
-  <Card className="shadow-sm">
+const ChartCard = ({ title, subtitle, height = 260, children, hasData, accentColor = "#64748b" }: ChartCardProps) => (
+  <Card className="rounded-xl border-border/60 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
     <CardHeader className="pb-1 pt-4 px-4">
-      <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-      {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+          style={{ backgroundColor: accentColor }}
+        />
+        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+      </div>
+      {subtitle && <p className="text-xs text-muted-foreground pl-[18px]">{subtitle}</p>}
     </CardHeader>
     <CardContent className="px-2 pb-3" style={{ height }}>
       {hasData ? children : <EmptyChart />}
@@ -259,21 +269,29 @@ const SingleSeriesChart = ({ data, dataKey, name, color, kind, format = "number"
       </ResponsiveContainer>
     );
   }
+  // Linha com preenchimento em degradê (estilo widget)
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 18, right: 12, left: 0, bottom: 0 }}>
+      <AreaChart data={data} margin={{ top: 18, right: 12, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id={`grad-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.25} />
+            <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
         {common}
-        <Line
+        <Area
           type="monotone"
           dataKey={dataKey}
           name={name}
           stroke={color}
           strokeWidth={2.5}
-          dot={{ r: 3, fill: color }}
+          fill={`url(#grad-${dataKey})`}
+          dot={{ r: 3, fill: color, strokeWidth: 0 }}
           activeDot={{ r: 5 }}
           label={lastPointLabel(data.length, color, format)}
         />
-      </LineChart>
+      </AreaChart>
     </ResponsiveContainer>
   );
 };
@@ -786,17 +804,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
   return (
     <div className="space-y-6">
-      {/* ============ Header + filtros ============ */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Dashboard BI
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Visão consolidada dos indicadores operacionais, financeiros e de sinistros
-          </p>
-        </div>
+      {/* ============ Barra de filtros de período (título fica no cabeçalho da página) ============ */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2">
+        <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+          <BarChart3 className="h-4 w-4" />
+          Período de análise
+        </span>
         <div className="flex items-center gap-2">
           <Button
             variant={todoPeriodo ? "default" : "outline"}
@@ -814,7 +827,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             }}
             disabled={todoPeriodo}
           >
-            <SelectTrigger className={`w-40 ${todoPeriodo ? "opacity-50" : ""}`}>
+            <SelectTrigger className={`w-36 h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -833,7 +846,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             }}
             disabled={todoPeriodo}
           >
-            <SelectTrigger className={`w-24 ${todoPeriodo ? "opacity-50" : ""}`}>
+            <SelectTrigger className={`w-24 h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1014,7 +1027,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             {/* ---------- VISÃO GERAL: só o essencial ---------- */}
             <TabsContent value="visao-geral" className="space-y-4">
               <div className="grid gap-4 lg:grid-cols-2">
-                <ChartCard title="Placas Ativas" subtitle="Evolução da frota protegida" hasData={hasData}>
+                <ChartCard
+                  title="Placas Ativas"
+                  accentColor="#2563eb"
+                  subtitle="Evolução da frota protegida"
+                  hasData={hasData}
+                >
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="placas_ativas"
@@ -1023,7 +1041,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     kind="line"
                   />
                 </ChartCard>
-                <ChartCard title="Faturamento vs Recebido" subtitle="Comparativo mensal (R$)" hasData={hasData}>
+                <ChartCard
+                  title="Faturamento vs Recebido"
+                  accentColor="#2563eb"
+                  subtitle="Comparativo mensal (R$)"
+                  hasData={hasData}
+                >
                   <MultiSeriesChart
                     data={chartData}
                     kind="line"
@@ -1034,7 +1057,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     ]}
                   />
                 </ChartCard>
-                <ChartCard title="Crescimento Líquido" subtitle="Saldo de placas no mês" hasData={hasData}>
+                <ChartCard
+                  title="Crescimento Líquido"
+                  accentColor="#16a34a"
+                  subtitle="Saldo de placas no mês"
+                  hasData={hasData}
+                >
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="crescimento_liquido"
@@ -1043,7 +1071,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     kind="bar"
                   />
                 </ChartCard>
-                <ChartCard title="Churn (%)" subtitle="Taxa de perda de associados" hasData={hasData}>
+                <ChartCard
+                  title="Churn (%)"
+                  accentColor="#dc2626"
+                  subtitle="Taxa de perda de associados"
+                  hasData={hasData}
+                >
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="churn"
@@ -1059,7 +1092,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             {/* ---------- BASE DE ASSOCIADOS ---------- */}
             <TabsContent value="base" className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <ChartCard title="Total de Associados" hasData={hasData}>
+                <ChartCard title="Total de Associados" accentColor="#8b5cf6" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="total_associados"
@@ -1068,7 +1101,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     kind="bar"
                   />
                 </ChartCard>
-                <ChartCard title="Veículos por Associado" hasData={hasData}>
+                <ChartCard title="Veículos por Associado" accentColor="#0ea5e9" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="indice_veiculos_por_associado"
@@ -1078,7 +1111,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="decimal"
                   />
                 </ChartCard>
-                <ChartCard title="Cadastros Realizados" hasData={hasData}>
+                <ChartCard title="Cadastros Realizados" accentColor="#16a34a" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="cadastros_realizados"
@@ -1087,7 +1120,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     kind="bar"
                   />
                 </ChartCard>
-                <ChartCard title="Novos Cadastros (%)" hasData={hasData}>
+                <ChartCard title="Novos Cadastros (%)" accentColor="#f59e0b" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="indice_novos_cadastros"
@@ -1097,7 +1130,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="percent"
                   />
                 </ChartCard>
-                <ChartCard title="Crescimento Bruto (%)" hasData={hasData}>
+                <ChartCard title="Crescimento Bruto (%)" accentColor="#8b5cf6" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="indice_crescimento_bruto"
@@ -1107,7 +1140,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="percent"
                   />
                 </ChartCard>
-                <ChartCard title="Crescimento Líquido" hasData={hasData}>
+                <ChartCard title="Crescimento Líquido" accentColor="#16a34a" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="crescimento_liquido"
@@ -1116,7 +1149,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     kind="bar"
                   />
                 </ChartCard>
-                <ChartCard title="Cancelamentos" hasData={hasData}>
+                <ChartCard title="Cancelamentos" accentColor="#dc2626" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="cancelamentos"
@@ -1125,7 +1158,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     kind="bar"
                   />
                 </ChartCard>
-                <ChartCard title="Veículos Inadimplentes" hasData={hasData}>
+                <ChartCard title="Veículos Inadimplentes" accentColor="#f97316" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="inadimplentes"
@@ -1134,7 +1167,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     kind="bar"
                   />
                 </ChartCard>
-                <ChartCard title="Reativações" hasData={hasData}>
+                <ChartCard title="Reativações" accentColor="#14b8a6" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="reativacao"
@@ -1152,6 +1185,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               <div className="grid gap-4 lg:grid-cols-2">
                 <ChartCard
                   title="Faturamento vs Recebido"
+                  accentColor="#2563eb"
                   subtitle="Principais valores do mês (R$)"
                   height={300}
                   hasData={hasData}
@@ -1166,7 +1200,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     ]}
                   />
                 </ChartCard>
-                <ChartCard title="Boletos no Período" subtitle="Quantidade por situação" height={300} hasData={hasData}>
+                <ChartCard
+                  title="Boletos no Período"
+                  accentColor="#2563eb"
+                  subtitle="Quantidade por situação"
+                  height={300}
+                  hasData={hasData}
+                >
                   <MultiSeriesChart
                     data={chartData}
                     kind="bar"
@@ -1180,6 +1220,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </ChartCard>
                 <ChartCard
                   title="Recebimentos Detalhados"
+                  accentColor="#8b5cf6"
                   subtitle="Composição do recebimento (R$)"
                   height={300}
                   hasData={hasData}
@@ -1197,6 +1238,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </ChartCard>
                 <ChartCard
                   title="Juros e Tarifas Bancárias"
+                  accentColor="#0ea5e9"
                   subtitle="Valores acessórios (R$)"
                   height={300}
                   hasData={hasData}
@@ -1214,7 +1256,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               </div>
               {/* Índices percentuais em grade compacta */}
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <ChartCard title="Inadimplência de Boletos (%)" hasData={hasData}>
+                <ChartCard title="Inadimplência de Boletos (%)" accentColor="#dc2626" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="percentual_inadimplencia_boletos"
@@ -1224,7 +1266,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="percent"
                   />
                 </ChartCard>
-                <ChartCard title="Cancelamento de Boletos (%)" hasData={hasData}>
+                <ChartCard title="Cancelamento de Boletos (%)" accentColor="#f97316" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="percentual_cancelamento_boletos"
@@ -1234,7 +1276,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="percent"
                   />
                 </ChartCard>
-                <ChartCard title="Inadimplência Financeira (%)" hasData={hasData}>
+                <ChartCard title="Inadimplência Financeira (%)" accentColor="#dc2626" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="percentual_inadimplencia_financeira"
@@ -1244,7 +1286,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="percent"
                   />
                 </ChartCard>
-                <ChartCard title="Ticket Médio por Boleto (R$)" hasData={hasData}>
+                <ChartCard title="Ticket Médio por Boleto (R$)" accentColor="#16a34a" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="ticket_medio_boleto"
@@ -1254,7 +1296,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="currency"
                   />
                 </ChartCard>
-                <ChartCard title="Arrecadação de Juros (%)" hasData={hasData}>
+                <ChartCard title="Arrecadação de Juros (%)" accentColor="#0ea5e9" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="percentual_arrecadacao_juros"
@@ -1264,7 +1306,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="percent"
                   />
                 </ChartCard>
-                <ChartCard title="Descontado Banco (%)" hasData={hasData}>
+                <ChartCard title="Descontado Banco (%)" accentColor="#ec4899" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="percentual_descontado_banco"
@@ -1274,7 +1316,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="percent"
                   />
                 </ChartCard>
-                <ChartCard title="Crescimento de Faturamento (%)" hasData={hasData}>
+                <ChartCard title="Crescimento de Faturamento (%)" accentColor="#2563eb" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="percentual_crescimento_faturamento"
@@ -1284,7 +1326,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="percent"
                   />
                 </ChartCard>
-                <ChartCard title="Crescimento de Recebido (%)" hasData={hasData}>
+                <ChartCard title="Crescimento de Recebido (%)" accentColor="#16a34a" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="percentual_crescimento_recebido"
@@ -1301,6 +1343,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             <TabsContent value="permanencia" className="space-y-4">
               <ChartCard
                 title="Entrada vs Perdas (Mês a Mês)"
+                accentColor="#16a34a"
                 subtitle="Cadastros + Reativações vs Cancelamentos + Inadimplentes, com variação do saldo"
                 height={360}
                 hasData={permanenciaSeries.length > 0}
@@ -1350,7 +1393,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </ResponsiveContainer>
               </ChartCard>
               <div className="grid gap-4 lg:grid-cols-3">
-                <ChartCard title="Saldo de Permanência" subtitle="Entrada - Perdas" hasData={hasData}>
+                <ChartCard
+                  title="Saldo de Permanência"
+                  accentColor="#8b5cf6"
+                  subtitle="Entrada - Perdas"
+                  hasData={hasData}
+                >
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="permanencia"
@@ -1359,7 +1407,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     kind="bar"
                   />
                 </ChartCard>
-                <ChartCard title="Índice de Permanência (%)" hasData={hasData}>
+                <ChartCard title="Índice de Permanência (%)" accentColor="#16a34a" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="indice_permanencia"
@@ -1369,7 +1417,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="percent"
                   />
                 </ChartCard>
-                <ChartCard title="Churn (%)" hasData={hasData}>
+                <ChartCard title="Churn (%)" accentColor="#dc2626" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="churn"
