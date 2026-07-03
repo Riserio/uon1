@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Search, Calendar, MapPin, Car, DollarSign, FileText, User, ChevronDown } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { KanbanColumn } from '@/components/KanbanColumn';
@@ -151,7 +152,8 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
           ultima_descricao_bo, envolvimento, usuario_alteracao,
           sga_importacoes!inner(corretora_id, corretoras(id, nome))
         `)
-        .in('situacao_evento', activeStatusNames)
+        .not('situacao_evento', 'is', null)
+        .not('situacao_evento', 'ilike', '%FINALIZADO%')
         .eq('sga_importacoes.ativo', true)
         .order('data_cadastro_evento', { ascending: false })
         .range(offset, offset + BATCH_SIZE - 1);
@@ -248,9 +250,29 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
   };
 
   const statusConfigs = useMemo(() => {
-    if (!selectedFluxoId) return allStatusConfigs;
-    return allStatusConfigs.filter(s => s.fluxo_id === selectedFluxoId);
-  }, [allStatusConfigs, selectedFluxoId]);
+    // Auto-discover statuses that exist in events but aren't configured yet,
+    // so imported records always appear in the Kanban.
+    const configuredNames = new Set(allStatusConfigs.map(s => s.nome));
+    const discovered: StatusConfig[] = [];
+    const seen = new Set<string>();
+    eventos.forEach(e => {
+      const s = e.situacao_evento;
+      if (!s || configuredNames.has(s) || seen.has(s)) return;
+      seen.add(s);
+      discovered.push({
+        id: `auto-${s}`,
+        nome: s,
+        cor: '#94a3b8',
+        ordem: 9999,
+        ativo: true,
+        corretora_id: effectiveCorretoraId,
+        fluxo_id: null,
+      });
+    });
+    const merged = [...allStatusConfigs, ...discovered];
+    if (!selectedFluxoId) return merged;
+    return merged.filter(s => s.fluxo_id === selectedFluxoId);
+  }, [allStatusConfigs, selectedFluxoId, eventos, effectiveCorretoraId]);
 
   const fluxoCardCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -344,7 +366,7 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
     );
   }
 
-  if (allStatusConfigs.length === 0) {
+  if (allStatusConfigs.length === 0 && eventos.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <p className="text-lg font-medium">Nenhum status configurado</p>
@@ -359,6 +381,13 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
 
   return (
     <div className="space-y-4">
+      <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-900 px-3 py-2 text-xs text-green-800 dark:text-green-300">
+        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+        <span>
+          Em acompanhamento não são exibidos sinistros finalizados. Apenas eventos em andamento ficam disponíveis nesta visão.
+        </span>
+      </div>
+
       {effectiveCorretoraId && (
         <div className="bg-card border-b border-border/50 rounded-lg">
           <GestaoAssociacaoFluxoSelector
