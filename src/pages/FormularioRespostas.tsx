@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ArrowLeft,
   Download,
@@ -49,6 +50,7 @@ export default function FormularioRespostas() {
   const navigate = useNavigate();
   const [respIdx, setRespIdx] = useState(0);
   const [buscaTabela, setBuscaTabela] = useState("");
+  const [filtroAssociacao, setFiltroAssociacao] = useState("todas");
 
   const { data: form } = useQuery({
     queryKey: ["formulario", id],
@@ -93,11 +95,35 @@ export default function FormularioRespostas() {
     [respostas, perguntaIds],
   );
 
+  /* Filtro por NOME DA ASSOCIAÇÃO: localiza a pergunta pelo enunciado e
+     monta as opções com os valores distintos já respondidos */
+  const perguntaAssociacao = useMemo(
+    () => perguntas.find((p: any) => (p.enunciado || "").toUpperCase().includes("ASSOCIA")),
+    [perguntas],
+  );
+
+  const opcoesAssociacao = useMemo(() => {
+    if (!perguntaAssociacao || !respostas) return [];
+    const set = new Set<string>();
+    respostas.forEach((r: any) => {
+      const v = r.dados?.[perguntaAssociacao.id];
+      if (v != null && String(v).trim() !== "") set.add(String(v).trim());
+    });
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [perguntaAssociacao, respostas]);
+
+  /* Base filtrada usada por TODAS as abas (Resumo, Individual, Tabela) e KPIs */
+  const respostasBase = useMemo(() => {
+    const lista = respostas || [];
+    if (!perguntaAssociacao || filtroAssociacao === "todas") return lista;
+    return lista.filter((r: any) => String(r.dados?.[perguntaAssociacao.id] ?? "").trim() === filtroAssociacao);
+  }, [respostas, perguntaAssociacao, filtroAssociacao]);
+
   const fmtValor = (v: any) => (Array.isArray(v) ? v.join(", ") : (v ?? ""));
 
   const exportarXLSX = () => {
-    if (!respostas || !perguntas) return;
-    const linhas = respostas.map((r: any) => {
+    if (!respostasBase || !perguntas) return;
+    const linhas = respostasBase.map((r: any) => {
       const linha: Record<string, any> = {
         "Enviado em": new Date(r.enviado_em).toLocaleString("pt-BR"),
         IP: r.ip || "",
@@ -118,14 +144,14 @@ export default function FormularioRespostas() {
   };
 
   const resumo = useMemo(() => {
-    if (!respostas || !perguntas) return [];
+    if (!respostasBase || !perguntas) return [];
     return perguntas
       .filter((p: any) => ["radio", "checkbox", "dropdown"].includes(p.tipo))
       .map((p: any) => {
         const contagem: Record<string, number> = {};
         (p.opcoes || []).forEach((o: string) => (contagem[o] = 0));
         let respondidas = 0;
-        respostas.forEach((r: any) => {
+        respostasBase.forEach((r: any) => {
           const v = r.dados?.[p.id];
           if (Array.isArray(v)) {
             if (v.length > 0) respondidas++;
@@ -140,32 +166,34 @@ export default function FormularioRespostas() {
           .sort((a, b) => b.value - a.value);
         return { pergunta: p.enunciado, tipo: p.tipo, respondidas, dados };
       });
-  }, [respostas, perguntas]);
+  }, [respostasBase, perguntas]);
 
   /* Últimas respostas de perguntas de texto (padrão Google Forms) */
   const resumoTexto = useMemo(() => {
-    if (!respostas || !perguntas) return [];
+    if (!respostasBase || !perguntas) return [];
     return perguntas
       .filter((p: any) => ["texto_curto", "texto_longo"].includes(p.tipo))
       .map((p: any) => {
-        const valores = respostas
+        const valores = respostasBase
           .map((r: any) => r.dados?.[p.id])
           .filter((v: any) => v != null && String(v).trim() !== "")
           .slice(0, 5);
         return { pergunta: p.enunciado, valores, total: valores.length };
       })
       .filter((t) => t.total > 0);
-  }, [respostas, perguntas]);
+  }, [respostasBase, perguntas]);
 
-  const total = respostas?.length || 0;
-  const resp = respostas?.[respIdx];
-  const ultimaResposta = respostas?.[0]?.enviado_em ? new Date(respostas[0].enviado_em).toLocaleString("pt-BR") : "—";
-  const respostasHoje = (respostas || []).filter((r: any) => {
+  const total = respostasBase.length;
+  const resp = respostasBase[respIdx];
+  const ultimaResposta = respostasBase[0]?.enviado_em
+    ? new Date(respostasBase[0].enviado_em).toLocaleString("pt-BR")
+    : "—";
+  const respostasHoje = respostasBase.filter((r: any) => {
     const d = new Date(r.enviado_em);
     const h = new Date();
     return d.toDateString() === h.toDateString();
   }).length;
-  const respostas7d = (respostas || []).filter((r: any) => {
+  const respostas7d = respostasBase.filter((r: any) => {
     const d = new Date(r.enviado_em).getTime();
     return Date.now() - d <= 7 * 24 * 60 * 60 * 1000;
   }).length;
@@ -179,7 +207,7 @@ export default function FormularioRespostas() {
 
   /* Filtro de busca na tabela: procura em todas as colunas (incluindo data e órfãs) */
   const respostasFiltradas = useMemo(() => {
-    const lista = respostas || [];
+    const lista = respostasBase;
     if (!buscaTabela.trim()) return lista;
     const q = buscaTabela.toLowerCase();
     return lista.filter((r: any) => {
@@ -189,7 +217,7 @@ export default function FormularioRespostas() {
         (Array.isArray(v) ? v.join(", ") : String(v ?? "")).toLowerCase().includes(q),
       );
     });
-  }, [respostas, buscaTabela]);
+  }, [respostasBase, buscaTabela]);
 
   return (
     <div className="container mx-auto p-6 space-y-8 max-w-7xl">
@@ -230,26 +258,50 @@ export default function FormularioRespostas() {
       </div>
 
       <Tabs defaultValue={resumo.length > 0 ? "resumo" : "individual"} className="space-y-6">
-        <TabsList className="h-12 p-1.5 bg-muted/60 rounded-2xl gap-1 text-muted-foreground">
-          <TabsTrigger
-            value="resumo"
-            className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
-          >
-            Resumo
-          </TabsTrigger>
-          <TabsTrigger
-            value="individual"
-            className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
-          >
-            Individual
-          </TabsTrigger>
-          <TabsTrigger
-            value="tabela"
-            className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
-          >
-            Tabela
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <TabsList className="h-12 p-1.5 bg-muted/60 rounded-2xl gap-1 text-muted-foreground">
+            <TabsTrigger
+              value="resumo"
+              className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            >
+              Resumo
+            </TabsTrigger>
+            <TabsTrigger
+              value="individual"
+              className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            >
+              Individual
+            </TabsTrigger>
+            <TabsTrigger
+              value="tabela"
+              className="rounded-xl px-6 h-9 font-medium data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            >
+              Tabela
+            </TabsTrigger>
+          </TabsList>
+          {/* Filtro por associação (aparece quando o formulário tem essa pergunta) */}
+          {perguntaAssociacao && opcoesAssociacao.length > 0 && (
+            <Select
+              value={filtroAssociacao}
+              onValueChange={(v) => {
+                setFiltroAssociacao(v);
+                setRespIdx(0);
+              }}
+            >
+              <SelectTrigger className="w-56 h-10 rounded-xl">
+                <SelectValue placeholder="Todas as associações" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as associações</SelectItem>
+                {opcoesAssociacao.map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {a}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
 
         {/* ================= RESUMO ================= */}
         <TabsContent value="resumo" className="space-y-4">
