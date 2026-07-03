@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useContext, useRef, createContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +18,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { callLivekitFn } from "@/lib/livekitApi";
 
 // Lazy-load LiveKit to avoid module import crashes
 let LiveKitRoom: any;
@@ -30,6 +31,10 @@ let Track: any;
 let useDataChannel: any;
 let useLocalParticipant: any;
 let useRoomContext: any;
+let RoomAudioRenderer: any;
+let StartAudio: any;
+let useConnectionState: any;
+let ConnectionState: any;
 let livekitLoaded = false;
 let livekitLoadError: string | null = null;
 
@@ -49,7 +54,11 @@ export const loadLiveKit = async () => {
     useDataChannel = componentsReact.useDataChannel;
     useLocalParticipant = componentsReact.useLocalParticipant;
     useRoomContext = componentsReact.useRoomContext;
+    RoomAudioRenderer = componentsReact.RoomAudioRenderer;
+    StartAudio = componentsReact.StartAudio;
+    useConnectionState = componentsReact.useConnectionState;
     Track = livekitClient.Track;
+    ConnectionState = livekitClient.ConnectionState;
     await import("@livekit/components-styles");
     livekitLoaded = true;
     return true;
@@ -91,6 +100,49 @@ interface DataMessage {
 
 const REACTION_EMOJIS = ["👍", "👏", "😂", "❤️", "🎉", "🔥", "😮", "🤔"];
 
+// ── Configurações de layout compartilhadas entre ControlBar e VideoGrid ──
+interface LayoutSettings {
+  layoutMode: LayoutMode;
+  maxTiles: number;
+  hideNoVideo: boolean;
+  setLayoutMode: (m: LayoutMode) => void;
+  setMaxTiles: (n: number) => void;
+  setHideNoVideo: (v: boolean) => void;
+}
+const LayoutSettingsContext = createContext<LayoutSettings | null>(null);
+
+export function LayoutSettingsProvider({ children }: { children: React.ReactNode }) {
+  const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
+  const [maxTiles, setMaxTilesState] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "50", 10));
+  const [hideNoVideo, setHideNoVideoState] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
+  const value: LayoutSettings = {
+    layoutMode,
+    maxTiles,
+    hideNoVideo,
+    setLayoutMode: (m) => { setLayoutModeState(m); localStorage.setItem("uon1-video-layout", m); },
+    setMaxTiles: (n) => { setMaxTilesState(n); localStorage.setItem("uon1-video-max-tiles", String(n)); },
+    setHideNoVideo: (v) => { setHideNoVideoState(v); localStorage.setItem("uon1-video-hide-novideo", String(v)); },
+  };
+  return <LayoutSettingsContext.Provider value={value}>{children}</LayoutSettingsContext.Provider>;
+}
+
+function useLayoutSettings(): LayoutSettings {
+  const ctx = useContext(LayoutSettingsContext);
+  // Fallback local caso seja usado fora do provider (mantém compatibilidade)
+  const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
+  const [maxTiles, setMaxTilesState] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "50", 10));
+  const [hideNoVideo, setHideNoVideoState] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
+  if (ctx) return ctx;
+  return {
+    layoutMode,
+    maxTiles,
+    hideNoVideo,
+    setLayoutMode: (m) => { setLayoutModeState(m); localStorage.setItem("uon1-video-layout", m); },
+    setMaxTiles: (n) => { setMaxTilesState(n); localStorage.setItem("uon1-video-max-tiles", String(n)); },
+    setHideNoVideo: (v) => { setHideNoVideoState(v); localStorage.setItem("uon1-video-hide-novideo", String(v)); },
+  };
+}
+
 // ── Main page wrapper ──
 export default function MeetingRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -105,6 +157,13 @@ export default function MeetingRoomPage() {
   const [livekitReady, setLivekitReady] = useState(false);
   const [livekitError, setLivekitError] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  // Pré-join (padrão Meet): usuário escolhe mídia antes de conectar
+  const [joined, setJoined] = useState(false);
+  const [initialMedia, setInitialMedia] = useState<{ video: boolean; audio: boolean }>({ video: true, audio: true });
+  // Distinguir saída intencional de queda de conexão
+  const intentionalLeaveRef = useRef(false);
+  const [connectionLost, setConnectionLost] = useState(false);
+  const [rejoining, setRejoining] = useState(false);
 
   useEffect(() => {
     loadLiveKit().then((ok) => {
@@ -115,23 +174,12 @@ export default function MeetingRoomPage() {
 
   useEffect(() => {
     if (user && roomId && livekitReady) joinRoom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, roomId, livekitReady]);
 
   const joinRoom = async () => {
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=getToken`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ roomId }),
-        }
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await callLivekitFn("getToken", { roomId });
       setToken(data.token);
       setLivekitUrl(data.livekitUrl);
       setRoom(data.room);
@@ -144,27 +192,45 @@ export default function MeetingRoomPage() {
     setLoading(false);
   };
 
-  const handleDisconnect = () => navigate("/video");
+  // Reconexão manual após queda definitiva: busca token novo e remonta a sala
+  const handleRejoin = async () => {
+    setRejoining(true);
+    try {
+      const data = await callLivekitFn("getToken", { roomId });
+      setToken(data.token);
+      setLivekitUrl(data.livekitUrl);
+      setRoom(data.room);
+      setConnectionLost(false);
+    } catch (e: any) {
+      toast.error(e.message || "Não foi possível reconectar. Tente novamente.");
+    }
+    setRejoining(false);
+  };
 
-  const handleEndRoom = async () => {
-    if (isHost && roomId) {
-      try {
-        const session = (await supabase.auth.getSession()).data.session;
-        await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=endRoom`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${session?.access_token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ roomId }),
-          }
-        );
-        toast.success("Reunião finalizada");
-      } catch {
-        // silently fail, still navigate
-      }
+  const handleDisconnected = () => {
+    if (intentionalLeaveRef.current) {
+      navigate("/video");
+    } else {
+      // Queda inesperada — o LiveKit já tentou reconectar sozinho antes deste evento
+      setConnectionLost(true);
+    }
+  };
+
+  // "Sair da reunião": só eu saio (padrão Meet)
+  const handleLeave = () => {
+    intentionalLeaveRef.current = true;
+    navigate("/video");
+  };
+
+  // "Encerrar para todos": só o host — encerra no servidor e desconecta todos de fato
+  const handleEndForAll = async () => {
+    if (!isHost || !roomId) return;
+    intentionalLeaveRef.current = true;
+    try {
+      await callLivekitFn("endRoom", { roomId });
+      toast.success("Reunião encerrada para todos");
+    } catch {
+      // navega mesmo assim
     }
     navigate("/video");
   };
@@ -198,32 +264,196 @@ export default function MeetingRoomPage() {
     return <WaitingRoom room={room} roomId={roomId!} onApproved={(t) => { setToken(t); setParticipantStatus("approved"); }} onDenied={() => navigate("/video")} />;
   }
 
+  // Tela de pré-join (padrão Meet): preview + escolha de mídia antes de conectar
+  if (!joined) {
+    return (
+      <PreJoinScreen
+        room={room}
+        onJoin={(media) => { setInitialMedia(media); setJoined(true); }}
+        onCancel={() => navigate("/video")}
+      />
+    );
+  }
+
+  // Tela de conexão perdida com opção de reentrar (não joga o usuário para fora)
+  if (connectionLost) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="max-w-md w-full mx-4 shadow-lg border-border/50">
+          <CardContent className="p-8 text-center space-y-5">
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+              <Phone className="h-8 w-8 text-destructive rotate-[135deg]" />
+            </div>
+            <h2 className="text-xl font-semibold text-foreground">Conexão perdida</h2>
+            <p className="text-muted-foreground text-sm">
+              Sua conexão com a reunião <strong className="text-foreground">{room.nome}</strong> caiu. Verifique sua internet e reentre.
+            </p>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={handleRejoin} disabled={rejoining}>
+                {rejoining ? "Reconectando..." : "Reentrar na reunião"}
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/video")}>Sair</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[100] bg-background flex flex-col">
-      <LiveKitRoom
-        key={token}
-        serverUrl={livekitUrl}
-        token={token}
-        connect={true}
-        video={true}
-        audio={true}
-        onDisconnected={handleDisconnect}
-        className="flex flex-col flex-1"
-      >
-        <RoomHeader room={room} isHost={isHost} roomId={roomId!} onLeave={handleEndRoom} />
-        <MeetingTimer room={room} isHost={isHost} roomId={roomId!} onTimeUp={async () => {
-          toast.info("Reunião finalizada automaticamente (tempo esgotado)");
-          await handleEndRoom();
-        }} onExtend={(mins) => {
-          setRoom(prev => prev ? { ...prev, duracao_minutos: (prev.duracao_minutos || 60) + mins } : prev);
-        }} />
-        <div className="flex flex-1 overflow-hidden">
-          <VideoGridWithReactions />
-          {chatOpen && <ChatPanel roomId={roomId!} userId={user?.id || ""} userName={user?.user_metadata?.nome || user?.email || "Eu"} />}
-          {isHost && <PendingRequestsPanel roomId={roomId!} />}
+      <LayoutSettingsProvider>
+        <LiveKitRoom
+          key={token}
+          serverUrl={livekitUrl}
+          token={token}
+          connect={true}
+          video={initialMedia.video}
+          audio={initialMedia.audio}
+          options={{ adaptiveStream: true, dynacast: true }}
+          onDisconnected={handleDisconnected}
+          onMediaDeviceFailure={() => {
+            toast.error("Falha ao acessar câmera/microfone. Verifique as permissões do navegador.");
+          }}
+          className="flex flex-col flex-1"
+        >
+          <RoomReliabilityLayer />
+          <RoomHeader room={room} isHost={isHost} roomId={roomId!} onLeave={handleLeave} />
+          <MeetingTimer room={room} isHost={isHost} roomId={roomId!} onEndForAll={handleEndForAll} onExtend={(mins) => {
+            setRoom(prev => prev ? { ...prev, duracao_minutos: (prev.duracao_minutos || 60) + mins } : prev);
+          }} />
+          <div className="flex flex-1 overflow-hidden">
+            <VideoGridWithReactions />
+            {chatOpen && <ChatPanel roomId={roomId!} userId={user?.id || ""} userName={user?.user_metadata?.nome || user?.email || "Eu"} />}
+            {isHost && <PendingRequestsPanel roomId={roomId!} />}
+          </div>
+          <ControlBar isHost={isHost} onLeave={handleLeave} onEndForAll={handleEndForAll} chatOpen={chatOpen} onToggleChat={() => setChatOpen(!chatOpen)} />
+        </LiveKitRoom>
+      </LayoutSettingsProvider>
+    </div>
+  );
+}
+
+// ── Camada de confiabilidade (áudio + reconexão) — usada também no fluxo de convidados ──
+export function RoomReliabilityLayer() {
+  return (
+    <>
+      {/* Áudio central: corrige "não ouço ninguém" (autoplay bloqueado pelo navegador) */}
+      <RoomAudioRenderer />
+      <StartAudio label="Clique para ativar o som da reunião" className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[120] bg-primary text-primary-foreground rounded-full px-4 py-2 text-sm shadow-lg" />
+      <ConnectionStateBanner />
+    </>
+  );
+}
+
+// ── Banner de reconexão (padrão Meet: mantém a sala montada enquanto o LiveKit reconecta) ──
+function ConnectionStateBanner() {
+  const state = useConnectionState?.();
+  if (!ConnectionState || state !== ConnectionState.Reconnecting) return null;
+  return (
+    <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[120] flex items-center gap-2 bg-amber-500/90 text-white rounded-full px-4 py-1.5 text-xs font-medium shadow-lg">
+      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+      Reconectando…
+    </div>
+  );
+}
+
+// ── Pré-join (padrão Meet): preview de câmera e escolha de mídia antes de entrar ──
+function PreJoinScreen({ room, onJoin, onCancel }: {
+  room: RoomData;
+  onJoin: (media: { video: boolean; audio: boolean }) => void;
+  onCancel: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [videoOn, setVideoOn] = useState(true);
+  const [audioOn, setAudioOn] = useState(true);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (cancelled) {
+          stream.getTracks().forEach((tr) => tr.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      } catch (e) {
+        console.warn("[PreJoin] getUserMedia falhou:", e);
+        setMediaError("Não foi possível acessar câmera/microfone. Permita o acesso nas configurações do navegador — você ainda pode entrar sem mídia.");
+        setVideoOn(false);
+        setAudioOn(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((tr) => tr.stop());
+    };
+  }, []);
+
+  const toggleVideo = () => {
+    const next = !videoOn;
+    setVideoOn(next);
+    streamRef.current?.getVideoTracks().forEach((tr) => { tr.enabled = next; });
+  };
+  const toggleAudio = () => {
+    const next = !audioOn;
+    setAudioOn(next);
+    streamRef.current?.getAudioTracks().forEach((tr) => { tr.enabled = next; });
+  };
+  const handleJoin = () => {
+    streamRef.current?.getTracks().forEach((tr) => tr.stop());
+    onJoin({ video: videoOn && !mediaError, audio: audioOn && !mediaError });
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-3xl grid gap-6 md:grid-cols-[1.4fr_1fr] items-center">
+        {/* Preview da câmera */}
+        <div className="relative aspect-video rounded-2xl overflow-hidden bg-muted flex items-center justify-center">
+          <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${videoOn && !mediaError ? "" : "hidden"}`} style={{ transform: "scaleX(-1)" }} />
+          {(!videoOn || mediaError) && (
+            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+              <VideoOff className="h-10 w-10" />
+              <span className="text-sm">{mediaError ? "Sem acesso à câmera" : "Câmera desligada"}</span>
+            </div>
+          )}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-3">
+            <button
+              onClick={toggleAudio}
+              disabled={!!mediaError}
+              className={`h-12 w-12 rounded-full flex items-center justify-center transition-colors shadow-lg ${audioOn && !mediaError ? "bg-background/80 backdrop-blur-sm text-foreground" : "bg-destructive text-destructive-foreground"}`}
+            >
+              {audioOn && !mediaError ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+            </button>
+            <button
+              onClick={toggleVideo}
+              disabled={!!mediaError}
+              className={`h-12 w-12 rounded-full flex items-center justify-center transition-colors shadow-lg ${videoOn && !mediaError ? "bg-background/80 backdrop-blur-sm text-foreground" : "bg-destructive text-destructive-foreground"}`}
+            >
+              {videoOn && !mediaError ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
-        <ControlBar onLeave={handleEndRoom} chatOpen={chatOpen} onToggleChat={() => setChatOpen(!chatOpen)} />
-      </LiveKitRoom>
+        {/* Info + entrar */}
+        <div className="text-center md:text-left space-y-4">
+          <div>
+            <p className="text-sm text-muted-foreground">Pronto para entrar?</p>
+            <h2 className="text-2xl font-semibold text-foreground">{room.nome}</h2>
+            {room.descricao && <p className="text-sm text-muted-foreground mt-1">{room.descricao}</p>}
+          </div>
+          {mediaError && (
+            <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3">{mediaError}</p>
+          )}
+          <div className="flex gap-2 justify-center md:justify-start">
+            <Button size="lg" className="rounded-full px-8" onClick={handleJoin}>Entrar agora</Button>
+            <Button size="lg" variant="outline" className="rounded-full" onClick={onCancel}>Cancelar</Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -232,30 +462,28 @@ export default function MeetingRoomPage() {
 function WaitingRoom({ room, roomId, onApproved, onDenied }: { room: RoomData; roomId: string; onApproved: (token: string) => void; onDenied: () => void }) {
   const { user } = useAuth();
 
+  const approvedRef = useRef(false);
+
   const fetchNewToken = useCallback(async () => {
+    if (approvedRef.current) return;
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=getToken`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ roomId }),
-        }
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await callLivekitFn("getToken", { roomId });
+      if (data.participantStatus === "denied") {
+        toast.error("Sua entrada foi recusada");
+        onDenied();
+        return;
+      }
+      if (data.participantStatus !== "approved") return;
+      approvedRef.current = true;
       toast.success("Você foi aprovado! Entrando na sala...");
       onApproved(data.token);
     } catch (e: any) {
-      console.error("[WaitingRoom] Error fetching new token:", e);
-      toast.error("Erro ao entrar na sala após aprovação");
+      console.error("[WaitingRoom] Erro ao buscar token:", e);
     }
-  }, [roomId, onApproved]);
+  }, [roomId, onApproved, onDenied]);
 
   useEffect(() => {
+    // Realtime + polling de fallback a cada 5s: se o evento realtime se perder, a aprovação ainda entra
     const channel = supabase
       .channel(`meeting-participant-${roomId}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "meeting_participants", filter: `room_id=eq.${roomId}` }, (payload) => {
@@ -270,7 +498,12 @@ function WaitingRoom({ room, roomId, onApproved, onDenied }: { room: RoomData; r
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    const poll = setInterval(fetchNewToken, 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
   }, [roomId, user?.id, fetchNewToken, onDenied]);
 
   return (
@@ -293,60 +526,55 @@ function WaitingRoom({ room, roomId, onApproved, onDenied }: { room: RoomData; r
 }
 
 // ── Meeting Timer ──
-function MeetingTimer({ room, isHost, roomId, onTimeUp, onExtend }: { 
-  room: RoomData; isHost: boolean; roomId: string; 
-  onTimeUp: () => void; onExtend: (mins: number) => void;
+function MeetingTimer({ room, isHost, roomId, onEndForAll, onExtend }: {
+  room: RoomData; isHost: boolean; roomId: string;
+  onEndForAll: () => void; onExtend: (mins: number) => void;
 }) {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
-  const [warned, setWarned] = useState(false);
+  const warnedRef = useRef(false);
+  const timeUpRef = useRef(false);
   const [showExtend, setShowExtend] = useState(false);
   const [extending, setExtending] = useState(false);
 
   useEffect(() => {
     if (!room.agendado_para || !room.duracao_minutos) return;
-    const startMs = new Date(room.agendado_para).getTime();
-    const endMs = startMs + room.duracao_minutos * 60 * 1000;
+    const endMs = new Date(room.agendado_para).getTime() + room.duracao_minutos * 60 * 1000;
 
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const remaining = Math.max(0, Math.floor((endMs - now) / 1000));
+    const tick = () => {
+      const remaining = Math.max(0, Math.floor((endMs - Date.now()) / 1000));
       setRemainingSeconds(remaining);
 
-      // Warning at 5 minutes
-      if (remaining <= 300 && remaining > 0 && !warned) {
-        setWarned(true);
-        toast.warning("⏰ Faltam 5 minutos para o fim da reunião!", { duration: 8000 });
+      if (remaining <= 300 && remaining > 0 && !warnedRef.current) {
+        warnedRef.current = true;
+        toast.warning("⏰ Faltam 5 minutos para o fim previsto da reunião!", { duration: 8000 });
         if (isHost) setShowExtend(true);
       }
 
-      // Time's up
-      if (remaining <= 0) {
-        clearInterval(interval);
-        onTimeUp();
+      // Tempo esgotado: NÃO encerra automaticamente (padrão Meet) — só avisa; o host decide
+      if (remaining <= 0 && !timeUpRef.current) {
+        timeUpRef.current = true;
+        if (isHost) {
+          setShowExtend(true);
+          toast.warning("⏰ Tempo previsto esgotado. Estenda a reunião ou encerre para todos.", { duration: 10000 });
+        } else {
+          toast.info("⏰ O tempo previsto da reunião terminou.", { duration: 8000 });
+        }
       }
-    }, 1000);
+    };
 
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [room.agendado_para, room.duracao_minutos, warned, isHost]);
+  }, [room.agendado_para, room.duracao_minutos, isHost]);
 
   const handleExtend = async (mins: number) => {
     setExtending(true);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
-      await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=extendRoom`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ roomId, extraMinutes: mins }),
-        }
-      );
+      await callLivekitFn("extendRoom", { roomId, extraMinutes: mins });
       onExtend(mins);
       setShowExtend(false);
-      setWarned(false);
+      warnedRef.current = false;
+      timeUpRef.current = false;
       toast.success(`Reunião estendida em ${mins} minutos`);
     } catch {
       toast.error("Erro ao estender reunião");
@@ -360,6 +588,7 @@ function MeetingTimer({ room, isHost, roomId, onTimeUp, onExtend }: {
   const mins = Math.floor((remainingSeconds % 3600) / 60);
   const secs = remainingSeconds % 60;
   const isUrgent = remainingSeconds <= 300;
+  const timeUp = remainingSeconds <= 0;
 
   return (
     <>
@@ -368,7 +597,7 @@ function MeetingTimer({ room, isHost, roomId, onTimeUp, onExtend }: {
         isUrgent ? "bg-destructive/10 text-destructive animate-pulse" : "bg-muted/50 text-muted-foreground"
       }`}>
         <Clock className="h-3 w-3" />
-        <span>Tempo restante: {hrs > 0 ? `${hrs}h ` : ""}{String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}</span>
+        <span>{timeUp ? "Tempo previsto esgotado" : `Tempo restante: ${hrs > 0 ? `${hrs}h ` : ""}${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`}</span>
         {room.agendado_para && (
           <span className="ml-2 opacity-70">
             • Início: {new Date(room.agendado_para).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
@@ -377,15 +606,16 @@ function MeetingTimer({ room, isHost, roomId, onTimeUp, onExtend }: {
         )}
       </div>
 
-      {/* Extend dialog for host */}
+      {/* Aviso para o host: estender ou encerrar para todos */}
       {showExtend && isHost && (
-        <div className="flex items-center justify-center gap-3 py-2 bg-yellow-500/10 border-b border-yellow-500/30 px-4">
-          <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">⏰ Tempo acabando! Estender reunião?</span>
+        <div className="flex items-center justify-center gap-3 py-2 bg-yellow-500/10 border-b border-yellow-500/30 px-4 flex-wrap">
+          <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">⏰ {timeUp ? "Tempo esgotado!" : "Tempo acabando!"} Estender reunião?</span>
           {[15, 30, 60].map(m => (
             <Button key={m} size="sm" variant="outline" className="h-7 text-xs" disabled={extending} onClick={() => handleExtend(m)}>
               +{m} min
             </Button>
           ))}
+          <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={onEndForAll}>Encerrar para todos</Button>
           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowExtend(false)}>Ignorar</Button>
         </div>
       )}
@@ -535,7 +765,6 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   const participants = useParticipants();
   const tracks = useTracks([
     { source: Track.Source.Camera, withPlaceholder: true },
-    { source: Track.Source.Microphone, withPlaceholder: false },
     { source: Track.Source.ScreenShare, withPlaceholder: false },
   ]);
 
@@ -547,22 +776,9 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   const [presentationLayout, setPresentationLayout] = useState<"strip" | "sidebar">(
     () => "sidebar"
   );
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
-  const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "50", 10));
-  const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
+  // Configurações de layout compartilhadas com a ControlBar (contexto, sem hack de evento storage)
+  const { layoutMode, maxTiles, hideNoVideo } = useLayoutSettings();
 
-  // Sync with ControlBar layout changes via storage event
-  useEffect(() => {
-    const handler = () => {
-      setLayoutMode((localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
-      setMaxTiles(parseInt(localStorage.getItem("uon1-video-max-tiles") || "16", 10));
-      setHideNoVideo(localStorage.getItem("uon1-video-hide-novideo") === "true");
-    };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, []);
-
-  const audioTracks = tracks.filter((t) => t.source === Track.Source.Microphone);
   const visualTracks = tracks.filter((t) => t.source !== Track.Source.Microphone);
 
   const seen = new Set<string>();
@@ -837,13 +1053,6 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
 
   return (
     <div className={`h-full w-full overflow-hidden flex flex-col bg-muted/30 p-2 sm:p-3 gap-2 sm:gap-3`}>
-      {/* Invisible audio tracks */}
-      {audioTracks.map((trackRef) => (
-        trackRef.publication?.track ? (
-          <AudioTrack key={trackRef.participant.sid + '-audio'} trackRef={trackRef} />
-        ) : null
-      ))}
-
       {spotlightTrack ? (
         !cinemaMode ? (
           /* Sidebar layout: spotlight on the left, participants stacked on the right (Zoom side-by-side) */
@@ -884,20 +1093,15 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
 }
 
 // ── Control Bar ──
-export function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
+export function ControlBar({ isHost = false, onLeave, onEndForAll, chatOpen, onToggleChat }: { isHost?: boolean; onLeave: () => void; onEndForAll?: () => void; chatOpen: boolean; onToggleChat: () => void }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [blurEnabled, setBlurEnabled] = useState(false);
   const [blurLoading, setBlurLoading] = useState(false);
   const blurEnabledRef = useRef(false);
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => (localStorage.getItem("uon1-video-layout") as LayoutMode) || "auto");
-  const [maxTiles, setMaxTiles] = useState<number>(() => parseInt(localStorage.getItem("uon1-video-max-tiles") || "50", 10));
-  const [hideNoVideo, setHideNoVideo] = useState<boolean>(() => localStorage.getItem("uon1-video-hide-novideo") === "true");
-
-  const saveLayoutMode = (mode: LayoutMode) => { setLayoutMode(mode); localStorage.setItem("uon1-video-layout", mode); window.dispatchEvent(new Event("storage")); };
-  const saveMaxTiles = (val: number) => { setMaxTiles(val); localStorage.setItem("uon1-video-max-tiles", String(val)); window.dispatchEvent(new Event("storage")); };
-  const saveHideNoVideo = (val: boolean) => { setHideNoVideo(val); localStorage.setItem("uon1-video-hide-novideo", String(val)); window.dispatchEvent(new Event("storage")); };
+  // Configurações de layout compartilhadas com o VideoGrid via contexto
+  const { layoutMode, maxTiles, hideNoVideo, setLayoutMode, setMaxTiles, setHideNoVideo } = useLayoutSettings();
 
   const layoutOptions: { value: LayoutMode; label: string; desc: string }[] = [
     { value: "auto", label: "Automático", desc: "Ajusta conforme participantes" },
@@ -1185,7 +1389,7 @@ export function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () =>
                   <h4 className="font-semibold text-sm mb-1">Ajuste a visualização</h4>
                   <p className="text-xs text-muted-foreground">A seleção é salva para as próximas reuniões</p>
                 </div>
-                <RadioGroup value={layoutMode} onValueChange={(v) => saveLayoutMode(v as LayoutMode)}>
+                <RadioGroup value={layoutMode} onValueChange={(v) => setLayoutMode(v as LayoutMode)}>
                   {layoutOptions.map(opt => (
                     <div key={opt.value} className="flex items-center gap-3 py-1.5">
                       <RadioGroupItem value={opt.value} id={`layout-bar-${opt.value}`} />
@@ -1203,13 +1407,13 @@ export function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () =>
                   </div>
                   <div className="flex items-center gap-3">
                     <LayoutGrid className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <Slider value={[maxTiles]} onValueChange={([v]) => saveMaxTiles(v)} min={1} max={50} step={1} className="flex-1" />
+                    <Slider value={[maxTiles]} onValueChange={([v]) => setMaxTiles(v)} min={1} max={50} step={1} className="flex-1" />
                     <span className="text-xs text-muted-foreground w-5 text-right">{maxTiles}</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-border/50">
                   <Label htmlFor="hide-no-video-bar" className="text-xs">Ocultar blocos sem vídeo</Label>
-                  <Switch id="hide-no-video-bar" checked={hideNoVideo} onCheckedChange={saveHideNoVideo} className="scale-90" />
+                  <Switch id="hide-no-video-bar" checked={hideNoVideo} onCheckedChange={setHideNoVideo} className="scale-90" />
                 </div>
               </div>
             </PopoverContent>
@@ -1220,12 +1424,17 @@ export function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () =>
 
         {confirmLeave ? (
           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-            <span className="text-xs sm:text-sm text-muted-foreground">Tem certeza?</span>
-            <Button size="sm" variant="destructive" onClick={onLeave} className="rounded-full h-9 px-4 text-xs">
-              Sim
+            <span className="text-xs sm:text-sm text-muted-foreground">{isHost ? "Sair ou encerrar para todos?" : "Tem certeza?"}</span>
+            <Button size="sm" variant="outline" onClick={onLeave} className="rounded-full h-9 px-4 text-xs">
+              Sair da reunião
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setConfirmLeave(false)} className="rounded-full h-9 px-4 text-xs">
-              Não
+            {isHost && onEndForAll && (
+              <Button size="sm" variant="destructive" onClick={onEndForAll} className="rounded-full h-9 px-4 text-xs">
+                Encerrar para todos
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => setConfirmLeave(false)} className="rounded-full h-9 px-4 text-xs">
+              Cancelar
             </Button>
           </div>
         ) : (
@@ -1234,7 +1443,7 @@ export function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () =>
             className="h-12 sm:h-14 px-5 sm:px-6 rounded-full bg-destructive text-destructive-foreground font-medium text-sm flex items-center gap-2 hover:bg-destructive/90 transition-colors"
           >
             <Phone className="h-4 w-4 rotate-[135deg]" />
-            <span className="hidden sm:inline">Finalizar</span>
+            <span className="hidden sm:inline">{isHost ? "Encerrar" : "Sair"}</span>
           </button>
         )}
       </div>
@@ -1357,19 +1566,7 @@ function PendingRequestsPanel({ roomId }: { roomId: string }) {
 
   const handleAction = async (participantId: string, action: "approveParticipant" | "denyParticipant") => {
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=${action}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ roomId, participantId }),
-        }
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      await callLivekitFn(action, { roomId, participantId });
       toast.success(action === "approveParticipant" ? "Participante aprovado" : "Participante recusado");
       fetchPending();
     } catch (e: any) {

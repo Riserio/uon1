@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Video, Users } from "lucide-react";
-import { RoomHeader, VideoGridWithReactions, ControlBar, ChatPanel, loadLiveKit } from "./MeetingRoom";
+import { RoomHeader, VideoGridWithReactions, ControlBar, ChatPanel, loadLiveKit, RoomReliabilityLayer, LayoutSettingsProvider } from "./MeetingRoom";
 
 // LiveKitRoom must be loaded via shared MeetingRoom loader so all hooks/components are initialized
 let LiveKitRoom: any;
@@ -185,6 +185,7 @@ export default function InviteEntry() {
   if (approved && token && livekitUrl) {
     return (
       <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+        <LayoutSettingsProvider>
         <LiveKitRoom
           key={token}
           serverUrl={livekitUrl}
@@ -192,9 +193,12 @@ export default function InviteEntry() {
           connect={true}
           video={true}
           audio={true}
+          options={{ adaptiveStream: true, dynacast: true }}
           onDisconnected={() => { setApproved(false); setToken(null); }}
           className="flex flex-col flex-1"
         >
+          {/* Áudio confiável + banner de reconexão (mesma camada do host) */}
+          <RoomReliabilityLayer />
           {/* Same layout as host: shared header + video grid + control bar */}
           <RoomHeader
             room={{ nome: roomInfo?.nome || "Reunião" }}
@@ -215,6 +219,7 @@ export default function InviteEntry() {
             onToggleChat={() => setChatOpen(!chatOpen)}
           />
         </LiveKitRoom>
+        </LayoutSettingsProvider>
       </div>
     );
   }

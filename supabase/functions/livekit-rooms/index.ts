@@ -124,14 +124,43 @@ Deno.serve(async (req) => {
 
     // ── LIST ROOMS ──
     if (action === "listRooms") {
-      await getUser();
+      const user = await getUser();
+
+      // Segurança: retorna apenas salas onde o usuário é host, participante ou convidado
+      const { data: myParts } = await supabaseAdmin
+        .from("meeting_participants")
+        .select("room_id")
+        .eq("user_id", user.id);
+      const participantRoomIds = [...new Set((myParts || []).map((p: { room_id: string }) => p.room_id))];
+
+      const orFilters = [`host_id.eq.${user.id}`];
+      if (participantRoomIds.length > 0) orFilters.push(`id.in.(${participantRoomIds.join(",")})`);
+
       const { data, error } = await supabaseAdmin
         .from("meeting_rooms")
         .select("*, meeting_participants(id, display_name, status, is_host)")
+        .or(orFilters.join(","))
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return new Response(JSON.stringify({ rooms: data }), {
+
+      // Inclui salas onde o e-mail do usuário está na lista de convidados
+      let extra: unknown[] = [];
+      if (user.email) {
+        const { data: invitedRooms } = await supabaseAdmin
+          .from("meeting_rooms")
+          .select("*, meeting_participants(id, display_name, status, is_host)")
+          .contains("convidados", JSON.stringify([{ email: user.email }]))
+          .order("created_at", { ascending: false });
+        const knownIds = new Set((data || []).map((r: { id: string }) => r.id));
+        extra = (invitedRooms || []).filter((r: { id: string }) => !knownIds.has(r.id));
+      }
+
+      const rooms = [...(data || []), ...extra].sort(
+        (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+
+      return new Response(JSON.stringify({ rooms }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -182,6 +211,8 @@ Deno.serve(async (req) => {
       }
 
       const canPublish = isHost || participantStatus === "approved";
+      // TTL cobre a duração prevista + 2h (mínimo 4h) — evita falha de reconexão por token expirado
+      const tokenTtl = Math.max(4 * 3600, (room.duracao_minutos || 60) * 60 + 2 * 3600);
       const token = await createLiveKitToken(livekitApiKey, livekitApiSecret, user.id, room.livekit_room_name, {
         roomJoin: true,
         room: room.livekit_room_name,
@@ -189,7 +220,7 @@ Deno.serve(async (req) => {
         canSubscribe: true,
         canPublishData: true,
         name: displayName,
-      });
+      }, tokenTtl);
 
       return new Response(JSON.stringify({ token, livekitUrl, room, isHost, participantStatus }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -246,6 +277,7 @@ Deno.serve(async (req) => {
       });
 
       // Token with canPublish=false (pending)
+      const guestTtl = Math.max(4 * 3600, (room.duracao_minutos || 60) * 60 + 2 * 3600);
       const token = await createLiveKitToken(livekitApiKey, livekitApiSecret, guestIdentity, room.livekit_room_name, {
         roomJoin: true,
         room: room.livekit_room_name,
@@ -253,7 +285,7 @@ Deno.serve(async (req) => {
         canSubscribe: true,
         canPublishData: true,
         name: displayName || "Convidado",
-      });
+      }, guestTtl);
 
       return new Response(JSON.stringify({ token, livekitUrl, room, participantIdentity: guestIdentity }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -290,6 +322,7 @@ Deno.serve(async (req) => {
       if (!participant) throw new Error("Participante não encontrado");
 
       // Generate new token with publish permissions
+      const approveTtl = Math.max(4 * 3600, (room.duracao_minutos || 60) * 60 + 2 * 3600);
       const newToken = await createLiveKitToken(
         livekitApiKey,
         livekitApiSecret,
@@ -303,6 +336,7 @@ Deno.serve(async (req) => {
           canPublishData: true,
           name: participant.display_name,
         },
+        approveTtl,
       );
 
       return new Response(JSON.stringify({ success: true, newToken, participant }), {
@@ -382,11 +416,42 @@ Deno.serve(async (req) => {
       const user = await getUser();
       const body = await req.json();
 
+      const { data: endedRoom } = await supabaseAdmin
+        .from("meeting_rooms")
+        .select("livekit_room_name")
+        .eq("id", body.roomId)
+        .eq("host_id", user.id)
+        .single();
+      if (!endedRoom) throw new Error("Apenas o host pode encerrar a reunião");
+
       await supabaseAdmin
         .from("meeting_rooms")
         .update({ status: "finalizada", finalizado_em: new Date().toISOString() })
         .eq("id", body.roomId)
         .eq("host_id", user.id);
+
+      // Desconecta todos de fato: DeleteRoom na API server-side do LiveKit (padrão Meet "encerrar para todos")
+      try {
+        const adminToken = await createLiveKitToken(
+          livekitApiKey,
+          livekitApiSecret,
+          "server-admin",
+          endedRoom.livekit_room_name,
+          { roomCreate: true, roomAdmin: true, room: endedRoom.livekit_room_name },
+          300,
+        );
+        const httpUrl = livekitUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+        const delRes = await fetch(`${httpUrl}/twirp/livekit.RoomService/DeleteRoom`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ room: endedRoom.livekit_room_name }),
+        });
+        if (!delRes.ok) {
+          console.error("[endRoom] LiveKit DeleteRoom falhou:", delRes.status, await delRes.text());
+        }
+      } catch (e) {
+        console.error("[endRoom] Erro ao encerrar sala no LiveKit:", e);
+      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -990,6 +1055,7 @@ Deno.serve(async (req) => {
 
       if (!room) throw new Error("Sala não encontrada");
 
+      const guestTokenTtl = Math.max(4 * 3600, (room.duracao_minutos || 60) * 60 + 2 * 3600);
       const newToken = await createLiveKitToken(livekitApiKey, livekitApiSecret, identity, room.livekit_room_name, {
         roomJoin: true,
         room: room.livekit_room_name,
@@ -997,7 +1063,7 @@ Deno.serve(async (req) => {
         canSubscribe: true,
         canPublishData: true,
         name: participant.display_name,
-      });
+      }, guestTokenTtl);
 
       return new Response(JSON.stringify({ token: newToken, livekitUrl, room, participantStatus: "approved" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { callLivekitFn } from "@/lib/livekitApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,7 +57,6 @@ export default function VideoRooms() {
 
       if (activeRooms && activeRooms.length > 0) {
         const now = new Date();
-        const session = (await supabase.auth.getSession()).data.session;
         
         for (const room of activeRooms) {
           let shouldFinalize = false;
@@ -77,17 +77,7 @@ export default function VideoRooms() {
 
           if (shouldFinalize) {
             try {
-              await fetch(
-                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=endRoom`,
-                {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${session?.access_token}`,
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({ roomId: room.id }),
-                }
-              );
+              await callLivekitFn("endRoom", { roomId: room.id });
             } catch {
               await supabase
                 .from("meeting_rooms")
@@ -120,13 +110,9 @@ export default function VideoRooms() {
   const fetchRooms = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("meeting_rooms")
-        .select("*, meeting_participants(id, display_name, status, is_host)")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      const roomsList = (data || []) as unknown as MeetingRoom[];
+      // Edge function filtra por host/participante/convidado (segurança — antes listava todas as salas)
+      const data = await callLivekitFn("listRooms");
+      const roomsList = (data.rooms || []) as unknown as MeetingRoom[];
       setRooms(roomsList);
 
       const roomIds = roomsList.map(r => r.id);
@@ -156,19 +142,7 @@ export default function VideoRooms() {
   const handleEndRoom = async (roomId: string) => {
     if (!confirm("Encerrar esta sala?")) return;
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=endRoom`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ roomId }),
-        }
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      await callLivekitFn("endRoom", { roomId });
       toast.success("Sala encerrada");
       fetchRooms();
     } catch (e: any) {
@@ -194,19 +168,7 @@ export default function VideoRooms() {
   const handleDeleteRoom = async (roomId: string) => {
     if (!confirm("Apagar permanentemente esta reunião do histórico?")) return;
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=deleteRoom`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ roomId }),
-        }
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      await callLivekitFn("deleteRoom", { roomId });
       toast.success("Reunião apagada");
       fetchRooms();
     } catch (e: any) {
@@ -216,19 +178,7 @@ export default function VideoRooms() {
 
   const handleCreateInvite = async (roomId: string) => {
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=createInvite`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ roomId }),
-        }
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await callLivekitFn("createInvite", { roomId });
       const link = `${window.location.origin}/invite/${data.invite.id}`;
       setInviteLink(link);
       setSelectedRoomId(roomId);
