@@ -803,7 +803,9 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
   const hasData = chartData.length > 0;
 
-  if (loading) {
+  // Spinner de tela cheia apenas no PRIMEIRO carregamento.
+  // Nas trocas de período, o conteúdo permanece visível com leve esmaecimento (transição suave).
+  if (loading && !dadosAtual) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -901,7 +903,9 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   );
 
   return (
-    <div className="space-y-6">
+    <div
+      className={`space-y-6 transition-opacity duration-300 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}
+    >
       {/* Barra de período: projetada acima das abas quando o slot existe; senão, renderiza aqui */}
       {filterSlot ? createPortal(filterBar, filterSlot) : filterBar}
 
