@@ -39,18 +39,41 @@ export function useModulosDesabilitados() {
   /** Habilita/desabilita um módulo globalmente (apenas admin/superintendente pelo RLS) */
   const definirModulo = useCallback(
     async (moduloId: string, desabilitar: boolean) => {
+      const SEM_PERMISSAO =
+        "Sem permissão para alterar módulos. Apenas admin, administrativo ou superintendente podem gerir.";
       if (desabilitar) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase as any).from("modulos_desabilitados").upsert(
-          { modulo_id: moduloId, desabilitado_por: (await supabase.auth.getUser()).data.user?.id ?? null },
-          { onConflict: "modulo_id" },
-        );
+        const { data, error } = await (supabase as any)
+          .from("modulos_desabilitados")
+          .upsert(
+            { modulo_id: moduloId, desabilitado_por: (await supabase.auth.getUser()).data.user?.id ?? null },
+            { onConflict: "modulo_id" },
+          )
+          .select("modulo_id");
         if (error) throw error;
+        // RLS bloqueia DELETE/UPDATE sem erro (0 linhas). No upsert, sem retorno = bloqueado.
+        if (!data || data.length === 0) throw new Error(SEM_PERMISSAO);
         setDesabilitados((prev) => new Set(prev).add(moduloId));
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase as any).from("modulos_desabilitados").delete().eq("modulo_id", moduloId);
+        const { data, error } = await (supabase as any)
+          .from("modulos_desabilitados")
+          .delete()
+          .eq("modulo_id", moduloId)
+          .select("modulo_id");
         if (error) throw error;
+        // DELETE barrado pelo RLS retorna sucesso com 0 linhas. Mas 0 linhas também
+        // ocorre se já estava reativado (benigno). Reconfirma: se a linha ainda existe,
+        // foi o RLS que bloqueou.
+        if (!data || data.length === 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: ainda } = await (supabase as any)
+            .from("modulos_desabilitados")
+            .select("modulo_id")
+            .eq("modulo_id", moduloId)
+            .maybeSingle();
+          if (ainda) throw new Error(SEM_PERMISSAO);
+        }
         setDesabilitados((prev) => {
           const next = new Set(prev);
           next.delete(moduloId);
