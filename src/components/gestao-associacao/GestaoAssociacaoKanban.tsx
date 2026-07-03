@@ -153,7 +153,6 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
           sga_importacoes!inner(corretora_id, corretoras(id, nome))
         `)
         .not('situacao_evento', 'is', null)
-        .not('situacao_evento', 'ilike', '%FINALIZADO%')
         .eq('sga_importacoes.ativo', true)
         .order('data_cadastro_evento', { ascending: false })
         .range(offset, offset + BATCH_SIZE - 1);
@@ -166,7 +165,11 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const mapped = data.map((e: any) => ({
+        const filtered = data.filter((e: any) => {
+          const s = (e.situacao_evento || '').toUpperCase();
+          return s && !s.includes('FINALIZADO');
+        });
+        const mapped = filtered.map((e: any) => ({
           id: e.id, protocolo: e.protocolo, placa: e.placa,
           modelo_veiculo: e.modelo_veiculo, motivo_evento: e.motivo_evento,
           situacao_evento: e.situacao_evento, data_evento: e.data_evento,
