@@ -366,7 +366,7 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
     );
   }
 
-  if (allStatusConfigs.length === 0) {
+  if (allStatusConfigs.length === 0 && eventos.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <p className="text-lg font-medium">Nenhum status configurado</p>
@@ -381,6 +381,13 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
 
   return (
     <div className="space-y-4">
+      <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-900 px-3 py-2 text-xs text-green-800 dark:text-green-300">
+        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+        <span>
+          Em acompanhamento não são exibidos sinistros finalizados. Apenas eventos em andamento ficam disponíveis nesta visão.
+        </span>
+      </div>
+
       {effectiveCorretoraId && (
         <div className="bg-card border-b border-border/50 rounded-lg">
           <GestaoAssociacaoFluxoSelector
