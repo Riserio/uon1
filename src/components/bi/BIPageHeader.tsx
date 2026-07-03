@@ -160,12 +160,11 @@ export default function BIPageHeader({
         </div>
       </div>
 
-      {/* ================= Linha 2: navegação de módulos centralizada + contagem à direita ================= */}
+      {/* ================= Linha 2: navegação de módulos (estilo original) + contagem à direita ================= */}
       {currentModule !== "admin" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-border/60 pb-3">
-          <div className="hidden lg:block" />
-          <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 flex justify-start lg:justify-center">
-            <div className="flex items-center gap-1 w-fit">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
+          <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div className="flex items-center gap-1.5 p-1.5 bg-muted/40 rounded-2xl w-fit">
               {modules.map((mod) => {
                 const Icon = mod.icon;
                 const isActive = currentModule === mod.id;
@@ -175,10 +174,10 @@ export default function BIPageHeader({
                     onClick={() =>
                       navigate(`${mod.path}${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ""}`)
                     }
-                    className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-sm whitespace-nowrap transition-all duration-200 ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 ${
                       isActive
-                        ? "bg-card text-foreground font-semibold shadow-md"
-                        : "text-muted-foreground font-medium hover:text-foreground hover:bg-muted/50"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -190,8 +189,8 @@ export default function BIPageHeader({
           </div>
 
           {/* Contagem de registros alinhada à direita, sem ocupar linha própria */}
-          {recordCount !== undefined && recordCount > 0 ? (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 justify-center lg:justify-self-end">
+          {recordCount !== undefined && recordCount > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
               <Database className="h-3.5 w-3.5 shrink-0" />
               <span>{recordCount.toLocaleString("pt-BR")} registros</span>
               {hasActiveFilters && <span className="text-primary">(filtrados)</span>}
@@ -202,8 +201,6 @@ export default function BIPageHeader({
                 </>
               )}
             </div>
-          ) : (
-            <div className="hidden lg:block" />
           )}
         </div>
       )}
