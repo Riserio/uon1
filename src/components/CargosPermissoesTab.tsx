@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { MENU_PERMISSION_ITEMS as MENU_ITEMS } from "@/config/modulos";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,29 +44,6 @@ interface Permission {
   pode_editar: boolean;
 }
 
-const MENU_ITEMS = [
-  { id: "dashboard", label: "Dashboard", icon: "📊" },
-  { id: "atendimentos", label: "Atendimentos", icon: "📋" },
-  { id: "vistorias", label: "Vistorias", icon: "🔍" },
-  { id: "acompanhamento", label: "Acompanhamento", icon: "📈" },
-  { id: "corretoras", label: "Corretoras", icon: "🏢" },
-  { id: "contatos", label: "Contatos", icon: "👥" },
-  { id: "usuarios", label: "Usuários", icon: "👤" },
-  { id: "equipes", label: "Equipes", icon: "👨‍👩‍👧‍👦" },
-  { id: "gestao", label: "Gestão", icon: "⚙️" },
-  { id: "uon1sign", label: "UON1SIGN", icon: "✍️" },
-  { id: "documentos", label: "Documentos", icon: "📁" },
-  { id: "comunicados", label: "Comunicados", icon: "📢" },
-  { id: "mensagens", label: "Mensagens", icon: "💬" },
-  { id: "agenda", label: "Agenda", icon: "📅" },
-  { id: "emails", label: "E-mails", icon: "📧" },
-  { id: "analytics", label: "Analytics", icon: "📊" },
-  { id: "performance", label: "Performance", icon: "🎯" },
-  { id: "termos_aceite", label: "Termos de Aceite", icon: "📄" },
-  { id: "pid", label: "BI - Indicadores", icon: "📈" },
-  { id: "lancamentos_financeiros", label: "Lançamentos Financeiros", icon: "💰" },
-  { id: "sinistros", label: "Sinistros", icon: "🚨" },
-];
 
 const CORES = [
   "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",

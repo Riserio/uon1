@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { MENU_PERMISSION_ITEMS as MENU_ITEMS } from "@/config/modulos";
 import {
   Dialog,
   DialogContent,
@@ -35,27 +36,6 @@ interface Permission {
   pode_editar: boolean;
 }
 
-const MENU_ITEMS: MenuItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-  { id: 'atendimentos', label: 'Atendimentos', icon: '📋' },
-  { id: 'vistorias', label: 'Vistorias', icon: '🔍' },
-  { id: 'acompanhamento', label: 'Acompanhamento', icon: '📈' },
-  { id: 'corretoras', label: 'Corretoras', icon: '🏢' },
-  { id: 'contatos', label: 'Contatos', icon: '👥' },
-  { id: 'usuarios', label: 'Usuários', icon: '👤' },
-  { id: 'equipes', label: 'Equipes', icon: '👨‍👩‍👧‍👦' },
-  { id: 'configuracoes', label: 'Configurações', icon: '⚙️' },
-  { id: 'documentos', label: 'Documentos', icon: '📁' },
-  { id: 'comunicados', label: 'Comunicados', icon: '📢' },
-  { id: 'mensagens', label: 'Mensagens', icon: '💬' },
-  { id: 'agenda', label: 'Agenda', icon: '📅' },
-  { id: 'emails', label: 'E-mails', icon: '📧' },
-  { id: 'analytics', label: 'Analytics', icon: '📊' },
-  { id: 'performance', label: 'Performance', icon: '🎯' },
-  { id: 'pid', label: 'PID', icon: '📈' },
-  { id: 'lancamentos_financeiros', label: 'Lançamentos Financeiros', icon: '💰' },
-  { id: 'sinistros', label: 'Sinistros', icon: '🚨' },
-];
 
 export function UserMenuPermissionsDialog({
   open,
