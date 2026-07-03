@@ -33,35 +33,28 @@ export default function PID() {
         <>
           {/* Slot onde o Dashboard projeta a barra "Período de análise" (acima das abas) */}
           <div id="pid-filters-slot" className="empty:hidden" />
-          {/* Abas centralizadas + ação à direita */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] items-center gap-3">
-            <div className="hidden lg:block" />
-            {/* Navegação centralizada, estilo pill */}
-            <div className="overflow-x-auto scrollbar-hide -mx-1 px-1 flex justify-start lg:justify-center">
-              <div className="inline-flex items-center gap-1 min-w-max">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-sm whitespace-nowrap transition-all duration-200 ${
-                        isActive
-                          ? "bg-card text-foreground font-semibold shadow-md"
-                          : "text-muted-foreground font-medium hover:text-foreground hover:bg-muted/50"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span className="hidden sm:inline">{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            {/* Gerenciar Usuários alinhado à direita, mesmo padrão visual das abas */}
-            {selectedAssociacao ? (
-              <div className="lg:justify-self-end">
+          {/* Abas + Gerenciar Usuários: tudo no mesmo padrão, centralizado */}
+          <div className="overflow-x-auto scrollbar-hide -mx-1 px-1 flex justify-start lg:justify-center">
+            <div className="inline-flex items-center gap-1 min-w-max">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-sm whitespace-nowrap transition-all duration-200 ${
+                      isActive
+                        ? "bg-card text-foreground font-semibold shadow-md"
+                        : "text-muted-foreground font-medium hover:text-foreground hover:bg-muted/50"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                );
+              })}
+              {selectedAssociacao && (
                 <button
                   onClick={() => setUsuariosDialogOpen(true)}
                   className="flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-medium whitespace-nowrap transition-all duration-200 text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -69,10 +62,8 @@ export default function PID() {
                   <Users className="h-4 w-4" />
                   <span className="hidden sm:inline">Gerenciar Usuários</span>
                 </button>
-              </div>
-            ) : (
-              <div className="hidden lg:block" />
-            )}
+              )}
+            </div>
           </div>
           {/* Tab contents */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
