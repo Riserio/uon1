@@ -392,12 +392,33 @@ serve(async (req) => {
         return record;
       });
 
+      // Descartar SOMENTE linhas-lixo do relatorio (rodape/resumo/template), sem tocar em
+      // eventos reais (muitos tem protocolo vazio). Assinaturas seguras:
+      //  - marcadores de template ({% %}) em qualquer campo de texto;
+      //  - rodape de resumo ("Resumo", "Total de eventos...", "Valor Total...", "Processing...", "Qualquer duvida...");
+      //  - data de cadastro impossivel (< 2005, epoch ~1899).
+      const TEMPLATE_RE = /\{%|%\}/;
+      const RODAPE_RE = /^(resumo|total de eventos|valor total|processing|qualquer d.vida)/i;
+      const ehLixo = (r: any) => {
+        const est = String(r.evento_estado ?? "");
+        const sit = String(r.situacao_evento ?? "");
+        if (TEMPLATE_RE.test(est) || TEMPLATE_RE.test(sit) || TEMPLATE_RE.test(String(r.protocolo ?? ""))) return true;
+        if (RODAPE_RE.test(est) || RODAPE_RE.test(sit)) return true;
+        if (r.data_cadastro_item && String(r.data_cadastro_item) < "2005-01-01") return true;
+        return false;
+      };
+      const recordsValidos = records.filter((r: any) => !ehLixo(r));
+      const descartados = records.length - recordsValidos.length;
+      if (descartados > 0) {
+        console.log(`[Webhook SGA] ${descartados} linha(s)-lixo descartada(s) (rodape/template do relatorio)`);
+      }
+
       // Inserir em batches (aumentado para 500 para performance)
       const batchSize = 500;
       let processedCount = 0;
 
-      for (let i = 0; i < records.length; i += batchSize) {
-        const batch = records.slice(i, i + batchSize);
+      for (let i = 0; i < recordsValidos.length; i += batchSize) {
+        const batch = recordsValidos.slice(i, i + batchSize);
         
         const { error: batchError } = await supabase
           .from("sga_eventos")
@@ -412,13 +433,13 @@ serve(async (req) => {
 
         // Atualizar progresso
         if (execucao_id) {
-          const progress = Math.round((processedCount / records.length) * 100);
+          const progress = Math.round((processedCount / Math.max(1, recordsValidos.length)) * 100);
           await supabase
             .from("sga_automacao_execucoes")
             .update({
               progresso_importacao: progress,
               registros_processados: processedCount,
-              registros_total: records.length,
+              registros_total: recordsValidos.length,
             })
             .eq("id", execucao_id);
         }
@@ -496,9 +517,9 @@ serve(async (req) => {
           .from("sga_automacao_execucoes")
           .update({
             status: 'sucesso',
-            mensagem: `Importados ${records.length} registros com sucesso (chunk ${chunk_atual || 1}/${total_chunks || 1})`,
-            registros_processados: records.length,
-            registros_total: records.length,
+            mensagem: `Importados ${recordsValidos.length} registros com sucesso (chunk ${chunk_atual || 1}/${total_chunks || 1})`,
+            registros_processados: recordsValidos.length,
+            registros_total: recordsValidos.length,
             progresso_importacao: 100,
             finalizado_at: new Date().toISOString(),
             duracao_segundos: durationSeconds,
@@ -545,13 +566,13 @@ serve(async (req) => {
         await supabase.from("bi_audit_logs").insert({
           modulo: "sga_insights",
           acao: "importacao",
-          descricao: `Importação automática de ${records.length} registros - ${nome_arquivo}`,
+          descricao: `Importação automática de ${recordsValidos.length} registros - ${nome_arquivo}`,
           corretora_id: corretora_id,
           user_id: "system",
           user_nome: "Automação SGA Hinova",
           dados_novos: {
             arquivo: nome_arquivo,
-            total_registros: records.length,
+            total_registros: recordsValidos.length,
             execucao_id,
             github_run_id,
           },
@@ -625,12 +646,12 @@ serve(async (req) => {
         }
       }
 
-      console.log(`[Webhook SGA] Chunk ${chunk_atual || 1}/${total_chunks || 1} concluído: ${records.length} registros`);
+      console.log(`[Webhook SGA] Chunk ${chunk_atual || 1}/${total_chunks || 1} concluído: ${recordsValidos.length} registros`);
 
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: `${records.length} registros importados (chunk ${chunk_atual || 1}/${total_chunks || 1})`,
+          message: `${recordsValidos.length} registros importados (chunk ${chunk_atual || 1}/${total_chunks || 1})`,
           importacao_id: importacaoId,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
