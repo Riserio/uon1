@@ -22,6 +22,7 @@ import {
   TrendingDown,
   Minus,
   LayoutDashboard,
+  ChevronDown,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -487,6 +488,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [initialized, setInitialized] = useState(false);
   const [ultimoMesComDados, setUltimoMesComDados] = useState<{ ano: string; mes: string } | null>(null);
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
+  const [periodoOpen, setPeriodoOpen] = useState(false);
 
   // Slot acima das abas (definido em PID.tsx) onde a barra de período é projetada
   useEffect(() => {
@@ -809,61 +811,91 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     );
   }
 
+  const periodoResumo = todoPeriodo
+    ? "Todo Período"
+    : `${mesesOptions.find((m) => m.value === mes)?.label || ""} · ${ano}`;
+
   const filterBar = (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-4 py-3 min-h-[56px]">
-      <span className="text-sm font-semibold text-foreground flex items-center gap-2">
-        <BarChart3 className="h-4 w-4 text-primary" />
-        Período de análise
-      </span>
-      <div className="flex items-center gap-2">
-        <Button
-          variant={todoPeriodo ? "default" : "outline"}
-          size="sm"
-          onClick={handleTodoPeriodoToggle}
-          className="whitespace-nowrap"
-        >
-          Todo Período
-        </Button>
-        <Select
-          value={mes}
-          onValueChange={(v) => {
-            setMes(v);
-            setTodoPeriodo(false);
-          }}
-          disabled={todoPeriodo}
-        >
-          <SelectTrigger className={`w-36 h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {mesesOptions.map((m) => (
-              <SelectItem key={m.value} value={m.value}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={ano}
-          onValueChange={(v) => {
-            setAno(v);
-            setTodoPeriodo(false);
-          }}
-          disabled={todoPeriodo}
-        >
-          <SelectTrigger className={`w-24 h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {anos.map((a) => (
-              <SelectItem key={a} value={a}>
-                {a}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+    <Card className="bg-card/50 backdrop-blur border-border/50 overflow-hidden">
+      {/* Header - sempre visível */}
+      <button
+        onClick={() => setPeriodoOpen((o) => !o)}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-primary" />
+          <span className="font-semibold text-sm">Período de análise</span>
+          <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-semibold px-2 py-0.5 rounded-full">
+            {periodoResumo}
+          </span>
+        </div>
+        <ChevronDown
+          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${periodoOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+      {/* Corpo colapsável - controles de período */}
+      {periodoOpen && (
+        <div className="px-4 pb-4 border-t border-border/50">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground block">Período</span>
+              <Button
+                variant={todoPeriodo ? "default" : "outline"}
+                size="sm"
+                onClick={handleTodoPeriodoToggle}
+                className="whitespace-nowrap h-9 w-full"
+              >
+                Todo Período
+              </Button>
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground block">Mês</span>
+              <Select
+                value={mes}
+                onValueChange={(v) => {
+                  setMes(v);
+                  setTodoPeriodo(false);
+                }}
+                disabled={todoPeriodo}
+              >
+                <SelectTrigger className={`h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {mesesOptions.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground block">Ano</span>
+              <Select
+                value={ano}
+                onValueChange={(v) => {
+                  setAno(v);
+                  setTodoPeriodo(false);
+                }}
+                disabled={todoPeriodo}
+              >
+                <SelectTrigger className={`h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {anos.map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {a}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 
   return (
