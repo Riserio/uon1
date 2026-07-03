@@ -7,6 +7,7 @@ import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useSignedContracts } from "@/hooks/useSignedContracts";
+import { useModulosDesabilitados } from "@/hooks/useModulosDesabilitados";
 import { useOuvidoriaPendentes } from "@/hooks/useOuvidoriaPendentes";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
@@ -107,6 +108,7 @@ function useMenuItems() {
 function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
   const { signOut, userRole } = useAuth();
   const { canView } = useMenuPermissionsForRole(userRole);
+  const { isDesabilitado } = useModulosDesabilitados();
   const items = useMenuItems();
   const groups = [
     { key: "nav", label: "Navegação" },
@@ -128,7 +130,7 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
       {/* Menu */}
       <div className="flex-1 overflow-y-auto py-2 scrollbar-hide">
         {groups.map((group, gi) => {
-          const groupItems = items.filter((i) => i.group === group.key && canView(i.id));
+          const groupItems = items.filter((i) => i.group === group.key && canView(i.id) && (i.id === "configuracoes" || !isDesabilitado(i.id)));
           if (groupItems.length === 0) return null;
           return (
             <div key={group.key}>

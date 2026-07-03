@@ -10,11 +10,12 @@ import { toast } from "sonner";
 import { 
   Palette, Image as ImageIcon, Settings, Shield, Bell, 
   Monitor, Moon, Sun, Upload, RotateCcw, Save, Eye,
-  Globe, Lock, Mail, Smartphone, Users, Share2
+  Globe, Lock, Mail, Smartphone, Users, Share2, Blocks
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import Usuarios from "@/pages/Usuarios";
 import { BrandingCompartilhamento } from "@/components/configuracoes/BrandingCompartilhamento";
+import { GestaoModulosConfig } from "@/components/configuracoes/GestaoModulosConfig";
 
 interface ConfigColors {
   primary: string;
@@ -143,6 +144,7 @@ export default function Configuracoes() {
     { id: "imagens", label: "Imagens", icon: ImageIcon, description: "Logo e imagem de login" },
     { id: "compartilhamento", label: "Compartilhamento", icon: Share2, description: "Preview de links (logo da administradora)" },
     ...(canManageUsers ? [{ id: "usuarios", label: "Usuários", icon: Users, description: "Gerenciar usuários e permissões" }] : []),
+    ...(canManageUsers ? [{ id: "modulos", label: "Módulos", icon: Blocks, description: "Habilitar/desabilitar módulos do sistema" }] : []),
     { id: "seguranca", label: "Segurança", icon: Shield, description: "Configurações de acesso" },
     { id: "notificacoes", label: "Notificações", icon: Bell, description: "Alertas e avisos" },
   ];
@@ -308,6 +310,8 @@ export default function Configuracoes() {
 
             {/* COMPARTILHAMENTO */}
             {activeSection === "compartilhamento" && <BrandingCompartilhamento />}
+
+            {activeSection === "modulos" && canManageUsers && <GestaoModulosConfig />}
 
             {/* SEGURANÇA */}
             {activeSection === "seguranca" && (
