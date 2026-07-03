@@ -810,9 +810,9 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   }
 
   const filterBar = (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2">
-      <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-        <BarChart3 className="h-4 w-4" />
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-4 py-3 min-h-[56px]">
+      <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+        <BarChart3 className="h-4 w-4 text-primary" />
         Período de análise
       </span>
       <div className="flex items-center gap-2">
