@@ -228,26 +228,39 @@ function generateSemanticFilename() {
 // ============================================
 // WEBHOOK
 // ============================================
-async function sendWebhook(payload) {
+async function sendWebhook(payload, opts = {}) {
+  const { critical = false, maxRetries = 3 } = opts;
   if (!CONFIG.WEBHOOK_URL) {
     log('WEBHOOK_URL não configurado', LOG_LEVELS.WARN);
-    return;
+    if (critical) throw new Error('WEBHOOK_URL não configurado para envio crítico');
+    return false;
   }
 
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (CONFIG.WEBHOOK_SECRET) {
-      headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+  const headers = { 'Content-Type': 'application/json' };
+  if (CONFIG.WEBHOOK_SECRET) {
+    headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+  }
+
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await axios.post(CONFIG.WEBHOOK_URL, payload, { headers, timeout: 120000 });
+      return true;
+    } catch (error) {
+      lastError = error;
+      const status = error.response?.status;
+      log(`Erro ao enviar webhook (tentativa ${attempt}/${maxRetries})${status ? ` HTTP ${status}` : ''}: ${error.message}`, LOG_LEVELS.ERROR);
+      if (attempt < maxRetries) await new Promise(r => setTimeout(r, attempt * 5000));
     }
-
-    await axios.post(CONFIG.WEBHOOK_URL, payload, { headers, timeout: 120000 });
-    log('Webhook enviado com sucesso', LOG_LEVELS.SUCCESS);
-  } catch (error) {
-    log(`Erro ao enviar webhook: ${error.message}`, LOG_LEVELS.ERROR);
   }
+  // Envio crítico (dados de importação/status final) NUNCA falha em silêncio
+  if (critical) {
+    throw new Error(`Falha definitiva ao enviar webhook após ${maxRetries} tentativas: ${lastError?.message}`);
+  }
+  return false;
 }
 
-async function updateProgress(status, etapa, extras = {}) {
+async function updateProgress(status, etapa, extras = {}, opts = {}) {
   await sendWebhook({
     corretora_id: CONFIG.CORRETORA_ID,
     execucao_id: CONFIG.EXECUCAO_ID,
@@ -255,7 +268,7 @@ async function updateProgress(status, etapa, extras = {}) {
     status,
     etapa,
     ...extras,
-  });
+  }, opts);
 }
 
 // ============================================
@@ -2303,7 +2316,6 @@ async function main() {
       if (cookieString && CONFIG.CORRETORA_ID) {
         const supabaseUrl = process.env.WEBHOOK_URL ? new URL(process.env.WEBHOOK_URL).origin : null;
         if (supabaseUrl) {
-          const serviceRoleKey = process.env.WEBHOOK_SECRET; // reuse existing secret for auth
           // Save cookies via webhook with special action
           await sendWebhook({
             action: 'save_cookies',
@@ -2393,7 +2405,7 @@ async function main() {
         dados: chunk,
         chunk_atual: chunkNum,
         total_chunks: totalChunks,
-      });
+      }, { critical: true });
 
       log(`Chunk ${chunkNum}/${totalChunks} enviado com sucesso`, LOG_LEVELS.SUCCESS);
     }
@@ -2403,7 +2415,7 @@ async function main() {
     await updateProgress('sucesso', 'CONCLUIDO', {
       registros_total: dadosAcumulados.length,
       nome_arquivo: semanticName,
-    });
+    }, { critical: true });
 
     log('='.repeat(60), LOG_LEVELS.SUCCESS);
     log('ROBÔ SGA HINOVA - CONCLUÍDO COM SUCESSO', LOG_LEVELS.SUCCESS);
