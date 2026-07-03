@@ -1,5 +1,4 @@
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import PIDDashboard from "@/components/portal/PIDDashboard";
 import PIDOperacional from "@/components/portal/PIDOperacional";
 import PIDEstudoBase from "@/components/portal/PIDEstudoBase";
@@ -60,18 +59,16 @@ export default function PID() {
                 })}
               </div>
             </div>
-            {/* Gerenciar Usuários alinhado à direita */}
+            {/* Gerenciar Usuários alinhado à direita, mesmo padrão visual das abas */}
             {selectedAssociacao ? (
               <div className="lg:justify-self-end">
-                <Button
-                  variant="outline"
-                  size="sm"
+                <button
                   onClick={() => setUsuariosDialogOpen(true)}
-                  className="gap-1.5 rounded-xl shrink-0 h-9 text-xs"
+                  className="flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-medium whitespace-nowrap transition-all duration-200 text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 >
-                  <Users className="h-3.5 w-3.5" />
+                  <Users className="h-4 w-4" />
                   <span className="hidden sm:inline">Gerenciar Usuários</span>
-                </Button>
+                </button>
               </div>
             ) : (
               <div className="hidden lg:block" />
