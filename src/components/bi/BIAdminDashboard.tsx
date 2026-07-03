@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Building2, Users, Shield, ShieldOff, Loader2,
@@ -60,42 +60,56 @@ interface GroupedUser {
   created_at: string;
 }
 
-function StatusCell({ status, ultima, erro }: { status: string | null; ultima: string | null; erro: string | null; ativo: boolean }) {
-  const icon = status === "sucesso" ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> :
-    status === "erro" ? <XCircle className="h-3.5 w-3.5 text-destructive" /> :
-    status === "executando" ? <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" /> :
-    <Clock className="h-3.5 w-3.5 text-muted-foreground" />;
+const STALE_EXEC_MS = 15 * 60 * 1000; // execucao "executando" ha mais que isso = travada
 
-  const content = (
+function StatusCell({ status, ultima, erro, ativo }: { status: string | null; ultima: string | null; erro: string | null; ativo: boolean }) {
+  // Modulo nao ativado para esta associacao: nao ha o que sincronizar
+  if (!ativo) {
+    return <span className="text-xs text-muted-foreground/50" title="Modulo nao ativado">—</span>;
+  }
+
+  const ultimaMs = ultima ? new Date(ultima).getTime() : 0;
+  const stale = ultimaMs > 0 && Date.now() - ultimaMs > STALE_EXEC_MS;
+  // "executando" ha muito tempo = config presa: mostra "Parado" em vez de girar para sempre
+  const efetivo = status === "executando" && stale ? "parado" : status || "nunca";
+
+  const cfg: Record<string, { icon: JSX.Element; label: string; cls: string }> = {
+    sucesso: { icon: <CheckCircle className="h-3 w-3" />, label: "OK", cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+    erro: { icon: <XCircle className="h-3 w-3" />, label: "Erro", cls: "bg-red-500/10 text-red-600 dark:text-red-400" },
+    executando: { icon: <Loader2 className="h-3 w-3 animate-spin" />, label: "Sincronizando", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+    parado: { icon: <AlertTriangle className="h-3 w-3" />, label: "Parado", cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+    nunca: { icon: <Clock className="h-3 w-3" />, label: "Nunca", cls: "bg-muted text-muted-foreground" },
+  };
+  const s = cfg[efetivo] || cfg.nunca;
+  const rel = ultima ? formatDistanceToNow(new Date(ultima), { locale: ptBR, addSuffix: true }) : null;
+
+  const pill = (
     <div className="flex flex-col items-center gap-0.5">
-      <div className="flex items-center gap-1">
-        {icon}
-      </div>
-      {ultima && (
-        <span className="text-[10px] text-muted-foreground">
-          {format(new Date(ultima), "dd/MM HH:mm", { locale: ptBR })}
-        </span>
-      )}
+      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${s.cls}`}>
+        {s.icon}{s.label}
+      </span>
+      {rel && <span className="text-[10px] text-muted-foreground">{rel}</span>}
     </div>
   );
 
-  if (status === "erro" && erro) {
+  const tooltipMsg =
+    efetivo === "erro" ? erro :
+    efetivo === "parado" ? "A execucao nao finalizou. Sincronize novamente." : null;
+
+  if (tooltipMsg || ultima) {
     return (
       <TooltipProvider delayDuration={200}>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="cursor-help">{content}</div>
-          </TooltipTrigger>
+          <TooltipTrigger asChild><div className="cursor-help">{pill}</div></TooltipTrigger>
           <TooltipContent side="top" className="max-w-xs text-xs">
-            <p className="font-semibold text-destructive mb-1">Erro:</p>
-            <p>{erro}</p>
+            {tooltipMsg && <p className={efetivo === "erro" ? "text-destructive" : "text-amber-600"}>{tooltipMsg}</p>}
+            {ultima && <p className="text-muted-foreground mt-0.5">{format(new Date(ultima), "dd/MM/yyyy 'as' HH:mm", { locale: ptBR })}</p>}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
     );
   }
-
-  return content;
+  return pill;
 }
 
 export default function BIAdminDashboard() {
@@ -129,12 +143,34 @@ export default function BIAdminDashboard() {
           if (now - new Date(row.created_at).getTime() > STALE_TIMEOUT_MS) {
             await supabase
               .from(exec as any)
-              .update({ status: "erro", erro: "Timeout: execução não respondeu em 60 minutos", finalizado_at: new Date().toISOString() } as any)
+              .update({ status: "erro", erro: "Timeout: execução não respondeu no tempo esperado", finalizado_at: new Date().toISOString() } as any)
               .eq("id", row.id);
             await supabase
               .from(config as any)
               .update({ ultimo_status: "erro", ultimo_erro: "Timeout: execução não respondeu" } as any)
               .eq("corretora_id", row.corretora_id);
+          }
+        }
+      })
+    );
+
+    // Cura configs presas em "executando" cuja ultima execucao e antiga
+    // (robo terminou mas nao sincronizou o status de volta)
+    await Promise.all(
+      tables.map(async ({ config }) => {
+        const { data: stuck } = await supabase
+          .from(config as any)
+          .select("corretora_id, ultima_execucao")
+          .eq("ultimo_status", "executando")
+          .in("corretora_id", corretoraIds) as any;
+        for (const row of stuck || []) {
+          const t = row.ultima_execucao ? new Date(row.ultima_execucao).getTime() : 0;
+          if (!t || now - t > STALE_TIMEOUT_MS) {
+            await supabase
+              .from(config as any)
+              .update({ ultimo_status: "erro", ultimo_erro: "Execucao nao finalizou (status preso)" } as any)
+              .eq("corretora_id", row.corretora_id)
+              .eq("ultimo_status", "executando");
           }
         }
       })

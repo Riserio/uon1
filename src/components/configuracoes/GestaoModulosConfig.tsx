@@ -31,7 +31,13 @@ export function GestaoModulosConfig() {
       await definirModulo(moduloId, !ativo); // ativo=true → desabilitar (!ativo=false → não desabilitado)
       toast.success(ativo ? `"${label}" desabilitado para todos` : `"${label}" reativado`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível salvar. Verifique suas permissões.");
+      const msg = e instanceof Error ? e.message : "";
+      // Mensagem util: tabela ausente indica migration nao aplicada
+      if (/relation|does not exist|schema cache/i.test(msg)) {
+        toast.error("A tabela de módulos ainda não foi migrada no banco. Aplique a migration modulos_desabilitados no Supabase.");
+      } else {
+        toast.error(msg || "Não foi possível salvar. Verifique suas permissões.");
+      }
     } finally {
       setSalvando(null);
     }
