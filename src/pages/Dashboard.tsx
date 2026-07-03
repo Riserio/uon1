@@ -187,6 +187,23 @@ interface ReuniaoResumo {
   status: string;
   duracao_minutos: number;
 }
+/** Repete consultas de contagem que falham (ex.: 503 quando o pool de conexões
+ *  satura na rajada do carregamento inicial). Até 3 tentativas com espera crescente. */
+const countWithRetry = async (
+  fn: () => PromiseLike<{ count: number | null; error: any }>,
+  tries = 3,
+): Promise<number> => {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const { count, error } = await fn();
+      if (!error) return count || 0;
+    } catch {
+      /* tenta de novo */
+    }
+    await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+  }
+  return 0;
+};
 // ── Main Dashboard ──────────────────────────────────────────
 export default function Dashboard() {
   const { user, userRole } = useAuth();
@@ -218,41 +235,32 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [
-          statusRes,
-          profilesRes,
-          corretorasRes,
-          contratosRes,
-          reunioesRes,
-          corretorasNamesRes,
-          fluxosRes,
-          assocFluxosRes,
-        ] = await Promise.all([
-          supabase.from("status_config").select("nome, tipo_etapa").eq("ativo", true),
-          supabase.from("profiles").select("id, nome"),
-          supabase.from("corretoras").select("id", { count: "exact", head: true }),
-          supabase
-            .from("contratos")
-            .select("id, numero, titulo, status, data_fim, contratante_nome")
-            .eq("arquivado", false)
-            .order("created_at", { ascending: false })
-            .limit(50),
-          supabase
-            .from("meeting_rooms")
-            .select("id, nome, descricao, agendado_para, status, duracao_minutos")
-            .not("agendado_para", "is", null)
-            .neq("status", "finalizada")
-            .gte("agendado_para", startOfDay(new Date()).toISOString())
-            .order("agendado_para", { ascending: true })
-            .limit(10),
-          supabase.from("corretoras").select("id, nome"),
-          supabase.from("fluxos").select("id, nome").eq("ativo", true).order("ordem", { ascending: true }),
-          supabase
-            .from("gestao_associacao_fluxos")
-            .select("id, nome, corretora_id")
-            .eq("ativo", true)
-            .order("ordem", { ascending: true }),
-        ]);
+        const [statusRes, profilesRes, contratosRes, reunioesRes, corretorasNamesRes, fluxosRes, assocFluxosRes] =
+          await Promise.all([
+            supabase.from("status_config").select("nome, tipo_etapa").eq("ativo", true),
+            supabase.from("profiles").select("id, nome"),
+            supabase
+              .from("contratos")
+              .select("id, numero, titulo, status, data_fim, contratante_nome")
+              .eq("arquivado", false)
+              .order("created_at", { ascending: false })
+              .limit(50),
+            supabase
+              .from("meeting_rooms")
+              .select("id, nome, descricao, agendado_para, status, duracao_minutos")
+              .not("agendado_para", "is", null)
+              .neq("status", "finalizada")
+              .gte("agendado_para", startOfDay(new Date()).toISOString())
+              .order("agendado_para", { ascending: true })
+              .limit(10),
+            supabase.from("corretoras").select("id, nome"),
+            supabase.from("fluxos").select("id, nome").eq("ativo", true).order("ordem", { ascending: true }),
+            supabase
+              .from("gestao_associacao_fluxos")
+              .select("id, nome, corretora_id")
+              .eq("ativo", true)
+              .order("ordem", { ascending: true }),
+          ]);
         if (statusRes.data) {
           setStatusFinalizados(new Set(statusRes.data.filter((s) => s.tipo_etapa === "finalizado").map((s) => s.nome)));
           setStatusBacklog(new Set(statusRes.data.filter((s) => s.tipo_etapa === "backlog").map((s) => s.nome)));
@@ -270,7 +278,6 @@ export default function Dashboard() {
               {} as Record<string, string>,
             ),
           );
-        setTotalCorretoras(corretorasRes.count || 0);
         setContratos((contratosRes.data || []) as ContratoResumo[]);
         setReunioes((reunioesRes.data || []) as ReuniaoResumo[]);
         if (corretorasNamesRes.data)
@@ -285,16 +292,25 @@ export default function Dashboard() {
           );
         setFluxos((fluxosRes.data || []) as { id: string; nome: string }[]);
         setAssocFluxos((assocFluxosRes.data || []) as { id: string; nome: string; corretora_id: string }[]);
-        // Count sync errors (just the total)
-        const [cobErr, sgaErr, mgfErr] = await Promise.all([
-          supabase
-            .from("cobranca_automacao_execucoes")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "erro"),
-          supabase.from("sga_automacao_execucoes").select("id", { count: "exact", head: true }).eq("status", "erro"),
-          supabase.from("mgf_automacao_execucoes").select("id", { count: "exact", head: true }).eq("status", "erro"),
+        // Contagens com retry: rodam APÓS o lote principal para reduzir a rajada
+        // de conexões simultâneas e repetem em caso de 503 (pool saturado)
+        const [corretorasCount, cobErr, sgaErr, mgfErr] = await Promise.all([
+          countWithRetry(() => supabase.from("corretoras").select("id", { count: "exact", head: true })),
+          countWithRetry(() =>
+            supabase
+              .from("cobranca_automacao_execucoes")
+              .select("id", { count: "exact", head: true })
+              .eq("status", "erro"),
+          ),
+          countWithRetry(() =>
+            supabase.from("sga_automacao_execucoes").select("id", { count: "exact", head: true }).eq("status", "erro"),
+          ),
+          countWithRetry(() =>
+            supabase.from("mgf_automacao_execucoes").select("id", { count: "exact", head: true }).eq("status", "erro"),
+          ),
         ]);
-        setSyncErrorCount((cobErr.count || 0) + (sgaErr.count || 0) + (mgfErr.count || 0));
+        setTotalCorretoras(corretorasCount);
+        setSyncErrorCount(cobErr + sgaErr + mgfErr);
       } catch (e) {
         console.error("[Dashboard] Error loading data:", e);
       }
