@@ -850,16 +850,18 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             </div>
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground block">Mês</span>
+              {/* Vazio quando "Todo Período" está ativo; selecionar um mês desativa o Todo Período
+                  e mantém o ano atual indicado automaticamente */}
               <Select
-                value={mes}
+                value={todoPeriodo ? "" : mes}
                 onValueChange={(v) => {
                   setMes(v);
+                  if (!ano) setAno(ultimoMesComDados?.ano || new Date().getFullYear().toString());
                   setTodoPeriodo(false);
                 }}
-                disabled={todoPeriodo}
               >
-                <SelectTrigger className={`h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
-                  <SelectValue />
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Selecione o mês" />
                 </SelectTrigger>
                 <SelectContent>
                   {mesesOptions.map((m) => (
@@ -873,15 +875,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground block">Ano</span>
               <Select
-                value={ano}
+                value={todoPeriodo ? "" : ano}
                 onValueChange={(v) => {
                   setAno(v);
+                  if (!mes) setMes(ultimoMesComDados?.mes || (new Date().getMonth() + 1).toString());
                   setTodoPeriodo(false);
                 }}
-                disabled={todoPeriodo}
               >
-                <SelectTrigger className={`h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
-                  <SelectValue />
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Selecione o ano" />
                 </SelectTrigger>
                 <SelectContent>
                   {anos.map((a) => (
