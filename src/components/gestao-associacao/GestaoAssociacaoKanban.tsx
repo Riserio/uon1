@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Search, Calendar, MapPin, Car, DollarSign, FileText, User, ChevronDown } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { KanbanColumn } from '@/components/KanbanColumn';
@@ -151,7 +152,8 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
           ultima_descricao_bo, envolvimento, usuario_alteracao,
           sga_importacoes!inner(corretora_id, corretoras(id, nome))
         `)
-        .in('situacao_evento', activeStatusNames)
+        .not('situacao_evento', 'is', null)
+        .not('situacao_evento', 'ilike', '%FINALIZADO%')
         .eq('sga_importacoes.ativo', true)
         .order('data_cadastro_evento', { ascending: false })
         .range(offset, offset + BATCH_SIZE - 1);
