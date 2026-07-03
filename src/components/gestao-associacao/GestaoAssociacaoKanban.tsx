@@ -250,9 +250,29 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
   };
 
   const statusConfigs = useMemo(() => {
-    if (!selectedFluxoId) return allStatusConfigs;
-    return allStatusConfigs.filter(s => s.fluxo_id === selectedFluxoId);
-  }, [allStatusConfigs, selectedFluxoId]);
+    // Auto-discover statuses that exist in events but aren't configured yet,
+    // so imported records always appear in the Kanban.
+    const configuredNames = new Set(allStatusConfigs.map(s => s.nome));
+    const discovered: StatusConfig[] = [];
+    const seen = new Set<string>();
+    eventos.forEach(e => {
+      const s = e.situacao_evento;
+      if (!s || configuredNames.has(s) || seen.has(s)) return;
+      seen.add(s);
+      discovered.push({
+        id: `auto-${s}`,
+        nome: s,
+        cor: '#94a3b8',
+        ordem: 9999,
+        ativo: true,
+        corretora_id: effectiveCorretoraId,
+        fluxo_id: null,
+      });
+    });
+    const merged = [...allStatusConfigs, ...discovered];
+    if (!selectedFluxoId) return merged;
+    return merged.filter(s => s.fluxo_id === selectedFluxoId);
+  }, [allStatusConfigs, selectedFluxoId, eventos, effectiveCorretoraId]);
 
   const fluxoCardCounts = useMemo(() => {
     const counts: Record<string, number> = {};
