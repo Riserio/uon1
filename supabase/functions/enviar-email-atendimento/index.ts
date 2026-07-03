@@ -36,6 +36,21 @@ const handler = async (req: Request): Promise<Response> => {
     const { to, subject, message, atendimentoAssunto, atendimentoId, status } = await req.json();
     const recipients = Array.isArray(to) ? to : [to];
 
+    const escapeHtml = (s: string) =>
+      String(s ?? "")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const messageHtml = escapeHtml(message);
+    const assuntoHtml = escapeHtml(atendimentoAssunto);
+
+    // Escapa HTML do conteudo do usuario (evita quebra de layout / injecao no corpo)
+    const escapeHtml = (s: string) =>
+      String(s ?? "")
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const messageHtml = escapeHtml(message);
+    const assuntoHtml = escapeHtml(atendimentoAssunto);
+
     const statusLabels: Record<string, string> = {
       novo: "Novo",
       andamento: "Em andamento",
@@ -57,9 +72,9 @@ const handler = async (req: Request): Promise<Response> => {
           </div>
           
           <div style="background-color: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px;">
-            ${atendimentoAssunto ? `<h3 style="color: #374151; margin-top: 0;">Assunto: ${atendimentoAssunto}</h3>` : ""}
+            ${atendimentoAssunto ? `<h3 style="color: #374151; margin-top: 0;">Assunto: ${assuntoHtml}</h3>` : ""}
             <div style="border-left: 4px solid #2563eb; padding-left: 16px; margin: 20px 0;">
-              <p style="margin: 0; white-space: pre-wrap;">${message}</p>
+              <p style="margin: 0; white-space: pre-wrap;">${messageHtml}</p>
             </div>
           </div>
           
@@ -74,7 +89,7 @@ const handler = async (req: Request): Promise<Response> => {
     let smtpConfig = null;
 
     if (userId) {
-      const { data } = await supabase.from("email_config").select("*").eq("user_id", userId).single();
+      const { data } = await supabase.from("email_config").select("*").eq("user_id", userId).maybeSingle();
 
       smtpConfig = data;
     }
@@ -134,7 +149,7 @@ const handler = async (req: Request): Promise<Response> => {
               .from("resend_config")
               .select("*")
               .eq("user_id", userId)
-              .single();
+              .maybeSingle();
 
             if (resendConfig) {
               fromEmail = `${resendConfig.from_name} <${resendConfig.from_email}>`;
