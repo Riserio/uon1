@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -485,6 +486,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [dadosAnterior, setDadosAnterior] = useState<any>(null);
   const [initialized, setInitialized] = useState(false);
   const [ultimoMesComDados, setUltimoMesComDados] = useState<{ ano: string; mes: string } | null>(null);
+  const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
+
+  // Slot acima das abas (definido em PID.tsx) onde a barra de período é projetada
+  useEffect(() => {
+    setFilterSlot(document.getElementById("pid-filters-slot"));
+  }, []);
 
   const currentYear = new Date().getFullYear();
   const anos = Array.from({ length: 6 }, (_, i) => (currentYear + 1 - i).toString());
@@ -802,63 +809,67 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     );
   }
 
+  const filterBar = (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2">
+      <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+        <BarChart3 className="h-4 w-4" />
+        Período de análise
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant={todoPeriodo ? "default" : "outline"}
+          size="sm"
+          onClick={handleTodoPeriodoToggle}
+          className="whitespace-nowrap"
+        >
+          Todo Período
+        </Button>
+        <Select
+          value={mes}
+          onValueChange={(v) => {
+            setMes(v);
+            setTodoPeriodo(false);
+          }}
+          disabled={todoPeriodo}
+        >
+          <SelectTrigger className={`w-36 h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {mesesOptions.map((m) => (
+              <SelectItem key={m.value} value={m.value}>
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={ano}
+          onValueChange={(v) => {
+            setAno(v);
+            setTodoPeriodo(false);
+          }}
+          disabled={todoPeriodo}
+        >
+          <SelectTrigger className={`w-24 h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {anos.map((a) => (
+              <SelectItem key={a} value={a}>
+                {a}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      {/* ============ Barra de filtros de período (título fica no cabeçalho da página) ============ */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2">
-        <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-          <BarChart3 className="h-4 w-4" />
-          Período de análise
-        </span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={todoPeriodo ? "default" : "outline"}
-            size="sm"
-            onClick={handleTodoPeriodoToggle}
-            className="whitespace-nowrap"
-          >
-            Todo Período
-          </Button>
-          <Select
-            value={mes}
-            onValueChange={(v) => {
-              setMes(v);
-              setTodoPeriodo(false);
-            }}
-            disabled={todoPeriodo}
-          >
-            <SelectTrigger className={`w-36 h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {mesesOptions.map((m) => (
-                <SelectItem key={m.value} value={m.value}>
-                  {m.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={ano}
-            onValueChange={(v) => {
-              setAno(v);
-              setTodoPeriodo(false);
-            }}
-            disabled={todoPeriodo}
-          >
-            <SelectTrigger className={`w-24 h-9 ${todoPeriodo ? "opacity-50" : ""}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {anos.map((a) => (
-                <SelectItem key={a} value={a}>
-                  {a}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      {/* Barra de período: projetada acima das abas quando o slot existe; senão, renderiza aqui */}
+      {filterSlot ? createPortal(filterBar, filterSlot) : filterBar}
 
       {!dadosAtual ? (
         <Card>
