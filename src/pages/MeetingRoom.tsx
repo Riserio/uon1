@@ -432,7 +432,7 @@ function PreJoinScreen({ room, onJoin, onCancel }: {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/10 p-4">
       <div className="w-full max-w-3xl grid gap-6 md:grid-cols-[1.4fr_1fr] items-center">
         {/* Preview da câmera */}
         <div className="relative aspect-video rounded-2xl overflow-hidden bg-muted flex items-center justify-center">
@@ -462,6 +462,7 @@ function PreJoinScreen({ room, onJoin, onCancel }: {
         </div>
         {/* Info + entrar */}
         <div className="text-center md:text-left space-y-4">
+          <img src="/images/logo-full.png" alt="UON1" className="h-8 w-auto mx-auto md:mx-0" />
           <div>
             <p className="text-sm text-muted-foreground">Pronto para entrar?</p>
             <h2 className="text-2xl font-semibold text-foreground">{room.nome}</h2>
@@ -658,7 +659,7 @@ export function RoomHeader({ room, isHost, roomId, onLeave, subtitleOverride }: 
   const endTime = startTime && room.duracao_minutos ? new Date(startTime.getTime() + room.duracao_minutos * 60000) : null;
 
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 bg-card border-b border-border/50 shadow-sm">
+    <div className="flex items-center justify-between px-4 py-2.5 bg-card/80 backdrop-blur-md border-b border-border/40 shadow-sm">
       <div className="flex items-center gap-3">
         <img src="/images/logo-full.png" alt="UON1" className="h-7 w-auto" />
         <div className="h-5 w-px bg-border/50" />
@@ -939,7 +940,7 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
         onClick={handleTileClick}
         className={`relative rounded-2xl overflow-hidden flex items-center justify-center group/tile transition-shadow duration-300 ${
           isEnlarged ? "w-full h-full" : "h-full aspect-video shrink-0"
-        } ${hasTrack ? "bg-muted" : "bg-muted/50"} ${hasHandRaised ? "ring-2 ring-yellow-500" : ""} ${
+        } ${hasTrack ? "bg-zinc-900" : "bg-zinc-900/80"} ${hasHandRaised ? "ring-2 ring-yellow-500" : ""} ${
           isPinned ? "ring-2 ring-primary" : ""
         } ${!isEnlarged && canPin ? "cursor-pointer hover:ring-2 hover:ring-primary/50" : ""}`}
       >
@@ -969,9 +970,9 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
           </div>
         )}
         {/* Name badge - bottom left */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-3 pt-8">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-8">
           <div className="flex items-center gap-2">
-            <span className="text-xs sm:text-sm text-foreground font-medium truncate">
+            <span className="text-xs sm:text-sm text-white font-medium truncate drop-shadow">
               {name}{isScreen ? ' (apresentando)' : ''}
             </span>
           </div>
@@ -1074,7 +1075,7 @@ function VideoGrid({ sendData, raisedHands, setRaisedHands }: {
   ];
 
   return (
-    <div className={`h-full w-full overflow-hidden flex flex-col bg-muted/30 p-2 sm:p-3 gap-2 sm:gap-3`}>
+    <div className={`h-full w-full overflow-hidden flex flex-col bg-zinc-950 p-2 sm:p-3 gap-2 sm:gap-3`}>
       {spotlightTrack ? (
         !cinemaMode ? (
           /* Sidebar layout: spotlight on the left, participants stacked on the right (Zoom side-by-side) */
@@ -1302,7 +1303,7 @@ export function ControlBar({ isHost = false, onLeave, onEndForAll, chatOpen, onT
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center justify-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4 bg-card border-t border-border/50 relative">
+      <div className="relative z-30 mx-auto mb-3 mt-2 w-fit max-w-[calc(100vw-1rem)] flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full bg-card/90 backdrop-blur-md border border-border/50 shadow-2xl">
         {/* Reactions popup */}
         {showReactions && (
           <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-card border border-border rounded-2xl shadow-xl p-3 flex gap-2 animate-in fade-in slide-in-from-bottom-4 duration-200 z-30">
