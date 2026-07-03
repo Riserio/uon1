@@ -6,6 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -15,7 +26,6 @@ import { useNavigate } from "react-router-dom";
 import CriarReuniaoDialog from "@/components/CriarReuniaoDialog";
 import EditarReuniaoDialog from "@/components/EditarReuniaoDialog";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import { PageHeader } from "@/components/ui/page-header";
 
 interface MeetingRoom {
   id: string;
@@ -46,6 +56,7 @@ export default function VideoRooms() {
   const [editRoom, setEditRoom] = useState<MeetingRoom | null>(null);
   const [activeTab, setActiveTab] = useState("salas");
   const [rsvpMap, setRsvpMap] = useState<Record<string, { sim: number; nao: number; talvez: number; pendente: number }>>({});
+  const [confirmAction, setConfirmAction] = useState<{ type: "end" | "reopen" | "delete"; roomId: string } | null>(null);
 
   // Auto-finalize expired rooms then fetch
   const autoFinalizeExpired = async () => {
@@ -140,7 +151,6 @@ export default function VideoRooms() {
   };
 
   const handleEndRoom = async (roomId: string) => {
-    if (!confirm("Encerrar esta sala?")) return;
     try {
       await callLivekitFn("endRoom", { roomId });
       toast.success("Sala encerrada");
@@ -151,7 +161,6 @@ export default function VideoRooms() {
   };
 
   const handleReopenRoom = async (roomId: string) => {
-    if (!confirm("Reabrir esta sala?")) return;
     try {
       const { error } = await supabase
         .from("meeting_rooms")
@@ -166,7 +175,6 @@ export default function VideoRooms() {
   };
 
   const handleDeleteRoom = async (roomId: string) => {
-    if (!confirm("Apagar permanentemente esta reunião do histórico?")) return;
     try {
       await callLivekitFn("deleteRoom", { roomId });
       toast.success("Reunião apagada");
@@ -229,16 +237,25 @@ export default function VideoRooms() {
   return (
     <div className="min-h-screen">
       <div className="container mx-auto p-4 sm:p-6 space-y-6">
-        <PageHeader
-          icon={Video}
-          title="Uon1 Talk"
-          subtitle="Videoconferências"
-          actions={
-            <Button onClick={() => setCreateOpen(true)} size="lg" className="gap-2 rounded-xl shadow-sm">
-              <Plus className="h-4 w-4" /> Nova Sala
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary/90 to-violet-700 p-6 sm:p-8 text-primary-foreground shadow-lg">
+          <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+          <div className="absolute -bottom-20 -left-10 h-48 w-48 rounded-full bg-black/10 blur-2xl" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0">
+                <Video className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Uon1 Talk</h1>
+                <p className="text-sm text-primary-foreground/80">Videoconferências seguras, direto do navegador</p>
+              </div>
+            </div>
+            <Button onClick={() => setCreateOpen(true)} size="lg" variant="secondary" className="gap-2 rounded-2xl shadow-md font-semibold w-full sm:w-auto">
+              <Plus className="h-4 w-4" /> Nova reunião
             </Button>
-          }
-        />
+          </div>
+        </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="rounded-xl bg-muted/50 p-1">
@@ -303,9 +320,19 @@ export default function VideoRooms() {
                 Salas Ativas
               </h2>
               {loading ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary/20 border-t-primary mx-auto" />
-                  <p className="text-sm text-muted-foreground mt-3">Carregando...</p>
+                <div className="grid gap-3">
+                  {[0, 1].map((i) => (
+                    <Card key={i} className="rounded-2xl border-border/50">
+                      <CardContent className="p-5 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-5 w-40" />
+                          <Skeleton className="h-5 w-16 rounded-full" />
+                        </div>
+                        <Skeleton className="h-4 w-64" />
+                        <Skeleton className="h-4 w-48" />
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               ) : ativas.length === 0 ? (
                 <Card className="rounded-2xl border-dashed border-2 border-border/60">
@@ -323,20 +350,31 @@ export default function VideoRooms() {
               ) : (
                 <div className="grid gap-3">
                   {ativas.map((room) => (
-                    <Card key={room.id} className="rounded-2xl hover:shadow-md transition-all border-border/50 group">
+                    <Card key={room.id} className="rounded-2xl hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/30 transition-all duration-200 border-border/50 group">
                       <CardContent className="p-4 sm:p-5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2 flex-wrap">
                               <h3 className="font-semibold text-base truncate">{room.nome}</h3>
-                              <Badge className="bg-primary/15 text-primary border-0 text-[11px] font-medium">Ativa</Badge>
+                              <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-0 text-[11px] font-medium gap-1.5 pl-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Ao vivo
+                              </Badge>
                               <Badge variant="outline" className="text-[11px]">{room.tipo}</Badge>
                               {getRemainingTime(room)}
                             </div>
                             {room.descricao && <p className="text-sm text-muted-foreground line-clamp-1 mb-2">{room.descricao}</p>}
                             <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                               {formatDateRange(room)}
-                              <span className="flex items-center gap-1">
+                              <span className="flex items-center gap-1.5">
+                                {(room.meeting_participants?.filter(p => p.status === "approved") || []).length > 0 && (
+                                  <span className="flex -space-x-1.5">
+                                    {(room.meeting_participants?.filter(p => p.status === "approved") || []).slice(0, 4).map(pp => (
+                                      <span key={pp.id} title={pp.display_name} className="h-5 w-5 rounded-full bg-primary/15 ring-2 ring-card text-primary text-[9px] font-bold flex items-center justify-center uppercase">
+                                        {(pp.display_name || "?").split(" ").map(w => w[0]).join("").slice(0, 2)}
+                                      </span>
+                                    ))}
+                                  </span>
+                                )}
                                 <Users className="h-3 w-3" />
                                 {room.meeting_participants?.filter(p => p.status === "approved").length || 0} participante(s)
                               </span>
@@ -347,11 +385,11 @@ export default function VideoRooms() {
                                 </span>
                               )}
                               {rsvpMap[room.id] && (rsvpMap[room.id].sim > 0 || rsvpMap[room.id].nao > 0 || rsvpMap[room.id].talvez > 0) && (
-                                <span className="flex items-center gap-1.5">
-                                  <span className="text-primary font-medium">✓{rsvpMap[room.id].sim}</span>
-                                  {rsvpMap[room.id].talvez > 0 && <span className="text-muted-foreground">?{rsvpMap[room.id].talvez}</span>}
-                                  {rsvpMap[room.id].nao > 0 && <span className="text-destructive">✕{rsvpMap[room.id].nao}</span>}
-                                  {rsvpMap[room.id].pendente > 0 && <span>⏳{rsvpMap[room.id].pendente}</span>}
+                                <span className="flex items-center gap-1">
+                                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold">✓ {rsvpMap[room.id].sim}</span>
+                                  {rsvpMap[room.id].talvez > 0 && <span className="px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-semibold">? {rsvpMap[room.id].talvez}</span>}
+                                  {rsvpMap[room.id].nao > 0 && <span className="px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-semibold">✕ {rsvpMap[room.id].nao}</span>}
+                                  {rsvpMap[room.id].pendente > 0 && <span className="px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold">⏳ {rsvpMap[room.id].pendente}</span>}
                                 </span>
                               )}
                             </div>
@@ -369,7 +407,7 @@ export default function VideoRooms() {
                               <Link2 className="h-3.5 w-3.5" />
                             </Button>
                             {room.host_id === user?.id && (
-                              <Button size="sm" variant="ghost" onClick={() => handleEndRoom(room.id)} className="text-primary hover:text-primary/80 hover:bg-primary/10 rounded-xl" title="Finalizar reunião">
+                              <Button size="sm" variant="ghost" onClick={() => setConfirmAction({ type: "end", roomId: room.id })} className="text-primary hover:text-primary/80 hover:bg-primary/10 rounded-xl" title="Finalizar reunião">
                                 <CheckCircle2 className="h-3.5 w-3.5" />
                               </Button>
                             )}
@@ -410,13 +448,13 @@ export default function VideoRooms() {
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             {room.host_id === user?.id && room.status === "finalizada" && (
-                              <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => handleReopenRoom(room.id)} title="Reabrir sala">
+                              <Button size="sm" variant="outline" className="rounded-xl gap-1 text-xs" onClick={() => setConfirmAction({ type: "reopen", roomId: room.id })} title="Reabrir sala">
                                 <RotateCcw className="h-3 w-3" />
                                 <span className="hidden sm:inline">Reabrir</span>
                               </Button>
                             )}
                             {room.host_id === user?.id && (
-                              <Button size="sm" variant="ghost" onClick={() => handleDeleteRoom(room.id)} className="text-destructive hover:text-destructive rounded-xl" title="Apagar">
+                              <Button size="sm" variant="ghost" onClick={() => setConfirmAction({ type: "delete", roomId: room.id })} className="text-destructive hover:text-destructive rounded-xl" title="Apagar">
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             )}
@@ -447,6 +485,38 @@ export default function VideoRooms() {
       {editRoom && (
         <EditarReuniaoDialog room={editRoom} open={!!editRoom} onOpenChange={(v) => !v && setEditRoom(null)} onUpdated={fetchRooms} />
       )}
+
+      {/* Confirmação de ações (substitui window.confirm) */}
+      <AlertDialog open={!!confirmAction} onOpenChange={(o) => { if (!o) setConfirmAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction?.type === "end" && "Encerrar esta sala?"}
+              {confirmAction?.type === "reopen" && "Reabrir esta sala?"}
+              {confirmAction?.type === "delete" && "Apagar esta reunião?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction?.type === "end" && "Todos os participantes serão desconectados."}
+              {confirmAction?.type === "reopen" && "A sala voltará a aceitar participantes."}
+              {confirmAction?.type === "delete" && "A reunião será removida permanentemente do histórico. Esta ação não pode ser desfeita."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className={confirmAction?.type === "delete" ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : ""}
+              onClick={() => {
+                if (!confirmAction) return;
+                if (confirmAction.type === "end") handleEndRoom(confirmAction.roomId);
+                if (confirmAction.type === "reopen") handleReopenRoom(confirmAction.roomId);
+                if (confirmAction.type === "delete") handleDeleteRoom(confirmAction.roomId);
+                setConfirmAction(null);
+              }}>
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ResponsiveDialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <ResponsiveDialogContent className="max-w-md">
