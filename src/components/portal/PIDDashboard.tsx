@@ -77,6 +77,14 @@ const fmtAxis = (v: number, format: ValueFormat): string => {
   }
 };
 
+/** Moeda compacta para KPIs (evita estourar o card): R$ 954,4 mil / R$ 1,2 mi */
+const formatCurrencyCompact = (v: number): string => {
+  const abs = Math.abs(v || 0);
+  if (abs >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace(".", ",")} mi`;
+  if (abs >= 100_000) return `R$ ${(v / 1_000).toFixed(1).replace(".", ",")} mil`;
+  return formatCurrency(v || 0);
+};
+
 const EmptyChart = () => (
   <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Sem dados disponíveis</div>
 );
@@ -191,13 +199,7 @@ const ChartCard = ({ title, subtitle, height = 260, children, hasData }: ChartCa
       {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
     </CardHeader>
     <CardContent className="px-2 pb-3" style={{ height }}>
-      {hasData ? (
-        <ResponsiveContainer width="100%" height="100%">
-          {children as any}
-        </ResponsiveContainer>
-      ) : (
-        <EmptyChart />
-      )}
+      {hasData ? children : <EmptyChart />}
     </CardContent>
   </Card>
 );
@@ -242,33 +244,37 @@ const SingleSeriesChart = ({ data, dataKey, name, color, kind, format = "number"
   );
   if (kind === "bar") {
     return (
-      <BarChart data={data} margin={{ top: 18, right: 12, left: 0, bottom: 0 }}>
-        {common}
-        <Bar
-          dataKey={dataKey}
-          name={name}
-          fill={color}
-          radius={[4, 4, 0, 0]}
-          maxBarSize={36}
-          label={lastPointLabel(data.length, color, format)}
-        />
-      </BarChart>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 18, right: 12, left: 0, bottom: 0 }}>
+          {common}
+          <Bar
+            dataKey={dataKey}
+            name={name}
+            fill={color}
+            radius={[4, 4, 0, 0]}
+            maxBarSize={36}
+            label={lastPointLabel(data.length, color, format)}
+          />
+        </BarChart>
+      </ResponsiveContainer>
     );
   }
   return (
-    <LineChart data={data} margin={{ top: 18, right: 12, left: 0, bottom: 0 }}>
-      {common}
-      <Line
-        type="monotone"
-        dataKey={dataKey}
-        name={name}
-        stroke={color}
-        strokeWidth={2.5}
-        dot={{ r: 3, fill: color }}
-        activeDot={{ r: 5 }}
-        label={lastPointLabel(data.length, color, format)}
-      />
-    </LineChart>
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 18, right: 12, left: 0, bottom: 0 }}>
+        {common}
+        <Line
+          type="monotone"
+          dataKey={dataKey}
+          name={name}
+          stroke={color}
+          strokeWidth={2.5}
+          dot={{ r: 3, fill: color }}
+          activeDot={{ r: 5 }}
+          label={lastPointLabel(data.length, color, format)}
+        />
+      </LineChart>
+    </ResponsiveContainer>
   );
 };
 
@@ -307,30 +313,41 @@ const MultiSeriesChart = ({ data, series, kind, format = "number", showTotal = f
   );
   if (kind === "bar") {
     return (
-      <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-        {common}
-        {series.map((s) => (
-          <Bar key={s.dataKey} dataKey={s.dataKey} name={s.name} fill={s.color} radius={[3, 3, 0, 0]} maxBarSize={24} />
-        ))}
-      </BarChart>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          {common}
+          {series.map((s) => (
+            <Bar
+              key={s.dataKey}
+              dataKey={s.dataKey}
+              name={s.name}
+              fill={s.color}
+              radius={[3, 3, 0, 0]}
+              maxBarSize={24}
+            />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
     );
   }
   return (
-    <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-      {common}
-      {series.map((s) => (
-        <Line
-          key={s.dataKey}
-          type="monotone"
-          dataKey={s.dataKey}
-          name={s.name}
-          stroke={s.color}
-          strokeWidth={2}
-          dot={{ r: 2 }}
-          activeDot={{ r: 4 }}
-        />
-      ))}
-    </LineChart>
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        {common}
+        {series.map((s) => (
+          <Line
+            key={s.dataKey}
+            type="monotone"
+            dataKey={s.dataKey}
+            name={s.name}
+            stroke={s.color}
+            strokeWidth={2}
+            dot={{ r: 2 }}
+            activeDot={{ r: 4 }}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
   );
 };
 
@@ -404,14 +421,16 @@ interface KpiCardProps {
   icon: React.ReactNode;
   label: string;
   value: string;
+  /** Valor completo exibido no hover quando `value` está compactado */
+  fullValue?: string;
   accent: KpiAccent;
   badge?: string;
   variation?: React.ReactNode;
   valueClassName?: string;
 }
 
-const KpiCard = ({ icon, label, value, accent, badge, variation, valueClassName }: KpiCardProps) => (
-  <Card className={`${accentClasses[accent]} shadow-sm`}>
+const KpiCard = ({ icon, label, value, fullValue, accent, badge, variation, valueClassName }: KpiCardProps) => (
+  <Card className={`${accentClasses[accent]} shadow-sm min-w-0`}>
     <CardContent className="p-4">
       <div className="flex items-center justify-between">
         {icon}
@@ -421,9 +440,14 @@ const KpiCard = ({ icon, label, value, accent, badge, variation, valueClassName 
           </Badge>
         )}
       </div>
-      <div className="mt-2">
-        <div className={`text-2xl font-bold tracking-tight ${valueClassName || ""}`}>{value}</div>
-        <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-2 min-w-0">
+        <div
+          className={`text-xl xl:text-2xl font-bold tracking-tight truncate ${valueClassName || ""}`}
+          title={fullValue || value}
+        >
+          {value}
+        </div>
+        <div className="text-xs text-muted-foreground truncate">{label}</div>
         {variation}
       </div>
     </CardContent>
@@ -834,7 +858,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       ) : (
         <>
           {/* ============ KPIs (sempre visíveis) ============ */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 2xl:grid-cols-8">
             <KpiCard
               icon={<Car className="h-5 w-5 text-blue-500" />}
               accent="blue"
@@ -852,7 +876,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             <KpiCard
               icon={<DollarSign className="h-5 w-5 text-green-500" />}
               accent="green"
-              value={formatCurrency(dadosAtual.faturamento_operacional)}
+              value={formatCurrencyCompact(dadosAtual.faturamento_operacional)}
+              fullValue={formatCurrency(dadosAtual.faturamento_operacional)}
               label="Faturamento"
               variation={
                 <VariationIndicator
@@ -865,7 +890,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             <KpiCard
               icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />}
               accent="emerald"
-              value={formatCurrency(dadosAtual.total_recebido)}
+              value={formatCurrencyCompact(dadosAtual.total_recebido)}
+              fullValue={formatCurrency(dadosAtual.total_recebido)}
               label="Total Recebido"
               variation={
                 <VariationIndicator
@@ -1279,47 +1305,49 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 height={360}
                 hasData={permanenciaSeries.length > 0}
               >
-                <ComposedChart data={permanenciaSeries} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} vertical={false} />
-                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={44} />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tickFormatter={(v) => `${v.toFixed(0)}%`}
-                    tick={{ fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={44}
-                  />
-                  <Tooltip content={<PermanenciaTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} iconSize={10} />
-                  <Bar
-                    yAxisId="left"
-                    dataKey="entrada"
-                    name="Entrada (Cadastros + Reativ.)"
-                    fill="#16a34a"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={28}
-                  />
-                  <Bar
-                    yAxisId="left"
-                    dataKey="perdas"
-                    name="Perdas (Cancelamentos + Inadimpl.)"
-                    fill="#dc2626"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={28}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="variacao_permanencia"
-                    name="% Var. Saldo"
-                    stroke="#2563eb"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                </ComposedChart>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={permanenciaSeries} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} vertical={false} />
+                    <XAxis dataKey="mes" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={44} />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tickFormatter={(v) => `${v.toFixed(0)}%`}
+                      tick={{ fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={44}
+                    />
+                    <Tooltip content={<PermanenciaTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} iconSize={10} />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="entrada"
+                      name="Entrada (Cadastros + Reativ.)"
+                      fill="#16a34a"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={28}
+                    />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="perdas"
+                      name="Perdas (Cancelamentos + Inadimpl.)"
+                      fill="#dc2626"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={28}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="variacao_permanencia"
+                      name="% Var. Saldo"
+                      stroke="#2563eb"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
               </ChartCard>
               <div className="grid gap-4 lg:grid-cols-3">
                 <ChartCard title="Saldo de Permanência" subtitle="Entrada - Perdas" hasData={hasData}>
