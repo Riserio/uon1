@@ -66,13 +66,6 @@ export default function MGFInsights() {
   const [corretoraData, setCorretoraData] = useState<{ id: string; nome: string; logo_url?: string | null } | null>(null);
   const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
 
-  // Filtros globais (estilo SGA) - padrão: últimos 12 meses
-  const getDefaultDateRange = () => {
-    const hoje = new Date();
-    const from = new Date(hoje.getFullYear() - 1, hoje.getMonth(), hoje.getDate());
-    return { from, to: hoje };
-  };
-  
   const [filters, setFilters] = useState<MGFFilters>({
     operacao: "all",
     subOperacao: "all",
@@ -81,7 +74,7 @@ export default function MGFInsights() {
     regional: "all",
     formaPagamento: "all",
     tipoVeiculo: "all",
-    dateRange: getDefaultDateRange(),
+    dateRange: undefined,
   });
 
   // Verifica se pode ver histórico (superintendente ou admin)
@@ -378,7 +371,7 @@ export default function MGFInsights() {
       regional: "all",
       formaPagamento: "all",
       tipoVeiculo: "all",
-      dateRange: getDefaultDateRange(),
+      dateRange: undefined,
     });
   };
 
