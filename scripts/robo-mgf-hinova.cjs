@@ -2412,18 +2412,25 @@ async function rodarRobo() {
     await notificarProgresso({ etapa_atual: 'LOGIN' });
     
     let navegacaoOk = false;
-    for (let tentativa = 1; tentativa <= 3 && !navegacaoOk; tentativa++) {
+    const MAX_NAV_LOGIN = 5;
+    for (let tentativa = 1; tentativa <= MAX_NAV_LOGIN && !navegacaoOk; tentativa++) {
       try {
-        log(`Tentativa ${tentativa} de acessar portal...`);
-        await page.goto(CONFIG.HINOVA_URL, { 
+        log(`Tentativa ${tentativa}/${MAX_NAV_LOGIN} de acessar portal...`);
+        await page.goto(CONFIG.HINOVA_URL, {
           waitUntil: 'domcontentloaded',
-          timeout: TIMEOUTS.PAGE_LOAD 
+          timeout: TIMEOUTS.PAGE_LOAD,
         });
         navegacaoOk = true;
       } catch (e) {
-        log(`Erro: ${e.message}`, LOG_LEVELS.WARN);
-        if (tentativa === 3) throw e;
-        await page.waitForTimeout(5000);
+        // ERR_CONNECTION_TIMED_OUT / timeout = bloqueio/instabilidade de rede do
+        // Hinova para o IP do runner. Backoff progressivo dá tempo do bloqueio
+        // temporario passar (aumenta muito a chance de conseguir emitir o relatorio).
+        const conexao = /ERR_CONNECTION|ERR_TIMED_OUT|ERR_NETWORK|Timeout/i.test(e.message || '');
+        log(`Erro ao acessar portal (${tentativa}/${MAX_NAV_LOGIN}): ${e.message}`, LOG_LEVELS.WARN);
+        if (tentativa === MAX_NAV_LOGIN) throw e;
+        const espera = conexao ? Math.min(20000 * tentativa, 90000) : 5000;
+        log(`Aguardando ${Math.round(espera / 1000)}s antes de tentar novamente...`);
+        await page.waitForTimeout(espera);
       }
     }
     
