@@ -64,7 +64,7 @@ jobs:
         if: steps.robot-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p .robot-deps && cd .robot-deps
-          [ -f package.json ] || npm init -y >/dev/null
+          [ -f package.json ] || echo '{"name":"robot-deps","private":true}' > package.json
           for i in 1 2 3; do
             npm install --no-audit --no-fund playwright@1.49.1 axios xlsx && break
             echo "npm install falhou (tentativa $i), aguardando..." && sleep 20
