@@ -113,3 +113,6 @@ verify_jwt = false
 
 [functions.scheduler-base-hinova]
 verify_jwt = false
+
+[functions.buscar-sga]
+verify_jwt = false
