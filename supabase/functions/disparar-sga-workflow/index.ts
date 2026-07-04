@@ -119,6 +119,33 @@ serve(async (req) => {
 
       console.log(`[SGA Workflow] Iniciando para corretora: ${corretora_id}`);
 
+      // === API-FIRST: se a associação tem API habilitada, importa via API; crawl é fallback ===
+      const { data: apiCred } = await supabase
+        .from("hinova_credenciais")
+        .select("usar_api, api_token")
+        .eq("corretora_id", corretora_id)
+        .maybeSingle();
+      if (apiCred?.usar_api && apiCred?.api_token) {
+        try {
+          const apiResp = await fetch(`${supabaseUrl}/functions/v1/importar-api-hinova`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}` },
+            body: JSON.stringify({ corretora_id, modulo: "eventos" }),
+          });
+          const apiJson = await apiResp.json().catch(() => ({}));
+          if (apiJson?.success) {
+            console.log(`[SGA Workflow] Importado via API (${apiJson.total} eventos) — crawl dispensado`);
+            return new Response(
+              JSON.stringify({ success: true, via: "api", total: apiJson.total, message: `Importado via API: ${apiJson.total} eventos` }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          }
+          console.warn(`[SGA Workflow] API falhou (${apiJson?.message}) — fallback para crawl`);
+        } catch (apiErr) {
+          console.warn(`[SGA Workflow] Erro ao chamar API — fallback para crawl:`, apiErr);
+        }
+      }
+
       // Verificar execução hoje
       const skipDailyGate = bypass_daily_limit === true && isServiceRole;
       // "Hoje" no fuso de São Paulo (created_at é UTC) — evita gate diário errado na virada do dia
