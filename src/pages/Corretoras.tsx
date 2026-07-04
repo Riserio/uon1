@@ -110,8 +110,22 @@ export default function Corretoras() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir esta associação?')) return;
-    const { error } = await supabase.from('corretoras').delete().eq('id', id);
-    if (error) toast.error('Erro ao excluir'); else { toast.success('Excluída!'); fetchCorretoras(); }
+    const { data, error } = await supabase
+      .from('corretoras')
+      .delete()
+      .eq('id', id)
+      .select('id');
+    if (error) {
+      console.error('Erro ao excluir corretora:', error);
+      toast.error(`Erro ao excluir: ${error.message}`);
+      return;
+    }
+    if (!data || data.length === 0) {
+      toast.error('Você não tem permissão para excluir esta associação.');
+      return;
+    }
+    toast.success('Excluída!');
+    fetchCorretoras();
   };
 
   const openDialog = (item?: Corretora) => { setEditingItem(item || null); setFormData(item || {}); setDialogOpen(true); };
