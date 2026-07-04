@@ -39,6 +39,8 @@ interface HinovaCredenciais {
   ativo_cobranca: boolean;
   ativo_eventos: boolean;
   ativo_mgf: boolean;
+  api_token: string;
+  usar_api: boolean;
 }
 
 interface ExecutionLog {
@@ -123,6 +125,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     hora_agendada: "09:00",
     dias_agendados: null,
     ativo_cobranca: false, ativo_eventos: false, ativo_mgf: false,
+    api_token: "", usar_api: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -158,6 +161,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           hora_agendada: data.hora_agendada || "09:00", dias_agendados: data.dias_agendados || null,
           ativo_cobranca: data.ativo_cobranca || false, ativo_eventos: data.ativo_eventos || false,
           ativo_mgf: data.ativo_mgf || false,
+          api_token: data.api_token || "", usar_api: data.usar_api || false,
         });
       }
     } catch (e) { console.error("Erro ao carregar credenciais:", e); }
@@ -265,6 +269,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         url_cobranca: creds.url_cobranca, url_eventos: creds.url_eventos, url_mgf: creds.url_mgf,
         hora_agendada: creds.hora_agendada, dias_agendados: creds.dias_agendados,
         ativo_cobranca: creds.ativo_cobranca, ativo_eventos: creds.ativo_eventos, ativo_mgf: creds.ativo_mgf,
+        api_token: creds.api_token || null, usar_api: creds.usar_api,
       };
       if (creds.id) {
         const { error } = await supabase.from("hinova_credenciais").update(dataToSave).eq("id", creds.id);
@@ -668,6 +673,21 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                       })}
                     </div>
                     <p className="text-[10px] text-muted-foreground">{!creds.dias_agendados ? "Todos os dias" : `${creds.dias_agendados.length} dia(s)`}</p>
+                  </div>
+
+                  <div className="space-y-2 border-t pt-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">API Hinova</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground">Usar API</span>
+                        <Switch checked={creds.usar_api} onCheckedChange={v => setCreds(p => ({...p, usar_api: v}))} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Token de API</Label>
+                      <Input type={showPassword ? "text" : "password"} value={creds.api_token} onChange={e => setCreds(p => ({...p, api_token: e.target.value}))} placeholder="Cole o token gerado no SGA" className="h-9 text-xs rounded-xl font-mono" />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Com token + "Usar API" ligado, a importação usa a API da Hinova (mais rápida); o crawl (Actions) vira fallback automático.</p>
                   </div>
 
                   <div className="space-y-3 border-t pt-4">
