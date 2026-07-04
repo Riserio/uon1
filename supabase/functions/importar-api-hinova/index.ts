@@ -86,10 +86,165 @@ serve(async (req) => {
     }
     const H = { "Content-Type": "application/json", Authorization: `Bearer ${tokenUsuario}` };
 
-    if (modulo !== "eventos" && modulo !== "mgf" && modulo !== "cobranca") {
+    if (modulo !== "eventos" && modulo !== "mgf" && modulo !== "cobranca" && modulo !== "base") {
       return new Response(JSON.stringify({ success: false, message: `Módulo '${modulo}' ainda não implementado na API` }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ================= BASE (veículos/associados) → Cadastro + Estudo de Base =================
+    if (modulo === "base") {
+      // Auto-descoberta do endpoint de listagem (a doc da Hinova é fechada; tenta candidatos
+      // e usa o primeiro que responder um array de veículos). O endpoint vencedor é retornado
+      // para consolidarmos após a 1ª validação.
+      const candidatos: { path: string; method: "GET" | "POST"; body?: unknown }[] = [
+        { path: "/listar/veiculos/associados", method: "POST", body: {} },
+        { path: "/listar/veiculo-associado", method: "POST", body: {} },
+        { path: "/listar/veiculo/associado", method: "POST", body: {} },
+        { path: "/listar/veiculo", method: "POST", body: {} },
+        { path: "/listar/associado", method: "POST", body: {} },
+        { path: "/veiculos", method: "GET" },
+      ];
+      // extrai um array de veículos de formatos variados de resposta
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const extrairArray = (j: any): any[] | null => {
+        if (Array.isArray(j)) return j;
+        if (!j || typeof j !== "object") return null;
+        for (const k of ["veiculos", "associados", "dados", "data", "registros", "resultado", "lista"]) {
+          if (Array.isArray(j[k])) return j[k];
+        }
+        return null;
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let veiculos: any[] | null = null;
+      let endpointOk: string | null = null;
+      const tentativas: string[] = [];
+      for (const c of candidatos) {
+        try {
+          const r = await fetch(`${base}${c.path}`, {
+            method: c.method,
+            headers: H,
+            body: c.method === "POST" ? JSON.stringify(c.body ?? {}) : undefined,
+          });
+          const j = await r.json().catch(() => null);
+          const arr = extrairArray(j);
+          tentativas.push(`${c.method} ${c.path} → ${r.status}${arr ? ` (${arr.length})` : ""}`);
+          if (r.ok && arr && arr.length > 0) { veiculos = arr; endpointOk = `${c.method} ${c.path}`; break; }
+          if (r.ok && arr && veiculos === null) { veiculos = arr; endpointOk = `${c.method} ${c.path}`; } // guarda array vazio como fallback
+        } catch (err) {
+          tentativas.push(`${c.method} ${c.path} → erro`);
+        }
+      }
+
+      if (veiculos === null) {
+        return new Response(JSON.stringify({
+          success: false, modulo: "base",
+          message: "Nenhum endpoint de listagem de veículos respondeu. Confirme o endpoint com a Hinova.",
+          tentativas,
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // helpers de leitura tolerante a nomes de campo
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const g = (o: any, ...keys: string[]): any => {
+        for (const k of keys) {
+          if (o && o[k] !== undefined && o[k] !== null && o[k] !== "") return o[k];
+          // suporta objeto aninhado "veiculo"/"associado"
+          if (o?.veiculo && o.veiculo[k] !== undefined && o.veiculo[k] !== null && o.veiculo[k] !== "") return o.veiculo[k];
+          if (o?.associado && o.associado[k] !== undefined && o.associado[k] !== null && o.associado[k] !== "") return o.associado[k];
+        }
+        return null;
+      };
+
+      // Mapear -> Cadastro (lista bruta)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cadastro = veiculos.map((v: any) => ({
+        nome: g(v, "nome_associado", "nome", "associado_nome") as string | null,
+        cpf: g(v, "cpf", "cpf_cnpj", "documento") as string | null,
+        placa: g(v, "placa") as string | null,
+        modelo_veiculo: g(v, "modelo", "modelo_veiculo", "descricao_modelo") as string | null,
+        marca_veiculo: g(v, "marca", "montadora", "fabricante") as string | null,
+        ano_veiculo: (g(v, "ano_modelo", "ano_fabricacao", "ano") ?? null) ? String(g(v, "ano_modelo", "ano_fabricacao", "ano")) : null,
+        situacao: g(v, "situacao", "situacao_veiculo", "status") as string | null,
+        regional: g(v, "regional") as string | null,
+        cooperativa: g(v, "cooperativa") as string | null,
+        data_cadastro: dateISO(g(v, "data_cadastro", "data_contrato")),
+        data_adesao: dateISO(g(v, "data_adesao", "data_contrato")),
+        valor_protegido: num(g(v, "valor_protegido", "valor_fipe")),
+        cidade: g(v, "cidade", "cidade_veiculo", "cidade_proprietario") as string | null,
+        estado: g(v, "estado", "uf") as string | null,
+      }));
+
+      // Mapear -> Estudo de Base (lista rica) — alimenta a agregação por categoria
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const eb = veiculos.map((v: any) => ({
+        placa: g(v, "placa") as string | null,
+        tipo_veiculo: g(v, "tipo_veiculo", "tipo", "especie") as string | null,
+        montadora: g(v, "montadora", "marca", "fabricante") as string | null,
+        modelo: g(v, "modelo", "modelo_veiculo") as string | null,
+        ano_fabricacao: int(g(v, "ano_fabricacao", "ano")),
+        ano_modelo: int(g(v, "ano_modelo")),
+        combustivel: g(v, "combustivel") as string | null,
+        cota: g(v, "cota") as string | null,
+        categoria: g(v, "categoria") as string | null,
+        cor: g(v, "cor") as string | null,
+        valor_protegido: num(g(v, "valor_protegido")),
+        valor_fipe: num(g(v, "valor_fipe", "valor_protegido")),
+        cooperativa: g(v, "cooperativa") as string | null,
+        regional: g(v, "regional") as string | null,
+        situacao_veiculo: g(v, "situacao_veiculo", "situacao", "status") as string | null,
+        cidade_veiculo: g(v, "cidade", "cidade_veiculo") as string | null,
+        estado: g(v, "estado", "uf") as string | null,
+        voluntario: g(v, "voluntario") as string | null,
+      }));
+
+      const nomeArqB = `API base ${ddmmyyyy(new Date())}`;
+
+      // grava Cadastro
+      const { data: impCad, error: impCadErr } = await supabase
+        .from("cadastro_importacoes")
+        .insert({ nome_arquivo: nomeArqB, total_registros: cadastro.length, corretora_id, ativo: true })
+        .select("id").single();
+      if (impCadErr) throw new Error(`Erro import Cadastro: ${impCadErr.message}`);
+      await supabase.from("cadastro_importacoes").update({ ativo: false }).eq("corretora_id", corretora_id).neq("id", impCad.id);
+      for (let i = 0; i < cadastro.length; i += 500) {
+        const lote = cadastro.slice(i, i + 500).map((r) => ({ ...r, importacao_id: impCad.id }));
+        const { error } = await supabase.from("cadastro_registros").insert(lote);
+        if (error) throw new Error(`Erro inserir Cadastro (lote ${i}): ${error.message}`);
+      }
+
+      // grava Estudo de Base
+      const { data: impEb, error: impEbErr } = await supabase
+        .from("estudo_base_importacoes")
+        .insert({ nome_arquivo: nomeArqB, total_registros: eb.length, corretora_id, ativo: true })
+        .select("id").single();
+      if (impEbErr) throw new Error(`Erro import Estudo de Base: ${impEbErr.message}`);
+      await supabase.from("estudo_base_importacoes").update({ ativo: false }).eq("corretora_id", corretora_id).neq("id", impEb.id);
+      for (let i = 0; i < eb.length; i += 500) {
+        const lote = eb.slice(i, i + 500).map((r) => ({ ...r, importacao_id: impEb.id }));
+        const { error } = await supabase.from("estudo_base_registros").insert(lote);
+        if (error) throw new Error(`Erro inserir Estudo de Base (lote ${i}): ${error.message}`);
+      }
+
+      // dispara a agregação (cálculo no nosso sistema) → pid_estudo_base do mês
+      let agregacao: unknown = null;
+      try {
+        const aggRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/agregar-estudo-base`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+          body: JSON.stringify({ corretora_id }),
+        });
+        agregacao = await aggRes.json().catch(() => null);
+      } catch (err) {
+        console.warn("[importar-api-hinova] Falha ao agregar Estudo de Base:", err);
+      }
+
+      return new Response(JSON.stringify({
+        success: true, modulo: "base", via: "api",
+        endpoint: endpointOk, tentativas,
+        total: veiculos.length, cadastro: cadastro.length, estudo_base: eb.length,
+        agregacao,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // ================= COBRANÇA (boletos) =================

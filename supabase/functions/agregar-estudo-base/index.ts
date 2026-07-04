@@ -1,0 +1,182 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// As 7 categorias do PID (pid_estudo_base)
+type Cat = "passeio" | "motocicletas" | "utilitarios_suvs_vans" | "caminhoes" | "taxi_app" | "especiais_importados" | "carretas";
+const CATS: Cat[] = ["passeio", "motocicletas", "utilitarios_suvs_vans", "caminhoes", "taxi_app", "especiais_importados", "carretas"];
+
+/**
+ * Classificador por palavra-chave: mapeia os valores livres de tipo_veiculo/categoria
+ * (dezenas de variacoes por associacao) para as 7 categorias do PID.
+ * A ORDEM importa: casos mais especificos primeiro (taxi/app e moto antes de passeio).
+ */
+function classificar(tipo?: string | null, categoria?: string | null): Cat {
+  const s = `${tipo || ""} ${categoria || ""}`
+    .toUpperCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, ""); // remove acentos
+
+  const has = (...ks: string[]) => ks.some((k) => s.includes(k));
+
+  // 1) Taxi / aplicativo (antes de passeio/moto porque "MOTO APP" deve cair aqui)
+  if (has("TAXI", "APLICATIV", "APLIC.", "UBER", "MOTORISTA", " APP", "APP ", "/APP", "APP/")) return "taxi_app";
+  // 2) Carretas / reboques / agregados de carga
+  if (has("CARRETA", "REBOQUE", "DOLY", "DOLLY", "BITREM", "IMPLEMENTO")) return "carretas";
+  // 3) Caminhoes / pesados
+  if (has("CAMINH", "TRUCK", "PESAD", "ACIMA DE 7", "7 TON", "7TON", "TON", "VUC", "CARGA")) return "caminhoes";
+  // 4) Motocicletas
+  if (has("MOTOCICL", "MOTO", "CICLOMOTOR", "SCOOTER")) return "motocicletas";
+  // 5) Utilitarios / SUV / vans / pick-ups / comerciais leves
+  if (has("SUV", "VAN", "UTILITARIO", "PICK-UP", "PICKUP", "PICK UP", "CAMINHONETE", "COMERCIAL", "FURGAO")) return "utilitarios_suvs_vans";
+  // 6) Especiais / importados / executivos / vip
+  if (has("IMPORTAD", "ESPECIA", "EXECUTIV", "VIP", "BLINDAD")) return "especiais_importados";
+  // 7) Default: passeio (PASSEIO, AUTOMOVEL, PARTICULAR, LEVE, NACIONAL...)
+  return "passeio";
+}
+
+// valor efetivo: protegido quando existe; senao FIPE (decisao do usuario)
+const valorEfetivo = (protegido: unknown, fipe: unknown): number => {
+  const p = Number(protegido) || 0;
+  if (p > 0) return p;
+  const f = Number(fipe) || 0;
+  return f > 0 ? f : 0;
+};
+
+// "veiculo ativo" = situacao nao indica cancelamento/inatividade
+const isAtivo = (situacao?: string | null): boolean => {
+  const s = (situacao || "").toUpperCase();
+  if (!s) return true;
+  return !/CANCEL|INATIV|EXCLU|SUSPEN|BAIXAD|DESLIG/.test(s);
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const corretora_id: string = body.corretora_id;
+    if (!corretora_id) {
+      return new Response(JSON.stringify({ success: false, message: "corretora_id é obrigatório" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // Mês de referência (primeiro dia do mês); default = mês atual
+    const ref = typeof body.data_referencia === "string" && /^\d{4}-\d{2}/.test(body.data_referencia)
+      ? `${body.data_referencia.slice(0, 7)}-01`
+      : `${new Date().toISOString().slice(0, 7)}-01`;
+
+    // 1) importação ativa de Estudo de Base da associação
+    const { data: imp } = await supabase
+      .from("estudo_base_importacoes")
+      .select("id")
+      .eq("corretora_id", corretora_id)
+      .eq("ativo", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!imp?.id) {
+      return new Response(JSON.stringify({ success: false, message: "Nenhuma base de Estudo de Base ativa para agregar" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 2) ler registros da base em lotes
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = [];
+    let offset = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from("estudo_base_registros")
+        .select("tipo_veiculo, categoria, valor_protegido, valor_fipe, situacao_veiculo")
+        .eq("importacao_id", imp.id)
+        .range(offset, offset + PAGE - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      rows.push(...data);
+      if (data.length < PAGE) break;
+      offset += PAGE;
+    }
+
+    // 3) agregação por categoria
+    type Ac = { qtd: number; protegido: number; valorProt: number; valorTotal: number };
+    const acc: Record<Cat, Ac> = Object.fromEntries(CATS.map((c) => [c, { qtd: 0, protegido: 0, valorProt: 0, valorTotal: 0 }])) as Record<Cat, Ac>;
+    let totalGeral = 0, totalAtivos = 0;
+
+    for (const r of rows) {
+      if (!isAtivo(r.situacao_veiculo)) continue; // base considera veículos ativos
+      totalGeral++;
+      totalAtivos++;
+      const cat = classificar(r.tipo_veiculo, r.categoria);
+      const vProt = Number(r.valor_protegido) || 0;
+      const vEf = valorEfetivo(r.valor_protegido, r.valor_fipe);
+      const a = acc[cat];
+      a.qtd++;
+      if (vEf > 0) { a.protegido++; a.valorTotal += vEf; }
+      if (vProt > 0) a.valorProt += vProt;
+    }
+
+    // 4) montar linha do pid_estudo_base (qtd, protegido, valor e ticket médio por categoria)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const linha: any = {
+      corretora_id,
+      data_referencia: ref,
+      total_veiculos_geral: totalGeral,
+      total_veiculos_ativos: totalAtivos,
+      updated_at: new Date().toISOString(),
+    };
+    for (const c of CATS) {
+      const a = acc[c];
+      linha[`qtd_${c}`] = a.qtd;
+      linha[`protegido_${c}`] = a.protegido;
+      linha[`valor_protegido_${c}`] = Math.round(a.valorTotal);
+      // ticket médio = valor total ÷ nº de veículos com valor (protegido/FIPE)
+      linha[`tm_${c}`] = a.protegido > 0 ? Math.round(a.valorTotal / a.protegido) : 0;
+    }
+    // agregados "geral"
+    const somaQtd = CATS.reduce((s, c) => s + acc[c].qtd, 0);
+    const somaProt = CATS.reduce((s, c) => s + acc[c].protegido, 0);
+    const somaValor = CATS.reduce((s, c) => s + acc[c].valorTotal, 0);
+    linha["protegido_geral"] = somaProt;
+    linha["valor_protegido_geral"] = Math.round(somaValor);
+    linha["tm_geral"] = somaProt > 0 ? Math.round(somaValor / somaProt) : 0;
+
+    // 5) upsert: um registro por associação/mês
+    const { data: existente } = await supabase
+      .from("pid_estudo_base")
+      .select("id")
+      .eq("corretora_id", corretora_id)
+      .eq("data_referencia", ref)
+      .maybeSingle();
+
+    if (existente?.id) {
+      const { error } = await supabase.from("pid_estudo_base").update(linha).eq("id", existente.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from("pid_estudo_base").insert(linha);
+      if (error) throw error;
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: `Estudo de Base agregado (${totalGeral} veículos, mês ${ref.slice(0, 7)})`,
+      data_referencia: ref,
+      total: totalGeral,
+      por_categoria: Object.fromEntries(CATS.map((c) => [c, acc[c].qtd])),
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  } catch (e) {
+    return new Response(JSON.stringify({ success: false, message: String((e as Error)?.message || e) }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

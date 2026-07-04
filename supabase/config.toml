@@ -104,3 +104,9 @@ verify_jwt = false
 
 [functions.og-share]
 verify_jwt = false
+
+[functions.agregar-estudo-base]
+verify_jwt = false
+
+[functions.importar-api-hinova]
+verify_jwt = false
