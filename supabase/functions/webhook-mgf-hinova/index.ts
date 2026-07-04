@@ -273,6 +273,23 @@ serve(async (req) => {
     // ============================================
     if (action === 'error' && corretora_id) {
       console.log("MGF: Registrando erro:", error_message);
+      // Nao sobrescreve o erro REAL do robo com a mensagem generica de fallback
+      // do workflow (que dispara em qualquer failure()). Se esta execucao ja tem
+      // um erro real registrado, ignora a mensagem generica.
+      const GENERICO_RE = /falhou antes de executar o rob|setup\/infra/i;
+      if (GENERICO_RE.test(error_message || "") && execucaoIdCandidate) {
+        const { data: exReal } = await supabase
+          .from("mgf_automacao_execucoes")
+          .select("erro, status")
+          .eq("id", execucaoIdCandidate)
+          .maybeSingle();
+        if (exReal && exReal.status === "erro" && exReal.erro && !GENERICO_RE.test(exReal.erro)) {
+          console.log("MGF: erro real ja registrado — ignorando fallback generico do workflow");
+          return new Response(JSON.stringify({ success: true, skipped: "preserved-real-error" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
       
       const { data: config } = await supabase
         .from("mgf_automacao_config")
