@@ -196,20 +196,27 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     const results: Partial<Record<ModuleType, ModuleStatus>> = {};
     await Promise.all(modules.map(async (mod) => {
       try {
-        const [configRes, activeExecRes] = await Promise.all([
+        const inicioDiaMod = new Date(); inicioDiaMod.setHours(0, 0, 0, 0);
+        const [configRes, activeExecRes, sucessoHojeRes] = await Promise.all([
           supabase.from(CONFIG_TABLES[mod] as any).select("ultima_execucao, ultimo_status, ultimo_erro").eq("corretora_id", corretoraId).maybeSingle() as any,
           supabase.from(EXEC_TABLES[mod] as any).select("id, created_at, etapa_atual, bytes_baixados, bytes_total, progresso_download, github_run_url")
             .eq("corretora_id", corretoraId).eq("status", "executando").order("created_at", { ascending: false }).limit(1) as any,
+          supabase.from(EXEC_TABLES[mod] as any).select("id").eq("corretora_id", corretoraId).eq("status", "sucesso").gte("created_at", inicioDiaMod.toISOString()).limit(1) as any,
         ]);
         const data = configRes.data;
         const activeRow = activeExecRes.data?.[0] ?? null;
         const activeExecution: ActiveExecution | null = activeRow ? { ...activeRow, module: mod } : null;
         const isExecuting = !!activeRow;
+        // Se houve SUCESSO hoje, mostra OK mesmo que uma tentativa posterior tenha falhado
+        const sucessoHoje = (sucessoHojeRes.data?.length ?? 0) > 0;
         if (data) {
-          results[mod] = { lastExecution: data.ultima_execucao, lastStatus: isExecuting ? "executando" : data.ultimo_status,
-            lastError: isExecuting ? null : data.ultimo_erro, isExecuting, activeExecution };
+          results[mod] = { lastExecution: data.ultima_execucao,
+            lastStatus: isExecuting ? "executando" : (sucessoHoje ? "sucesso" : data.ultimo_status),
+            lastError: (isExecuting || sucessoHoje) ? null : data.ultimo_erro, isExecuting, activeExecution };
         } else if (isExecuting) {
           results[mod] = { lastExecution: null, lastStatus: "executando", lastError: null, isExecuting: true, activeExecution };
+        } else if (sucessoHoje) {
+          results[mod] = { lastExecution: null, lastStatus: "sucesso", lastError: null, isExecuting: false, activeExecution: null };
         }
       } catch (e) { console.error(`Erro ao carregar status ${mod}:`, e); }
     }));
