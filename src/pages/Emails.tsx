@@ -44,6 +44,7 @@ import { WhatsAppTemplates } from "@/components/whatsapp/WhatsAppTemplates";
 import { WhatsAppEnvioManual } from "@/components/whatsapp/WhatsAppEnvioManual";
 import { WhatsAppHistorico } from "@/components/whatsapp/WhatsAppHistorico";
 import WhatsAppDashboard from "@/components/whatsapp/WhatsAppDashboard";
+import { WhatsAppSetupGuide } from "@/components/whatsapp/WhatsAppSetupGuide";
 
 interface ResendConfig {
   from_email: string;
@@ -81,6 +82,7 @@ interface EmailAutoConfig {
 }
 
 export default function Emails() {
+  const [waTab, setWaTab] = useState("dashboard");
   const { user } = useAuth();
   const totalUnread = useWhatsAppUnread();
   const [resendConfig, setResendConfig] = useState<ResendConfig>({
@@ -675,16 +677,18 @@ export default function Emails() {
           </TabsContent>
 
           {/* =================== WHATSAPP TAB (unified) =================== */}
-          <TabsContent value="whatsapp" className="space-y-6">
-            <Tabs defaultValue="dashboard" className="space-y-4">
+          <TabsContent value="whatsapp" className="space-y-4">
+            {/* Guia de configuração em 3 passos — some quando tudo está pronto */}
+            <WhatsAppSetupGuide onNavigate={setWaTab} />
+            <Tabs value={waTab} onValueChange={setWaTab} className="space-y-4">
               <TabsList>
                 <TabsTrigger value="dashboard" className="gap-1.5">
                   <BarChart3 className="h-3.5 w-3.5" />
-                  Dashboard
+                  Visão Geral
                 </TabsTrigger>
                 <TabsTrigger value="config" className="gap-1.5">
                   <Settings className="h-3.5 w-3.5" />
-                  Config
+                  Números e Conexão
                 </TabsTrigger>
                 <TabsTrigger value="templates" className="gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
@@ -692,7 +696,7 @@ export default function Emails() {
                 </TabsTrigger>
                 <TabsTrigger value="envio" className="gap-1.5">
                   <Send className="h-3.5 w-3.5" />
-                  Envio
+                  Envio Manual
                 </TabsTrigger>
                 <TabsTrigger value="automacoes" className="gap-1.5">
                   <Bot className="h-3.5 w-3.5" />
