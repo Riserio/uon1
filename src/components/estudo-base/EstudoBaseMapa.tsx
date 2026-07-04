@@ -151,7 +151,7 @@ export default function EstudoBaseMapa({ registros, loading }: EstudoBaseMapaPro
 
     registros.forEach((r) => {
       const estado = (r.estado || "").toUpperCase().trim();
-      const cidade = (r.cidade_veiculo || "").toUpperCase().trim();
+      const cidade = normalizeText(r.cidade_veiculo || ""); // consolida acento/caixa (SÃO JOSÉ = SãO JOSé)
 
       if (!estado || estado.length !== 2 || !STATE_COORDS[estado]) return;
 
