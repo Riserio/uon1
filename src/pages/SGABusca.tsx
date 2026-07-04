@@ -26,6 +26,33 @@ interface Resultado {
   estado: string | null;
 }
 
+function maskPlaca(v: string) {
+  return v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
+}
+function maskChassi(v: string) {
+  return v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 17);
+}
+function maskCpfCnpj(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 11) {
+    return d
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+  return d
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+}
+function aplicarMascara(tipo: Tipo, v: string) {
+  if (tipo === "placa") return maskPlaca(v);
+  if (tipo === "chassi") return maskChassi(v);
+  if (tipo === "cpf") return maskCpfCnpj(v);
+  return v; // nome: livre
+}
+
 const TIPOS: { id: Tipo; label: string; icon: typeof Car; placeholder: string }[] = [
   { id: "placa", label: "Placa", icon: Car, placeholder: "Ex.: ABC1D23" },
   { id: "chassi", label: "Chassi", icon: Hash, placeholder: "Ex.: 9BWZZZ..." },
@@ -65,7 +92,7 @@ export default function SGABusca() {
   };
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6 max-w-5xl">
+    <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
       <div className="flex items-center gap-3">
         <div className="h-11 w-11 rounded-2xl bg-primary/10 flex items-center justify-center">
           <Search className="h-5 w-5 text-primary" />
@@ -85,7 +112,7 @@ export default function SGABusca() {
               return (
                 <button
                   key={t.id}
-                  onClick={() => { setTipo(t.id); setResultados(null); }}
+                  onClick={() => { setTipo(t.id); setTermo(""); setResultados(null); }}
                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                     tipo === t.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"
                   }`}
@@ -101,10 +128,11 @@ export default function SGABusca() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={termo}
-                onChange={(e) => setTermo(e.target.value)}
+                onChange={(e) => setTermo(aplicarMascara(tipo, e.target.value))}
                 onKeyDown={(e) => e.key === "Enter" && buscar()}
                 placeholder={tipoAtual.placeholder}
-                className="pl-9 h-10 rounded-xl"
+                className={`pl-9 h-10 rounded-xl ${tipo === "placa" || tipo === "chassi" ? "uppercase tracking-wide" : ""}`}
+                inputMode={tipo === "cpf" ? "numeric" : "text"}
               />
             </div>
             <Button onClick={buscar} disabled={loading} className="h-10 rounded-xl gap-1.5">
