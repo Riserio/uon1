@@ -24,6 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import BISyncButton from "./BISyncButton";
+import { useBILayout } from "@/contexts/BILayoutContext";
 import BIAdminAnalytics from "./BIAdminAnalytics";
 
 interface AssociacaoStatus {
@@ -159,7 +160,7 @@ function Kpi({ icon, valor, label, cor }: { icon: React.ReactNode; valor: React.
 }
 
 // ── Card widget de associação ──
-function AssociacaoCard({ a }: { a: AssociacaoStatus }) {
+function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void }) {
   const s = saude(a);
   const errosLogin = loginErrorInfo(a);
   const temErroLogin = errosLogin.length > 0;
@@ -175,7 +176,11 @@ function AssociacaoCard({ a }: { a: AssociacaoStatus }) {
   ];
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 hover:shadow-sm transition-all ${
+    <div
+      role="button"
+      title="Abrir painel da associação"
+      onClick={onOpen}
+      className={`rounded-2xl border px-4 py-3 hover:shadow-sm transition-all cursor-pointer ${
       temErroLogin
         ? "border-red-500/50 bg-red-500/5"
         : temUrlFalt
@@ -215,7 +220,7 @@ function AssociacaoCard({ a }: { a: AssociacaoStatus }) {
         </div>
 
         {/* Usuários + ação */}
-        <div className="flex items-center gap-4 shrink-0">
+        <div className="flex items-center gap-4 shrink-0" onClick={(e) => e.stopPropagation()}>
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <Users className="h-3.5 w-3.5" />
             {a.total_usuarios > 0 ? `${a.usuarios_ativos}/${a.total_usuarios}` : "—"}
@@ -248,6 +253,7 @@ function AssociacaoCard({ a }: { a: AssociacaoStatus }) {
 type Filtro = "todas" | "erro" | "sincronizando";
 
 export default function BIAdminDashboard() {
+  const { setSelectedAssociacao } = useBILayout();
   const [associacoes, setAssociacoes] = useState<AssociacaoStatus[]>([]);
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -516,7 +522,7 @@ export default function BIAdminDashboard() {
           ) : (
             <div className="flex flex-col gap-2">
               {filtradas.map((a) => (
-                <AssociacaoCard key={a.id} a={a} />
+                <AssociacaoCard key={a.id} a={a} onOpen={() => setSelectedAssociacao(a.id)} />
               ))}
             </div>
           )}
