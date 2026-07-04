@@ -121,6 +121,22 @@ const safeJson = (v: any) => {
   }
 };
 
+// Input de moeda com máscara (acumulador de centavos): sempre exibe formatCurrency.
+function MoedaInput({ value, onChange, className }: { value: number; onChange: (n: number) => void; className?: string }) {
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      value={formatCurrency(value || 0)}
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, "");
+        onChange(digits ? parseInt(digits, 10) / 100 : 0);
+      }}
+      className={className}
+    />
+  );
+}
+
 export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string }) {
   const { user } = useAuth();
   const { registrarLog } = useBIAuditLog();
@@ -510,13 +526,9 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
 
                       <td className="py-3 px-2 text-right">
                         {canEdit ? (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={(((data as any)[`tm_${cat.key}`] as number) || 0).toString()}
-                            onChange={(e) =>
-                              updateField(`tm_${cat.key}` as keyof EstudoBaseData, parseFloat(e.target.value) || 0)
-                            }
+                          <MoedaInput
+                            value={((data as any)[`tm_${cat.key}`] as number) || 0}
+                            onChange={(n) => updateField(`tm_${cat.key}` as keyof EstudoBaseData, n)}
                             className="h-8 w-28 text-right ml-auto"
                           />
                         ) : (
@@ -544,16 +556,9 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
 
                       <td className="py-3 px-2 text-right">
                         {canEdit ? (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={(((data as any)[`valor_protegido_${cat.key}`] as number) || 0).toString()}
-                            onChange={(e) =>
-                              updateField(
-                                `valor_protegido_${cat.key}` as keyof EstudoBaseData,
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
+                          <MoedaInput
+                            value={((data as any)[`valor_protegido_${cat.key}`] as number) || 0}
+                            onChange={(n) => updateField(`valor_protegido_${cat.key}` as keyof EstudoBaseData, n)}
                             className="h-8 w-32 text-right ml-auto"
                           />
                         ) : (
