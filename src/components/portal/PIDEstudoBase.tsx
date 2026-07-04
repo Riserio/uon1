@@ -205,12 +205,15 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
     if (!corretoraId) return;
     setCalculando(true);
     try {
-      const { data: res, error } = await supabase.functions.invoke("agregar-estudo-base", {
-        body: { corretora_id: corretoraId, data_referencia: dataReferencia },
+      // Cálculo feito por função no banco (RPC) — não depende de edge function
+      const { data: res, error } = await supabase.rpc("agregar_estudo_base", {
+        p_corretora_id: corretoraId,
+        p_data_referencia: dataReferencia || null,
       });
       if (error) throw error;
-      if (res && res.success === false) throw new Error(res.message || "Falha ao calcular");
-      toast.success(res?.message || "Estudo de Base calculado a partir da base");
+      const r = res as any;
+      if (r && r.success === false) throw new Error(r.message || "Falha ao calcular");
+      toast.success(r?.total != null ? `Estudo de Base calculado (${r.total} veículos)` : "Estudo de Base calculado a partir da base");
       if (initialized) fetchData();
     } catch (e: any) {
       toast.error(e?.message || "Não foi possível calcular a partir da base");
