@@ -14,6 +14,8 @@ interface WorkflowInput {
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
+const MAX_RETRIES = 3; // teto de tentativas automáticas antes de parar
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -112,6 +114,7 @@ serve(async (req) => {
       .eq("status", "erro")
       .not("proxima_tentativa_at", "is", null)
       .lte("proxima_tentativa_at", new Date().toISOString())
+      .lt("retry_count", MAX_RETRIES)
       .order("proxima_tentativa_at", { ascending: true });
 
     if (execucoesParaRetry && execucoesParaRetry.length > 0) {
@@ -206,7 +209,7 @@ serve(async (req) => {
               mensagem: `Retry automático (tentativa ${execFalha.retry_count + 1}) após erro: ${execFalha.erro?.substring(0, 100) || 'desconhecido'}`,
               iniciado_por: null,
               tipo_disparo: 'retry',
-              retry_count: execFalha.retry_count,
+              retry_count: (execFalha.retry_count || 0) + 1,
             })
             .select()
             .single();
@@ -254,13 +257,17 @@ serve(async (req) => {
             const errorText = await dispatchResponse.text();
             console.error(`[Scheduler] Erro ao disparar retry para ${config.corretora_id}:`, errorText);
             
-            // Agendar próximo retry em 1 hora
-            const proximoRetry = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+            // Só reagenda se ainda houver tentativas — evita loop infinito de retries
+            const novoRetryCount = (execFalha.retry_count || 0) + 1;
+            const podeReagendar = novoRetryCount < MAX_RETRIES;
+            const proximoRetry = podeReagendar ? new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString() : null;
             await supabase
               .from("cobranca_automacao_execucoes")
               .update({
                 status: 'erro',
-                erro: `Erro ao disparar GitHub Actions no retry: ${dispatchResponse.status}`,
+                erro: podeReagendar
+                  ? `Erro ao disparar GitHub Actions no retry: ${dispatchResponse.status}`
+                  : `Erro ao disparar GitHub Actions (limite de ${MAX_RETRIES} tentativas atingido): ${dispatchResponse.status}`,
                 finalizado_at: new Date().toISOString(),
                 proxima_tentativa_at: proximoRetry,
               })

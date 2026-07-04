@@ -44,35 +44,52 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Cache dependências npm
+      # Dependências do robô ISOLADAS do app (evita instalar a árvore inteira
+      # do frontend e falhas de setup quando o package-lock do app muda)
+      - name: Cache dependências do robô
         uses: actions/cache@v4
-        id: npm-cache
+        id: robot-cache
         with:
-          path: node_modules
-          key: ${{ runner.os }}-npm-mgf-${{ hashFiles('package-lock.json') }}-v1
-          restore-keys: |
-            ${{ runner.os }}-npm-mgf-
+          path: .robot-deps/node_modules
+          key: ${{ runner.os }}-robot-deps-playwright-1.49.1-v2
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package-lock.json') }}-v1
-          restore-keys: |
-            ${{ runner.os }}-playwright-chromium-
+          key: ${{ runner.os }}-playwright-chromium-1.49.1-v2
 
-      - name: Instalar dependências
-        if: steps.npm-cache.outputs.cache-hit != 'true'
-        run: npm install playwright axios xlsx
+      - name: Instalar dependências do robô (com retry)
+        if: steps.robot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .robot-deps && cd .robot-deps
+          [ -f package.json ] || npm init -y >/dev/null
+          for i in 1 2 3; do
+            npm install --no-audit --no-fund playwright@1.49.1 axios xlsx && break
+            echo "npm install falhou (tentativa $i), aguardando..." && sleep 20
+            [ "$i" = "3" ] && exit 1
+          done
 
-      - name: Instalar Playwright Chromium
+      - name: Instalar Playwright Chromium (com retry)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium --with-deps
+        run: |
+          cd .robot-deps
+          for i in 1 2 3; do
+            npx playwright install chromium --with-deps && break
+            echo "playwright install falhou (tentativa $i), aguardando..." && sleep 20
+            [ "$i" = "3" ] && exit 1
+          done
 
       - name: Instalar dependências do sistema (se browser em cache)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+        run: |
+          cd .robot-deps
+          for i in 1 2 3; do
+            npx playwright install-deps chromium && break
+            echo "install-deps falhou (tentativa $i), aguardando..." && sleep 20
+            [ "$i" = "3" ] && exit 1
+          done
       
       - name: Executar robô MGF
         env:
@@ -87,7 +104,7 @@ jobs:
           DATA_INICIO: ${{ inputs.data_inicio }}
           DATA_FIM: ${{ inputs.data_fim }}
           ROBOT_MODULE: mgf
-        run: node scripts/robo-mgf-hinova.cjs
+        run: NODE_PATH=$PWD/.robot-deps/node_modules node scripts/robo-mgf-hinova.cjs
 
       - name: Notificar erro ao webhook (fallback)
         if: failure()

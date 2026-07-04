@@ -22,6 +22,8 @@ interface WorkflowInput {
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
+const MAX_RETRIES = 3; // teto de tentativas automáticas antes de parar
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -125,6 +127,7 @@ serve(async (req) => {
       .eq("status", "erro")
       .not("proxima_tentativa_at", "is", null)
       .lte("proxima_tentativa_at", new Date().toISOString())
+      .lt("retry_count", MAX_RETRIES)
       .in("corretora_id", corretoraIds)
       .order("proxima_tentativa_at", { ascending: true });
 
@@ -194,7 +197,7 @@ serve(async (req) => {
               mensagem: `Retry automático (tentativa ${(execFalha.retry_count || 0) + 1})`,
               iniciado_por: null,
               tipo_disparo: 'retry',
-              retry_count: execFalha.retry_count || 0,
+              retry_count: (execFalha.retry_count || 0) + 1,
               filtros_aplicados: { data_inicio: dataInicio, data_fim: dataFim },
             })
             .select()
@@ -219,12 +222,16 @@ serve(async (req) => {
           const dispatchOk = await dispatchGitHub(githubPat!, githubRepoOwner!, githubRepoName!, workflowInputs);
 
           if (!dispatchOk) {
-            const proximoRetry = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+            const novoRetryCount = (execFalha.retry_count || 0) + 1;
+            const podeReagendar = novoRetryCount < MAX_RETRIES;
+            const proximoRetry = podeReagendar ? new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString() : null;
             await supabase
               .from("sga_automacao_execucoes")
               .update({
                 status: 'erro',
-                erro: 'Erro ao disparar GitHub Actions no retry',
+                erro: podeReagendar
+                  ? 'Erro ao disparar GitHub Actions no retry'
+                  : `Erro ao disparar GitHub Actions (limite de ${MAX_RETRIES} tentativas atingido)`,
                 finalizado_at: new Date().toISOString(),
                 proxima_tentativa_at: proximoRetry,
               })
