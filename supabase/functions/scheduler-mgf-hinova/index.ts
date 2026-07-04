@@ -14,7 +14,7 @@ interface WorkflowInput {
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
-const MAX_RETRIES = 3; // teto de tentativas automáticas antes de parar
+const MAX_RETRIES = 5; // teto de tentativas automáticas antes de parar
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -260,7 +260,7 @@ serve(async (req) => {
             // Só reagenda se ainda houver tentativas — evita loop infinito de retries
             const novoRetryCount = (execFalha.retry_count || 0) + 1;
             const podeReagendar = novoRetryCount < MAX_RETRIES;
-            const proximoRetry = podeReagendar ? new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString() : null;
+            const proximoRetry = podeReagendar ? new Date(Date.now() + 20 * 60 * 1000).toISOString() : null;
             await supabase
               .from("mgf_automacao_execucoes")
               .update({
@@ -305,7 +305,16 @@ serve(async (req) => {
     const disparados: string[] = [];
     const erros: string[] = [];
 
+    // Espaça os disparos: no modo cron (roda a cada minuto) dispara poucas por
+    // ciclo para nao martelar o Hinova com todas as associacoes ao mesmo tempo.
+    const MAX_DISPATCH_PER_RUN = 3;
+
     for (const config of configs) {
+      if (!forceMode && (!specificCorretoras || specificCorretoras.length === 0) &&
+          (disparados.length + retryDisparados.length) >= MAX_DISPATCH_PER_RUN) {
+        console.log(`[Scheduler MGF] Cap de ${MAX_DISPATCH_PER_RUN} disparos/ciclo atingido — restante no proximo minuto`);
+        break;
+      }
       // Verificar flag ativo_mgf na tabela hinova_credenciais
       const { data: credenciaisFlag } = await supabase
         .from("hinova_credenciais")
