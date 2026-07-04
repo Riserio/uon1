@@ -135,6 +135,13 @@ const COLUMN_MAP: { [key: string]: string } = {
   "PLACA TERCEIRO EVENTO": "placa_terceiro_evento",
 };
 
+// Comparacao robusta: ignora acentos (o SGA envia cabecalhos com acentuacao
+// inconsistente, ex.: "Classificação Veiculo Lancamento").
+const stripAccents = (s: string): string => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const COLUMN_MAP_NORM: { [key: string]: string } = Object.fromEntries(
+  Object.entries(COLUMN_MAP).map(([k, v]) => [stripAccents(k), v]),
+);
+
 const DATE_FIELDS = ["data_nota_fiscal", "data_vencimento", "data_vencimento_original", "data_pagamento", "data_evento"];
 const MONEY_FIELDS = ["valor", "valor_total_lancamento", "valor_pagamento", "multa", "juros", "impostos"];
 
@@ -538,8 +545,8 @@ serve(async (req) => {
       const processedCols = new Set<string>();
 
       Object.entries(row).forEach(([excelCol, value]) => {
-        const normalizedCol = excelCol.trim().toUpperCase().replace(/\s+/g, ' ');
-        const dbCol = COLUMN_MAP[normalizedCol];
+        const normalizedCol = stripAccents(excelCol.trim().toUpperCase().replace(/\s+/g, ' '));
+        const dbCol = COLUMN_MAP_NORM[normalizedCol];
 
         if (dbCol && !processedCols.has(dbCol)) {
           processedCols.add(dbCol);
