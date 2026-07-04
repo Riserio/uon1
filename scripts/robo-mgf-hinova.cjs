@@ -649,51 +649,39 @@ function validateDownloadedFile(filePath, contentType = '') {
   log(`Tipo detectado: ${fileType.type} (content-type: ${contentType || 'não informado'})`, LOG_LEVELS.DEBUG);
   
   if (fileType.type === 'html') {
+    // Ler o arquivo INTEIRO (ate 4MB). A tabela do relatorio financeiro costuma
+    // comecar DEPOIS de um cabecalho/filtros grande (>10KB), entao ler so o
+    // inicio gerava falso "pagina de erro".
+    const readLen = Math.min(stats.size, 4 * 1024 * 1024);
     const fd = fs.openSync(filePath, 'r');
-    const buffer = Buffer.alloc(Math.min(10240, stats.size));
-    fs.readSync(fd, buffer, 0, buffer.length, 0);
+    const buffer = Buffer.alloc(readLen);
+    fs.readSync(fd, buffer, 0, readLen, 0);
     fs.closeSync(fd);
-    
+
     const content = buffer.toString('utf-8').toLowerCase();
-    
-    const isErrorPage = content.includes('internal server error') ||
+    const hasTableStructure = content.includes('<table') && content.includes('<tr');
+
+    // Assinaturas fortes de erro do portal (PHP/servidor)
+    const strongError = content.includes('internal server error') ||
                         content.includes('500 internal') ||
-                        content.includes('erro interno') ||
+                        content.includes('erro interno do servidor') ||
                         content.includes('error 500') ||
-                        content.includes('exception') ||
                         content.includes('fatal error') ||
-                        content.includes('erro ao gerar') ||
-                        content.includes('tempo esgotado') ||
-                        content.includes('timeout') ||
-                        (content.includes('<html') && !content.includes('<table') && !content.includes('<tr'));
-    
-    if (isErrorPage) {
-      log(`❌ Arquivo HTML é uma página de ERRO do portal`, LOG_LEVELS.ERROR);
+                        content.includes('erro ao gerar');
+
+    // Relatorio valido = HTML COM tabela de dados. Pagina de erro nao tem tabela.
+    if (!hasTableStructure) {
+      log(`❌ HTML sem tabela de dados${strongError ? ' (assinatura de erro do portal)' : ''}`, LOG_LEVELS.ERROR);
       return {
         valid: false,
-        error: 'Página de erro do portal detectada - o relatório não foi gerado corretamente',
+        error: strongError ? 'Pagina de erro do portal detectada - o relatorio nao foi gerado' : 'HTML sem dados de relatorio (sem tabela)',
         isErrorPage: true,
         size: stats.size,
         fileType: 'html',
       };
     }
-    
-    const hasTableStructure = content.includes('<table') && content.includes('<tr');
-    
-    if (!hasTableStructure) {
-      log(`⚠️ HTML sem estrutura de tabela detectado`, LOG_LEVELS.WARN);
-      if (stats.size < 50 * 1024) {
-        return {
-          valid: false,
-          error: 'HTML sem dados de relatório detectado',
-          isErrorPage: true,
-          size: stats.size,
-          fileType: 'html',
-        };
-      }
-    }
-    
-    log(`Arquivo detectado como HTML disfarçado de Excel (com tabelas)`, LOG_LEVELS.INFO);
+
+    log(`Arquivo HTML valido (relatorio com tabela, ${(stats.size / 1024).toFixed(1)} KB)`, LOG_LEVELS.INFO);
     return {
       valid: true,
       size: stats.size,
@@ -703,7 +691,7 @@ function validateDownloadedFile(filePath, contentType = '') {
     };
   }
   
-  if (fileType.type === 'xlsx' || fileType.type === 'xls') {
+    if (fileType.type === 'xlsx' || fileType.type === 'xls') {
     return {
       valid: true,
       size: stats.size,
