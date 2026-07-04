@@ -4683,6 +4683,27 @@ export type Database = {
           },
         ]
       }
+      modulos_desabilitados: {
+        Row: {
+          desabilitado_em: string
+          desabilitado_por: string | null
+          id: string
+          modulo_id: string
+        }
+        Insert: {
+          desabilitado_em?: string
+          desabilitado_por?: string | null
+          id?: string
+          modulo_id: string
+        }
+        Update: {
+          desabilitado_em?: string
+          desabilitado_por?: string | null
+          id?: string
+          modulo_id?: string
+        }
+        Relationships: []
+      }
       notas_fiscais: {
         Row: {
           aliquota_iss: number | null
@@ -8613,6 +8634,10 @@ export type Database = {
         Returns: boolean
       }
       reset_email_rate_limits: { Args: never; Returns: undefined }
+      sga_proxima_data_inicio: {
+        Args: { _corretora_id: string }
+        Returns: string
+      }
       user_can_access_fluxo: {
         Args: { _fluxo_id: string; _require_edit?: boolean; _user_id: string }
         Returns: boolean
