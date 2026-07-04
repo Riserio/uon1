@@ -4,6 +4,7 @@ import {
   CreditCard,
   Database,
   History,
+  ArrowLeft,
   TrendingUp,
   KanbanSquare,
   BarChart3,
@@ -124,6 +125,17 @@ export default function BIPageHeader({
 
         {/* Ações agrupadas: associação em destaque, o resto discreto */}
         <div className="flex items-center gap-2 flex-wrap">
+          {showAdminOption && selectedAssociacao && selectedAssociacao !== "__admin__" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onAssociacaoChange("__admin__")}
+              className="gap-1.5 rounded-lg h-9 border-primary/30 text-primary hover:bg-primary/5"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline text-xs font-medium">Visão Administradora</span>
+            </Button>
+          )}
           <Select value={selectedAssociacao} onValueChange={onAssociacaoChange} disabled={loadingAssociacoes}>
             <SelectTrigger className="w-48 sm:w-56 h-9 text-sm rounded-lg font-medium">
               <SelectValue placeholder="Selecione associação..." />
