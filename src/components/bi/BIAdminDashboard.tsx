@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Building2, Users, Shield, ShieldOff, Loader2,
@@ -60,42 +60,47 @@ interface GroupedUser {
   created_at: string;
 }
 
-function StatusCell({ status, ultima, erro }: { status: string | null; ultima: string | null; erro: string | null; ativo: boolean }) {
-  const icon = status === "sucesso" ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> :
-    status === "erro" ? <XCircle className="h-3.5 w-3.5 text-destructive" /> :
-    status === "executando" ? <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" /> :
-    <Clock className="h-3.5 w-3.5 text-muted-foreground" />;
+const STALE_EXEC_MS = 15 * 60 * 1000; // executando ha mais que isso = travado
 
-  const content = (
-    <div className="flex flex-col items-center gap-0.5">
-      <div className="flex items-center gap-1">
-        {icon}
-      </div>
-      {ultima && (
-        <span className="text-[10px] text-muted-foreground">
-          {format(new Date(ultima), "dd/MM HH:mm", { locale: ptBR })}
-        </span>
-      )}
-    </div>
+function StatusCell({ status, ultima, erro, ativo }: { status: string | null; ultima: string | null; erro: string | null; ativo: boolean }) {
+  if (!ativo) return <span title="Modulo nao ativado" className="text-xs text-muted-foreground/50">—</span>;
+
+  const ultimaMs = ultima ? new Date(ultima).getTime() : 0;
+  const stale = ultimaMs > 0 && Date.now() - ultimaMs > STALE_EXEC_MS;
+  const eff = status === "executando" && stale ? "parado" : (status || "nunca");
+
+  const meta: Record<string, { label: string; text: string; dot?: string; spin?: boolean }> = {
+    sucesso: { label: "OK", text: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" },
+    erro: { label: "Erro", text: "text-red-600 dark:text-red-400", dot: "bg-red-500" },
+    executando: { label: "Sincronizando", text: "text-blue-600 dark:text-blue-400", spin: true },
+    parado: { label: "Parado", text: "text-amber-600 dark:text-amber-400", dot: "bg-amber-500" },
+    nunca: { label: "—", text: "text-muted-foreground", dot: "bg-muted-foreground/40" },
+  };
+  const m = meta[eff] || meta.nunca;
+
+  const pill = (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${m.text}`}>
+      {m.spin ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className={`h-2 w-2 rounded-full ${m.dot}`} />}
+      {m.label}
+    </span>
   );
 
-  if (status === "erro" && erro) {
+  const rel = ultima ? formatDistanceToNow(new Date(ultima), { locale: ptBR, addSuffix: true }) : null;
+  const tip = eff === "erro" ? erro : eff === "parado" ? "Execucao nao finalizou. Sincronize novamente." : null;
+  if (tip || rel) {
     return (
       <TooltipProvider delayDuration={200}>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="cursor-help">{content}</div>
-          </TooltipTrigger>
+          <TooltipTrigger asChild><span className="cursor-help">{pill}</span></TooltipTrigger>
           <TooltipContent side="top" className="max-w-xs text-xs">
-            <p className="font-semibold text-destructive mb-1">Erro:</p>
-            <p>{erro}</p>
+            {tip && <p className={eff === "erro" ? "text-destructive" : "text-amber-600"}>{tip}</p>}
+            {rel && <p className="text-muted-foreground mt-0.5">{rel}</p>}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
     );
   }
-
-  return content;
+  return pill;
 }
 
 export default function BIAdminDashboard() {
@@ -135,6 +140,27 @@ export default function BIAdminDashboard() {
               .from(config as any)
               .update({ ultimo_status: "erro", ultimo_erro: "Timeout: execução não respondeu" } as any)
               .eq("corretora_id", row.corretora_id);
+          }
+        }
+      })
+    );
+
+    // Cura configs presas em "executando" cuja ultima execucao e antiga
+    await Promise.all(
+      tables.map(async ({ config }) => {
+        const { data: stuck } = await supabase
+          .from(config as any)
+          .select("corretora_id, ultima_execucao")
+          .eq("ultimo_status", "executando")
+          .in("corretora_id", corretoraIds) as any;
+        for (const row of stuck || []) {
+          const tt = row.ultima_execucao ? new Date(row.ultima_execucao).getTime() : 0;
+          if (!tt || now - tt > STALE_TIMEOUT_MS) {
+            await supabase
+              .from(config as any)
+              .update({ ultimo_status: "erro", ultimo_erro: "Execucao nao finalizou (status preso)" } as any)
+              .eq("corretora_id", row.corretora_id)
+              .eq("ultimo_status", "executando");
           }
         }
       })

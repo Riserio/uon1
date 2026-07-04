@@ -10,7 +10,6 @@ import { usePontoAlertas } from "@/hooks/usePontoAlertas";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
 // sidebar is now self-contained in AppSidebar
 import { AppSidebar } from "@/components/AppSidebar";
-import ImportacoesRail from "@/features/importacoes/ImportacoesRail";
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
 import { PortalLayoutProvider } from "./contexts/PortalLayoutContext";
 import { lazy, Suspense } from "react";
@@ -155,7 +154,6 @@ function AppLayout() {
       <MainContent>
         <Outlet />
       </MainContent>
-      <ImportacoesRail />
     </div>
   );
 }
