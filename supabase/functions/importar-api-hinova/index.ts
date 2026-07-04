@@ -157,9 +157,24 @@ serve(async (req) => {
         return null;
       };
 
+      // Busca associados para preencher CIDADE/ESTADO (o veículo não traz endereço)
+      const assocMap = new Map<string, { cidade: string | null; estado: string | null }>();
+      try {
+        const ar = await fetch(`${base}/listar/associado`, { method: "POST", headers: H, body: JSON.stringify({}) });
+        const aj = await ar.json().catch(() => null);
+        const aarr = extrairArray(aj) || [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const a of aarr as any[]) {
+          const cod = String(a.codigo_associado ?? a.codigo ?? "");
+          if (cod) assocMap.set(cod, { cidade: (a.cidade ?? a.cidade_associado ?? null), estado: (a.estado ?? a.uf ?? null) });
+        }
+      } catch (_e) { /* segue sem cidade/estado */ }
+
       // Mapear -> Cadastro (lista bruta)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cadastro = veiculos.map((v: any) => ({
+      const cadastro = veiculos.map((v: any) => {
+        const assocC = assocMap.get(String(g(v, "codigo_associado") ?? ""));
+        return {
         nome: g(v, "nome_associado", "nome", "associado_nome") as string | null,
         cpf: g(v, "cpf", "cpf_cnpj", "documento") as string | null,
         placa: g(v, "placa") as string | null,
@@ -172,13 +187,16 @@ serve(async (req) => {
         data_cadastro: dateISO(g(v, "data_cadastro", "data_contrato")),
         data_adesao: dateISO(g(v, "data_adesao", "data_contrato")),
         valor_protegido: num(g(v, "valor_protegido", "valor_fipe")),
-        cidade: g(v, "cidade", "cidade_veiculo", "cidade_proprietario") as string | null,
-        estado: g(v, "estado", "uf") as string | null,
-      }));
+        cidade: (g(v, "cidade", "cidade_veiculo", "cidade_proprietario") as string | null) || assocC?.cidade || null,
+        estado: (g(v, "estado", "uf") as string | null) || assocC?.estado || null,
+        };
+      });
 
       // Mapear -> Estudo de Base (lista rica) — alimenta a agregação por categoria
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const eb = veiculos.map((v: any) => ({
+      const eb = veiculos.map((v: any) => {
+        const assocE = assocMap.get(String(g(v, "codigo_associado") ?? ""));
+        return {
         placa: g(v, "placa") as string | null,
         tipo_veiculo: g(v, "tipo_veiculo", "tipo", "especie") as string | null,
         montadora: g(v, "montadora", "marca", "fabricante") as string | null,
@@ -194,10 +212,11 @@ serve(async (req) => {
         cooperativa: g(v, "cooperativa") as string | null,
         regional: g(v, "regional") as string | null,
         situacao_veiculo: g(v, "situacao_veiculo", "situacao", "status") as string | null,
-        cidade_veiculo: g(v, "cidade", "cidade_veiculo") as string | null,
-        estado: g(v, "estado", "uf") as string | null,
+        cidade_veiculo: (g(v, "cidade", "cidade_veiculo") as string | null) || assocE?.cidade || null,
+        estado: (g(v, "estado", "uf") as string | null) || assocE?.estado || null,
         voluntario: g(v, "voluntario") as string | null,
-      }));
+        };
+      });
 
       const nomeArqB = `API base ${ddmmyyyy(new Date())}`;
 
