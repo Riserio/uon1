@@ -43,6 +43,8 @@ interface AssociacaoStatus {
   ativo_cobranca: boolean;
   ativo_eventos: boolean;
   ativo_mgf: boolean;
+  url_eventos: string | null;
+  url_mgf: string | null;
   total_usuarios: number;
   usuarios_ativos: number;
   em_execucao: boolean;
@@ -123,6 +125,14 @@ function loginErrorInfo(a: AssociacaoStatus): { modulo: string; mensagem: string
   return out;
 }
 
+// Modulos ATIVOS (que usam URL de relatorio) sem a URL cadastrada = falta inserir dados
+function urlsFaltando(a: AssociacaoStatus): string[] {
+  const f: string[] = [];
+  if (a.ativo_eventos && !a.url_eventos) f.push("Eventos");
+  if (a.ativo_mgf && !a.url_mgf) f.push("MGF");
+  return f;
+}
+
 /** Saúde geral da associação (pior status entre os módulos ativos) */
 function saude(a: AssociacaoStatus): "ok" | "erro" | "sincronizando" | "neutro" {
   const mods: Efetivo[] = [];
@@ -153,6 +163,8 @@ function AssociacaoCard({ a }: { a: AssociacaoStatus }) {
   const s = saude(a);
   const errosLogin = loginErrorInfo(a);
   const temErroLogin = errosLogin.length > 0;
+  const urlsFalt = urlsFaltando(a);
+  const temUrlFalt = urlsFalt.length > 0;
   const pontoCor =
     s === "erro" ? "bg-red-500" : s === "sincronizando" ? "bg-blue-500 animate-pulse" : s === "ok" ? "bg-emerald-500" : "bg-muted-foreground/30";
 
@@ -166,6 +178,8 @@ function AssociacaoCard({ a }: { a: AssociacaoStatus }) {
     <div className={`rounded-2xl border px-4 py-3 hover:shadow-sm transition-all ${
       temErroLogin
         ? "border-red-500/50 bg-red-500/5"
+        : temUrlFalt
+        ? "border-amber-500/50 bg-amber-500/5"
         : "border-border/50 bg-card hover:border-primary/20"
     }`}>
       <div className="flex items-center gap-4">
@@ -177,6 +191,10 @@ function AssociacaoCard({ a }: { a: AssociacaoStatus }) {
             {temErroLogin ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600">
                 <AlertTriangle className="h-3 w-3" /> Erro de login · {errosLogin.map((e) => e.modulo).join(", ")}
+              </span>
+            ) : temUrlFalt ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600">
+                <AlertTriangle className="h-3 w-3" /> Falta URL · {urlsFalt.join(", ")}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -295,7 +313,7 @@ export default function BIAdminDashboard() {
 
       const { data: credenciais } = await supabase
         .from("hinova_credenciais")
-        .select("corretora_id, ativo_cobranca, ativo_eventos, ativo_mgf");
+        .select("corretora_id, ativo_cobranca, ativo_eventos, ativo_mgf, url_eventos, url_mgf");
 
       const [cobConfigs, sgaConfigs, mgfConfigs] = await Promise.all([
         supabase.from("cobranca_automacao_config").select("corretora_id, ultimo_status, ultima_execucao, ultimo_erro"),
@@ -351,6 +369,7 @@ export default function BIAdminDashboard() {
             eventos_status: okEv.has(c.id) ? "sucesso" : sga?.ultimo_status || null, eventos_ultima: sga?.ultima_execucao || null, eventos_erro: okEv.has(c.id) ? null : sga?.ultimo_erro || null,
             mgf_status: okMgf.has(c.id) ? "sucesso" : mgf?.ultimo_status || null, mgf_ultima: mgf?.ultima_execucao || null, mgf_erro: okMgf.has(c.id) ? null : mgf?.ultimo_erro || null,
             tem_credenciais: !!cred, ativo_cobranca: cred?.ativo_cobranca || false, ativo_eventos: cred?.ativo_eventos || false, ativo_mgf: cred?.ativo_mgf || false,
+            url_eventos: cred?.url_eventos || null, url_mgf: cred?.url_mgf || null,
             total_usuarios: users.total, usuarios_ativos: users.ativos,
             em_execucao: runMap.has(c.id), exec_modulo: runMap.get(c.id)?.modulo ?? null, exec_etapa: runMap.get(c.id)?.etapa ?? null, exec_progresso: runMap.get(c.id)?.progresso ?? null,
           };
