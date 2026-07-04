@@ -54,6 +54,7 @@ const Administradora = lazy(() => import("./pages/Administradora"));
 const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'));
 const PortalDashboard = lazy(() => import('./pages/portal/PortalDashboard'));
 const PID = lazy(() => import('./pages/PID'));
+const SGABusca = lazy(() => import('./pages/SGABusca'));
 const Portal = lazy(() => import('./pages/Portal'));
 const DashboardFinanceiro = lazy(() => import("./pages/DashboardFinanceiro"));
 const CustosSinistros = lazy(() => import("./pages/CustosSinistros"));
@@ -292,6 +293,7 @@ const App = () => (
                 <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
                 <Route element={<ProtectedRoute><BILayout /></ProtectedRoute>}>
                   <Route path="/pid" element={<PID />} />
+                  <Route path="/sga" element={<SGABusca />} />
                   <Route path="/sga-insights" element={<SGAInsights />} />
                   <Route path="/mgf-insights" element={<MGFInsights />} />
                   <Route path="/cobranca-insights" element={<CobrancaInsights />} />

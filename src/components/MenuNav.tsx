@@ -15,6 +15,7 @@ import {
   Camera,
   FileX,
   TrendingUp,
+  Search,
   DollarSign,
   MessageSquareWarning,
   CarFront,
@@ -319,6 +320,16 @@ export default function MenuNav() {
             <Link to="/comunicados" className="cursor-pointer">
               <Megaphone className="mr-2 h-4 w-4" />
               <span>Comunicados</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        {/* SGA - Busca de clientes */}
+        {canView("pid") && (
+          <DropdownMenuItem asChild>
+            <Link to="/sga" className="cursor-pointer">
+              <Search className="mr-2 h-4 w-4" />
+              <span>SGA</span>
             </Link>
           </DropdownMenuItem>
         )}
