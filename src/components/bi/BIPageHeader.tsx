@@ -75,12 +75,6 @@ const modules = [
     path: "/estudo-base-insights",
   },
   {
-    id: "cadastro",
-    label: "Cadastro",
-    icon: Keyboard,
-    path: "/cadastro-insights",
-  },
-  {
     id: "acompanhamento-eventos",
     label: "Acompanhamento",
     icon: KanbanSquare,
