@@ -1021,18 +1021,20 @@ async function selecionarFormaExibicaoEmExcel(page) {
     return false;
   };
 
-  if (await tryInFrame(page.mainFrame())) {
-    return true;
-  }
-
-  for (const frame of page.frames()) {
-    if (frame === page.mainFrame()) continue;
-    if (await tryInFrame(frame)) {
-      return true;
+  // A opcao "Em Excel" existe em UMA das duas versoes de tela: o portal .php
+  // (ex.: VALECAR) mostra o dropdown; o v5 (ex.: ASSPAS) NAO tem essa opcao.
+  // Tentamos algumas vezes esperando ela aparecer; se nunca aparecer, seguimos
+  // normal (o download por captura inline/HTML cobre o caso do v5).
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    if (await tryInFrame(page.mainFrame())) return true;
+    for (const frame of page.frames()) {
+      if (frame === page.mainFrame()) continue;
+      if (await tryInFrame(frame)) return true;
     }
+    if (tentativa < 3) await page.waitForTimeout(1500);
   }
 
-  log('Não foi possível selecionar a opção Excel', LOG_LEVELS.WARN);
+  log('Forma de Exibição "Em Excel" não apareceu nesta tela — seguindo (versão de tela sem essa opção)', LOG_LEVELS.INFO);
   return false;
 }
 
