@@ -1,0 +1,40 @@
+name: Deploy Supabase Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: mnoczwmqgignmylbvpgp
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy edge functions (API Hinova + base)
+        run: |
+          set -e
+          for fn in \
+            importar-api-hinova \
+            agregar-estudo-base \
+            scheduler-base-hinova \
+            disparar-sga-workflow \
+            disparar-mgf-workflow \
+            disparar-github-workflow \
+            scheduler-sga-hinova \
+            scheduler-mgf-hinova \
+            scheduler-cobranca-hinova; do
+            echo "== deploy $fn =="
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF" || echo "FALHOU: $fn"
+          done

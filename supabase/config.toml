@@ -110,3 +110,6 @@ verify_jwt = false
 
 [functions.importar-api-hinova]
 verify_jwt = false
+
+[functions.scheduler-base-hinova]
+verify_jwt = false
