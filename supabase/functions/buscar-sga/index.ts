@@ -15,15 +15,15 @@ function normalizar(o: any) {
   return {
     nome: o.nome ?? o.nome_associado ?? o.associado?.nome ?? null,
     cpf: o.cpf ?? o.cpf_cnpj ?? o.documento ?? null,
-    codigo_associado: o.codigo_associado ?? o.codigo ?? null,
+    codigo_associado: o.codigo_associado ?? v.codigo_associado ?? o.codigo ?? null,
     placa: o.placa ?? v.placa ?? null,
     chassi: o.chassi ?? v.chassi ?? null,
-    modelo: o.modelo ?? v.modelo ?? o.modelo_veiculo ?? null,
+    modelo: o.modelo ?? v.modelo ?? o.modelo_veiculo ?? o.tipo ?? v.tipo ?? o.categoria ?? v.categoria ?? null,
     marca: o.marca ?? v.marca ?? null,
-    ano: o.ano_modelo ?? v.ano_modelo ?? o.ano_fabricacao ?? null,
+    ano: o.ano_modelo ?? v.ano_modelo ?? o.ano_fabricacao ?? v.ano_fabricacao ?? null,
     situacao: o.situacao ?? o.situacao_associado ?? o.situacao_veiculo ?? v.situacao_veiculo ?? null,
-    telefone: o.celular ?? o.telefone_celular ?? o.telefone ?? o.telefone_fixo ?? null,
-    email: o.email ?? null,
+    telefone: o.telefone_celular ?? o.celular ?? o.telefone_comercial ?? o.telefone ?? o.telefone_fixo ?? null,
+    email: o.email ?? o.email_auxiliar ?? null,
     cidade: o.cidade ?? o.cidade_associado ?? null,
     estado: o.estado ?? o.uf ?? null,
     _bruto: o,
@@ -48,23 +48,18 @@ async function buscarNaAssociacao(base: string, H: Record<string, string>, tipo:
   const up = termo.toUpperCase().replace(/[^A-Z0-9]/g, "");
   const candidatos: Record<string, { m: "GET" | "POST"; p: string; b?: unknown }[]> = {
     cpf: [
+      { m: "GET", p: `/associado/buscar/${digits}` },
       { m: "GET", p: `/associado/buscar-por-permissao/buscar/${digits}` },
-      { m: "POST", p: `/localizar/associado`, b: { cpf: digits } },
-      { m: "POST", p: `/listar/associado`, b: { cpf: digits } },
     ],
     nome: [
       { m: "POST", p: `/localizar/associado`, b: { nome: termo } },
-      { m: "POST", p: `/listar/associado`, b: { nome: termo } },
+      { m: "POST", p: `/associado/listar`, b: { nome: termo } },
     ],
     placa: [
-      { m: "POST", p: `/localizar/veiculo`, b: { placa: up } },
-      { m: "GET", p: `/veiculo/buscar-por-placa/${up}` },
-      { m: "POST", p: `/listar/veiculo`, b: { placa: up } },
+      { m: "GET", p: `/veiculo/buscar/${up}/placa` },
     ],
     chassi: [
-      { m: "POST", p: `/localizar/veiculo`, b: { chassi: up } },
-      { m: "GET", p: `/veiculo/buscar-por-chassi/${up}` },
-      { m: "POST", p: `/listar/veiculo`, b: { chassi: up } },
+      { m: "GET", p: `/veiculo/buscar/${up}/chassi` },
     ],
   };
   for (const cand of candidatos[tipo] || []) {
