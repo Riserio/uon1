@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,9 @@ import { toast } from "sonner";
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  /** Pré-preenchimento (ex.: vindo do popup global de erro) */
+  initialTitulo?: string;
+  initialDescricao?: string;
 }
 
 export function coletarDiagnostico() {
@@ -46,7 +49,7 @@ export function coletarDiagnostico() {
   };
 }
 
-export function ReportDialog({ open, onOpenChange }: Props) {
+export function ReportDialog({ open, onOpenChange, initialTitulo, initialDescricao }: Props) {
   const { user, userRole } = useAuth();
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -54,6 +57,15 @@ export function ReportDialog({ open, onOpenChange }: Props) {
   const [severidade, setSeveridade] = useState("media");
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [enviando, setEnviando] = useState(false);
+
+  // Aplica o pré-preenchimento sempre que o diálogo abre com valores iniciais
+  useEffect(() => {
+    if (open) {
+      if (initialTitulo) setTitulo(initialTitulo);
+      if (initialDescricao) setDescricao(initialDescricao);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialTitulo, initialDescricao]);
 
   const reset = () => {
     setTitulo(""); setDescricao(""); setCategoria("bug"); setSeveridade("media"); setArquivos([]);

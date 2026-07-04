@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +62,21 @@ const CHECK_STEPS = [
 export default function ReportarProblema() {
   const { user } = useAuth();
   const [openDialog, setOpenDialog] = useState(false);
+  const [prefill, setPrefill] = useState<{ titulo?: string; descricao?: string }>({});
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Abre o diálogo pré-preenchido quando vindo do popup global de erro (?relatar=1)
+  useEffect(() => {
+    if (searchParams.get("relatar") === "1") {
+      setPrefill({
+        titulo: searchParams.get("titulo") || undefined,
+        descricao: searchParams.get("descricao") || undefined,
+      });
+      setOpenDialog(true);
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [relatos, setRelatos] = useState<BugReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [checks, setChecks] = useState<Check[]>([]);
@@ -546,7 +562,7 @@ export default function ReportarProblema() {
         </Tabs>
       </div>
 
-      <ReportDialog open={openDialog} onOpenChange={(v) => { setOpenDialog(v); if (!v) carregarRelatos(); }} />
+      <ReportDialog open={openDialog} initialTitulo={prefill.titulo} initialDescricao={prefill.descricao} onOpenChange={(v) => { setOpenDialog(v); if (!v) { setPrefill({}); carregarRelatos(); } }} />
       <RelatoDetailDialog
         relato={selecionado}
         open={!!selecionado}

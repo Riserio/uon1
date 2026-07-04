@@ -219,6 +219,8 @@ if (typeof window !== 'undefined') {
   });
 }
 
+import { ErrorReportPrompt } from "@/components/report/ErrorReportPrompt";
+
 const App = () => (
   <BrowserRouter>
     <QueryClientProvider client={queryClient}>
@@ -227,6 +229,7 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <ErrorReportPrompt />
             <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
             <Routes>
               {/* Portal PID Routes */}
