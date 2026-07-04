@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +87,7 @@ function useMenuItems() {
     { id: "documentos", label: "Documentos", to: "/documentos", icon: FileText, group: "ferramentas" },
     { id: "emails", label: "Central de Atendimento", to: "/central-atendimento", icon: Headset, badge: whatsAppUnread, group: "ferramentas" },
     { id: "mensagens", label: "Mensagens", to: "/mensagens", icon: MessageCircle, badge: unreadMessages, group: "ferramentas" },
+    { id: "sga", label: "SGA", to: "/sga", icon: Search, group: "ferramentas" },
     { id: "pid", label: "BI - Indicadores", to: "/pid", icon: TrendingUp, group: "ferramentas" },
     { id: "ouvidoria", label: "Ouvidoria", to: "/ouvidoria-backoffice", icon: MessageSquareWarning, badge: ouvidoriaPendentes, group: "ferramentas" },
     { id: "contratos", label: "Uon1 Sign", to: "/uon1sign", icon: FileSignature, badge: signedContracts.count, group: "ferramentas" },

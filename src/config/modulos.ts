@@ -31,6 +31,7 @@ export const SYSTEM_MODULES: ModuloSistema[] = [
   { id: "documentos", label: "Documentos", grupo: "ferramentas" },
   { id: "emails", label: "Central de Atendimento", grupo: "ferramentas" },
   { id: "mensagens", label: "Mensagens", grupo: "ferramentas" },
+  { id: "sga", label: "SGA", grupo: "ferramentas" },
   { id: "pid", label: "BI - Indicadores", grupo: "ferramentas" },
   { id: "ouvidoria", label: "Ouvidoria", grupo: "ferramentas" },
   { id: "contratos", label: "Uon1 Sign", grupo: "ferramentas" },
