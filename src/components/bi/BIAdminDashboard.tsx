@@ -82,7 +82,13 @@ const META: Record<Efetivo, { label: string; text: string; dot?: string; spin?: 
 
 /** Status compacto de um módulo (ponto colorido + rótulo, tooltip com detalhe) */
 function StatusModulo({ status, ultima, erro, ativo }: { status: string | null; ultima: string | null; erro: string | null; ativo: boolean }) {
-  if (!ativo) return <span title="Módulo não ativado" className="text-xs text-muted-foreground/50">—</span>;
+  if (!ativo)
+    return (
+      <span title="Módulo não ativado — falta configurar" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/60">
+        <span className="h-2 w-2 rounded-full border border-muted-foreground/40" />
+        Inativo
+      </span>
+    );
   const eff = efetivo(status, ultima);
   const m = META[eff];
   const pill = (
