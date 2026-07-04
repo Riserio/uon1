@@ -935,6 +935,22 @@ async function selecionarFormaExibicaoEmExcel(page) {
           }
         };
 
+        // 0) <select> de "Forma de Exibição" (portais .php como VALECAR usam dropdown,
+        // nao radio). Seleciona a opcao cujo texto/valor contenha "excel".
+        const selectsFx = Array.from(document.querySelectorAll('select'));
+        for (const sel of selectsFx) {
+          const opts = Array.from(sel.options || []);
+          const alvo = opts.find((o) => /excel/i.test(((o.textContent || '') + ' ' + (o.value || ''))));
+          if (alvo && !sel.disabled) {
+            sel.value = alvo.value;
+            sel.dispatchEvent(new Event('input', { bubbles: true }));
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            const form = sel.closest('form');
+            if (form) form.dispatchEvent(new Event('change', { bubbles: true }));
+            return { success: true, method: 'select', radioValue: alvo.value };
+          }
+        }
+
         const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
         
         for (const radio of radios) {
