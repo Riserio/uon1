@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 interface WorkflowInput {
+  corretora_nome?: string;
   corretora_id: string;
   execucao_id: string;
   webhook_url: string;
@@ -211,7 +212,10 @@ serve(async (req) => {
         .eq("id", config.id);
 
       // Preparar inputs para o workflow (SEM credenciais - robô busca via edge function)
+      const { data: corRun } = await supabase.from("corretoras").select("nome").eq("id", corretora_id).maybeSingle();
+      const corretoraNomeRun = (corRun as { nome?: string } | null)?.nome || corretora_id;
       const workflowInputs: WorkflowInput = {
+        corretora_nome: corretoraNomeRun,
         corretora_id: corretora_id,
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-cobranca-hinova`,

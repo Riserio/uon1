@@ -1,5 +1,5 @@
 name: Cobrança Hinova - Importação Automática
-run-name: "Cobranca ${{ inputs.execucao_id || 'agendado' }} · ${{ inputs.corretora_id || 'todas' }}"
+run-name: "Cobranca · ${{ inputs.corretora_nome || inputs.corretora_id || 'todas' }}"
 
 on:
   # Agendamento: dias úteis às 09:00 (horário de Brasília = 12:00 UTC)
@@ -11,6 +11,10 @@ on:
     inputs:
       corretora_id:
         description: 'ID da corretora/associação'
+        required: false
+        type: string
+      corretora_nome:
+        description: 'Nome da associação (exibição no run)'
         required: false
         type: string
       data_inicio:
