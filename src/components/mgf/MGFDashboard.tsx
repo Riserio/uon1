@@ -432,10 +432,10 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         </Card>
       )}
 
-      {/* Operação (Donut) + SubOperação (Barras) */}
-      <div className="grid gap-3 lg:grid-cols-3">
+      {/* Gráficos — grid único responsivo que preenche a tela e se adapta */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {stats.operacaoData.length > 0 && (
-          <Card className="rounded-2xl border-border/40 lg:col-span-1">
+          <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
               <div className="flex items-center gap-2"><Package className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Operação</CardTitle></div>
             </CardHeader>
@@ -448,7 +448,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
           </Card>
         )}
         {stats.subOperacaoData.length > 0 && (
-          <Card className="rounded-2xl border-border/40 lg:col-span-2">
+          <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
               <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por SubOperação</CardTitle></div>
             </CardHeader>
@@ -457,10 +457,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             </CardContent>
           </Card>
         )}
-      </div>
 
-      {/* Situação Pagamento (Donut) + Forma de Pagamento (Donut) */}
-      <div className="grid gap-3 lg:grid-cols-2">
         {stats.situacaoData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
@@ -481,10 +478,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             </CardContent>
           </Card>
         )}
-      </div>
 
-      {/* Tipo Veículo (Donut) + Regional + Fornecedor */}
-      <div className="grid gap-3 lg:grid-cols-3">
         {stats.tipoVeiculoData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
@@ -515,10 +509,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             </CardContent>
           </Card>
         )}
-      </div>
 
-      {/* Cooperativa + Motivo Evento + Centro de Custo */}
-      <div className="grid gap-3 lg:grid-cols-3">
         {stats.cooperativaData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
