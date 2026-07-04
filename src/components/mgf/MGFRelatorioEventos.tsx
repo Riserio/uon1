@@ -313,86 +313,61 @@ export default function MGFRelatorioEventos({ dados, loading }: MGFRelatorioEven
 
   return (
     <div className="space-y-6">
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total de Eventos</p>
-                <p className="text-2xl font-bold">{stats.totalEventos.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {formatCurrency(stats.valorTotalEventos)}
-                </p>
-              </div>
-              <FileSpreadsheet className="h-8 w-8 text-primary opacity-80" />
+      {/* KPIs — padrão widget */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="rounded-2xl border border-border/40 bg-card p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0"><FileSpreadsheet className="h-5 w-5 text-primary" /></div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Total de Eventos</p>
+              <p className="text-xl font-bold leading-tight">{stats.totalEventos.toLocaleString()}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{formatCurrency(stats.valorTotalEventos)}</p>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Eventos Rateáveis</p>
-                <p className="text-2xl font-bold text-green-600">{stats.totalRateaveis.toLocaleString()}</p>
-                <p className="text-sm text-green-600 mt-1">
-                  {formatCurrency(stats.valorRateaveis)}
-                </p>
-              </div>
-              <Check className="h-8 w-8 text-green-500 opacity-80" />
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border/40 bg-card p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0"><Check className="h-5 w-5 text-emerald-600" /></div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Eventos Rateáveis</p>
+              <p className="text-xl font-bold text-emerald-600 leading-tight">{stats.totalRateaveis.toLocaleString()}</p>
+              <p className="text-[11px] text-emerald-600/80 truncate">{formatCurrency(stats.valorRateaveis)} · {stats.percentualRateaveis.toFixed(1)}%</p>
             </div>
-            <Badge variant="secondary" className="mt-2 bg-green-100 text-green-700">
-              {stats.percentualRateaveis.toFixed(1)}% dos eventos
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Não Rateáveis</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.totalNaoRateaveis.toLocaleString()}</p>
-                <p className="text-sm text-orange-600 mt-1">
-                  {formatCurrency(stats.valorNaoRateaveis)}
-                </p>
-              </div>
-              <X className="h-8 w-8 text-orange-500 opacity-80" />
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border/40 bg-card p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-orange-500/10 flex items-center justify-center shrink-0"><X className="h-5 w-5 text-orange-600" /></div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Não Rateáveis</p>
+              <p className="text-xl font-bold text-orange-600 leading-tight">{stats.totalNaoRateaveis.toLocaleString()}</p>
+              <p className="text-[11px] text-orange-600/80 truncate">{formatCurrency(stats.valorNaoRateaveis)} · {(100 - stats.percentualRateaveis).toFixed(1)}%</p>
             </div>
-            <Badge variant="secondary" className="mt-2 bg-orange-100 text-orange-700">
-              {(100 - stats.percentualRateaveis).toFixed(1)}% dos eventos
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">% Valor Rateável</p>
-                <p className="text-2xl font-bold text-blue-600">{stats.percentualValorRateaveis.toFixed(1)}%</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  do valor total
-                </p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-blue-500 opacity-80" />
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border/40 bg-card p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0"><TrendingUp className="h-5 w-5 text-blue-600" /></div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">% Valor Rateável</p>
+              <p className="text-xl font-bold text-blue-600 leading-tight">{stats.percentualValorRateaveis.toFixed(1)}%</p>
+              <p className="text-[11px] text-muted-foreground truncate">do valor total</p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Distribuição Pizza */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-primary" />
-              Distribuição de Valores
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-amber-500" />
+                <CardTitle className="text-sm font-semibold">Distribuição de Valores</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -420,14 +395,14 @@ export default function MGFRelatorioEventos({ dados, loading }: MGFRelatorioEven
         </Card>
 
         {/* Evolução Mensal */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Evolução Mensal
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-amber-500" />
+                <CardTitle className="text-sm font-semibold">Evolução Mensal</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats.evolucaoData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -445,14 +420,14 @@ export default function MGFRelatorioEventos({ dados, loading }: MGFRelatorioEven
         </Card>
 
         {/* Por SubOperação */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5 text-primary" />
-              Por SubOperação (Top 10)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-amber-500" />
+                <CardTitle className="text-sm font-semibold">Por SubOperação (Top 10)</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats.subOperacaoData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
@@ -471,14 +446,14 @@ export default function MGFRelatorioEventos({ dados, loading }: MGFRelatorioEven
 
         {/* Por Cooperativa */}
         {stats.cooperativaData.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-primary" />
-                Por Cooperativa (Top 10)
-              </CardTitle>
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-amber-500" />
+                <CardTitle className="text-sm font-semibold">Por Cooperativa (Top 10)</CardTitle>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 pb-4">
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={stats.cooperativaData} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
@@ -498,7 +473,7 @@ export default function MGFRelatorioEventos({ dados, loading }: MGFRelatorioEven
       </div>
 
       {/* Tabela de Detalhes */}
-      <Card>
+      <Card className="rounded-2xl border-border/40">
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <CardTitle className="flex items-center gap-2">
