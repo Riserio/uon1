@@ -128,6 +128,33 @@ serve(async (req) => {
 
       console.log(`[MGF GitHub Workflow] Iniciando para corretora: ${corretora_id}`);
 
+      // === API-FIRST: se a associação tem API habilitada, importa MGF via API; crawl é fallback ===
+      const { data: apiCredM } = await supabase
+        .from("hinova_credenciais")
+        .select("usar_api, api_token")
+        .eq("corretora_id", corretora_id)
+        .maybeSingle();
+      if (apiCredM?.usar_api && apiCredM?.api_token) {
+        try {
+          const apiResp = await fetch(`${supabaseUrl}/functions/v1/importar-api-hinova`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseServiceKey}` },
+            body: JSON.stringify({ corretora_id, modulo: "mgf" }),
+          });
+          const apiJson = await apiResp.json().catch(() => ({}));
+          if (apiJson?.success) {
+            console.log(`[MGF GitHub Workflow] Importado via API (${apiJson.total} lançamentos) — crawl dispensado`);
+            return new Response(
+              JSON.stringify({ success: true, via: "api", total: apiJson.total, message: `Importado via API: ${apiJson.total} lançamentos` }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          }
+          console.warn(`[MGF GitHub Workflow] API falhou (${apiJson?.message}) — fallback para crawl`);
+        } catch (apiErr) {
+          console.warn(`[MGF GitHub Workflow] Erro ao chamar API — fallback para crawl:`, apiErr);
+        }
+      }
+
       // Verificar se já houve execução com sucesso ou em andamento hoje
       const skipDailyGate = bypass_daily_limit === true && isServiceRole;
       // "Hoje" no fuso de São Paulo (created_at é UTC) — evita gate diário errado na virada do dia

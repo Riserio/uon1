@@ -85,9 +85,86 @@ serve(async (req) => {
     }
     const H = { "Content-Type": "application/json", Authorization: `Bearer ${tokenUsuario}` };
 
-    if (modulo !== "eventos") {
-      return new Response(JSON.stringify({ success: false, message: `Módulo '${modulo}' ainda não implementado na API (piloto: eventos)` }), {
+    if (modulo !== "eventos" && modulo !== "mgf") {
+      return new Response(JSON.stringify({ success: false, message: `Módulo '${modulo}' ainda não implementado na API` }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ================= MGF (lançamentos financeiros) =================
+    if (modulo === "mgf") {
+      const hojeM = new Date();
+      const fimM = body.data_fim ? parseBR(body.data_fim) || hojeM : hojeM;
+      const inicioM = body.data_inicio ? parseBR(body.data_inicio) || addDays(fimM, -540) : addDays(fimM, -540);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows: any[] = [];
+      const PAGE = 1000;
+      let inicioPag = 0, paginas = 0;
+      while (paginas < 100) {
+        paginas++;
+        const r = await fetch(`${base}/mgf-lancamento/listar`, {
+          method: "POST", headers: H,
+          body: JSON.stringify({ data_vencimento_inicial: ddmmyyyy(inicioM), data_vencimento_final: ddmmyyyy(fimM), quantidade_por_pagina: PAGE, inicio_paginacao: inicioPag }),
+        });
+        const j = await r.json().catch(() => null);
+        const lancs = Array.isArray(j?.retorno) ? j.retorno : [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const L of lancs as any[]) {
+          const parcelas = Array.isArray(L.parcelas) ? L.parcelas : [L];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const P of parcelas as any[]) {
+            rows.push({
+              operacao: P.operacao ?? null,
+              sub_operacao: P.suboperacao ?? null,
+              descricao: P.descricao ?? null,
+              situacao_pagamento: P.situacao ?? null,
+              fornecedor: P.fornecedor || null,
+              forma_pagamento: P.documento || null,
+              data_vencimento: dateISO(P.data_vencimento),
+              data_pagamento: dateISO(P.data_pagamento),
+              valor: num(P.valor_parcela),
+              valor_pagamento: num(P.valor_pago),
+              multa: num(P.multa),
+              juros: num(P.juros),
+              nota_fiscal: L.nota_fiscal ? String(L.nota_fiscal) : null,
+              controle_interno: L.controle_interno || null,
+              protocolo_evento: L.protocolo_evento ? String(L.protocolo_evento) : null,
+              valor_total_lancamento: num(L.valor_base),
+              data_nota_fiscal: dateISO(L.data_emissao_nota_fiscal),
+              quantidade_parcela: int(L.quantidade_parcela),
+              dados_extras: {
+                codigo_lancamento: L.codigo_lancamento, codigo_associado: L.codigo_associado,
+                codigo_veiculo: L.codigo_veiculo, codigo_regional: L.codigo_regional,
+                codigo_cooperativa: L.codigo_cooperativa, codigo_departamento: L.codigo_departamento,
+                codigo_voluntario: L.codigo_voluntario, codigo_terceiro: L.codigo_terceiro,
+                parcela: P.parcela, desconto: P.desconto, cliente: P.cliente,
+              },
+            });
+          }
+        }
+        if (lancs.length < PAGE) break;
+        inicioPag += PAGE;
+      }
+
+      const nomeArqM = `API MGF ${ddmmyyyy(inicioM)}–${ddmmyyyy(fimM)}`;
+      const { data: impM, error: impErrM } = await supabase
+        .from("mgf_importacoes")
+        .insert({ nome_arquivo: nomeArqM, total_registros: rows.length, corretora_id, ativo: true })
+        .select("id").single();
+      if (impErrM) throw new Error(`Erro ao criar importação MGF: ${impErrM.message}`);
+      await supabase.from("mgf_importacoes").update({ ativo: false }).eq("corretora_id", corretora_id).neq("id", impM.id);
+      if (rows.length > 0) {
+        const comImp = rows.map((x) => ({ ...x, importacao_id: impM.id }));
+        for (let i = 0; i < comImp.length; i += 500) {
+          const { error: insErrM } = await supabase.from("mgf_dados").insert(comImp.slice(i, i + 500));
+          if (insErrM) throw new Error(`Erro ao inserir mgf_dados (lote ${i}): ${insErrM.message}`);
+        }
+      }
+      await supabase.from("mgf_automacao_config").update({
+        ultimo_status: "sucesso", ultimo_erro: null, ultima_execucao: new Date().toISOString(), ultima_origem: "api",
+      }).eq("corretora_id", corretora_id);
+      return new Response(JSON.stringify({ success: true, modulo: "mgf", total: rows.length, paginas, importacao_id: impM.id, via: "api" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
