@@ -145,56 +145,58 @@ function AssociacaoCard({ a }: { a: AssociacaoStatus }) {
   const pontoCor =
     s === "erro" ? "bg-red-500" : s === "sincronizando" ? "bg-blue-500 animate-pulse" : s === "ok" ? "bg-emerald-500" : "bg-muted-foreground/30";
 
+  const modulos = [
+    { label: "Cobrança", status: a.cobranca_status, ultima: a.cobranca_ultima, erro: a.cobranca_erro, ativo: a.ativo_cobranca },
+    { label: "Eventos", status: a.eventos_status, ultima: a.eventos_ultima, erro: a.eventos_erro, ativo: a.ativo_eventos },
+    { label: "MGF", status: a.mgf_status, ultima: a.mgf_ultima, erro: a.mgf_erro, ativo: a.ativo_mgf },
+  ];
+
   return (
-    <div className={`rounded-2xl border p-4 hover:shadow-md transition-all ${
+    <div className={`rounded-2xl border px-4 py-3 hover:shadow-sm transition-all ${
       temErroLogin
-        ? "border-red-500/60 bg-red-500/5 ring-1 ring-red-500/30"
+        ? "border-red-500/50 bg-red-500/5"
         : "border-border/50 bg-card hover:border-primary/20"
     }`}>
-      {temErroLogin && (
-        <div className="flex items-center gap-1.5 mb-2 -mt-1">
-          <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-red-600">
-            Erro de login · {errosLogin.map((e) => e.modulo).join(", ")}
-          </span>
-        </div>
-      )}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={`h-2 w-2 rounded-full shrink-0 ${pontoCor}`} />
-          <h3 className="font-semibold text-sm truncate">{a.nome}</h3>
-        </div>
-        {a.tem_credenciais ? (
-          <span title="Credenciais configuradas" className="text-emerald-500 shrink-0"><ShieldCheck className="h-4 w-4" /></span>
-        ) : (
-          <span title="Sem credenciais" className="text-muted-foreground/50 shrink-0"><XCircle className="h-4 w-4" /></span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 mt-3">
-        {[
-          { label: "Cobrança", status: a.cobranca_status, ultima: a.cobranca_ultima, erro: a.cobranca_erro, ativo: a.ativo_cobranca },
-          { label: "Eventos", status: a.eventos_status, ultima: a.eventos_ultima, erro: a.eventos_erro, ativo: a.ativo_eventos },
-          { label: "MGF", status: a.mgf_status, ultima: a.mgf_ultima, erro: a.mgf_erro, ativo: a.ativo_mgf },
-        ].map((mod) => (
-          <div key={mod.label} className="rounded-lg bg-muted/30 px-2 py-1.5">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">{mod.label}</p>
-            <StatusModulo status={mod.status} ultima={mod.ultima} erro={mod.erro} ativo={mod.ativo} />
+      <div className="flex items-center gap-4">
+        {/* Identidade */}
+        <div className="flex items-center gap-2.5 min-w-0 w-52 shrink-0">
+          <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${pontoCor}`} />
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm truncate leading-tight">{a.nome}</h3>
+            {temErroLogin ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600">
+                <AlertTriangle className="h-3 w-3" /> Erro de login · {errosLogin.map((e) => e.modulo).join(", ")}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                {a.tem_credenciais ? <><ShieldCheck className="h-3 w-3 text-emerald-500" /> Credenciais OK</> : <><XCircle className="h-3 w-3" /> Sem credenciais</>}
+              </span>
+            )}
           </div>
-        ))}
-      </div>
+        </div>
 
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/40">
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Users className="h-3.5 w-3.5" />
-          {a.total_usuarios > 0 ? `${a.usuarios_ativos}/${a.total_usuarios}` : "—"}
-        </span>
-        <BISyncButton corretoraId={a.id} corretoraNome={a.nome} />
+        {/* Módulos — ocupam o espaço central */}
+        <div className="flex flex-1 items-center gap-6 min-w-0">
+          {modulos.map((mod) => (
+            <div key={mod.label} className="flex flex-col gap-0.5 min-w-[92px]">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{mod.label}</span>
+              <StatusModulo status={mod.status} ultima={mod.ultima} erro={mod.erro} ativo={mod.ativo} />
+            </div>
+          ))}
+        </div>
+
+        {/* Usuários + ação */}
+        <div className="flex items-center gap-4 shrink-0">
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Users className="h-3.5 w-3.5" />
+            {a.total_usuarios > 0 ? `${a.usuarios_ativos}/${a.total_usuarios}` : "—"}
+          </span>
+          <BISyncButton corretoraId={a.id} corretoraNome={a.nome} />
+        </div>
       </div>
     </div>
   );
 }
-
 type Filtro = "todas" | "erro" | "sincronizando";
 
 export default function BIAdminDashboard() {
@@ -379,49 +381,9 @@ export default function BIAdminDashboard() {
     { id: "sincronizando", label: "Sincronizando", count: sincronizandoCount },
   ];
 
-  const associacoesComErroLogin = associacoes.filter((a) => loginErrorInfo(a).length > 0);
 
   return (
     <div className={`space-y-5 transition-opacity duration-300 ${loading ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
-      {/* Alerta de erros de login — destaque vermelho */}
-      {associacoesComErroLogin.length > 0 && (
-        <div className="rounded-2xl border border-red-500/50 bg-red-500/5 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="h-8 w-8 rounded-xl bg-red-500/10 flex items-center justify-center">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-red-600">
-                Erro de login em {associacoesComErroLogin.length} associaç{associacoesComErroLogin.length === 1 ? "ão" : "ões"}
-              </p>
-              <p className="text-xs text-muted-foreground">Verifique as credenciais Hinova destas associações</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {associacoesComErroLogin.map((a) => {
-              const erros = loginErrorInfo(a);
-              return (
-                <TooltipProvider key={a.id} delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-400 cursor-help">
-                        <XCircle className="h-3 w-3" />
-                        {a.nome}
-                        <span className="opacity-70">· {erros.map((e) => e.modulo).join(", ")}</span>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-sm text-xs">
-                      {erros.map((e, i) => (
-                        <p key={i}><span className="font-semibold">{e.modulo}:</span> {e.mensagem.slice(0, 180)}</p>
-                      ))}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              );
-            })}
-          </div>
-        </div>
-      )}
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Kpi icon={<Building2 className="h-5 w-5 text-primary" />} valor={associacoes.length} label="Associações" cor="bg-primary/10" />
@@ -482,7 +444,7 @@ export default function BIAdminDashboard() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="flex flex-col gap-2">
               {filtradas.map((a) => (
                 <AssociacaoCard key={a.id} a={a} />
               ))}

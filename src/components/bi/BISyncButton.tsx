@@ -385,17 +385,6 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
   };
 
-  const STEP_INFO: Record<string, { label: string; icon: React.ReactNode }> = {
-    LOGIN: { label: "Login", icon: <LogIn className="h-3 w-3" /> },
-    NAVEGACAO: { label: "Navegação", icon: <Filter className="h-3 w-3" /> },
-    NAVEGACAO_RELATORIO: { label: "Relatório", icon: <Filter className="h-3 w-3" /> },
-    FILTROS: { label: "Filtros", icon: <Filter className="h-3 w-3" /> },
-    DOWNLOAD: { label: "Download", icon: <Download className="h-3 w-3" /> },
-    PROCESSANDO: { label: "Processando", icon: <Timer className="h-3 w-3" /> },
-    ENVIANDO: { label: "Enviando", icon: <Send className="h-3 w-3" /> },
-    CONCLUIDO: { label: "Concluído", icon: <CheckCircle className="h-3 w-3" /> },
-  };
-
   const estimateCompletion = (exec: ActiveExecution): string | null => {
     if (!exec.bytes_baixados || !exec.bytes_total || exec.bytes_baixados === 0) return null;
     const ratio = exec.bytes_baixados / exec.bytes_total;
@@ -519,14 +508,10 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                               </span>
                             )}
                           </div>
-                          {status.isExecuting && exec?.etapa_atual ? (
-                            <div className="flex items-center gap-1 text-[11px] text-primary mt-0.5">
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              <span>{STEP_INFO[exec.etapa_atual.toUpperCase()]?.label || exec.etapa_atual}</span>
-                              {exec.bytes_baixados != null && exec.bytes_baixados > 0 && (
-                                <span className="text-muted-foreground ml-1">· {formatBytes(exec.bytes_baixados)}</span>
-                              )}
-                            </div>
+                          {status.isExecuting && exec ? (
+                            <p className="text-[11px] text-primary mt-0.5">
+                              Sincronizando{exec.bytes_baixados != null && exec.bytes_baixados > 0 ? ` · ${formatBytes(exec.bytes_baixados)}` : ""}
+                            </p>
                           ) : status.lastExecution ? (
                             <p className="text-[11px] text-muted-foreground mt-0.5">
                               Última: {format(new Date(status.lastExecution), "dd/MM HH:mm", { locale: ptBR })}
