@@ -4,7 +4,7 @@ import {
   CreditCard,
   Database,
   History,
-  ArrowLeft,
+  Building2,
   TrendingUp,
   KanbanSquare,
   BarChart3,
@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import BISyncButton from "./BISyncButton";
 import { useAppConfig } from "@/hooks/useAppConfig";
 
@@ -104,6 +104,19 @@ export default function BIPageHeader({
   showAdminOption,
 }: BIPageHeaderProps) {
   const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
+
+  // Vai direto para a Visão Administradora e limpa o parametro de associacao da URL,
+  // para nao voltar a abrir a ultima associacao selecionada.
+  const irParaAdministradora = () => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('associacao');
+      next.delete('corretora');
+      return next;
+    }, { replace: true });
+    onAssociacaoChange('__admin__');
+  };
   const { config } = useAppConfig();
   const headerLogo = config.header_logo_url || "/images/logo-vg.png";
   const selectedAssociacaoNome = associacoes.find((a) => a.id === selectedAssociacao)?.nome;
@@ -125,27 +138,23 @@ export default function BIPageHeader({
 
         {/* Ações agrupadas: associação em destaque, o resto discreto */}
         <div className="flex items-center gap-2 flex-wrap">
-          {showAdminOption && selectedAssociacao && selectedAssociacao !== "__admin__" && (
+          {showAdminOption && (
             <Button
-              variant="outline"
+              variant={selectedAssociacao === "__admin__" ? "default" : "outline"}
               size="sm"
-              onClick={() => onAssociacaoChange("__admin__")}
-              className="gap-1.5 rounded-lg h-9 border-primary/30 text-primary hover:bg-primary/5"
+              onClick={irParaAdministradora}
+              className={`gap-1.5 rounded-lg h-9 ${selectedAssociacao === "__admin__" ? "" : "border-primary/30 text-primary hover:bg-primary/5"}`}
+              title="Ir para a Visão Administradora"
             >
-              <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline text-xs font-medium">Visão Administradora</span>
+              <Building2 className="h-4 w-4" />
+              <span className="hidden sm:inline text-xs font-medium">Administradora</span>
             </Button>
           )}
           <Select value={selectedAssociacao} onValueChange={onAssociacaoChange} disabled={loadingAssociacoes}>
             <SelectTrigger className="w-48 sm:w-56 h-9 text-sm rounded-lg font-medium">
-              <SelectValue placeholder="Selecione associação..." />
+              <SelectValue placeholder={selectedAssociacao === "__admin__" ? "Selecionar associação" : "Selecione associação..."} />
             </SelectTrigger>
             <SelectContent>
-              {showAdminOption && (
-                <SelectItem value="__admin__" className="font-semibold">
-                  🏢 Visão Administradora
-                </SelectItem>
-              )}
               {associacoes.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.nome}

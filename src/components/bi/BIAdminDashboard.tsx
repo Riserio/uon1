@@ -47,6 +47,9 @@ interface AssociacaoStatus {
   usar_api: boolean;
   url_eventos: string | null;
   url_mgf: string | null;
+  cobranca_origem: string | null;
+  eventos_origem: string | null;
+  mgf_origem: string | null;
   total_usuarios: number;
   usuarios_ativos: number;
   em_execucao: boolean;
@@ -129,6 +132,8 @@ function loginErrorInfo(a: AssociacaoStatus): { modulo: string; mensagem: string
 
 // Modulos ATIVOS (que usam URL de relatorio) sem a URL cadastrada = falta inserir dados
 function urlsFaltando(a: AssociacaoStatus): string[] {
+  // Com a API ativa, a importação não depende das URLs de relatório — não é pendência.
+  if (a.usar_api) return [];
   const f: string[] = [];
   if (a.ativo_eventos && !a.url_eventos) f.push("Eventos");
   if (a.ativo_mgf && !a.url_mgf) f.push("MGF");
@@ -171,9 +176,9 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
     s === "erro" ? "bg-red-500" : s === "sincronizando" ? "bg-blue-500 animate-pulse" : s === "ok" ? "bg-emerald-500" : "bg-muted-foreground/30";
 
   const modulos = [
-    { label: "Cobrança", status: a.cobranca_status, ultima: a.cobranca_ultima, erro: a.cobranca_erro, ativo: a.ativo_cobranca },
-    { label: "Eventos", status: a.eventos_status, ultima: a.eventos_ultima, erro: a.eventos_erro, ativo: a.ativo_eventos },
-    { label: "MGF", status: a.mgf_status, ultima: a.mgf_ultima, erro: a.mgf_erro, ativo: a.ativo_mgf },
+    { label: "Cobrança", status: a.cobranca_status, ultima: a.cobranca_ultima, erro: a.cobranca_erro, ativo: a.ativo_cobranca, origem: a.cobranca_origem },
+    { label: "Eventos", status: a.eventos_status, ultima: a.eventos_ultima, erro: a.eventos_erro, ativo: a.ativo_eventos, origem: a.eventos_origem },
+    { label: "MGF", status: a.mgf_status, ultima: a.mgf_ultima, erro: a.mgf_erro, ativo: a.ativo_mgf, origem: a.mgf_origem },
   ];
 
   return (
@@ -196,7 +201,9 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
             <div className="flex items-center gap-1.5">
               <h3 className="font-semibold text-sm truncate leading-tight">{a.nome}</h3>
               {a.usar_api && (
-                <span className="shrink-0 text-[9px] px-1.5 py-0 rounded-full font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400" title="Importa via API Hinova (crawl como fallback)">API</span>
+                <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400" title="Importa via API Hinova (crawl como fallback)">
+                  <Zap className="h-2.5 w-2.5" /> API ativa
+                </span>
               )}
             </div>
             {temErroLogin ? (
@@ -219,7 +226,14 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
         <div className="flex flex-1 items-center gap-6 min-w-0">
           {modulos.map((mod) => (
             <div key={mod.label} className="flex flex-col gap-0.5 min-w-[92px]">
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{mod.label}</span>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{mod.label}</span>
+                {mod.ativo && mod.origem && (
+                  <span className={`text-[8px] px-1 rounded font-semibold ${mod.origem === "api" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground"}`} title={mod.origem === "api" ? "Última importação via API" : "Última importação via GitHub Actions (crawl)"}>
+                    {mod.origem === "api" ? "API" : "ACT"}
+                  </span>
+                )}
+              </div>
               <StatusModulo status={mod.status} ultima={mod.ultima} erro={mod.erro} ativo={mod.ativo} />
             </div>
           ))}
@@ -328,9 +342,9 @@ export default function BIAdminDashboard() {
         .select("corretora_id, ativo_cobranca, ativo_eventos, ativo_mgf, url_eventos, url_mgf, usar_api");
 
       const [cobConfigs, sgaConfigs, mgfConfigs] = await Promise.all([
-        supabase.from("cobranca_automacao_config").select("corretora_id, ultimo_status, ultima_execucao, ultimo_erro"),
-        supabase.from("sga_automacao_config").select("corretora_id, ultimo_status, ultima_execucao, ultimo_erro"),
-        supabase.from("mgf_automacao_config").select("corretora_id, ultimo_status, ultima_execucao, ultimo_erro"),
+        supabase.from("cobranca_automacao_config").select("corretora_id, ultimo_status, ultima_execucao, ultimo_erro, ultima_origem"),
+        supabase.from("sga_automacao_config").select("corretora_id, ultimo_status, ultima_execucao, ultimo_erro, ultima_origem"),
+        supabase.from("mgf_automacao_config").select("corretora_id, ultimo_status, ultima_execucao, ultimo_erro, ultima_origem"),
       ]);
 
       const { data: usuarios } = await supabase
@@ -382,6 +396,7 @@ export default function BIAdminDashboard() {
             mgf_status: okMgf.has(c.id) ? "sucesso" : mgf?.ultimo_status || null, mgf_ultima: mgf?.ultima_execucao || null, mgf_erro: okMgf.has(c.id) ? null : mgf?.ultimo_erro || null,
             tem_credenciais: !!cred, ativo_cobranca: cred?.ativo_cobranca || false, ativo_eventos: cred?.ativo_eventos || false, ativo_mgf: cred?.ativo_mgf || false, usar_api: cred?.usar_api || false,
             url_eventos: cred?.url_eventos || null, url_mgf: cred?.url_mgf || null,
+            cobranca_origem: cob?.ultima_origem || null, eventos_origem: sga?.ultima_origem || null, mgf_origem: mgf?.ultima_origem || null,
             total_usuarios: users.total, usuarios_ativos: users.ativos,
             em_execucao: runMap.has(c.id), exec_modulo: runMap.get(c.id)?.modulo ?? null, exec_etapa: runMap.get(c.id)?.etapa ?? null, exec_progresso: runMap.get(c.id)?.progresso ?? null,
           };
