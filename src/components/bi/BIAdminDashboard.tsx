@@ -102,6 +102,16 @@ function StatusModulo({ status, ultima, erro, ativo }: { status: string | null; 
   );
 }
 
+/** Detecta erro de login/credenciais nas mensagens de erro dos módulos */
+const LOGIN_ERROR_RE = /login|credenc|senha|autentic|acesso negado|unauthorized/i;
+function loginErrorInfo(a: AssociacaoStatus): { modulo: string; mensagem: string }[] {
+  const out: { modulo: string; mensagem: string }[] = [];
+  if (a.ativo_cobranca && efetivo(a.cobranca_status, a.cobranca_ultima) === "erro" && a.cobranca_erro && LOGIN_ERROR_RE.test(a.cobranca_erro)) out.push({ modulo: "Cobrança", mensagem: a.cobranca_erro });
+  if (a.ativo_eventos && efetivo(a.eventos_status, a.eventos_ultima) === "erro" && a.eventos_erro && LOGIN_ERROR_RE.test(a.eventos_erro)) out.push({ modulo: "Eventos", mensagem: a.eventos_erro });
+  if (a.ativo_mgf && efetivo(a.mgf_status, a.mgf_ultima) === "erro" && a.mgf_erro && LOGIN_ERROR_RE.test(a.mgf_erro)) out.push({ modulo: "MGF", mensagem: a.mgf_erro });
+  return out;
+}
+
 /** Saúde geral da associação (pior status entre os módulos ativos) */
 function saude(a: AssociacaoStatus): "ok" | "erro" | "sincronizando" | "neutro" {
   const mods: Efetivo[] = [];
@@ -130,11 +140,25 @@ function Kpi({ icon, valor, label, cor }: { icon: React.ReactNode; valor: React.
 // ── Card widget de associação ──
 function AssociacaoCard({ a }: { a: AssociacaoStatus }) {
   const s = saude(a);
+  const errosLogin = loginErrorInfo(a);
+  const temErroLogin = errosLogin.length > 0;
   const pontoCor =
     s === "erro" ? "bg-red-500" : s === "sincronizando" ? "bg-blue-500 animate-pulse" : s === "ok" ? "bg-emerald-500" : "bg-muted-foreground/30";
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-card p-4 hover:shadow-md hover:border-primary/20 transition-all">
+    <div className={`rounded-2xl border p-4 hover:shadow-md transition-all ${
+      temErroLogin
+        ? "border-red-500/60 bg-red-500/5 ring-1 ring-red-500/30"
+        : "border-border/50 bg-card hover:border-primary/20"
+    }`}>
+      {temErroLogin && (
+        <div className="flex items-center gap-1.5 mb-2 -mt-1">
+          <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-red-600">
+            Erro de login · {errosLogin.map((e) => e.modulo).join(", ")}
+          </span>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className={`h-2 w-2 rounded-full shrink-0 ${pontoCor}`} />
@@ -339,7 +363,9 @@ export default function BIAdminDashboard() {
 
   const sincronizandoCount = associacoes.filter((a) => saude(a) === "sincronizando").length;
 
-  if (loading) {
+  // Spinner de tela cheia apenas no PRIMEIRO carregamento;
+  // no "Atualizar", o conteúdo permanece visível com leve esmaecimento.
+  if (loading && associacoes.length === 0) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -353,8 +379,49 @@ export default function BIAdminDashboard() {
     { id: "sincronizando", label: "Sincronizando", count: sincronizandoCount },
   ];
 
+  const associacoesComErroLogin = associacoes.filter((a) => loginErrorInfo(a).length > 0);
+
   return (
-    <div className="space-y-5">
+    <div className={`space-y-5 transition-opacity duration-300 ${loading ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
+      {/* Alerta de erros de login — destaque vermelho */}
+      {associacoesComErroLogin.length > 0 && (
+        <div className="rounded-2xl border border-red-500/50 bg-red-500/5 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="h-8 w-8 rounded-xl bg-red-500/10 flex items-center justify-center">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-red-600">
+                Erro de login em {associacoesComErroLogin.length} associaç{associacoesComErroLogin.length === 1 ? "ão" : "ões"}
+              </p>
+              <p className="text-xs text-muted-foreground">Verifique as credenciais Hinova destas associações</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {associacoesComErroLogin.map((a) => {
+              const erros = loginErrorInfo(a);
+              return (
+                <TooltipProvider key={a.id} delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-400 cursor-help">
+                        <XCircle className="h-3 w-3" />
+                        {a.nome}
+                        <span className="opacity-70">· {erros.map((e) => e.modulo).join(", ")}</span>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-sm text-xs">
+                      {erros.map((e, i) => (
+                        <p key={i}><span className="font-semibold">{e.modulo}:</span> {e.mensagem.slice(0, 180)}</p>
+                      ))}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Kpi icon={<Building2 className="h-5 w-5 text-primary" />} valor={associacoes.length} label="Associações" cor="bg-primary/10" />
@@ -375,8 +442,8 @@ export default function BIAdminDashboard() {
           <Input placeholder="Buscar associação..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-9 rounded-xl" />
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={loadData} className="gap-1.5 rounded-xl">
-            <RefreshCw className="h-3.5 w-3.5" /> Atualizar
+          <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-1.5 rounded-xl">
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Atualizar
           </Button>
           <Button size="sm" className="gap-1.5 rounded-xl" disabled={syncingAll} onClick={sincronizarTodas}>
             {syncingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
