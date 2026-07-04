@@ -2149,10 +2149,10 @@ async function coletarDadosDoPeriodoAdaptativo(context, page, periodo, index, to
 // ============================================
 // NAVIGATION HELPER (com retry + fallback)
 // ============================================
-async function gotoComRetry(page, url, maxAttempts = 3) {
+async function gotoComRetry(page, url, maxAttempts = 5) {
   // 'commit' resolve assim que a resposta HTTP chega (mesmo sem carregar tudo),
   // permitindo capturar o status e o conteúdo devolvido pelo servidor.
-  const waitStrategies = ['domcontentloaded', 'commit', 'commit'];
+  const waitStrategies = ['domcontentloaded', 'commit', 'commit', 'commit', 'commit'];
   // Falha rápido (45s/tentativa) em vez de pendurar por PAGE_LOAD (3min) sem info.
   const NAV_TIMEOUT = 45000;
   let lastError;
@@ -2174,11 +2174,15 @@ async function gotoComRetry(page, url, maxAttempts = 3) {
       return;
     } catch (err) {
       lastError = err;
+      const conexao = /ERR_CONNECTION|ERR_TIMED_OUT|ERR_NETWORK|Timeout/i.test(err.message || '');
       log(`Falha na navegação (tentativa ${attempt}): ${err.message}`, LOG_LEVELS.WARN);
-      // Captura o que estiver na tela para diagnóstico (WAF, captcha, timeout)
-      await saveDebugInfo(page, page.context(), `nav_falha_tentativa_${attempt}`).catch(() => {});
+      // Em erro de conexao (chrome-error) o screenshot so trava 30s — pula.
+      if (!conexao) await saveDebugInfo(page, page.context(), `nav_falha_tentativa_${attempt}`).catch(() => {});
       if (attempt < maxAttempts) {
-        await new Promise((r) => setTimeout(r, 5000 * attempt));
+        // Backoff progressivo maior no bloqueio de IP do Hinova (da tempo de liberar)
+        const espera = conexao ? Math.min(20000 * attempt, 90000) : 5000 * attempt;
+        log(`Aguardando ${Math.round(espera / 1000)}s antes de nova tentativa...`);
+        await new Promise((r) => setTimeout(r, espera));
       }
     }
   }

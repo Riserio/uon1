@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 interface WorkflowInput {
+  corretora_nome?: string;
   corretora_id: string;
   data_inicio: string;
   data_fim: string;
@@ -273,7 +274,10 @@ serve(async (req) => {
       }
 
       // Preparar inputs (SEM credenciais - robô busca via edge function)
+      const { data: corRun } = await supabase.from("corretoras").select("nome").eq("id", corretora_id).maybeSingle();
+      const corretoraNomeRun = (corRun as { nome?: string } | null)?.nome || corretora_id;
       const workflowInputs: WorkflowInput = {
+        corretora_nome: corretoraNomeRun,
         corretora_id,
         data_inicio: dataInicio,
         data_fim: dataFim,
