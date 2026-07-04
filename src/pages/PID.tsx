@@ -1,7 +1,6 @@
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import PIDDashboard from "@/components/portal/PIDDashboard";
 import PIDOperacional from "@/components/portal/PIDOperacional";
-import PIDEstudoBase from "@/components/portal/PIDEstudoBase";
 import PIDHistorico from "@/components/portal/PIDHistorico";
 import PIDImportacao from "@/components/portal/PIDImportacao";
 import PortalSinistros from "@/components/portal/PortalSinistros";
@@ -19,7 +18,6 @@ export default function PID() {
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "operacional", label: "Operacional", icon: Activity },
-    { id: "estudo-base", label: "Estudo de Base", icon: Car },
     { id: "historico", label: "Histórico", icon: Calendar },
     { id: "importacao", label: "Importação", icon: Upload },
     { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
@@ -72,9 +70,6 @@ export default function PID() {
             </TabsContent>
             <TabsContent value="operacional" className="space-y-4 mt-0">
               <PIDOperacional corretoraId={selectedAssociacao} />
-            </TabsContent>
-            <TabsContent value="estudo-base" className="space-y-4 mt-0">
-              <PIDEstudoBase corretoraId={selectedAssociacao} />
             </TabsContent>
             <TabsContent value="historico" className="space-y-4 mt-0">
               <PIDHistorico corretoraId={selectedAssociacao} />
