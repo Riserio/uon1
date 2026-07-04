@@ -8,7 +8,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { useAuth } from "@/hooks/useAuth";
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
-import { Save, Car, Bike, Truck, Calendar } from "lucide-react";
+import { Save, Car, Bike, Truck, Calendar, Calculator, Loader2 } from "lucide-react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -129,6 +129,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [calculando, setCalculando] = useState(false);
   const [data, setData] = useState<EstudoBaseData | null>(null);
   const [originalData, setOriginalData] = useState<EstudoBaseData | null>(null);
   const [dataReferencia, setDataReferencia] = useState<string>("");
@@ -198,6 +199,25 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
   useEffect(() => {
     if (corretoraId && dataReferencia && initialized) fetchData();
   }, [corretoraId, dataReferencia, initialized]);
+
+  // Gera o Estudo de Base automaticamente a partir da base de veículos (cálculo no sistema)
+  const handleCalcular = async () => {
+    if (!corretoraId) return;
+    setCalculando(true);
+    try {
+      const { data: res, error } = await supabase.functions.invoke("agregar-estudo-base", {
+        body: { corretora_id: corretoraId, data_referencia: dataReferencia },
+      });
+      if (error) throw error;
+      if (res && res.success === false) throw new Error(res.message || "Falha ao calcular");
+      toast.success(res?.message || "Estudo de Base calculado a partir da base");
+      if (initialized) fetchData();
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível calcular a partir da base");
+    } finally {
+      setCalculando(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!data || !corretoraId || !user) return;
@@ -394,10 +414,16 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
           </div>
 
           {canEdit && (
-            <Button onClick={handleSave} disabled={saving} className="gap-2">
-              <Save className="h-4 w-4" />
-              {saving ? "Salvando..." : "Salvar"}
-            </Button>
+            <>
+              <Button onClick={handleCalcular} disabled={calculando || saving} variant="outline" className="gap-2" title="Preenche automaticamente a partir da base de veículos importada">
+                {calculando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
+                {calculando ? "Calculando..." : "Calcular da base"}
+              </Button>
+              <Button onClick={handleSave} disabled={saving} className="gap-2">
+                <Save className="h-4 w-4" />
+                {saving ? "Salvando..." : "Salvar"}
+              </Button>
+            </>
           )}
         </div>
       </div>
