@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -44,6 +45,10 @@ interface AssociacaoStatus {
   ativo_mgf: boolean;
   total_usuarios: number;
   usuarios_ativos: number;
+  em_execucao: boolean;
+  exec_modulo: string | null;
+  exec_etapa: string | null;
+  exec_progresso: number | null;
 }
 
 interface PortalUser {
@@ -194,6 +199,25 @@ function AssociacaoCard({ a }: { a: AssociacaoStatus }) {
           <BISyncButton corretoraId={a.id} corretoraNome={a.nome} />
         </div>
       </div>
+
+      {a.em_execucao && (
+        <div className="mt-2.5 pt-2.5 border-t border-border/40 space-y-1">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-medium">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Sincronizando {a.exec_modulo}{a.exec_etapa ? ` · ${a.exec_etapa.toLowerCase()}` : ""}
+            </span>
+            {a.exec_progresso != null && <span className="text-muted-foreground">{a.exec_progresso}%</span>}
+          </div>
+          {a.exec_progresso != null ? (
+            <Progress value={a.exec_progresso} className="h-1.5" />
+          ) : (
+            <div className="h-1.5 rounded-full bg-blue-500/20 overflow-hidden">
+              <div className="h-full w-1/3 bg-blue-500/70 rounded-full animate-pulse" />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -255,8 +279,8 @@ export default function BIAdminDashboard() {
     );
   };
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const { data: corretoras } = await supabase.from("corretoras").select("id, nome, slug").order("nome");
       if (!corretoras) return;
@@ -282,6 +306,24 @@ export default function BIAdminDashboard() {
       const sgaMap = new Map(sgaConfigs.data?.map((c) => [c.corretora_id, c]) || []);
       const mgfMap = new Map(mgfConfigs.data?.map((c) => [c.corretora_id, c]) || []);
 
+      // Sucessos de HOJE e execuções em andamento (status correto + progresso)
+      const inicioDia = new Date(); inicioDia.setHours(0, 0, 0, 0);
+      const desdeISO = inicioDia.toISOString();
+      const execTabs = { cobranca: "cobranca_automacao_execucoes", eventos: "sga_automacao_execucoes", mgf: "mgf_automacao_execucoes" } as const;
+      const [cobOk, sgaOk, mgfOk, cobRun, sgaRun, mgfRun] = await Promise.all([
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(["cobranca", "eventos", "mgf"] as const).map((m) => (supabase as any).from(execTabs[m]).select("corretora_id").eq("status", "sucesso").gte("created_at", desdeISO)),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(["cobranca", "eventos", "mgf"] as const).map((m) => (supabase as any).from(execTabs[m]).select("corretora_id, etapa_atual, progresso_download").eq("status", "executando")),
+      ]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const setDe = (r: any) => new Set<string>((r?.data ?? []).map((x: any) => x.corretora_id));
+      const okCob = setDe(cobOk), okEv = setDe(sgaOk), okMgf = setDe(mgfOk);
+      const runMap = new Map<string, { modulo: string; etapa: string | null; progresso: number | null }>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const addRun = (r: any, modulo: string) => (r?.data ?? []).forEach((x: any) => { if (!runMap.has(x.corretora_id)) runMap.set(x.corretora_id, { modulo, etapa: x.etapa_atual ?? null, progresso: x.progresso_download ?? null }); });
+      addRun(cobRun, "Cobrança"); addRun(sgaRun, "Eventos"); addRun(mgfRun, "MGF");
+
       const userCountMap = new Map<string, { total: number; ativos: number }>();
       usuarios?.forEach((u) => {
         const cur = userCountMap.get(u.corretora_id) || { total: 0, ativos: 0 };
@@ -299,11 +341,12 @@ export default function BIAdminDashboard() {
           const users = userCountMap.get(c.id) || { total: 0, ativos: 0 };
           return {
             id: c.id, nome: c.nome, slug: c.slug,
-            cobranca_status: cob?.ultimo_status || null, cobranca_ultima: cob?.ultima_execucao || null, cobranca_erro: cob?.ultimo_erro || null,
-            eventos_status: sga?.ultimo_status || null, eventos_ultima: sga?.ultima_execucao || null, eventos_erro: sga?.ultimo_erro || null,
-            mgf_status: mgf?.ultimo_status || null, mgf_ultima: mgf?.ultima_execucao || null, mgf_erro: mgf?.ultimo_erro || null,
+            cobranca_status: okCob.has(c.id) ? "sucesso" : cob?.ultimo_status || null, cobranca_ultima: cob?.ultima_execucao || null, cobranca_erro: okCob.has(c.id) ? null : cob?.ultimo_erro || null,
+            eventos_status: okEv.has(c.id) ? "sucesso" : sga?.ultimo_status || null, eventos_ultima: sga?.ultima_execucao || null, eventos_erro: okEv.has(c.id) ? null : sga?.ultimo_erro || null,
+            mgf_status: okMgf.has(c.id) ? "sucesso" : mgf?.ultimo_status || null, mgf_ultima: mgf?.ultima_execucao || null, mgf_erro: okMgf.has(c.id) ? null : mgf?.ultimo_erro || null,
             tem_credenciais: !!cred, ativo_cobranca: cred?.ativo_cobranca || false, ativo_eventos: cred?.ativo_eventos || false, ativo_mgf: cred?.ativo_mgf || false,
             total_usuarios: users.total, usuarios_ativos: users.ativos,
+            em_execucao: runMap.has(c.id), exec_modulo: runMap.get(c.id)?.modulo ?? null, exec_etapa: runMap.get(c.id)?.etapa ?? null, exec_progresso: runMap.get(c.id)?.progresso ?? null,
           };
         }),
       );
@@ -318,6 +361,8 @@ export default function BIAdminDashboard() {
 
   useEffect(() => {
     loadData();
+    const id = setInterval(() => loadData(true), 30000);
+    return () => clearInterval(id);
   }, [loadData]);
 
   const sincronizarTodas = async () => {
