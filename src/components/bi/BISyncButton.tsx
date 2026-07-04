@@ -13,7 +13,7 @@ import {
   Settings, Eye, EyeOff, Save,
   Zap, AlertTriangle, ExternalLink, Square,
   Download, LogIn, Filter, Send, Timer, HardDrive,
-  ChevronRight, RefreshCw, Wifi, WifiOff, CalendarRange
+  ChevronRight, RefreshCw, Wifi, WifiOff, ChevronDown, CalendarRange
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -116,7 +116,9 @@ interface BISyncButtonProps {
 
 export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButtonProps) {
   const [open, setOpen] = useState(false);
-  const [activeView, setActiveView] = useState<"modules" | "backfill" | "config" | "history">("modules");
+  const [activeView, setActiveView] = useState<"modules" | "config" | "history">("modules");
+  const [showModulosUrls, setShowModulosUrls] = useState(false);
+  const [showBackfill, setShowBackfill] = useState(false);
   const [creds, setCreds] = useState<HinovaCredenciais>({
     corretora_id: corretoraId,
     hinova_url: "", hinova_user: "", hinova_pass: "", hinova_codigo_cliente: "",
@@ -391,13 +393,6 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
-  const formatBytes = (bytes: number | null | undefined): string => {
-    if (!bytes || bytes === 0) return "0 B";
-    const k = 1024, sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-  };
-
   const estimateCompletion = (exec: ActiveExecution): string | null => {
     if (!exec.bytes_baixados || !exec.bytes_total || exec.bytes_baixados === 0) return null;
     const ratio = exec.bytes_baixados / exec.bytes_total;
@@ -459,7 +454,6 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           <div className="flex items-center gap-1.5 mt-3">
             {[
               { id: "modules" as const, label: "Módulos", icon: Zap },
-              { id: "backfill" as const, label: "Backfill", icon: CalendarRange },
               { id: "config" as const, label: "Configuração", icon: Settings },
               { id: "history" as const, label: "Histórico", icon: RefreshCw },
             ].map(v => (
@@ -520,17 +514,8 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                                 {status.lastOrigem === "api" ? "via API" : "via Actions"}
                               </span>
                             )}
-                            {status.isExecuting && exec && (
-                              <span className="text-[10px] font-mono text-muted-foreground">
-                                {formatElapsed(exec.created_at)}
-                              </span>
-                            )}
                           </div>
-                          {status.isExecuting && exec ? (
-                            <p className="text-[11px] text-primary mt-0.5">
-                              Sincronizando{exec.bytes_baixados != null && exec.bytes_baixados > 0 ? ` · ${formatBytes(exec.bytes_baixados)}` : ""}
-                            </p>
-                          ) : status.lastExecution ? (
+                          {status.isExecuting && exec ? null : status.lastExecution ? (
                             <p className="text-[11px] text-muted-foreground mt-0.5">
                               Última: {format(new Date(status.lastExecution), "dd/MM HH:mm", { locale: ptBR })}
                             </p>
@@ -561,8 +546,26 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                         </div>
                       </div>
 
-                      {status.isExecuting && exec && (
+                      {status.isExecuting && exec && (() => {
+                        const STEPS = ["LOGIN", "NAVEGACAO", "NAVEGACAO_RELATORIO", "FILTROS", "DOWNLOAD", "PROCESSANDO", "ENVIANDO", "CONCLUIDO"];
+                        const LABELS: Record<string, string> = { LOGIN: "Autenticando", NAVEGACAO: "Navegando", NAVEGACAO_RELATORIO: "Abrindo relatório", FILTROS: "Aplicando filtros", DOWNLOAD: "Baixando dados", PROCESSANDO: "Processando", ENVIANDO: "Enviando ao sistema", CONCLUIDO: "Concluído" };
+                        const cur = exec.etapa_atual?.toUpperCase() || "";
+                        const idx = STEPS.indexOf(cur);
+                        // progresso geral: fração de etapas concluídas (mín. 6% para nunca parecer vazio)
+                        const overall = idx >= 0 ? Math.max(6, Math.round(((idx + 1) / STEPS.length) * 100)) : 6;
+                        return (
                         <div className="border-t bg-muted/20 px-4 py-2.5 space-y-2">
+                          {/* Progresso geral + etapa + tempo decorrido (sempre visível) */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="flex items-center gap-1.5 text-primary font-medium">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                {LABELS[cur] || "Sincronizando"}
+                              </span>
+                              <span className="font-mono text-muted-foreground">{formatElapsed(exec.created_at)}</span>
+                            </div>
+                            <Progress value={overall} className="h-1.5" />
+                          </div>
                           {exec.etapa_atual?.toUpperCase() === "DOWNLOAD" && downloadPct != null && (
                             <div className="space-y-1">
                               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
@@ -598,16 +601,13 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                             })}
                           </div>
                         </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   );
                 })
               )}
             </div>
-          )}
-
-          {activeView === "backfill" && (
-            <BackfillPanel corretoraId={corretoraId} />
           )}
 
           {activeView === "config" && (
@@ -690,8 +690,16 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                     <p className="text-[10px] text-muted-foreground">Com token + "Usar API" ligado, a importação usa a API da Hinova (mais rápida); o crawl (Actions) vira fallback automático.</p>
                   </div>
 
-                  <div className="space-y-3 border-t pt-4">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Módulos & URLs</p>
+                  <div className="border-t pt-4">
+                    <button type="button" onClick={() => setShowModulosUrls(v => !v)} className="flex items-center justify-between w-full group">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Módulos &amp; URLs</span>
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        {[creds.ativo_cobranca, creds.ativo_eventos, creds.ativo_mgf].filter(Boolean).length} ativo(s)
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showModulosUrls ? "rotate-180" : ""}`} />
+                      </span>
+                    </button>
+                    {showModulosUrls && (
+                    <div className="space-y-3 mt-3">
                     {(["cobranca", "eventos", "mgf"] as ModuleType[]).map((mod) => {
                       const urlKey = `url_${mod}` as keyof HinovaCredenciais;
                       const ativoKey = `ativo_${mod}` as keyof HinovaCredenciais;
@@ -710,6 +718,23 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                         </div>
                       );
                     })}
+                    </div>
+                    )}
+                  </div>
+
+                  {/* Reprocessar histórico (Backfill) — unificado na Configuração */}
+                  <div className="border-t pt-4">
+                    <button type="button" onClick={() => setShowBackfill(v => !v)} className="flex items-center justify-between w-full group">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <CalendarRange className="h-3.5 w-3.5" /> Reprocessar histórico
+                      </span>
+                      <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${showBackfill ? "rotate-180" : ""}`} />
+                    </button>
+                    {showBackfill && (
+                      <div className="mt-3 -mx-4">
+                        <BackfillPanel corretoraId={corretoraId} />
+                      </div>
+                    )}
                   </div>
 
                   <Button onClick={handleSave} disabled={saving} className="w-full h-9 text-sm gap-1.5 rounded-xl">
