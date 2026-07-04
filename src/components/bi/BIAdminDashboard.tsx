@@ -44,6 +44,7 @@ interface AssociacaoStatus {
   ativo_cobranca: boolean;
   ativo_eventos: boolean;
   ativo_mgf: boolean;
+  usar_api: boolean;
   url_eventos: string | null;
   url_mgf: string | null;
   total_usuarios: number;
@@ -192,7 +193,12 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
         <div className="flex items-center gap-2.5 min-w-0 w-52 shrink-0">
           <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${pontoCor}`} />
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm truncate leading-tight">{a.nome}</h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-semibold text-sm truncate leading-tight">{a.nome}</h3>
+              {a.usar_api && (
+                <span className="shrink-0 text-[9px] px-1.5 py-0 rounded-full font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400" title="Importa via API Hinova (crawl como fallback)">API</span>
+              )}
+            </div>
             {temErroLogin ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600">
                 <AlertTriangle className="h-3 w-3" /> Erro de login · {errosLogin.map((e) => e.modulo).join(", ")}
@@ -319,7 +325,7 @@ export default function BIAdminDashboard() {
 
       const { data: credenciais } = await supabase
         .from("hinova_credenciais")
-        .select("corretora_id, ativo_cobranca, ativo_eventos, ativo_mgf, url_eventos, url_mgf");
+        .select("corretora_id, ativo_cobranca, ativo_eventos, ativo_mgf, url_eventos, url_mgf, usar_api");
 
       const [cobConfigs, sgaConfigs, mgfConfigs] = await Promise.all([
         supabase.from("cobranca_automacao_config").select("corretora_id, ultimo_status, ultima_execucao, ultimo_erro"),
@@ -374,7 +380,7 @@ export default function BIAdminDashboard() {
             cobranca_status: okCob.has(c.id) ? "sucesso" : cob?.ultimo_status || null, cobranca_ultima: cob?.ultima_execucao || null, cobranca_erro: okCob.has(c.id) ? null : cob?.ultimo_erro || null,
             eventos_status: okEv.has(c.id) ? "sucesso" : sga?.ultimo_status || null, eventos_ultima: sga?.ultima_execucao || null, eventos_erro: okEv.has(c.id) ? null : sga?.ultimo_erro || null,
             mgf_status: okMgf.has(c.id) ? "sucesso" : mgf?.ultimo_status || null, mgf_ultima: mgf?.ultima_execucao || null, mgf_erro: okMgf.has(c.id) ? null : mgf?.ultimo_erro || null,
-            tem_credenciais: !!cred, ativo_cobranca: cred?.ativo_cobranca || false, ativo_eventos: cred?.ativo_eventos || false, ativo_mgf: cred?.ativo_mgf || false,
+            tem_credenciais: !!cred, ativo_cobranca: cred?.ativo_cobranca || false, ativo_eventos: cred?.ativo_eventos || false, ativo_mgf: cred?.ativo_mgf || false, usar_api: cred?.usar_api || false,
             url_eventos: cred?.url_eventos || null, url_mgf: cred?.url_mgf || null,
             total_usuarios: users.total, usuarios_ativos: users.ativos,
             em_execucao: runMap.has(c.id), exec_modulo: runMap.get(c.id)?.modulo ?? null, exec_etapa: runMap.get(c.id)?.etapa ?? null, exec_progresso: runMap.get(c.id)?.progresso ?? null,
