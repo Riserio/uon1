@@ -90,19 +90,39 @@ export function ReportDialog({ open, onOpenChange }: Props) {
       if (error || !created) throw error || new Error("Falha ao criar relato");
 
       const anexos: { nome: string; path: string; tamanho: number; tipo: string }[] = [];
+      const falhas: string[] = [];
       for (const file of arquivos) {
-        const path = `${user.id}/${created.id}/${Date.now()}-${file.name}`;
-        const { error: upErr } = await supabase.storage.from("bug-reports").upload(path, file, { upsert: false });
+        // sanitiza o nome do arquivo para evitar caracteres inválidos no path do Storage
+        const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+        const path = `${user.id}/${created.id}/${Date.now()}-${safeName}`;
+        const { error: upErr } = await supabase.storage
+          .from("bug-reports")
+          .upload(path, file, { upsert: false, contentType: file.type || undefined });
         if (upErr) {
-          console.warn("Falha ao enviar anexo:", upErr.message);
+          console.error("Falha ao enviar anexo:", file.name, upErr);
+          falhas.push(`${file.name}: ${upErr.message}`);
           continue;
         }
         anexos.push({ nome: file.name, path, tamanho: file.size, tipo: file.type });
       }
       if (anexos.length) {
-        await (supabase as any).from("bug_reports").update({ anexos }).eq("id", created.id);
+        const { error: updErr } = await (supabase as any)
+          .from("bug_reports")
+          .update({ anexos })
+          .eq("id", created.id);
+        if (updErr) {
+          console.error("Falha ao salvar anexos:", updErr);
+          falhas.push(`Registro de anexos: ${updErr.message}`);
+        }
       }
-      toast.success("Relato enviado. Obrigado por reportar!");
+      if (falhas.length) {
+        toast.warning(
+          `Relato enviado, mas ${falhas.length} anexo(s) falharam. Verifique e reenvie se necessário.`,
+          { description: falhas.slice(0, 3).join(" · ") }
+        );
+      } else {
+        toast.success("Relato enviado. Obrigado por reportar!");
+      }
       reset();
       onOpenChange(false);
     } catch (e: any) {
