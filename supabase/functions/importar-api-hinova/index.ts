@@ -177,6 +177,7 @@ serve(async (req) => {
       ultimo_status: "sucesso",
       ultimo_erro: null,
       ultima_execucao: new Date().toISOString(),
+      ultima_origem: "api",
     }).eq("corretora_id", corretora_id);
 
     return new Response(JSON.stringify({ success: true, modulo: "eventos", total: eventos.length, janelas, importacao_id: imp.id, via: "api" }), {

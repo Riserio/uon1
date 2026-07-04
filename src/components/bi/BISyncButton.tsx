@@ -73,6 +73,7 @@ interface ModuleStatus {
   lastStatus: string | null;
   lastError: string | null;
   isExecuting: boolean;
+  lastOrigem?: string | null;
   activeExecution?: ActiveExecution | null;
 }
 
@@ -198,7 +199,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
       try {
         const inicioDiaMod = new Date(); inicioDiaMod.setHours(0, 0, 0, 0);
         const [configRes, activeExecRes, sucessoHojeRes] = await Promise.all([
-          supabase.from(CONFIG_TABLES[mod] as any).select("ultima_execucao, ultimo_status, ultimo_erro").eq("corretora_id", corretoraId).maybeSingle() as any,
+          supabase.from(CONFIG_TABLES[mod] as any).select("ultima_execucao, ultimo_status, ultimo_erro, ultima_origem").eq("corretora_id", corretoraId).maybeSingle() as any,
           supabase.from(EXEC_TABLES[mod] as any).select("id, created_at, etapa_atual, bytes_baixados, bytes_total, progresso_download, github_run_url")
             .eq("corretora_id", corretoraId).eq("status", "executando").order("created_at", { ascending: false }).limit(1) as any,
           supabase.from(EXEC_TABLES[mod] as any).select("id").eq("corretora_id", corretoraId).eq("status", "sucesso").gte("created_at", inicioDiaMod.toISOString()).limit(1) as any,
@@ -212,7 +213,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         if (data) {
           results[mod] = { lastExecution: data.ultima_execucao,
             lastStatus: isExecuting ? "executando" : (sucessoHoje ? "sucesso" : data.ultimo_status),
-            lastError: (isExecuting || sucessoHoje) ? null : data.ultimo_erro, isExecuting, activeExecution };
+            lastError: (isExecuting || sucessoHoje) ? null : data.ultimo_erro, lastOrigem: data.ultima_origem ?? null, isExecuting, activeExecution };
         } else if (isExecuting) {
           results[mod] = { lastExecution: null, lastStatus: "executando", lastError: null, isExecuting: true, activeExecution };
         } else if (sucessoHoje) {
@@ -509,6 +510,11 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-sm">{MODULE_LABELS[mod]}</span>
                             {getStatusBadge(status.lastStatus)}
+                            {!status.isExecuting && status.lastOrigem && (
+                              <span className={`text-[9px] px-1.5 py-0 rounded-full font-medium ${status.lastOrigem === "api" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground"}`}>
+                                {status.lastOrigem === "api" ? "via API" : "via Actions"}
+                              </span>
+                            )}
                             {status.isExecuting && exec && (
                               <span className="text-[10px] font-mono text-muted-foreground">
                                 {formatElapsed(exec.created_at)}

@@ -540,6 +540,7 @@ serve(async (req) => {
             .update({
               ultimo_status: 'sucesso',
               ultimo_erro: null,
+              ultima_origem: 'crawl',
             })
             .eq("id", configData.config_id);
         }
