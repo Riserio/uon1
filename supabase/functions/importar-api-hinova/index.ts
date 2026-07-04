@@ -9,10 +9,11 @@ const corsHeaders = {
 // ---------- helpers ----------
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
-  const n = parseFloat(String(v).replace(/\./g, "").replace(",", ".").replace(/[^0-9.-]/g, "") || String(v));
-  // A API ja manda "2900.00" (ponto decimal). Tenta direto primeiro.
-  const direto = parseFloat(String(v));
-  return Number.isFinite(direto) ? direto : (Number.isFinite(n) ? n : null);
+  let s = String(v).trim();
+  // Formato BR: "1.234,56" (milhar com ponto, decimal com virgula) ou "3546,00".
+  if (/,\d+$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
 };
 const dateISO = (v: unknown): string | null => {
   if (!v || typeof v !== "string") return null;
@@ -85,9 +86,73 @@ serve(async (req) => {
     }
     const H = { "Content-Type": "application/json", Authorization: `Bearer ${tokenUsuario}` };
 
-    if (modulo !== "eventos" && modulo !== "mgf") {
+    if (modulo !== "eventos" && modulo !== "mgf" && modulo !== "cobranca") {
       return new Response(JSON.stringify({ success: false, message: `Módulo '${modulo}' ainda não implementado na API` }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ================= COBRANÇA (boletos) =================
+    if (modulo === "cobranca") {
+      const hojeC = new Date();
+      const fimC = body.data_fim ? parseBR(body.data_fim) || hojeC : hojeC;
+      const inicioC = body.data_inicio ? parseBR(body.data_inicio) || addDays(fimC, -540) : addDays(fimC, -540);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows: any[] = [];
+      let cursorC = new Date(inicioC), janelasC = 0;
+      while (cursorC <= fimC && janelasC < 40) {
+        const janFim = addDays(cursorC, 30) > fimC ? fimC : addDays(cursorC, 30); // <=31 dias
+        janelasC++;
+        const r = await fetch(`${base}/listar/boleto-associado/periodo`, {
+          method: "POST", headers: H,
+          body: JSON.stringify({ data_vencimento_inicial: ddmmyyyy(cursorC), data_vencimento_final: ddmmyyyy(janFim) }),
+        });
+        const j = await r.json().catch(() => null);
+        const boletos = Array.isArray(j?.boletos) ? j.boletos : [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const b of boletos as any[]) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const veics: any[] = Array.isArray(b.veiculos) ? b.veiculos : [];
+          const placas = veics.map((v) => v.placa).filter(Boolean).join(", ") || null;
+          rows.push({
+            nome: b.nome_associado || null,
+            valor: num(b.valor_boleto),
+            data_vencimento: dateISO(b.data_vencimento),
+            data_vencimento_original: dateISO(b.data_vencimento_original),
+            data_pagamento: dateISO(b.data_pagamento),
+            situacao: b.situacao_boleto || null,
+            placas,
+            dados_extras: {
+              nosso_numero: b.nosso_numero, cpf: b.cpf, valor_pagamento: b.valor_pagamento,
+              tipo_boleto: b.tipo_boleto, codigo_banco: b.codigo_banco, mes_referente: b.mes_referente,
+              data_emissao: b.data_emissao, codigo_forma_pagamento: b.codigo_forma_pagamento,
+              codigo_regional: veics[0]?.codigo_regional, codigo_cooperativa: veics[0]?.codigo_cooperativa,
+              codigo_voluntario: veics[0]?.codigo_voluntario,
+            },
+          });
+        }
+        cursorC = addDays(janFim, 1);
+      }
+
+      const nomeArqC = `API cobrança ${ddmmyyyy(inicioC)}–${ddmmyyyy(fimC)}`;
+      const { data: impC, error: impErrC } = await supabase
+        .from("cobranca_importacoes")
+        .insert({ nome_arquivo: nomeArqC, total_registros: rows.length, corretora_id, ativo: true })
+        .select("id").single();
+      if (impErrC) throw new Error(`Erro ao criar importação cobrança: ${impErrC.message}`);
+      await supabase.from("cobranca_importacoes").update({ ativo: false }).eq("corretora_id", corretora_id).neq("id", impC.id);
+      if (rows.length > 0) {
+        const comImp = rows.map((x) => ({ ...x, importacao_id: impC.id }));
+        for (let i = 0; i < comImp.length; i += 500) {
+          const { error: insErrC } = await supabase.from("cobranca_boletos").insert(comImp.slice(i, i + 500));
+          if (insErrC) throw new Error(`Erro ao inserir cobranca_boletos (lote ${i}): ${insErrC.message}`);
+        }
+      }
+      await supabase.from("cobranca_automacao_config").update({
+        ultimo_status: "sucesso", ultimo_erro: null, ultima_execucao: new Date().toISOString(), ultima_origem: "api",
+      }).eq("corretora_id", corretora_id);
+      return new Response(JSON.stringify({ success: true, modulo: "cobranca", total: rows.length, janelas: janelasC, importacao_id: impC.id, via: "api" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
