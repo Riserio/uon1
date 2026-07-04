@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 interface WorkflowInput {
+  corretora_nome?: string;
   corretora_id: string;
   execucao_id: string;
   webhook_url: string;
@@ -232,6 +233,7 @@ serve(async (req) => {
           // Preparar inputs para o workflow (credenciais buscadas pelo robô via edge function)
           const workflowInputs = {
             corretora_id: config.corretora_id,
+            corretora_nome: config.corretora?.nome || config.corretora_id,
             execucao_id: novaExecucao.id,
             webhook_url: `${supabaseUrl}/functions/v1/webhook-mgf-hinova`,
           };
@@ -420,6 +422,7 @@ serve(async (req) => {
         // Preparar inputs para o workflow (credenciais buscadas pelo robô via edge function)
         const workflowInputs: WorkflowInput = {
           corretora_id: config.corretora_id,
+          corretora_nome: config.corretora?.nome || config.corretora_id,
           execucao_id: execucao.id,
           webhook_url: `${supabaseUrl}/functions/v1/webhook-mgf-hinova`,
         };

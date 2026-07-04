@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 interface WorkflowInput {
+  corretora_nome?: string;
   corretora_id: string;
   hinova_url: string;
   hinova_relatorio_url: string;
@@ -469,6 +470,7 @@ function buildWorkflowInputs(cred: any, dataInicio: string, dataFim: string, exe
 
   return {
     corretora_id: cred.corretora_id,
+    corretora_nome: cred.corretora?.nome || cred.corretora_id,
     hinova_url: cred.hinova_url || '',
     hinova_relatorio_url: relatorioUrl,
     hinova_user: cred.hinova_user || '',
