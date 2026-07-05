@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Upload, Database, BarChart3, History, Filter, Calendar as CalendarIcon, CreditCard, MapPin, DollarSign, LogOut, Building2, Activity, TrendingUp, ArrowLeftRight, ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format, parse } from "date-fns";
+import { format, parse, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -49,9 +49,11 @@ export default function CobrancaInsights() {
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const autoAdjustedMonthRef = useRef(false);
   
   // Filtros globais - padrão: mês atual
   const getMesAtual = () => format(new Date(), "yyyy-MM");
+  const getMesAnterior = () => format(subMonths(new Date(), 1), "yyyy-MM");
   
   const [filters, setFilters] = useState<CobrancaFilters>({
     mesReferencia: getMesAtual(),
@@ -310,6 +312,7 @@ export default function CobrancaInsights() {
 
   useEffect(() => {
     if (selectedAssociacao) {
+      autoAdjustedMonthRef.current = false;
       fetchBoletos();
     } else {
       setBoletos([]);
@@ -317,6 +320,25 @@ export default function CobrancaInsights() {
       setLoading(false);
     }
   }, [selectedAssociacao]);
+
+    // Auto-ajuste do mes de referencia: usa mes atual, mas cai para o mes anterior se nao houver boleto no mes atual (so ajusta 1x por associacao)
+    useEffect(() => {
+          if (autoAdjustedMonthRef.current) return;
+          if (loading) return;
+          if (boletos.length === 0) return;
+          if (filters.mesReferencia !== getMesAtual()) return;
+
+          const temBoletoNoMesAtual = boletos.some((b) => {
+                  const dataRef = b.data_vencimento_original || b.data_vencimento;
+                  if (!dataRef) return false;
+                  return String(dataRef).substring(0, 7) === getMesAtual();
+          });
+
+          if (!temBoletoNoMesAtual) {
+                  setFilters((f) => ({ ...f, mesReferencia: getMesAnterior() }));
+          }
+          autoAdjustedMonthRef.current = true;
+    }, [boletos, loading]);
 
   // Realtime: atualizar dashboard quando nova importação for detectada ou automação finalizar
   useEffect(() => {
