@@ -16,7 +16,7 @@ import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { format, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
@@ -74,7 +74,7 @@ export default function MGFInsights() {
     regional: "all",
     formaPagamento: "all",
     tipoVeiculo: "all",
-    dateRange: undefined,
+    dateRange: { from: subMonths(new Date(), 12), to: new Date() },
   });
 
   // Verifica se pode ver histórico (superintendente ou admin)
