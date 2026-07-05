@@ -201,9 +201,10 @@ export default function SGABusca() {
                       <span className="flex items-center gap-2">
                         <Building2 className="h-4 w-4 text-primary" />
                         {d.veiculo?.placa || d.associado?.nome || "Resultado"}
-                        <Badge variant="secondary">{d.associacao}</Badge>
+                        <Badge variant="default" className="text-xs font-semibold tracking-wide">{d.associacao}</Badge>
                       </span>
                       {d.sga_url && (
+
                         <a href={d.sga_url} target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
                           <ExternalLink className="h-3.5 w-3.5" /> Abrir no SGA
@@ -211,57 +212,61 @@ export default function SGABusca() {
                       )}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-5 space-y-4">
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      {d.veiculo && (
-                        <KeyValueTable titulo="Veículo" icon={<Car className="h-4 w-4" />} data={{
-                          "Placa": d.veiculo.placa, "Tipo": d.veiculo.tipo, "Categoria": d.veiculo.categoria,
-                          "Marca": d.veiculo.marca, "Modelo": d.veiculo.modelo, "Cor": d.veiculo.cor,
-                          "Combustível": d.veiculo.combustivel, "Ano": `${val(d.veiculo.ano_fabricacao)}/${val(d.veiculo.ano_modelo)}`,
-                          "Valor FIPE": fmtMoeda(d.veiculo.valor_fipe), "Valor protegido": fmtMoeda(d.veiculo.valor_protegido),
-                          "Situação": d.veiculo.situacao, "Regional": d.veiculo.regional, "Cooperativa": d.veiculo.cooperativa,
-                          "Cidade/UF": `${val(d.veiculo.cidade)} / ${val(d.veiculo.estado)}`,
-                        }} />
-                      )}
-                      {d.associado && (
-                        <KeyValueTable titulo="Associado" icon={<User className="h-4 w-4" />} data={{
-                          "Nome": d.associado.nome, "CPF": d.associado.cpf, "RG": d.associado.rg,
-                          "E-mail": d.associado.email, "Telefone": d.associado.telefone, "Celular": d.associado.celular,
-                          "Cidade/UF": `${val(d.associado.cidade)} / ${val(d.associado.estado)}`, "Bairro": d.associado.bairro,
-                          "Situação": d.associado.situacao, "Cadastro": fmtData(d.associado.data_cadastro),
-                        }} destaque="Situação" />
-                      )}
-                    </div>
+      <CardContent className="p-5 space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {d.associado && (
+            <KeyValueTable titulo="Associado" icon={<User className="h-4 w-4" />} data={{
+              "Nome": d.associado.nome, "CPF": d.associado.cpf, "RG": d.associado.rg,
+              "E-mail": d.associado.email, "Telefone": d.associado.telefone, "Celular": d.associado.celular,
+              "Cidade/UF": `${val(d.associado.cidade)} / ${val(d.associado.estado)}`, "Bairro": d.associado.bairro,
+              "Situação": d.associado.situacao, "Cadastro": fmtData(d.associado.data_cadastro),
+            }} destaque="Situação" />
+          )}
+          {d.veiculo && (
+            <KeyValueTable titulo="Veículo" icon={<Car className="h-4 w-4" />} data={{
+              "Placa": d.veiculo.placa, "Tipo": d.veiculo.tipo, "Categoria": d.veiculo.categoria,
+              "Marca": d.veiculo.marca, "Modelo": d.veiculo.modelo, "Cor": d.veiculo.cor,
+              "Combustível": d.veiculo.combustivel, "Ano": `${val(d.veiculo.ano_fabricacao)}/${val(d.veiculo.ano_modelo)}`,
+              "Valor FIPE": fmtMoeda(d.veiculo.valor_fipe), "Valor protegido": fmtMoeda(d.veiculo.valor_protegido),
+              "Situação": d.veiculo.situacao, "Regional": d.veiculo.regional, "Cooperativa": d.veiculo.cooperativa,
+              "Cidade/UF": `${val(d.veiculo.cidade)} / ${val(d.veiculo.estado)}`,
+            }} destaque="Situação" />
+          )}
+        </div>
 
-                    <ListTable titulo="Boletos / Cobrança" icon={<Receipt className="h-4 w-4" />} rows={d.boletos}
-                      cols={[
-                        { h: "Vencimento", r: (b) => fmtData(b.vencimento) },
-                        { h: "Valor", r: (b) => fmtMoeda(b.valor) },
-                        { h: "Situação", r: (b) => <StatusPill s={b.situacao} /> },
-                        { h: "Pagamento", r: (b) => fmtData(b.pagamento) },
-                      ]} />
+        <ListTable titulo="Boletos / Cobrança" icon={<Receipt className="h-4 w-4" />} rows={d.boletos}
+          cols={[
+            { h: "Vencimento", r: (b) => fmtData(b.vencimento) },
+            { h: "Valor", r: (b) => fmtMoeda(b.valor) },
+            { h: "Situação", r: (b) => <StatusPill s={b.situacao} /> },
+            { h: "Pagamento", r: (b) => fmtData(b.pagamento) },
+          ]} />
 
-                    <ListTable titulo="Eventos / Vistorias (SGA)" icon={<ShieldAlert className="h-4 w-4" />} rows={eventosFiltrados}
-                      subtitulo="últimos 12 meses"
-                      cols={[
-                        { h: "Data", r: (e) => fmtData(e.data) },
-                        { h: "Tipo", r: (e) => val(e.tipo) },
-                        { h: "Motivo", r: (e) => val(e.motivo) },
-                        { h: "Situação", r: (e) => <StatusPill s={e.situacao} /> },
-                        { h: "Protocolo", r: (e) => val(e.protocolo) },
-                        { h: "Valor reparo", r: (e) => fmtMoeda(e.valor_reparo) },
-                      ]} />
+        <ListTable titulo="Eventos / Vistorias (SGA)" icon={<ShieldAlert className="h-4 w-4" />} rows={eventosFiltrados}
+          subtitulo="últimos 12 meses"
+          collapsible
+          defaultOpen={false}
+          cols={[
+            { h: "Data", r: (e) => fmtData(e.data) },
+            { h: "Tipo", r: (e) => val(e.tipo) },
+            { h: "Motivo", r: (e) => val(e.motivo) },
+            { h: "Situação", r: (e) => <StatusPill s={e.situacao} /> },
+            { h: "Protocolo", r: (e) => val(e.protocolo) },
+            { h: "Valor reparo", r: (e) => fmtMoeda(e.valor_reparo) },
+          ]} />
 
-                    <ListTable titulo="Lançamentos Financeiros (MGF)" icon={<DollarSign className="h-4 w-4" />} rows={mgfFiltrado}
-                      subtitulo="últimos 12 meses"
-                      cols={[
-                        { h: "Vencimento", r: (m) => fmtData(m.vencimento) },
-                        { h: "Operação", r: (m) => val(m.operacao) },
-                        { h: "Descrição", r: (m) => val(m.descricao) },
-                        { h: "Valor", r: (m) => fmtMoeda(m.valor) },
-                        { h: "Situação", r: (m) => <StatusPill s={m.situacao} /> },
-                      ]} />
-                  </CardContent>
+        <ListTable titulo="Lançamentos Financeiros (MGF)" icon={<DollarSign className="h-4 w-4" />} rows={mgfFiltrado}
+          subtitulo="últimos 12 meses"
+          collapsible
+          defaultOpen={false}
+          cols={[
+            { h: "Vencimento", r: (m) => fmtData(m.vencimento) },
+            { h: "Operação", r: (m) => val(m.operacao) },
+            { h: "Descrição", r: (m) => val(m.descricao) },
+            { h: "Valor", r: (m) => fmtMoeda(m.valor) },
+            { h: "Situação", r: (m) => <StatusPill s={m.situacao} /> },
+          ]} />
+      </CardContent>
                 </Card>
               );
             })
@@ -294,33 +299,53 @@ function KeyValueTable({ titulo, icon, data, destaque }: { titulo: string; icon:
   );
 }
 
-function ListTable({ titulo, icon, rows, cols, subtitulo }: { titulo: string; icon: React.ReactNode; rows: any[]; cols: { h: string; r: (row: any) => React.ReactNode }[]; subtitulo?: string }) {
-  return (
-    <div className="rounded-lg border overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 bg-muted/40 text-sm font-semibold">
-        {icon}{titulo} <span className="text-xs text-muted-foreground font-normal">({rows.length}{subtitulo ? ` • ${subtitulo}` : ""})</span>
-      </div>
-      {rows.length === 0 ? (
-        <p className="px-3 py-3 text-xs text-muted-foreground">Sem registros.</p>
-      ) : (
-        <div className="overflow-x-auto max-h-72">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-card">
-              <tr className="text-left text-muted-foreground">
-                {cols.map((c) => <th key={c.h} className="px-3 py-2 font-medium whitespace-nowrap">{c.h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={i} className={`border-t border-border/50 ${i % 2 ? "bg-muted/20" : ""}`}>
-                  {cols.map((c) => <td key={c.h} className="px-3 py-1.5 whitespace-nowrap">{c.r(row)}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+function ListTable({ titulo, icon, rows, cols, subtitulo, collapsible, defaultOpen }: { titulo: string; icon: React.ReactNode; rows: any[]; cols: { h: string; r: (row: any) => React.ReactNode }[]; subtitulo?: string; collapsible?: boolean; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen ?? true);
+
+  const header = (
+    <div className="flex items-center gap-2 px-3 py-2 bg-muted/40 text-sm font-semibold">
+      {icon}{titulo} <span className="text-xs text-muted-foreground font-normal">({rows.length}{subtitulo ? ` • ${subtitulo}` : ""})</span>
+      {collapsible && <ChevronDown className={`h-4 w-4 ml-auto text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />}
     </div>
+  );
+
+  const content = rows.length === 0 ? (
+    <p className="px-3 py-3 text-xs text-muted-foreground">Sem registros.</p>
+  ) : (
+    <div className="overflow-x-auto max-h-72">
+      <table className="w-full text-xs">
+        <thead className="sticky top-0 bg-card">
+          <tr className="text-left text-muted-foreground">
+            {cols.map((c) => <th key={c.h} className="px-3 py-2 font-medium whitespace-nowrap">{c.h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} className={`border-t border-border/50 ${i % 2 ? "bg-muted/20" : ""}`}>
+              {cols.map((c) => <td key={c.h} className="px-3 py-1.5 whitespace-nowrap">{c.r(row)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  if (!collapsible) {
+    return (
+      <div className="rounded-lg border overflow-hidden">
+        {header}
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border overflow-hidden">
+      <CollapsibleTrigger asChild>
+        <button type="button" className="w-full text-left">{header}</button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>{content}</CollapsibleContent>
+    </Collapsible>
   );
 }
 
