@@ -639,21 +639,24 @@ export default function SGAInsights() {
       {filteredEventos.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
           <div
-            className={`grid grid-cols-2 gap-4 ${filters.status === "em_andamento" ? "md:grid-cols-3" : "md:grid-cols-4"}`}
+            className={`grid grid-cols-2 gap-4 ${filters.status === "em_andamento" ? "md:grid-cols-2" : "md:grid-cols-4"}`}
           >
-            <Card className="bg-card/50 backdrop-blur border-border/50">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Car className="h-5 w-5 text-primary" />
+            {/* Card Total Eventos - oculto quando o filtro é "Eventos em andamento" */}
+            {filters.status !== "em_andamento" && (
+              <Card className="bg-card/50 backdrop-blur border-border/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Car className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{filteredEventos.length.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">Total Eventos</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-2xl font-bold">{filteredEventos.length.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">Total Eventos</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
             {/* Card Finalizados - oculto quando o filtro é "Eventos em andamento" */}
             {filters.status !== "em_andamento" && (
               <Card className="bg-card/50 backdrop-blur border-border/50">
