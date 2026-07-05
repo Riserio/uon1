@@ -10,6 +10,7 @@ import { Search, Loader2, Building2, User, Car, IdCard, CircleAlert, ExternalLin
 import { toast } from "sonner";
 
 type Tipo = "placa" | "cpf" | "nome";
+type EventoFiltro = "andamento" | "todos";
 
 interface Resultado {
   associacao: string;
@@ -23,6 +24,8 @@ interface Resultado {
 
 const fmtMoeda = (v: any) => v == null || v === "" ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtData = (v: any) => { if (!v) return "—"; const d = new Date(String(v).length <= 10 ? String(v)+"T00:00:00" : v); return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString("pt-BR"); };
+
+const safeArr = (v: any) => Array.isArray(v) ? v : [];
 
 function StatusPill({ s }: { s: any }) {
   const t = String(s || "").toUpperCase();
@@ -63,8 +66,8 @@ function SummaryCards({ d }: { d: Resultado }) {
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Associado</p><p className="font-semibold">{d.associado?.nome || "—"}</p></CardContent></Card>
       <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Veículo</p><p className="font-semibold">{d.veiculo?.modelo || "—"}</p></CardContent></Card>
-      <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Boletos</p><p className="font-semibold">{d.boletos?.length || 0}</p></CardContent></Card>
-      <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Eventos</p><p className="font-semibold">{d.eventos?.length || 0}</p></CardContent></Card>
+      <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Boletos</p><p className="font-semibold">{safeArr(d.boletos).length}</p></CardContent></Card>
+      <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Eventos</p><p className="font-semibold">{safeArr(d.eventos).length}</p></CardContent></Card>
     </div>
   );
 }
@@ -86,11 +89,12 @@ function KeyValueTable({ titulo, data, icon }: any) {
 }
 
 function ListTable({ titulo, rows, cols }: any) {
+  const safeRows = safeArr(rows);
   return (
     <Card>
       <CardHeader><CardTitle className="text-sm">{titulo}</CardTitle></CardHeader>
       <CardContent>
-        {rows?.length ? rows.map((r: any, i: number) => (
+        {safeRows.length ? safeRows.map((r: any, i: number) => (
           <div key={i} className="text-xs border rounded p-2 mb-2">
             {cols.map((c: any) => (
               <div key={c.h} className="flex justify-between">
@@ -136,6 +140,7 @@ export default function SGABusca() {
   const [termo, setTermo] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [filtroEventos, setFiltroEventos] = useState<EventoFiltro>("andamento");
 
   const buscar = async () => {
     const t = termo.trim();
@@ -149,12 +154,27 @@ export default function SGABusca() {
         p_nome: tipo === "nome" ? t : null,
       });
 
-      setResult(data);
+      setResult(data || { resultados: [] });
     } catch (e) {
       toast.error("Erro na busca");
+      setResult({ resultados: [] });
     } finally {
       setLoading(false);
     }
+  };
+
+  const resultados = safeArr(result?.resultados);
+
+  const filtrarEventos = (eventos: any[]) => {
+    const base = safeArr(eventos);
+
+    if (filtroEventos === "todos") return base;
+
+    // andamento = remove finais/encerrados
+    return base.filter((e: any) => {
+      const t = String(e?.situacao || "").toUpperCase();
+      return !/FINAL|CONCL|ENCERR|CANCEL/.test(t);
+    });
   };
 
   return (
@@ -171,17 +191,25 @@ export default function SGABusca() {
 
           <div className="flex gap-2">
             <Input value={termo} onChange={(e) => setTermo(e.target.value)} />
-            <Button onClick={buscar} disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : "Buscar"}</Button>
+            <Button onClick={buscar} disabled={loading}>
+              {loading ? <Loader2 className="animate-spin" /> : "Buscar"}
+            </Button>
           </div>
         </CardContent>
       </Card>
 
       {loading && <p>Carregando...</p>}
 
-      {result?.resultados?.map((d: any, i: number) => (
+      {resultados.map((d: any, i: number) => (
         <div key={i} className="space-y-4">
           <AssociationHeader d={d} />
           <SummaryCards d={d} />
+
+          <div className="flex gap-2 items-center">
+            <p className="text-sm font-medium">Eventos:</p>
+            <Button size="sm" variant={filtroEventos === "andamento" ? "default" : "outline"} onClick={() => setFiltroEventos("andamento")}>Em andamento</Button>
+            <Button size="sm" variant={filtroEventos === "todos" ? "default" : "outline"} onClick={() => setFiltroEventos("todos")}>Todos</Button>
+          </div>
 
           <div className="grid md:grid-cols-2 gap-3">
             <KeyValueTable titulo="Associado" icon={<User />} data={d.associado} />
@@ -201,7 +229,7 @@ export default function SGABusca() {
 
           <ListTable
             titulo="Eventos"
-            rows={d.eventos}
+            rows={filtrarEventos(d.eventos)}
             cols={[
               { h: "Tipo", r: (e: any) => e.tipo },
               { h: "Situação", r: (e: any) => <StatusPill s={e.situacao} /> }
