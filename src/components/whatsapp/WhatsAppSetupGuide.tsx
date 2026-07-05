@@ -23,11 +23,9 @@ export function WhatsAppSetupGuide({ onNavigate }: { onNavigate: (aba: string) =
   useEffect(() => {
     (async () => {
       try {
-        const [cfg, tpl, flows] = await Promise.all([
-          supabase.from("whatsapp_config").select("id", { count: "exact", head: true }).eq("ativo", true),
-          supabase.from("whatsapp_templates").select("id", { count: "exact", head: true }),
-          supabase.from("whatsapp_flows").select("id", { count: "exact", head: true }).eq("ativo", true),
-        ]);
+        const cfg = await supabase.from("whatsapp_config").select("id", { count: "exact", head: true }).eq("ativo", true);
+        const tpl = await supabase.from("whatsapp_templates").select("id", { count: "exact", head: true });
+        const flows = await supabase.from("whatsapp_flows").select("id", { count: "exact", head: true }).eq("ativo", true);
         setCounts({ numeros: cfg.count || 0, templates: tpl.count || 0, automacoes: flows.count || 0 });
       } catch {
         setCounts({ numeros: 0, templates: 0, automacoes: 0 });
