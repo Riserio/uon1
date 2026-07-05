@@ -506,11 +506,11 @@ export default function SGAInsights() {
                     ativo
                   </span>
                 )}
-                {/* Resumo dos filtros ativos quando fechado */}
-                {!filtersOpen && hasActiveFilters && (
+                {/* Resumo dos filtros ativos quando fechado (status sempre visível) */}
+                {!filtersOpen && (
                   <span className="text-xs text-muted-foreground truncate max-w-[300px]">
                     {[
-                      filters.status === "em_andamento" ? "Em andamento" : "Todos os eventos",
+                      filters.status === "em_andamento" ? "Eventos em andamento" : "Todos os eventos",
                       filters.dataInicio && `De: ${filters.dataInicio}`,
                       filters.dataFim && `Até: ${filters.dataFim}`,
                       filters.regional !== "todos" && filters.regional,
@@ -638,7 +638,9 @@ export default function SGAInsights() {
       {/* Quick Stats */}
       {filteredEventos.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div
+            className={`grid grid-cols-2 gap-4 ${filters.status === "em_andamento" ? "md:grid-cols-3" : "md:grid-cols-4"}`}
+          >
             <Card className="bg-card/50 backdrop-blur border-border/50">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -652,23 +654,26 @@ export default function SGAInsights() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-card/50 backdrop-blur border-border/50">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-green-500/10">
-                    <TrendingUp className="h-5 w-5 text-green-500" />
+            {/* Card Finalizados - oculto quando o filtro é "Eventos em andamento" */}
+            {filters.status !== "em_andamento" && (
+              <Card className="bg-card/50 backdrop-blur border-border/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-green-500/10">
+                      <TrendingUp className="h-5 w-5 text-green-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">
+                        {filteredEventos
+                          .filter((e) => (e.situacao_evento || "").toUpperCase().includes("FINALIZADO"))
+                          .length.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Finalizados</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-2xl font-bold">
-                      {filteredEventos
-                        .filter((e) => (e.situacao_evento || "").toUpperCase().includes("FINALIZADO"))
-                        .length.toLocaleString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Finalizados</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
             <Card className="bg-card/50 backdrop-blur border-border/50">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
