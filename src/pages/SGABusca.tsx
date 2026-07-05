@@ -3,10 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Search, Loader2, Building2, User, Car, IdCard, CircleAlert,
-  ExternalLink, Receipt, DollarSign, ShieldAlert, CheckCircle2, XCircle,
+  ExternalLink, Receipt, DollarSign, ShieldAlert, CheckCircle2, XCircle, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -37,6 +39,19 @@ const fmtData = (v: any) => {
   return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString("pt-BR");
 };
 const val = (v: any) => (v == null || v === "" ? "—" : String(v));
+
+// Janela padrão de 12 meses (a partir de hoje) para aliviar a tela de MGF e Eventos
+const dozeMesesAtras = () => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 12);
+  return d;
+};
+const dentroDosUltimos12Meses = (v: any) => {
+  if (!v) return false;
+  const d = new Date(String(v).length <= 10 ? String(v) + "T00:00:00" : v);
+  if (isNaN(d.getTime())) return false;
+  return d >= dozeMesesAtras();
+};
 
 function maskPlaca(v: string) {
   return v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
@@ -104,20 +119,22 @@ export default function SGABusca() {
   };
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="h-11 w-11 rounded-2xl bg-primary/10 flex items-center justify-center">
-          <Search className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold leading-tight">SGA — Busca de Clientes</h1>
-          <p className="text-sm text-muted-foreground">Procure por placa, CPF/CNPJ ou nome em todas as associações com API.</p>
-        </div>
-      </div>
+    <div className="p-4 md:p-6 space-y-6">
+      <PageHeader
+        icon={Search}
+        title="SGA — Associados"
+        subtitle="Procure por placa, CPF/CNPJ ou nome em todas as associações com API."
+      />
 
-      {/* Buscador */}
-      <Card className="rounded-2xl border-border/50">
-        <CardContent className="p-4 space-y-3">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Buscar associado
+          </CardTitle>
+          <CardDescription>Escolha o tipo de busca e informe o termo</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2">
             {TIPOS.map((t) => {
               const Icon = t.icon;
@@ -126,7 +143,7 @@ export default function SGABusca() {
                   key={t.id}
                   onClick={() => { setTipo(t.id); setTermo(""); setResult(null); }}
                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                    tipo === t.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"
+                    tipo === t.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground hover:bg-muted/70"
                   }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -136,18 +153,18 @@ export default function SGABusca() {
             })}
           </div>
           <div className="flex gap-2">
-            <div className="relative flex-1">
+            <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={termo}
                 onChange={(e) => setTermo(aplicarMascara(tipo, e.target.value))}
                 onKeyDown={(e) => e.key === "Enter" && buscar()}
                 placeholder={tipoAtual.placeholder}
-                className={`pl-9 h-10 rounded-xl ${tipo === "placa" ? "uppercase tracking-wide" : ""}`}
+                className={`pl-9 ${tipo === "placa" ? "uppercase tracking-wide" : ""}`}
                 inputMode={tipo === "cpf" ? "numeric" : "text"}
               />
             </div>
-            <Button onClick={buscar} disabled={loading} className="h-10 rounded-xl gap-1.5">
+            <Button onClick={buscar} disabled={loading} className="gap-1.5">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               Buscar
             </Button>
@@ -155,7 +172,6 @@ export default function SGABusca() {
         </CardContent>
       </Card>
 
-      {/* Resultados */}
       {loading && (
         <div className="text-center py-12 text-muted-foreground">
           <Loader2 className="h-7 w-7 mx-auto animate-spin mb-2" />
@@ -165,8 +181,6 @@ export default function SGABusca() {
 
       {!loading && result && (
         <div className="space-y-5">
-          <ApiStatusPanel apis={result.apis_ativas} />
-
           <p className="text-xs text-muted-foreground">
             {result.total} resultado{result.total !== 1 ? "s" : ""} encontrado{result.total !== 1 ? "s" : ""}.
           </p>
@@ -177,75 +191,83 @@ export default function SGABusca() {
               <p className="text-sm text-muted-foreground">Nenhum cliente encontrado para "{termo}".</p>
             </div>
           ) : (
-            result.resultados.map((d, i) => (
-              <Card key={i} className="rounded-2xl overflow-hidden border-border/50">
-                <CardHeader className="pb-3 bg-muted/30">
-                  <CardTitle className="flex items-center justify-between text-base flex-wrap gap-2">
-                    <span className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-primary" />
-                      {d.veiculo?.placa || d.associado?.nome || "Resultado"}
-                      <Badge variant="secondary">{d.associacao}</Badge>
-                    </span>
-                    {d.sga_url && (
-                      <a href={d.sga_url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
-                        <ExternalLink className="h-3.5 w-3.5" /> Abrir no SGA
-                      </a>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-5 space-y-4">
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    {d.veiculo && (
-                      <KeyValueTable titulo="Veículo" icon={<Car className="h-4 w-4" />} data={{
-                        "Placa": d.veiculo.placa, "Tipo": d.veiculo.tipo, "Categoria": d.veiculo.categoria,
-                        "Marca": d.veiculo.marca, "Modelo": d.veiculo.modelo, "Cor": d.veiculo.cor,
-                        "Combustível": d.veiculo.combustivel, "Ano": `${val(d.veiculo.ano_fabricacao)}/${val(d.veiculo.ano_modelo)}`,
-                        "Valor FIPE": fmtMoeda(d.veiculo.valor_fipe), "Valor protegido": fmtMoeda(d.veiculo.valor_protegido),
-                        "Situação": d.veiculo.situacao, "Regional": d.veiculo.regional, "Cooperativa": d.veiculo.cooperativa,
-                        "Cidade/UF": `${val(d.veiculo.cidade)} / ${val(d.veiculo.estado)}`,
-                      }} />
-                    )}
-                    {d.associado && (
-                      <KeyValueTable titulo="Associado" icon={<User className="h-4 w-4" />} data={{
-                        "Nome": d.associado.nome, "CPF": d.associado.cpf, "RG": d.associado.rg,
-                        "E-mail": d.associado.email, "Telefone": d.associado.telefone, "Celular": d.associado.celular,
-                        "Cidade/UF": `${val(d.associado.cidade)} / ${val(d.associado.estado)}`, "Bairro": d.associado.bairro,
-                        "Situação": d.associado.situacao, "Cadastro": fmtData(d.associado.data_cadastro),
-                      }} destaque="Situação" />
-                    )}
-                  </div>
+            result.resultados.map((d, i) => {
+              const mgfFiltrado = (d.mgf || []).filter((m: any) => dentroDosUltimos12Meses(m.vencimento));
+              const eventosFiltrados = (d.eventos || []).filter((e: any) => dentroDosUltimos12Meses(e.data));
+              return (
+                <Card key={i} className="overflow-hidden">
+                  <CardHeader className="pb-3 bg-muted/30">
+                    <CardTitle className="flex items-center justify-between text-base flex-wrap gap-2">
+                      <span className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-primary" />
+                        {d.veiculo?.placa || d.associado?.nome || "Resultado"}
+                        <Badge variant="secondary">{d.associacao}</Badge>
+                      </span>
+                      {d.sga_url && (
+                        <a href={d.sga_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+                          <ExternalLink className="h-3.5 w-3.5" /> Abrir no SGA
+                        </a>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-5 space-y-4">
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      {d.veiculo && (
+                        <KeyValueTable titulo="Veículo" icon={<Car className="h-4 w-4" />} data={{
+                          "Placa": d.veiculo.placa, "Tipo": d.veiculo.tipo, "Categoria": d.veiculo.categoria,
+                          "Marca": d.veiculo.marca, "Modelo": d.veiculo.modelo, "Cor": d.veiculo.cor,
+                          "Combustível": d.veiculo.combustivel, "Ano": `${val(d.veiculo.ano_fabricacao)}/${val(d.veiculo.ano_modelo)}`,
+                          "Valor FIPE": fmtMoeda(d.veiculo.valor_fipe), "Valor protegido": fmtMoeda(d.veiculo.valor_protegido),
+                          "Situação": d.veiculo.situacao, "Regional": d.veiculo.regional, "Cooperativa": d.veiculo.cooperativa,
+                          "Cidade/UF": `${val(d.veiculo.cidade)} / ${val(d.veiculo.estado)}`,
+                        }} />
+                      )}
+                      {d.associado && (
+                        <KeyValueTable titulo="Associado" icon={<User className="h-4 w-4" />} data={{
+                          "Nome": d.associado.nome, "CPF": d.associado.cpf, "RG": d.associado.rg,
+                          "E-mail": d.associado.email, "Telefone": d.associado.telefone, "Celular": d.associado.celular,
+                          "Cidade/UF": `${val(d.associado.cidade)} / ${val(d.associado.estado)}`, "Bairro": d.associado.bairro,
+                          "Situação": d.associado.situacao, "Cadastro": fmtData(d.associado.data_cadastro),
+                        }} destaque="Situação" />
+                      )}
+                    </div>
 
-                  <ListTable titulo="Boletos / Cobrança" icon={<Receipt className="h-4 w-4" />} rows={d.boletos}
-                    cols={[
-                      { h: "Vencimento", r: (b) => fmtData(b.vencimento) },
-                      { h: "Valor", r: (b) => fmtMoeda(b.valor) },
-                      { h: "Situação", r: (b) => <StatusPill s={b.situacao} /> },
-                      { h: "Pagamento", r: (b) => fmtData(b.pagamento) },
-                    ]} />
+                    <ListTable titulo="Boletos / Cobrança" icon={<Receipt className="h-4 w-4" />} rows={d.boletos}
+                      cols={[
+                        { h: "Vencimento", r: (b) => fmtData(b.vencimento) },
+                        { h: "Valor", r: (b) => fmtMoeda(b.valor) },
+                        { h: "Situação", r: (b) => <StatusPill s={b.situacao} /> },
+                        { h: "Pagamento", r: (b) => fmtData(b.pagamento) },
+                      ]} />
 
-                  <ListTable titulo="Eventos / Vistorias (SGA)" icon={<ShieldAlert className="h-4 w-4" />} rows={d.eventos}
-                    cols={[
-                      { h: "Data", r: (e) => fmtData(e.data) },
-                      { h: "Tipo", r: (e) => val(e.tipo) },
-                      { h: "Motivo", r: (e) => val(e.motivo) },
-                      { h: "Situação", r: (e) => <StatusPill s={e.situacao} /> },
-                      { h: "Protocolo", r: (e) => val(e.protocolo) },
-                      { h: "Valor reparo", r: (e) => fmtMoeda(e.valor_reparo) },
-                    ]} />
+                    <ListTable titulo="Eventos / Vistorias (SGA)" icon={<ShieldAlert className="h-4 w-4" />} rows={eventosFiltrados}
+                      subtitulo="últimos 12 meses"
+                      cols={[
+                        { h: "Data", r: (e) => fmtData(e.data) },
+                        { h: "Tipo", r: (e) => val(e.tipo) },
+                        { h: "Motivo", r: (e) => val(e.motivo) },
+                        { h: "Situação", r: (e) => <StatusPill s={e.situacao} /> },
+                        { h: "Protocolo", r: (e) => val(e.protocolo) },
+                        { h: "Valor reparo", r: (e) => fmtMoeda(e.valor_reparo) },
+                      ]} />
 
-                  <ListTable titulo="Lançamentos Financeiros (MGF)" icon={<DollarSign className="h-4 w-4" />} rows={d.mgf}
-                    cols={[
-                      { h: "Vencimento", r: (m) => fmtData(m.vencimento) },
-                      { h: "Operação", r: (m) => val(m.operacao) },
-                      { h: "Descrição", r: (m) => val(m.descricao) },
-                      { h: "Valor", r: (m) => fmtMoeda(m.valor) },
-                      { h: "Situação", r: (m) => <StatusPill s={m.situacao} /> },
-                    ]} />
-                </CardContent>
-              </Card>
-            ))
+                    <ListTable titulo="Lançamentos Financeiros (MGF)" icon={<DollarSign className="h-4 w-4" />} rows={mgfFiltrado}
+                      subtitulo="últimos 12 meses"
+                      cols={[
+                        { h: "Vencimento", r: (m) => fmtData(m.vencimento) },
+                        { h: "Operação", r: (m) => val(m.operacao) },
+                        { h: "Descrição", r: (m) => val(m.descricao) },
+                        { h: "Valor", r: (m) => fmtMoeda(m.valor) },
+                        { h: "Situação", r: (m) => <StatusPill s={m.situacao} /> },
+                      ]} />
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
+
+          <ApiStatusPanel apis={result.apis_ativas} />
         </div>
       )}
     </div>
@@ -254,7 +276,7 @@ export default function SGABusca() {
 
 function KeyValueTable({ titulo, icon, data, destaque }: { titulo: string; icon: React.ReactNode; data: Record<string, any>; destaque?: string }) {
   return (
-    <div className="rounded-xl border overflow-hidden">
+    <div className="rounded-lg border overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-muted/40 text-sm font-semibold">{icon}{titulo}</div>
       <table className="w-full text-sm">
         <tbody>
@@ -272,11 +294,11 @@ function KeyValueTable({ titulo, icon, data, destaque }: { titulo: string; icon:
   );
 }
 
-function ListTable({ titulo, icon, rows, cols }: { titulo: string; icon: React.ReactNode; rows: any[]; cols: { h: string; r: (row: any) => React.ReactNode }[] }) {
+function ListTable({ titulo, icon, rows, cols, subtitulo }: { titulo: string; icon: React.ReactNode; rows: any[]; cols: { h: string; r: (row: any) => React.ReactNode }[]; subtitulo?: string }) {
   return (
-    <div className="rounded-xl border overflow-hidden">
+    <div className="rounded-lg border overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-muted/40 text-sm font-semibold">
-        {icon}{titulo} <span className="text-xs text-muted-foreground font-normal">({rows.length})</span>
+        {icon}{titulo} <span className="text-xs text-muted-foreground font-normal">({rows.length}{subtitulo ? ` • ${subtitulo}` : ""})</span>
       </div>
       {rows.length === 0 ? (
         <p className="px-3 py-3 text-xs text-muted-foreground">Sem registros.</p>
@@ -311,34 +333,44 @@ function StatusPill({ s }: { s: any }) {
 }
 
 function ApiStatusPanel({ apis }: { apis: ApiStatus[] }) {
+  const [open, setOpen] = useState(false);
   if (!apis || apis.length === 0) return null;
   const modLabel: Record<string, string> = { cobranca: "Cobrança", eventos: "Eventos", mgf: "MGF" };
   return (
-    <Card className="rounded-2xl border-border/50">
-      <CardHeader className="pb-2"><CardTitle className="text-sm">APIs Hinova ativas ({apis.length})</CardTitle></CardHeader>
-      <CardContent className="pb-4">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {apis.map((a) => (
-            <div key={a.associacao} className="rounded-xl border p-2.5">
-              <p className="text-xs font-semibold mb-1.5 truncate">{a.associacao}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {(["cobranca", "eventos", "mgf"] as const).map((mod) => {
-                  const st = a[mod]; const okS = st?.status === "sucesso"; const errS = st?.status === "erro";
-                  return (
-                    <span key={mod} title={st?.erro || (st?.origem ? `via ${st.origem}` : "")}
-                      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ${
-                        okS ? "bg-emerald-500/10 text-emerald-600" : errS ? "bg-red-500/10 text-red-600" : "bg-muted text-muted-foreground"
-                      }`}>
-                      {okS ? <CheckCircle2 className="h-3 w-3" /> : errS ? <XCircle className="h-3 w-3" /> : null}
-                      {modLabel[mod]}
-                    </span>
-                  );
-                })}
-              </div>
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <Card>
+        <CollapsibleTrigger asChild>
+          <button type="button" className="w-full flex items-center justify-between px-4 py-3 text-left">
+            <span className="text-sm font-medium text-muted-foreground">APIs Hinova ativas ({apis.length})</span>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0 pb-4">
+            <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+              {apis.map((a) => (
+                <div key={a.associacao} className="rounded-lg border p-2">
+                  <p className="text-xs font-semibold mb-1 truncate">{a.associacao}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {(["cobranca", "eventos", "mgf"] as const).map((mod) => {
+                      const st = a[mod]; const okS = st?.status === "sucesso"; const errS = st?.status === "erro";
+                      return (
+                        <span key={mod} title={st?.erro || (st?.origem ? `via ${st.origem}` : "")}
+                          className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ${
+                            okS ? "bg-emerald-500/10 text-emerald-600" : errS ? "bg-red-500/10 text-red-600" : "bg-muted text-muted-foreground"
+                          }`}>
+                          {okS ? <CheckCircle2 className="h-3 w-3" /> : errS ? <XCircle className="h-3 w-3" /> : null}
+                          {modLabel[mod]}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }

@@ -87,7 +87,7 @@ function useMenuItems() {
     { id: "documentos", label: "Documentos", to: "/documentos", icon: FileText, group: "ferramentas" },
     { id: "emails", label: "Central de Atendimento", to: "/central-atendimento", icon: Headset, badge: whatsAppUnread, group: "ferramentas" },
     { id: "mensagens", label: "Mensagens", to: "/mensagens", icon: MessageCircle, badge: unreadMessages, group: "ferramentas" },
-    { id: "sga", label: "SGA", to: "/sga", icon: Search, group: "ferramentas" },
+    { id: "sga", label: "SGA — Associados", to: "/sga", icon: Search, group: "ferramentas" },
     { id: "pid", label: "BI - Indicadores", to: "/pid", icon: TrendingUp, group: "ferramentas" },
     { id: "ouvidoria", label: "Ouvidoria", to: "/ouvidoria-backoffice", icon: MessageSquareWarning, badge: ouvidoriaPendentes, group: "ferramentas" },
     { id: "contratos", label: "Uon1 Sign", to: "/uon1sign", icon: FileSignature, badge: signedContracts.count, group: "ferramentas" },
