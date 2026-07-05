@@ -7,8 +7,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign, CreditCard, LogOut, ArrowLeftRight, Building2, Activity, ChevronDown, Globe } from "lucide-react";
-import { format } from "date-fns";
+import {
+  ArrowLeft,
+  Upload,
+  Database,
+  Map,
+  BarChart3,
+  TrendingUp,
+  AlertTriangle,
+  Car,
+  History,
+  Calendar,
+  Filter,
+  DollarSign,
+  CreditCard,
+  LogOut,
+  ArrowLeftRight,
+  Building2,
+  Activity,
+  ChevronDown,
+  Globe,
+} from "lucide-react";
+import { format, subMonths } from "date-fns";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
 import SGAConsultaHinova from "@/components/sga/SGAConsultaHinova";
@@ -46,76 +66,106 @@ export default function SGAInsights() {
   const [loading, setLoading] = useState(true);
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
-  
+
   // Filtros globais - padrão: todo o período (vazio)
-  const getDefaultDateRange = () => ({ dataInicio: "", dataFim: "" });
+  const getDefaultDateRange = () => {
+    const hoje = new Date();
+    return { dataInicio: format(subMonths(hoje, 12), "yyyy-MM-dd"), dataFim: format(hoje, "yyyy-MM-dd") };
+  };
 
   const [filters, setFilters] = useState<SGAFilters>({
-    dataInicio: "",
-    dataFim: "",
+    ...defaultDateRange,
     regional: "todos",
     cooperativa: "todos",
     tipoVeiculo: "todos",
   });
-  
+
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Detectar se é acesso via portal (parceiro)
-  const isPortalAccess = location.pathname.startsWith('/portal');
-  
+  const isPortalAccess = location.pathname.startsWith("/portal");
+
   // Verifica se pode ver histórico (superintendente ou admin)
   const canViewHistorico = userRole === "superintendente" || userRole === "admin";
-  
+
   // Associações e permissões
   const [associacoes, setAssociacoes] = useState<any[]>([]);
   const [selectedAssociacao, setSelectedAssociacao] = useState<string>("");
   const [loadingAssociacoes, setLoadingAssociacoes] = useState(true);
-  const [modulosBi, setModulosBi] = useState<string[]>(['indicadores', 'eventos', 'mgf', 'cobranca']);
-  const [corretoraData, setCorretoraData] = useState<{ id: string; nome: string; logo_url?: string | null } | null>(null);
+  const [modulosBi, setModulosBi] = useState<string[]>(["indicadores", "eventos", "mgf", "cobranca"]);
+  const [corretoraData, setCorretoraData] = useState<{ id: string; nome: string; logo_url?: string | null } | null>(
+    null,
+  );
   const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
 
   // Extrair opções únicas para filtros
   const filterOptions = useMemo(() => {
-    const regionais = [...new Set(eventos.map(e => e.regional).filter(Boolean))].sort();
-    const cooperativas = [...new Set(eventos.map(e => e.cooperativa).filter(Boolean))].sort();
-    const tiposVeiculo = [...new Set(eventos.map(e => {
-      const modelo = e.modelo_veiculo || "";
-      if (modelo.toLowerCase().includes("moto") || modelo.toLowerCase().includes("honda") || modelo.toLowerCase().includes("yamaha")) return "Motocicleta";
-      if (modelo.toLowerCase().includes("caminhao") || modelo.toLowerCase().includes("caminhão") || modelo.toLowerCase().includes("truck")) return "Caminhão";
-      return "Passeio";
-    }))].sort();
+    const regionais = [...new Set(eventos.map((e) => e.regional).filter(Boolean))].sort();
+    const cooperativas = [...new Set(eventos.map((e) => e.cooperativa).filter(Boolean))].sort();
+    const tiposVeiculo = [
+      ...new Set(
+        eventos.map((e) => {
+          const modelo = e.modelo_veiculo || "";
+          if (
+            modelo.toLowerCase().includes("moto") ||
+            modelo.toLowerCase().includes("honda") ||
+            modelo.toLowerCase().includes("yamaha")
+          )
+            return "Motocicleta";
+          if (
+            modelo.toLowerCase().includes("caminhao") ||
+            modelo.toLowerCase().includes("caminhão") ||
+            modelo.toLowerCase().includes("truck")
+          )
+            return "Caminhão";
+          return "Passeio";
+        }),
+      ),
+    ].sort();
     return { regionais, cooperativas, tiposVeiculo };
   }, [eventos]);
 
   // Eventos filtrados
   const filteredEventos = useMemo(() => {
     let result = [...eventos];
-    
+
     if (filters.dataInicio) {
-      result = result.filter(e => e.data_evento && e.data_evento >= filters.dataInicio);
+      result = result.filter((e) => e.data_evento && e.data_evento >= filters.dataInicio);
     }
     if (filters.dataFim) {
-      result = result.filter(e => e.data_evento && e.data_evento <= filters.dataFim);
+      result = result.filter((e) => e.data_evento && e.data_evento <= filters.dataFim);
     }
     if (filters.regional !== "todos") {
-      result = result.filter(e => e.regional === filters.regional);
+      result = result.filter((e) => e.regional === filters.regional);
     }
     if (filters.cooperativa !== "todos") {
-      result = result.filter(e => e.cooperativa === filters.cooperativa);
+      result = result.filter((e) => e.cooperativa === filters.cooperativa);
     }
     if (filters.tipoVeiculo !== "todos") {
-      result = result.filter(e => {
+      result = result.filter((e) => {
         const modelo = e.modelo_veiculo || "";
         if (filters.tipoVeiculo === "Motocicleta") {
-          return modelo.toLowerCase().includes("moto") || modelo.toLowerCase().includes("honda") || modelo.toLowerCase().includes("yamaha");
+          return (
+            modelo.toLowerCase().includes("moto") ||
+            modelo.toLowerCase().includes("honda") ||
+            modelo.toLowerCase().includes("yamaha")
+          );
         }
         if (filters.tipoVeiculo === "Caminhão") {
-          return modelo.toLowerCase().includes("caminhao") || modelo.toLowerCase().includes("caminhão") || modelo.toLowerCase().includes("truck");
+          return (
+            modelo.toLowerCase().includes("caminhao") ||
+            modelo.toLowerCase().includes("caminhão") ||
+            modelo.toLowerCase().includes("truck")
+          );
         }
-        return !modelo.toLowerCase().includes("moto") && !modelo.toLowerCase().includes("caminhao") && !modelo.toLowerCase().includes("caminhão");
+        return (
+          !modelo.toLowerCase().includes("moto") &&
+          !modelo.toLowerCase().includes("caminhao") &&
+          !modelo.toLowerCase().includes("caminhão")
+        );
       });
     }
-    
+
     // Contagem de eventos: cada linha do relatório Hinova com PLACA preenchida
     // é um evento distinto (inclusive quando o mesmo protocolo aparece como
     // ASSOCIADO e TERCEIRO). Linhas de item/descrição do Hinova não trazem
@@ -140,27 +190,26 @@ export default function SGAInsights() {
     }
   }, [biLayout?.selectedAssociacao, biLayout?.associacoes, isPortalAccess]);
 
-
   // Carregar associações (only for portal access)
   useEffect(() => {
     if (biLayout && !isPortalAccess) return; // Skip - using shared context
-    
+
     // Portal access: use corretora from portal context directly (avoids slug vs id mismatch)
     if (isPortalAccess && portalLayout?.corretora) {
       const c = portalLayout.corretora;
       setAssociacoes([{ id: c.id, nome: c.nome }]);
       setSelectedAssociacao(c.id);
       setCorretoraData({ id: c.id, nome: c.nome, logo_url: c.logo_url });
-      setModulosBi(c.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
+      setModulosBi(c.modulos_bi || ["indicadores", "eventos", "mgf", "cobranca", "estudo-base"]);
       setMultipleAssociacoes(portalLayout.corretorasDisponiveis.length > 1);
       setLoadingAssociacoes(false);
       return;
     }
-    
+
     async function fetchAssociacoes() {
       try {
         const associacaoParam = searchParams.get("associacao");
-        
+
         if (isPortalAccess && associacaoParam) {
           // Fallback: try by id first, then by slug
           let { data: corretora, error: corretoraError } = await supabase
@@ -186,30 +235,27 @@ export default function SGAInsights() {
             return;
           }
         }
-        
+
         const associacaoParam2 = searchParams.get("associacao");
         const cached = getCachedAssociacoes();
         if (cached && cached.length > 0 && !associacoes.length) {
           setAssociacoes(cached);
-          if (associacaoParam2 && cached.some(c => c.id === associacaoParam2)) {
+          if (associacaoParam2 && cached.some((c) => c.id === associacaoParam2)) {
             setSelectedAssociacao(associacaoParam2);
           } else if (!selectedAssociacao) {
             setSelectedAssociacao(cached[0].id);
           }
           setLoadingAssociacoes(false);
         }
-        
-        const { data, error } = await supabase
-          .from("corretoras")
-          .select("id, nome")
-          .order("nome");
+
+        const { data, error } = await supabase.from("corretoras").select("id, nome").order("nome");
 
         if (error) throw error;
         setAssociacoes(data || []);
         setCachedAssociacoes(data || []);
-        
+
         if (!cached || cached.length === 0) {
-          if (associacaoParam2 && data?.some(c => c.id === associacaoParam2)) {
+          if (associacaoParam2 && data?.some((c) => c.id === associacaoParam2)) {
             setSelectedAssociacao(associacaoParam2);
           } else if (data && data.length > 0) {
             setSelectedAssociacao(data[0].id);
@@ -236,7 +282,7 @@ export default function SGAInsights() {
 
     // Cache global: exibição instantânea ao navegar entre módulos
     if (!forceRefresh) {
-      const globalCached = getBICachedData(selectedAssociacao, 'eventos');
+      const globalCached = getBICachedData(selectedAssociacao, "eventos");
       if (globalCached && globalCached.data.length > 0) {
         // Valida se a importação em cache ainda é a mais recente ativa
         const { data: latest } = await supabase
@@ -257,7 +303,7 @@ export default function SGAInsights() {
       }
       // Portal prefetch cache: show immediately but fetch full data in background
       if (isPortalAccess) {
-        const cached = getPrefetchedData<any>(selectedAssociacao, 'eventos');
+        const cached = getPrefetchedData<any>(selectedAssociacao, "eventos");
         if (cached && cached.length > 0) {
           setEventos(cached);
           setLoading(false);
@@ -283,7 +329,7 @@ export default function SGAInsights() {
 
       if (importacao) {
         setImportacaoAtiva(importacao);
-        
+
         const BATCH_SIZE = 1000;
         let allEventos: any[] = [];
         let hasMore = true;
@@ -313,8 +359,8 @@ export default function SGAInsights() {
         }
 
         setEventos(allEventos);
-        setBICachedData(selectedAssociacao, 'eventos', allEventos, importacao);
-        if (isPortalAccess) savePrefetchedData(selectedAssociacao, 'eventos', allEventos);
+        setBICachedData(selectedAssociacao, "eventos", allEventos, importacao);
+        if (isPortalAccess) savePrefetchedData(selectedAssociacao, "eventos", allEventos);
       } else {
         setEventos([]);
         setImportacaoAtiva(null);
@@ -337,19 +383,25 @@ export default function SGAInsights() {
     }
   }, [selectedAssociacao]);
 
-  const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
+  const selectedAssociacaoNome = associacoes.find((a) => a.id === selectedAssociacao)?.nome || "";
 
   const clearFilters = () => {
+    const defaultDateRange = getDefaultDateRange();
+
     setFilters({
-      dataInicio: "",
-      dataFim: "",
+      ...defaultDateRange,
       regional: "todos",
       cooperativa: "todos",
       tipoVeiculo: "todos",
     });
   };
 
-  const hasActiveFilters = filters.dataInicio || filters.dataFim || filters.regional !== "todos" || filters.cooperativa !== "todos" || filters.tipoVeiculo !== "todos";
+  const hasActiveFilters =
+    filters.dataInicio ||
+    filters.dataFim ||
+    filters.regional !== "todos" ||
+    filters.cooperativa !== "todos" ||
+    filters.tipoVeiculo !== "todos";
 
   // Update shared header dynamic props
   useEffect(() => {
@@ -363,7 +415,7 @@ export default function SGAInsights() {
   }, [filteredEventos.length, hasActiveFilters, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
 
   // Tabs - esconder importação para parceiros
-  const tabs = isPortalAccess 
+  const tabs = isPortalAccess
     ? [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
         { id: "mapa", label: "Mapa Geográfico", icon: Map },
@@ -387,12 +439,12 @@ export default function SGAInsights() {
   };
 
   // Montar lista de módulos disponíveis para o carrossel
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base')[] = [
-    ...(modulosBi.includes('indicadores') ? ['indicadores'] as const : []),
-    ...(modulosBi.includes('eventos') ? ['eventos'] as const : []),
-    ...(modulosBi.includes('mgf') ? ['mgf'] as const : []),
-    ...(modulosBi.includes('cobranca') ? ['cobranca'] as const : []),
-    ...(modulosBi.includes('estudo-base') ? ['estudo-base'] as const : []),
+  const availableModules: ("indicadores" | "eventos" | "mgf" | "cobranca" | "estudo-base")[] = [
+    ...(modulosBi.includes("indicadores") ? (["indicadores"] as const) : []),
+    ...(modulosBi.includes("eventos") ? (["eventos"] as const) : []),
+    ...(modulosBi.includes("mgf") ? (["mgf"] as const) : []),
+    ...(modulosBi.includes("cobranca") ? (["cobranca"] as const) : []),
+    ...(modulosBi.includes("estudo-base") ? (["estudo-base"] as const) : []),
   ];
 
   const portalContent = (
@@ -404,7 +456,7 @@ export default function SGAInsights() {
             id: corretoraData.id,
             nome: corretoraData.nome,
             logo_url: corretoraData.logo_url,
-            modulos_bi: modulosBi
+            modulos_bi: modulosBi,
           }}
           showChangeButton={multipleAssociacoes}
           onChangeCorretora={handleChangeAssociacao}
@@ -438,7 +490,7 @@ export default function SGAInsights() {
           <Card className="bg-card/50 backdrop-blur border-border/50 overflow-hidden">
             {/* Filtros Header - sempre visível */}
             <button
-              onClick={() => setFiltersOpen(o => !o)}
+              onClick={() => setFiltersOpen((o) => !o)}
               className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
             >
               <div className="flex items-center gap-2">
@@ -458,7 +510,9 @@ export default function SGAInsights() {
                       filters.regional !== "todos" && filters.regional,
                       filters.cooperativa !== "todos" && filters.cooperativa,
                       filters.tipoVeiculo !== "todos" && filters.tipoVeiculo,
-                    ].filter(Boolean).join(" · ")}
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </span>
                 )}
               </div>
@@ -467,13 +521,18 @@ export default function SGAInsights() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={(e) => { e.stopPropagation(); clearFilters(); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearFilters();
+                    }}
                     className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
                   >
                     Limpar
                   </Button>
                 )}
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown
+                  className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? "rotate-180" : ""}`}
+                />
               </div>
             </button>
 
@@ -486,7 +545,7 @@ export default function SGAInsights() {
                     <Input
                       type="date"
                       value={filters.dataInicio}
-                      onChange={(e) => setFilters(f => ({ ...f, dataInicio: e.target.value }))}
+                      onChange={(e) => setFilters((f) => ({ ...f, dataInicio: e.target.value }))}
                       className="h-9"
                     />
                   </div>
@@ -495,41 +554,51 @@ export default function SGAInsights() {
                     <Input
                       type="date"
                       value={filters.dataFim}
-                      onChange={(e) => setFilters(f => ({ ...f, dataFim: e.target.value }))}
+                      onChange={(e) => setFilters((f) => ({ ...f, dataFim: e.target.value }))}
                       className="h-9"
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Regional</Label>
-                    <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
+                    <Select value={filters.regional} onValueChange={(v) => setFilters((f) => ({ ...f, regional: v }))}>
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Todas" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="todos">Todas Regionais</SelectItem>
-                        {filterOptions.regionais.map(r => (
-                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        {filterOptions.regionais.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {r}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Cooperativa</Label>
-                    <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
+                    <Select
+                      value={filters.cooperativa}
+                      onValueChange={(v) => setFilters((f) => ({ ...f, cooperativa: v }))}
+                    >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Todas" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="todos">Todas Cooperativas</SelectItem>
-                        {filterOptions.cooperativas.map(c => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        {filterOptions.cooperativas.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Tipo Veículo</Label>
-                    <Select value={filters.tipoVeiculo} onValueChange={(v) => setFilters(f => ({ ...f, tipoVeiculo: v }))}>
+                    <Select
+                      value={filters.tipoVeiculo}
+                      onValueChange={(v) => setFilters((f) => ({ ...f, tipoVeiculo: v }))}
+                    >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>
@@ -572,8 +641,10 @@ export default function SGAInsights() {
                     <TrendingUp className="h-5 w-5 text-green-500" />
                   </div>
                   <div>
-                     <p className="text-2xl font-bold">
-                      {filteredEventos.filter(e => (e.situacao_evento || "").toUpperCase().includes("FINALIZADO")).length.toLocaleString()}
+                    <p className="text-2xl font-bold">
+                      {filteredEventos
+                        .filter((e) => (e.situacao_evento || "").toUpperCase().includes("FINALIZADO"))
+                        .length.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground">Finalizados</p>
                   </div>
@@ -588,10 +659,12 @@ export default function SGAInsights() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
-                      {filteredEventos.filter(e => {
-                        const s = (e.situacao_evento || "").toUpperCase();
-                        return s && !s.includes("FINALIZADO");
-                      }).length.toLocaleString()}
+                      {filteredEventos
+                        .filter((e) => {
+                          const s = (e.situacao_evento || "").toUpperCase();
+                          return s && !s.includes("FINALIZADO");
+                        })
+                        .length.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground">Em Andamento</p>
                   </div>
@@ -606,8 +679,9 @@ export default function SGAInsights() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-                        .format(filteredEventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0))}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+                        filteredEventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0),
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">Custo Total</p>
                   </div>
@@ -654,7 +728,7 @@ export default function SGAInsights() {
 
           {!isPortalAccess && (
             <TabsContent value="importar">
-              <SGAImportacao 
+              <SGAImportacao
                 onImportSuccess={() => {
                   fetchEventos(true);
                   setActiveTab("dashboard");
@@ -667,10 +741,7 @@ export default function SGAInsights() {
 
           {!isPortalAccess && (
             <TabsContent value="consulta-sga">
-              <SGAConsultaHinova
-                corretoraId={selectedAssociacao}
-                corretoraNome={selectedAssociacaoNome}
-              />
+              <SGAConsultaHinova corretoraId={selectedAssociacao} corretoraNome={selectedAssociacaoNome} />
             </TabsContent>
           )}
         </Tabs>
@@ -702,9 +773,7 @@ export default function SGAInsights() {
         currentModule="eventos"
       >
         <div className="min-h-screen bg-background">
-          <PortalPageWrapper>
-            {portalContent}
-          </PortalPageWrapper>
+          <PortalPageWrapper>{portalContent}</PortalPageWrapper>
         </div>
       </PortalCarouselProvider>
     );
