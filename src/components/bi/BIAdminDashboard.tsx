@@ -501,7 +501,7 @@ export default function BIAdminDashboard() {
           <Input placeholder="Buscar associação..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-9 rounded-xl" />
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-1.5 rounded-xl">
+          <Button variant="outline" size="sm" onClick={() => loadData()} disabled={loading} className="gap-1.5 rounded-xl">
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Atualizar
           </Button>
           <Button size="sm" className="gap-1.5 rounded-xl" disabled={syncingAll} onClick={sincronizarTodas}>
