@@ -299,6 +299,7 @@ function KeyValueTable({ titulo, icon, data, destaque }: { titulo: string; icon:
   );
 }
 
+// Suporta modo colapsavel (collapsible / defaultOpen).
 function ListTable({ titulo, icon, rows, cols, subtitulo, collapsible, defaultOpen }: { titulo: string; icon: React.ReactNode; rows: any[]; cols: { h: string; r: (row: any) => React.ReactNode }[]; subtitulo?: string; collapsible?: boolean; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen ?? true);
 
