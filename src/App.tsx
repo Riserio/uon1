@@ -94,6 +94,7 @@ const FormularioEditor = lazy(() => import("./pages/FormularioEditor"));
 const FormularioRespostas = lazy(() => import("./pages/FormularioRespostas"));
 const FormularioPublico = lazy(() => import("./pages/FormularioPublico"));
 const DispositivosPonto = lazy(() => import("./pages/DispositivosPonto"));
+const ConsultaAssociado = lazy(() => import("./pages/ConsultaAssociado"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -313,6 +314,7 @@ const App = () => (
                 <Route path="/formularios/:id/editar" element={<ProtectedRoute><FormularioEditor /></ProtectedRoute>} />
                 <Route path="/formularios/:id/respostas" element={<ProtectedRoute><FormularioRespostas /></ProtectedRoute>} />
                 <Route path="/dispositivos-ponto" element={<ProtectedRoute><DispositivosPonto /></ProtectedRoute>} />
+                <Route path="/consulta-associado" element={<ProtectedRoute><ConsultaAssociado /></ProtectedRoute>} />
                 <Route path="/talk" element={<Navigate to="/video" replace />} />
               </Route>
               
