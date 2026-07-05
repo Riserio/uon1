@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Search, Loader2, Building2, User, Car, IdCard, CircleAlert, ExternalLink, Receipt, DollarSign, ShieldAlert, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,7 +23,6 @@ interface Resultado {
 
 const fmtMoeda = (v: any) => v == null || v === "" ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtData = (v: any) => { if (!v) return "—"; const d = new Date(String(v).length <= 10 ? String(v)+"T00:00:00" : v); return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString("pt-BR"); };
-const val = (v: any) => v == null || v === "" ? "—" : String(v);
 
 function StatusPill({ s }: { s: any }) {
   const t = String(s || "").toUpperCase();
@@ -105,6 +105,32 @@ function ListTable({ titulo, rows, cols }: any) {
   );
 }
 
+function CollapsibleSection({ title, children }: any) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <Card>
+        <CollapsibleTrigger asChild>
+          <button className="w-full text-left">
+            <CardHeader>
+              <CardTitle className="text-sm flex justify-between">
+                {title}
+                <span className="text-xs text-muted-foreground">
+                  {open ? "ocultar" : "mostrar"}
+                </span>
+              </CardTitle>
+            </CardHeader>
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent>{children}</CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  );
+}
+
 export default function SGABusca() {
   const [tipo, setTipo] = useState<Tipo>("placa");
   const [termo, setTermo] = useState("");
@@ -122,6 +148,7 @@ export default function SGABusca() {
         p_cpf: tipo === "cpf" ? t.replace(/\D/g, "") : null,
         p_nome: tipo === "nome" ? t : null,
       });
+
       setResult(data);
     } catch (e) {
       toast.error("Erro na busca");
@@ -141,6 +168,7 @@ export default function SGABusca() {
               <Button key={t} variant={tipo === t ? "default" : "outline"} onClick={() => setTipo(t)}>{t}</Button>
             ))}
           </div>
+
           <div className="flex gap-2">
             <Input value={termo} onChange={(e) => setTermo(e.target.value)} />
             <Button onClick={buscar} disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : "Buscar"}</Button>
@@ -160,8 +188,25 @@ export default function SGABusca() {
             <KeyValueTable titulo="Veículo" icon={<Car />} data={d.veiculo} />
           </div>
 
-          <ListTable titulo="Boletos" rows={d.boletos} cols={[{h:"Valor",r:(b:any)=>fmtMoeda(b.valor)},{h:"Situação",r:(b:any)=><StatusPill s={b.situacao} />}]} />
-          <ListTable titulo="Eventos" rows={d.eventos} cols={[{h:"Tipo",r:(e:any)=>e.tipo},{h:"Situação",r:(e:any)=><StatusPill s={e.situacao} />}]} />
+          <CollapsibleSection title="Boletos / Cobrança">
+            <ListTable
+              titulo="Boletos"
+              rows={d.boletos}
+              cols={[
+                { h: "Valor", r: (b: any) => fmtMoeda(b.valor) },
+                { h: "Situação", r: (b: any) => <StatusPill s={b.situacao} /> }
+              ]}
+            />
+          </CollapsibleSection>
+
+          <ListTable
+            titulo="Eventos"
+            rows={d.eventos}
+            cols={[
+              { h: "Tipo", r: (e: any) => e.tipo },
+              { h: "Situação", r: (e: any) => <StatusPill s={e.situacao} /> }
+            ]}
+          />
         </div>
       ))}
     </div>
