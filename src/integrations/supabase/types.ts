@@ -1166,6 +1166,7 @@ export type Database = {
           id: string
           layout_relatorio: string | null
           ultima_execucao: string | null
+          ultima_origem: string | null
           ultimo_erro: string | null
           ultimo_status: string | null
           updated_at: string
@@ -1188,6 +1189,7 @@ export type Database = {
           id?: string
           layout_relatorio?: string | null
           ultima_execucao?: string | null
+          ultima_origem?: string | null
           ultimo_erro?: string | null
           ultimo_status?: string | null
           updated_at?: string
@@ -1210,6 +1212,7 @@ export type Database = {
           id?: string
           layout_relatorio?: string | null
           ultima_execucao?: string | null
+          ultima_origem?: string | null
           ultimo_erro?: string | null
           ultimo_status?: string | null
           updated_at?: string
@@ -3500,6 +3503,8 @@ export type Database = {
       }
       hinova_credenciais: {
         Row: {
+          api_base_url: string | null
+          api_token: string | null
           ativo_cobranca: boolean | null
           ativo_eventos: boolean | null
           ativo_mgf: boolean | null
@@ -3521,8 +3526,11 @@ export type Database = {
           url_cobranca: string | null
           url_eventos: string | null
           url_mgf: string | null
+          usar_api: boolean
         }
         Insert: {
+          api_base_url?: string | null
+          api_token?: string | null
           ativo_cobranca?: boolean | null
           ativo_eventos?: boolean | null
           ativo_mgf?: boolean | null
@@ -3544,8 +3552,11 @@ export type Database = {
           url_cobranca?: string | null
           url_eventos?: string | null
           url_mgf?: string | null
+          usar_api?: boolean
         }
         Update: {
+          api_base_url?: string | null
+          api_token?: string | null
           ativo_cobranca?: boolean | null
           ativo_eventos?: boolean | null
           ativo_mgf?: boolean | null
@@ -3567,6 +3578,7 @@ export type Database = {
           url_cobranca?: string | null
           url_eventos?: string | null
           url_mgf?: string | null
+          usar_api?: boolean
         }
         Relationships: [
           {
@@ -4328,6 +4340,7 @@ export type Database = {
           id: string
           layout_relatorio: string | null
           ultima_execucao: string | null
+          ultima_origem: string | null
           ultimo_erro: string | null
           ultimo_status: string | null
           updated_at: string
@@ -4345,6 +4358,7 @@ export type Database = {
           id?: string
           layout_relatorio?: string | null
           ultima_execucao?: string | null
+          ultima_origem?: string | null
           ultimo_erro?: string | null
           ultimo_status?: string | null
           updated_at?: string
@@ -4362,6 +4376,7 @@ export type Database = {
           id?: string
           layout_relatorio?: string | null
           ultima_execucao?: string | null
+          ultima_origem?: string | null
           ultimo_erro?: string | null
           ultimo_status?: string | null
           updated_at?: string
@@ -6271,6 +6286,7 @@ export type Database = {
           hora_agendada: string | null
           id: string
           ultima_execucao: string | null
+          ultima_origem: string | null
           ultimo_erro: string | null
           ultimo_status: string | null
           updated_at: string
@@ -6288,6 +6304,7 @@ export type Database = {
           hora_agendada?: string | null
           id?: string
           ultima_execucao?: string | null
+          ultima_origem?: string | null
           ultimo_erro?: string | null
           ultimo_status?: string | null
           updated_at?: string
@@ -6305,6 +6322,7 @@ export type Database = {
           hora_agendada?: string | null
           id?: string
           ultima_execucao?: string | null
+          ultima_origem?: string | null
           ultimo_erro?: string | null
           ultimo_status?: string | null
           updated_at?: string
@@ -8575,6 +8593,11 @@ export type Database = {
         Args: { target_profile_id: string; viewer_id: string }
         Returns: boolean
       }
+      agregar_estudo_base: {
+        Args: { p_corretora_id: string; p_data_referencia?: string }
+        Returns: Json
+      }
+      agregar_estudo_base_todas: { Args: never; Returns: Json }
       can_manage_gestao: { Args: { _user_id: string }; Returns: boolean }
       can_send_email: { Args: { provider_name: string }; Returns: boolean }
       can_view_profile: {
@@ -8609,6 +8632,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      derivar_indicadores: {
+        Args: { p_corretora_id: string; p_meses?: number }
+        Returns: Json
+      }
       enqueue_recurrent_backfills: {
         Args: never
         Returns: {
@@ -8633,6 +8660,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      hinova_dateiso: { Args: { t: string }; Returns: string }
+      hinova_num: { Args: { t: string }; Returns: number }
+      importar_base_api: { Args: { p_corretora_id: string }; Returns: Json }
+      importar_base_api_todas: { Args: never; Returns: Json }
+      importar_cobranca_api: { Args: { p_corretora_id: string }; Returns: Json }
+      importar_eventos_api: { Args: { p_corretora_id: string }; Returns: Json }
+      importar_mgf_api: { Args: { p_corretora_id: string }; Returns: Json }
+      importar_tudo_api_todas: { Args: never; Returns: Json }
+      jsonb_object_keys_count: { Args: { j: Json }; Returns: number }
       reset_email_rate_limits: { Args: never; Returns: undefined }
       sga_proxima_data_inicio: {
         Args: { _corretora_id: string }
