@@ -94,7 +94,6 @@ const FormularioEditor = lazy(() => import("./pages/FormularioEditor"));
 const FormularioRespostas = lazy(() => import("./pages/FormularioRespostas"));
 const FormularioPublico = lazy(() => import("./pages/FormularioPublico"));
 const DispositivosPonto = lazy(() => import("./pages/DispositivosPonto"));
-const ConsultaAssociado = lazy(() => import("./pages/ConsultaAssociado"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -129,11 +128,11 @@ function MainContent({ children }: { children: React.ReactNode }) {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isParceiro } = useAuth();
-  
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
   }
-  
+
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
@@ -141,7 +140,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (isParceiro) {
     return <Navigate to="/portal" replace />;
   }
-  
+
   return <>{children}</>;
 }
 
@@ -149,7 +148,7 @@ function AppLayout() {
   usePushNotifications();
   usePontoAlertas();
   useVisitorTracking();
-  
+
   return (
     <div className="min-h-screen w-full">
       <AppSidebar />
@@ -163,11 +162,11 @@ function AppLayout() {
 function PortalRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isParceiro } = useAuth();
   usePushNotifications();
-  
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
   }
-  
+
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
@@ -175,7 +174,7 @@ function PortalRoute({ children }: { children: React.ReactNode }) {
   if (!isParceiro) {
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   return (
     <PortalLayoutProvider>
       {children}
@@ -192,23 +191,23 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 function DomainBasedRoute() {
   const { user, loading } = useAuth();
   const hostname = window.location.hostname;
-  
+
   // Se for uon1.com.br (com ou sem www), mostra a landing
   const isMainDomain = hostname === 'uon1.com.br' || hostname === 'www.uon1.com.br';
-  
+
   if (isMainDomain) {
     return <Landing />;
   }
-  
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
   }
-  
+
   // Se usuário está logado, vai para dashboard
   if (user) {
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   // Usuário não logado vai para auth
   return <Navigate to="/auth" replace />;
 }
@@ -237,7 +236,7 @@ const App = () => (
               {/* Portal PID Routes */}
           <Route path="/:slug/login" element={<PortalLogin />} />
           <Route path="/:slug/dashboard" element={<PortalDashboard />} />
-              
+
               {/* Regular App Routes */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -256,7 +255,7 @@ const App = () => (
               <Route path="/gestao-cobranca" element={<GestaoCobranca />} />
               <Route path="/f/:slug" element={<FormularioPublico />} />
               <Route path="/" element={<DomainBasedRoute />} />
-              
+
               {/* All protected routes share sidebar via AppLayout */}
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -314,10 +313,9 @@ const App = () => (
                 <Route path="/formularios/:id/editar" element={<ProtectedRoute><FormularioEditor /></ProtectedRoute>} />
                 <Route path="/formularios/:id/respostas" element={<ProtectedRoute><FormularioRespostas /></ProtectedRoute>} />
                 <Route path="/dispositivos-ponto" element={<ProtectedRoute><DispositivosPonto /></ProtectedRoute>} />
-                <Route path="/consulta-associado" element={<ProtectedRoute><ConsultaAssociado /></ProtectedRoute>} />
                 <Route path="/talk" element={<Navigate to="/video" replace />} />
               </Route>
-              
+
               <Route path="/meeting-rsvp" element={<MeetingRsvp />} />
               <Route path="/video/:roomId" element={<ProtectedRoute><MeetingRoom /></ProtectedRoute>} />
               <Route path="/invite/:inviteId" element={<InviteEntry />} />
