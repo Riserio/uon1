@@ -28,7 +28,7 @@ import {
   ChevronDown,
   Globe,
 } from "lucide-react";
-import { format, subMonths } from "date-fns";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
 import SGAConsultaHinova from "@/components/sga/SGAConsultaHinova";
@@ -52,16 +52,19 @@ export interface SGAFilters {
   regional: string;
   cooperativa: string;
   tipoVeiculo: string;
+  status: string; // "em_andamento" | "todos"
 }
 
-// Filtros globais - padrão: últimos 12 meses
-const getDefaultDateRange = () => {
-  const hoje = new Date();
-  return {
-    dataInicio: format(subMonths(hoje, 12), "yyyy-MM-dd"),
-    dataFim: format(hoje, "yyyy-MM-dd"),
-  };
-};
+// Filtros globais - padrão: eventos em andamento, sem filtro de data.
+// Carrega menos registros na tela e alivia a renderização.
+const getDefaultFilters = (): SGAFilters => ({
+  dataInicio: "",
+  dataFim: "",
+  regional: "todos",
+  cooperativa: "todos",
+  tipoVeiculo: "todos",
+  status: "em_andamento",
+});
 
 export default function SGAInsights() {
   const navigate = useNavigate();
@@ -76,12 +79,7 @@ export default function SGAInsights() {
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
 
-  const [filters, setFilters] = useState<SGAFilters>({
-    ...getDefaultDateRange(),
-    regional: "todos",
-    cooperativa: "todos",
-    tipoVeiculo: "todos",
-  });
+  const [filters, setFilters] = useState<SGAFilters>(getDefaultFilters());
 
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -131,6 +129,15 @@ export default function SGAInsights() {
   // Eventos filtrados
   const filteredEventos = useMemo(() => {
     let result = [...eventos];
+
+    // Status: "em_andamento" = situação preenchida e diferente de FINALIZADO
+    // (mesma regra do card "Em Andamento" dos Quick Stats)
+    if (filters.status === "em_andamento") {
+      result = result.filter((e) => {
+        const s = (e.situacao_evento || "").toUpperCase();
+        return s && !s.includes("FINALIZADO");
+      });
+    }
 
     if (filters.dataInicio) {
       result = result.filter((e) => e.data_evento && e.data_evento >= filters.dataInicio);
@@ -388,15 +395,9 @@ export default function SGAInsights() {
 
   const selectedAssociacaoNome = associacoes.find((a) => a.id === selectedAssociacao)?.nome || "";
 
-  // Limpar: remove todas as datas e busca todo o período
+  // Limpar: volta ao padrão (eventos em andamento, sem datas)
   const clearFilters = () => {
-    setFilters({
-      dataInicio: "",
-      dataFim: "",
-      regional: "todos",
-      cooperativa: "todos",
-      tipoVeiculo: "todos",
-    });
+    setFilters(getDefaultFilters());
   };
 
   const hasActiveFilters =
@@ -404,7 +405,8 @@ export default function SGAInsights() {
     filters.dataFim ||
     filters.regional !== "todos" ||
     filters.cooperativa !== "todos" ||
-    filters.tipoVeiculo !== "todos";
+    filters.tipoVeiculo !== "todos" ||
+    filters.status !== "em_andamento";
 
   // Update shared header dynamic props
   useEffect(() => {
@@ -508,6 +510,7 @@ export default function SGAInsights() {
                 {!filtersOpen && hasActiveFilters && (
                   <span className="text-xs text-muted-foreground truncate max-w-[300px]">
                     {[
+                      filters.status === "em_andamento" ? "Em andamento" : "Todos os eventos",
                       filters.dataInicio && `De: ${filters.dataInicio}`,
                       filters.dataFim && `Até: ${filters.dataFim}`,
                       filters.regional !== "todos" && filters.regional,
@@ -542,7 +545,19 @@ export default function SGAInsights() {
             {/* Filtros corpo - colapsável */}
             {filtersOpen && (
               <div className="px-4 pb-4 border-t border-border/50">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <Select value={filters.status} onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="em_andamento">Eventos em andamento</SelectItem>
+                        <SelectItem value="todos">Todos os eventos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Data Início</Label>
                     <Input
