@@ -28,6 +28,8 @@ interface BugReport {
   previsao_entrega: string | null;
   arquivado: boolean;
   resolvido_em: string | null;
+  user_id: string;
+  user_email: string | null;
 }
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
@@ -93,7 +95,6 @@ export default function ReportarProblema() {
     const { data, error } = await (supabase as any)
       .from("bug_reports")
       .select("*")
-      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     if (!error) setRelatos((data || []) as BugReport[]);
     setLoading(false);
@@ -324,7 +325,7 @@ export default function ReportarProblema() {
 
         <Tabs defaultValue="relatos" className="space-y-4">
           <TabsList className="rounded-full bg-muted/40 backdrop-blur">
-            <TabsTrigger value="relatos" className="rounded-full">Meus relatos</TabsTrigger>
+            <TabsTrigger value="relatos" className="rounded-full">Todos os relatos</TabsTrigger>
             <TabsTrigger value="status" className="rounded-full">Status do sistema</TabsTrigger>
             <TabsTrigger value="diagnostico" className="rounded-full">Autodiagnóstico</TabsTrigger>
           </TabsList>
@@ -369,6 +370,7 @@ export default function ReportarProblema() {
                           <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{r.descricao}</p>
                           <p className="text-xs text-muted-foreground">
                             Enviado {formatDistanceToNow(new Date(r.created_at), { addSuffix: true, locale: ptBR })}
+                            {r.user_email && <> · por <span className="font-medium">{r.user_email}</span>{r.user_id === user?.id && " (você)"}</>}
                             {r.previsao_entrega && <> · Previsão: {new Date(r.previsao_entrega + "T00:00:00").toLocaleDateString("pt-BR")}</>}
                             {r.url && <> · <span className="truncate">{r.url}</span></>}
                           </p>
