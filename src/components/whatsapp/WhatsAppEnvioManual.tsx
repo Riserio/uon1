@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Send, RefreshCw, MessageCircle, Eye, Zap } from 'lucide-react';
+import { Send, RefreshCw, MessageCircle, Eye, Zap, Layers } from 'lucide-react';
 import { openWhatsApp } from '@/utils/whatsapp';
 
 interface Template {
@@ -20,6 +20,13 @@ interface WhatsAppConfig {
   telefone_whatsapp: string;
   nome_exibicao: string;
 }
+
+// Tipo do template interno → edge function geradora do resumo
+const RESUMO_FUNCTIONS: Record<string, string> = {
+  cobranca: 'gerar-resumo-cobranca',
+  eventos: 'gerar-resumo-eventos',
+  geral: 'gerar-resumo-geral', // consolidado: Eventos + Cobrança + MGF em uma mensagem
+};
 
 export function WhatsAppEnvioManual() {
   const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
@@ -57,7 +64,7 @@ export function WhatsAppEnvioManual() {
       .from('corretoras')
       .select('id, nome')
       .order('nome');
-    
+
     if (data) {
       setCorretoras(data);
     }
@@ -96,10 +103,10 @@ export function WhatsAppEnvioManual() {
 
     setGeneratingPreview(true);
     try {
-      let resumoData: Record<string, string> = {};
-
-      if (template.tipo === 'cobranca') {
-        const { data } = await supabase.functions.invoke('gerar-resumo-cobranca', {
+      // Resumos gerados dinamicamente (cobrança, eventos, geral consolidado)
+      const fnName = RESUMO_FUNCTIONS[template.tipo];
+      if (fnName) {
+        const { data } = await supabase.functions.invoke(fnName, {
           body: { corretora_id: selectedCorretora },
         });
         if (data?.resumo) {
@@ -107,13 +114,8 @@ export function WhatsAppEnvioManual() {
           setMensagem(data.resumo);
           return;
         }
-      } else if (template.tipo === 'eventos') {
-        const { data } = await supabase.functions.invoke('gerar-resumo-eventos', {
-          body: { corretora_id: selectedCorretora },
-        });
-        if (data?.resumo) {
-          setPreviewMensagem(data.resumo);
-          setMensagem(data.resumo);
+        if (data?.error) {
+          toast.error('Erro ao gerar resumo: ' + data.error);
           return;
         }
       }
@@ -197,7 +199,7 @@ export function WhatsAppEnvioManual() {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       // Split multiple numbers
       const phoneNumbers = config.telefone_whatsapp
         .split(',')
@@ -231,6 +233,8 @@ export function WhatsAppEnvioManual() {
       setLoading(false);
     }
   };
+
+  const selectedTemplateObj = templates.find(t => t.id === selectedTemplate);
 
   return (
     <Card>
@@ -281,17 +285,23 @@ export function WhatsAppEnvioManual() {
               <SelectContent>
                 {templates.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
-                    {t.nome} ({t.tipo})
+                    {t.tipo === 'geral' ? '📦 ' : ''}{t.nome} ({t.tipo})
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {selectedTemplateObj?.tipo === 'geral' && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Layers className="h-3 w-3" />
+                Consolidado: Eventos + Cobrança + MGF em uma única mensagem — substitui os envios individuais
+              </p>
+            )}
           </div>
         </div>
 
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={generatePreview}
             disabled={!selectedCorretora || !selectedTemplate || generatingPreview}
           >
