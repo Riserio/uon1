@@ -3504,6 +3504,7 @@ export type Database = {
       hinova_credenciais: {
         Row: {
           api_base_url: string | null
+          api_hora_agendada: string
           api_token: string | null
           ativo_cobranca: boolean | null
           ativo_eventos: boolean | null
@@ -3511,6 +3512,7 @@ export type Database = {
           corretora_id: string
           created_at: string
           dias_agendados: number[] | null
+          git_fallback_ativo: boolean
           hinova_codigo_cliente: string | null
           hinova_pass: string
           hinova_url: string
@@ -3530,6 +3532,7 @@ export type Database = {
         }
         Insert: {
           api_base_url?: string | null
+          api_hora_agendada?: string
           api_token?: string | null
           ativo_cobranca?: boolean | null
           ativo_eventos?: boolean | null
@@ -3537,6 +3540,7 @@ export type Database = {
           corretora_id: string
           created_at?: string
           dias_agendados?: number[] | null
+          git_fallback_ativo?: boolean
           hinova_codigo_cliente?: string | null
           hinova_pass?: string
           hinova_url?: string
@@ -3556,6 +3560,7 @@ export type Database = {
         }
         Update: {
           api_base_url?: string | null
+          api_hora_agendada?: string
           api_token?: string | null
           ativo_cobranca?: boolean | null
           ativo_eventos?: boolean | null
@@ -3563,6 +3568,7 @@ export type Database = {
           corretora_id?: string
           created_at?: string
           dias_agendados?: number[] | null
+          git_fallback_ativo?: boolean
           hinova_codigo_cliente?: string | null
           hinova_pass?: string
           hinova_url?: string
@@ -8632,6 +8638,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      consultar_hinova: {
+        Args: { p_cpf?: string; p_nome?: string; p_placa?: string }
+        Returns: Json
+      }
       derivar_indicadores: {
         Args: { p_corretora_id: string; p_meses?: number }
         Returns: Json
@@ -8665,10 +8675,13 @@ export type Database = {
       importar_base_api: { Args: { p_corretora_id: string }; Returns: Json }
       importar_base_api_todas: { Args: never; Returns: Json }
       importar_cobranca_api: { Args: { p_corretora_id: string }; Returns: Json }
-      importar_eventos_api: { Args: { p_corretora_id: string }; Returns: Json }
+      importar_eventos_api:
+        | { Args: { p_corretora_id: string }; Returns: Json }
+        | { Args: { p_corretora_id: string; p_full?: boolean }; Returns: Json }
       importar_mgf_api: { Args: { p_corretora_id: string }; Returns: Json }
       importar_tudo_api_todas: { Args: never; Returns: Json }
       jsonb_object_keys_count: { Args: { j: Json }; Returns: number }
+      marcar_git_fallback_desativado: { Args: never; Returns: undefined }
       reset_email_rate_limits: { Args: never; Returns: undefined }
       sga_proxima_data_inicio: {
         Args: { _corretora_id: string }
