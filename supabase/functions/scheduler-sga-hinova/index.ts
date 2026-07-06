@@ -25,6 +25,43 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 const MAX_RETRIES = 3; // teto de tentativas automáticas antes de parar
 
+// Espaça os disparos: no modo cron (roda a cada minuto) dispara poucas por
+// ciclo para nao martelar o Hinova/GitHub com todas as associacoes ao mesmo tempo.
+const MAX_DISPATCH_PER_RUN = 3;
+
+// Tenta a API oficial do SGA Hinova antes de qualquer coisa — o crawl via GitHub
+// Actions é só o fallback. Retorna true se a API já resolveu (nada mais a fazer).
+// deno-lint-ignore no-explicit-any
+async function tentarViaApi(supabase: any, supabaseUrl: string, supabaseKey: string, cred: any, configId: string | undefined, nomeAssociacao: string): Promise<boolean> {
+  if (!cred?.usar_api || !cred?.api_token) return false;
+  try {
+    const apiResp = await fetch(`${supabaseUrl}/functions/v1/importar-api-hinova`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}` },
+      body: JSON.stringify({ corretora_id: cred.corretora_id, modulo: "eventos" }),
+    });
+    const apiJson = await apiResp.json().catch(() => ({}));
+    if (apiJson?.success) {
+      console.log(`[Scheduler SGA] ${nomeAssociacao} importado via API (${apiJson.total} eventos) — crawl dispensado`);
+      await supabase.from("sga_automacao_execucoes").insert({
+        config_id: configId ?? null,
+        corretora_id: cred.corretora_id,
+        status: "sucesso",
+        etapa_atual: "concluido",
+        tipo_disparo: "api",
+        mensagem: `Importado via API SGA Hinova (${apiJson.total ?? 0} eventos)`,
+        registros_processados: apiJson.total ?? null,
+        finalizado_at: new Date().toISOString(),
+      });
+      return true;
+    }
+    console.warn(`[Scheduler SGA] ${nomeAssociacao}: API falhou (${apiJson?.message}) — fallback para crawl`);
+  } catch (apiErr) {
+    console.warn(`[Scheduler SGA] ${nomeAssociacao}: erro ao chamar API — fallback para crawl:`, apiErr);
+  }
+  return false;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -36,7 +73,7 @@ serve(async (req) => {
     const githubPat = Deno.env.get("GITHUB_PAT");
     const githubRepoOwner = Deno.env.get("GITHUB_REPO_OWNER");
     const githubRepoName = Deno.env.get("GITHUB_REPO_NAME");
-    
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     if (!githubPat || !githubRepoOwner || !githubRepoName) {
@@ -49,7 +86,7 @@ serve(async (req) => {
 
     let forceMode = false;
     let specificCorretoras: string[] = [];
-    
+
     try {
       const body = await req.json();
       forceMode = body.force === true;
@@ -64,7 +101,7 @@ serve(async (req) => {
     const nowUtc = new Date();
     const brasiliaOffset = -3 * 60;
     const brasiliaTime = new Date(nowUtc.getTime() + brasiliaOffset * 60 * 1000);
-    
+
     const currentHour = brasiliaTime.getUTCHours();
     const currentMinute = brasiliaTime.getUTCMinutes();
     const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}:00`;
@@ -84,7 +121,7 @@ serve(async (req) => {
         corretora:corretoras(id, nome, slug)
       `)
       .eq("ativo_eventos", true);
-    
+
     if (specificCorretoras.length > 0) {
       credQuery = credQuery.in("corretora_id", specificCorretoras);
     }
@@ -121,7 +158,7 @@ serve(async (req) => {
     // FASE 1: Verificar retries pendentes
     // ====================================
     const retryDisparados: string[] = [];
-    
+
     const { data: execucoesParaRetry } = await supabase
       .from("sga_automacao_execucoes")
       .select("id, config_id, corretora_id, retry_count, erro")
@@ -134,11 +171,11 @@ serve(async (req) => {
 
     if (execucoesParaRetry && execucoesParaRetry.length > 0) {
       console.log(`[Scheduler SGA] Encontradas ${execucoesParaRetry.length} execuções para retry`);
-      
+
       for (const execFalha of execucoesParaRetry) {
         const cred = credenciais.find((c: any) => c.corretora_id === execFalha.corretora_id);
         const config = configMap.get(execFalha.corretora_id);
-        
+
         if (!cred || !config) {
           await supabase
             .from("sga_automacao_execucoes")
@@ -179,6 +216,16 @@ serve(async (req) => {
         }
 
         console.log(`[Scheduler SGA] Executando retry para ${cred.corretora?.nome} (tentativa ${(execFalha.retry_count || 0) + 1})`);
+
+        // API-first: tenta a API antes de reagendar o crawl no retry
+        if (await tentarViaApi(supabase, supabaseUrl, supabaseKey, cred, config.id, cred.corretora?.nome || cred.corretora_id)) {
+          await supabase
+            .from("sga_automacao_execucoes")
+            .update({ proxima_tentativa_at: null })
+            .eq("id", execFalha.id);
+          retryDisparados.push(cred.corretora_id);
+          continue;
+        }
 
         try {
           await supabase
@@ -265,6 +312,14 @@ serve(async (req) => {
     const erros: string[] = [];
 
     for (const cred of credenciais) {
+      // Cap de disparos por ciclo (evita martelar Hinova/GitHub com todas de uma vez).
+      // Não se aplica quando corretoras específicas foram pedidas explicitamente.
+      if (!forceMode && specificCorretoras.length === 0 &&
+          (disparados.length + retryDisparados.length) >= MAX_DISPATCH_PER_RUN) {
+        console.log(`[Scheduler SGA] Cap de ${MAX_DISPATCH_PER_RUN} disparos/ciclo atingido — restante no próximo ciclo`);
+        break;
+      }
+
       const config = configMap.get(cred.corretora_id);
       const nomeAssociacao = cred.corretora?.nome || cred.corretora_id;
 
@@ -311,9 +366,8 @@ serve(async (req) => {
       console.log(`[Scheduler SGA] Disparando para ${nomeAssociacao}`);
 
       try {
-        const { dataInicio, dataFim } = calcularDatas();
-
-        // Garantir que existe config de automação (auto-criar se necessário)
+        // Garantir que existe config de automação (auto-criar se necessário) — precisa
+        // existir ANTES da tentativa via API, para conseguirmos vincular a execução.
         let configId = config?.id;
         if (!config) {
           const { data: newConfig } = await supabase
@@ -336,6 +390,14 @@ serve(async (req) => {
             continue;
           }
         }
+
+        // API-first: só cai pro crawl/GitHub Actions se a API não resolver.
+        if (await tentarViaApi(supabase, supabaseUrl, supabaseKey, cred, configId, nomeAssociacao)) {
+          disparados.push(cred.corretora_id);
+          continue;
+        }
+
+        const { dataInicio, dataFim } = calcularDatas();
 
         const { data: execucao, error: execError } = await supabase
           .from("sga_automacao_execucoes")
@@ -486,7 +548,7 @@ function buildWorkflowInputs(cred: any, dataInicio: string, dataFim: string, exe
 
 async function dispatchGitHub(pat: string, owner: string, repo: string, inputs: WorkflowInput): Promise<boolean> {
   const dispatchUrl = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/eventos-hinova.yml/dispatches`;
-  
+
   const response = await fetch(dispatchUrl, {
     method: 'POST',
     headers: {

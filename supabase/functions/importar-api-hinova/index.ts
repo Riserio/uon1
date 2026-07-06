@@ -41,6 +41,57 @@ const addDays = (d: Date, n: number): Date => {
   return r;
 };
 
+// Mapeia módulo -> tabelas de config/execuções para persistir erros da API (mesmo
+// padrão de tabelas já usado pelo caminho de crawl/GitHub Actions).
+function tabelasDoModulo(modulo: string): { configTable: string; execTable: string } | null {
+  switch (modulo) {
+    case "cobranca": return { configTable: "cobranca_automacao_config", execTable: "cobranca_automacao_execucoes" };
+    case "eventos": return { configTable: "sga_automacao_config", execTable: "sga_automacao_execucoes" };
+    case "mgf": return { configTable: "mgf_automacao_config", execTable: "mgf_automacao_execucoes" };
+    default: return null;
+  }
+}
+
+// Grava o erro REAL da chamada à API Hinova (antes disso, uma falha aqui só gerava
+// console.error e ficava invisível — o painel só mostrava o erro do fallback/crawl).
+// Isso alimenta o mesmo histórico/log que a tela já exibe pra Cobrança/Eventos/MGF.
+// deno-lint-ignore no-explicit-any
+async function persistApiError(supabase: any, modulo: string, corretoraId: string | undefined, msg: string) {
+  if (!corretoraId) return;
+  const tabelas = tabelasDoModulo(modulo);
+  if (!tabelas) return;
+  try {
+    const { data: config } = await supabase
+      .from(tabelas.configTable)
+      .select("id")
+      .eq("corretora_id", corretoraId)
+      .maybeSingle();
+
+    await supabase
+      .from(tabelas.configTable)
+      .update({
+        ultimo_status: "erro",
+        ultimo_erro: msg,
+        ultima_execucao: new Date().toISOString(),
+        ultima_origem: "api",
+      })
+      .eq("corretora_id", corretoraId);
+
+    await supabase.from(tabelas.execTable).insert({
+      config_id: config?.id ?? null,
+      corretora_id: corretoraId,
+      status: "erro",
+      etapa_atual: "api",
+      tipo_disparo: "api",
+      mensagem: "Tentativa via API SGA Hinova",
+      erro: msg,
+      finalizado_at: new Date().toISOString(),
+    });
+  } catch (persistErr) {
+    console.error("[importar-api-hinova] Falha ao persistir erro da API:", persistErr);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -49,10 +100,14 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
+  // Declarados fora do try para o catch conseguir persistir o erro real vinculado à corretora/módulo.
+  let corretora_id: string | undefined;
+  let modulo = "eventos";
+
   try {
     const body = await req.json().catch(() => ({}));
-    const corretora_id: string = body.corretora_id;
-    const modulo: string = body.modulo || "eventos";
+    corretora_id = body.corretora_id;
+    modulo = body.modulo || "eventos";
     if (!corretora_id) {
       return new Response(JSON.stringify({ success: false, message: "corretora_id é obrigatório" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -503,6 +558,7 @@ serve(async (req) => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
     console.error("[importar-api-hinova]", msg);
+    await persistApiError(supabase, modulo, corretora_id, msg);
     return new Response(JSON.stringify({ success: false, message: msg }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
