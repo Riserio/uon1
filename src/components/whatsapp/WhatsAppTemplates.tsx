@@ -459,6 +459,8 @@ export function WhatsAppTemplates() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
