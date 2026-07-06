@@ -140,10 +140,16 @@ export default function SGAInsights() {
     }
 
     if (filters.dataInicio) {
-      result = result.filter((e) => e.data_evento && e.data_evento >= filters.dataInicio);
+      result = result.filter((e) => {
+        const d = e.data_cadastro_evento || e.data_evento;
+        return d && d >= filters.dataInicio;
+      });
     }
     if (filters.dataFim) {
-      result = result.filter((e) => e.data_evento && e.data_evento <= filters.dataFim);
+      result = result.filter((e) => {
+        const d = e.data_cadastro_evento || e.data_evento;
+        return d && d <= filters.dataFim;
+      });
     }
     if (filters.regional !== "todos") {
       result = result.filter((e) => e.regional === filters.regional);
@@ -511,8 +517,8 @@ export default function SGAInsights() {
                   <span className="text-xs text-muted-foreground truncate max-w-[300px]">
                     {[
                       filters.status === "em_andamento" ? "Eventos em andamento" : "Todos os eventos",
-                      filters.dataInicio && `De: ${filters.dataInicio}`,
-                      filters.dataFim && `Até: ${filters.dataFim}`,
+                      filters.dataInicio && `Cadastro de: ${filters.dataInicio}`,
+                      filters.dataFim && `Cadastro até: ${filters.dataFim}`,
                       filters.regional !== "todos" && filters.regional,
                       filters.cooperativa !== "todos" && filters.cooperativa,
                       filters.tipoVeiculo !== "todos" && filters.tipoVeiculo,
@@ -559,7 +565,7 @@ export default function SGAInsights() {
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Data Início</Label>
+                    <Label className="text-xs text-muted-foreground">Cadastro de</Label>
                     <Input
                       type="date"
                       value={filters.dataInicio}
@@ -568,7 +574,7 @@ export default function SGAInsights() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Data Fim</Label>
+                    <Label className="text-xs text-muted-foreground">Cadastro até</Label>
                     <Input
                       type="date"
                       value={filters.dataFim}
