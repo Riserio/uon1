@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Plus, Save, Trash2, FileText, Tag, Edit2, Eye, Code } from 'lucide-react';
 import DOMPurify from 'dompurify';
+import { MetaTemplatesManager } from './MetaTemplatesManager';
 
 interface Template {
   id: string;
@@ -227,6 +228,15 @@ export function WhatsAppTemplates() {
 
   return (
     <div className="space-y-6">
+      <Tabs defaultValue="internos" className="w-full">
+        <TabsList>
+          <TabsTrigger value="internos">Templates internos</TabsTrigger>
+          <TabsTrigger value="meta">Templates Meta</TabsTrigger>
+        </TabsList>
+        <TabsContent value="meta" className="mt-4">
+          <MetaTemplatesManager />
+        </TabsContent>
+        <TabsContent value="internos" className="mt-4 space-y-6">
       {/* Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
