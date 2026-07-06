@@ -74,7 +74,7 @@ serve(async (req) => {
     // ====================================
     if (action === 'cancel' && run_id) {
       console.log(`[SGA Workflow] Cancelando run ${run_id}`);
-      
+
       const cancelUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/runs/${run_id}/cancel`;
       const cancelResponse = await fetch(cancelUrl, {
         method: 'POST',
@@ -119,34 +119,8 @@ serve(async (req) => {
 
       console.log(`[SGA Workflow] Iniciando para corretora: ${corretora_id}`);
 
-      // === API-FIRST: se a associação tem API habilitada, importa via API; crawl é fallback ===
-      const { data: apiCred } = await supabase
-        .from("hinova_credenciais")
-        .select("usar_api, api_token")
-        .eq("corretora_id", corretora_id)
-        .maybeSingle();
-      if (apiCred?.usar_api && apiCred?.api_token) {
-        try {
-          const apiResp = await fetch(`${supabaseUrl}/functions/v1/importar-api-hinova`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}` },
-            body: JSON.stringify({ corretora_id, modulo: "eventos" }),
-          });
-          const apiJson = await apiResp.json().catch(() => ({}));
-          if (apiJson?.success) {
-            console.log(`[SGA Workflow] Importado via API (${apiJson.total} eventos) — crawl dispensado`);
-            return new Response(
-              JSON.stringify({ success: true, via: "api", total: apiJson.total, message: `Importado via API: ${apiJson.total} eventos` }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-            );
-          }
-          console.warn(`[SGA Workflow] API falhou (${apiJson?.message}) — fallback para crawl`);
-        } catch (apiErr) {
-          console.warn(`[SGA Workflow] Erro ao chamar API — fallback para crawl:`, apiErr);
-        }
-      }
-
-      // Verificar execução hoje
+      // Verificar execução hoje — precisa ocorrer ANTES da tentativa via API para que uma
+      // integração já concluída com sucesso não seja sobrescrita por uma nova tentativa.
       const skipDailyGate = bypass_daily_limit === true && isServiceRole;
       // "Hoje" no fuso de São Paulo (created_at é UTC) — evita gate diário errado na virada do dia
       const hoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -164,6 +138,42 @@ serve(async (req) => {
           JSON.stringify({ success: false, message: st === "executando" ? "Já existe uma execução em andamento hoje" : "Já houve uma integração com sucesso hoje." }),
           { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+
+      // === API-FIRST: se a associação tem API habilitada, importa via API; crawl é fallback ===
+      // A prioridade é sempre a integração via API — tentamos algumas vezes com backoff
+      // antes de aceitar a falha e cair para o crawl via GitHub Actions.
+      const { data: apiCred } = await supabase
+        .from("hinova_credenciais")
+        .select("usar_api, api_token")
+        .eq("corretora_id", corretora_id)
+        .maybeSingle();
+      if (apiCred?.usar_api && apiCred?.api_token) {
+        const MAX_API_ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= MAX_API_ATTEMPTS; attempt++) {
+          try {
+            const apiResp = await fetch(`${supabaseUrl}/functions/v1/importar-api-hinova`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}` },
+              body: JSON.stringify({ corretora_id, modulo: "eventos" }),
+            });
+            const apiJson = await apiResp.json().catch(() => ({}));
+            if (apiJson?.success) {
+              console.log(`[SGA Workflow] Importado via API (${apiJson.total} eventos) — crawl dispensado (tentativa ${attempt}/${MAX_API_ATTEMPTS})`);
+              return new Response(
+                JSON.stringify({ success: true, via: "api", total: apiJson.total, message: `Importado via API: ${apiJson.total} eventos` }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+              );
+            }
+            console.warn(`[SGA Workflow] API falhou na tentativa ${attempt}/${MAX_API_ATTEMPTS} (${apiJson?.message})`);
+          } catch (apiErr) {
+            console.warn(`[SGA Workflow] Erro ao chamar API na tentativa ${attempt}/${MAX_API_ATTEMPTS}:`, apiErr);
+          }
+          if (attempt < MAX_API_ATTEMPTS) {
+            await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+          }
+        }
+        console.warn(`[SGA Workflow] API esgotou ${MAX_API_ATTEMPTS} tentativas — fallback para crawl`);
       }
 
       // ====================================================================
