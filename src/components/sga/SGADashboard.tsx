@@ -148,8 +148,9 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
     }, {});
 
     const porMes = eventos.reduce((acc: any, e) => {
-      if (e.data_evento) {
-        const date = new Date(e.data_evento);
+      const dref = e.data_cadastro_evento || e.data_evento;
+      if (dref) {
+        const date = new Date(dref);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         acc[key] = acc[key] || { eventos: 0, custo: 0 };
         acc[key].eventos += 1;
@@ -164,8 +165,9 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       })).sort((a, b) => a.mes.localeCompare(b.mes));
 
     const porDia = eventos.reduce((acc: any, e) => {
-      if (e.data_evento) {
-        const key = new Date(e.data_evento).toISOString().split('T')[0];
+      const dref = e.data_cadastro_evento || e.data_evento;
+      if (dref) {
+        const key = new Date(dref).toISOString().split('T')[0];
         acc[key] = acc[key] || { eventos: 0, custo: 0 };
         acc[key].eventos += 1;
         acc[key].custo += e.custo_evento || 0;
