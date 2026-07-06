@@ -2,10 +2,6 @@ name: Eventos Hinova - Importação de Eventos
 run-name: "Eventos · ${{ inputs.corretora_nome || inputs.corretora_id || 'todas' }}"
 
 on:
-  # Agendamento: dias úteis às 09:00 (horário de Brasília = 12:00 UTC)
-  schedule:
-    - cron: '0 12 * * 1-5'
-  
   # Permite execução manual pelo GitHub ou via API
   workflow_dispatch:
     inputs:
