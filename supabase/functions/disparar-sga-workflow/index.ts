@@ -6,6 +6,110 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+type RequestUser = { id: string; email: string };
+
+// Executa a API oficial em background para não estourar o limite da Edge Function
+// quando o fallback GitHub está desativado.
+// deno-lint-ignore no-explicit-any
+async function startEventosApiImport(supabase: any, corretoraId: string, user: RequestUser): Promise<{ started: boolean; message: string }> {
+  const hoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const { data: execucoesHoje } = await supabase
+    .from("sga_automacao_execucoes")
+    .select("id, status")
+    .eq("corretora_id", corretoraId)
+    .gte("created_at", `${hoje}T03:00:00.000Z`)
+    .in("status", ["sucesso", "executando"])
+    .limit(1);
+
+  if (execucoesHoje?.length) {
+    const st = execucoesHoje[0].status;
+    return {
+      started: false,
+      message: st === "executando" ? "Já existe uma importação via API em andamento hoje." : "Já houve uma integração com sucesso hoje.",
+    };
+  }
+
+  const { data: config } = await supabase
+    .from("sga_automacao_config")
+    .select("id")
+    .eq("corretora_id", corretoraId)
+    .maybeSingle();
+
+  const { data: execucao } = await supabase
+    .from("sga_automacao_execucoes")
+    .insert({
+      config_id: config?.id ?? null,
+      corretora_id: corretoraId,
+      status: "executando",
+      etapa_atual: "api",
+      mensagem: `Importação via API Hinova iniciada por ${user.email}`,
+      iniciado_por: user.id,
+      tipo_disparo: "api",
+    })
+    .select("id")
+    .maybeSingle();
+
+  await supabase.from("sga_automacao_config").update({
+    ultimo_status: "executando",
+    ultimo_erro: null,
+    ultima_execucao: new Date().toISOString(),
+    ultima_origem: "api",
+  }).eq("corretora_id", corretoraId);
+
+  const task = (async () => {
+    try {
+      const { data, error } = await supabase.rpc("importar_eventos_api", { p_corretora_id: corretoraId });
+      if (error || data?.success === false) {
+        const msg = error?.message || data?.message || "Importação via API falhou";
+        await supabase.from("sga_automacao_execucoes").update({
+          status: "erro",
+          etapa_atual: "api",
+          erro: msg,
+          mensagem: "Importação via API falhou; fallback GitHub está desativado.",
+          finalizado_at: new Date().toISOString(),
+        }).eq("id", execucao?.id);
+        await supabase.from("sga_automacao_config").update({
+          ultimo_status: "erro",
+          ultimo_erro: msg,
+          ultima_execucao: new Date().toISOString(),
+          ultima_origem: "api",
+        }).eq("corretora_id", corretoraId);
+        return;
+      }
+
+      const total = data?.total ?? data?.novos ?? null;
+      await supabase.from("sga_automacao_execucoes").update({
+        status: "sucesso",
+        etapa_atual: "concluido",
+        mensagem: `Importado via API Hinova${total !== null ? ` (${total} registros)` : ""}`,
+        registros_processados: total,
+        finalizado_at: new Date().toISOString(),
+      }).eq("id", execucao?.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido na API";
+      await supabase.from("sga_automacao_execucoes").update({
+        status: "erro",
+        etapa_atual: "api",
+        erro: msg,
+        mensagem: "Importação via API falhou; fallback GitHub está desativado.",
+        finalizado_at: new Date().toISOString(),
+      }).eq("id", execucao?.id);
+      await supabase.from("sga_automacao_config").update({
+        ultimo_status: "erro",
+        ultimo_erro: msg,
+        ultima_execucao: new Date().toISOString(),
+        ultima_origem: "api",
+      }).eq("corretora_id", corretoraId);
+    }
+  })();
+
+  const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void } }).EdgeRuntime;
+  if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(task);
+  else task.catch((err) => console.error("[SGA Workflow] Erro em background API:", err));
+
+  return { started: true, message: "Importação via API iniciada. O fallback GitHub está desativado e não será acionado." };
+}
+
 interface WorkflowInput {
   corretora_nome?: string;
   corretora_id: string;
@@ -58,13 +162,6 @@ serve(async (req) => {
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    if (!githubPat || !githubRepoOwner || !githubRepoName) {
-      return new Response(
-        JSON.stringify({ success: false, message: "Configuração do GitHub incompleta" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const body = await req.json();
     const { action, corretora_id, run_id, data_inicio: bodyDataInicio, data_fim: bodyDataFim, bypass_daily_limit, backfill_job_id } = body;
     const isServiceRole = authHeader.includes(supabaseKey);
@@ -73,6 +170,13 @@ serve(async (req) => {
     // CANCELAR EXECUÇÃO
     // ====================================
     if (action === 'cancel' && run_id) {
+      if (!githubPat || !githubRepoOwner || !githubRepoName) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Configuração do GitHub incompleta" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       console.log(`[SGA Workflow] Cancelando run ${run_id}`);
 
       const cancelUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/runs/${run_id}/cancel`;
@@ -149,6 +253,14 @@ serve(async (req) => {
         .eq("corretora_id", corretora_id)
         .maybeSingle();
       if (apiCred?.usar_api && apiCred?.api_token) {
+        if (apiCred.git_fallback_ativo === false) {
+          const apiStart = await startEventosApiImport(supabase, corretora_id, user);
+          return new Response(
+            JSON.stringify({ success: apiStart.started, via: "api", async: apiStart.started, message: apiStart.message }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+
         const MAX_API_ATTEMPTS = 3;
         for (let attempt = 1; attempt <= MAX_API_ATTEMPTS; attempt++) {
           try {
@@ -181,6 +293,14 @@ serve(async (req) => {
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
         }
+      }
+
+      // A partir daqui é fallback/crawl GitHub de fato; só agora exige secrets GitHub.
+      if (!githubPat || !githubRepoOwner || !githubRepoName) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Configuração do GitHub incompleta. A API não está disponível para esta associação e o fallback exige GitHub configurado." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       // ====================================================================

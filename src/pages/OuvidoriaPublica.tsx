@@ -62,22 +62,9 @@ export default function OuvidoriaPublica() {
 
   const loadCorretora = async () => {
     if (!slug) return;
-    let corr = null;
-    const { data: bySlug } = await supabase
-      .from("corretoras")
-      .select("id, nome, logo_url")
-      .eq("slug", slug)
+    const { data: corr } = await (supabase as any)
+      .rpc("get_public_ouvidoria_corretora", { p_slug_or_id: slug })
       .maybeSingle();
-    if (bySlug) {
-      corr = bySlug;
-    } else {
-      const { data: byId } = await supabase
-        .from("corretoras")
-        .select("id, nome, logo_url")
-        .eq("id", slug)
-        .maybeSingle();
-      corr = byId;
-    }
     if (!corr) { setLoading(false); return; }
     setCorretora(corr);
     const { data: cfg } = await supabase
@@ -139,23 +126,20 @@ export default function OuvidoriaPublica() {
 
       await supabase.from("ouvidoria_rate_limit").insert({ ip: "client", corretora_id: corretora.id });
 
-      const { data, error } = await supabase
-        .from("ouvidoria_registros")
-        .insert([{
-          corretora_id: corretora.id,
-          nome: form.anonimo ? "Anônimo" : form.nome.trim(),
-          cpf: form.anonimo ? null : (form.cpf.trim() || null),
-          email: form.email.trim(),
-          telefone: form.telefone.trim() || null,
-          tipo: form.tipo,
-          descricao: form.descricao.trim(),
-          placa_veiculo: form.placa_veiculo.trim().toUpperCase() || null,
-          protocolo: "",
-          anonimo: form.anonimo,
-          prioridade: form.prioridade,
-          canal_retorno: form.canal_retorno,
-        }] as any)
-        .select("id, protocolo")
+      const { data, error } = await (supabase as any)
+        .rpc("criar_ouvidoria_registro_publico", {
+          p_corretora_id: corretora.id,
+          p_nome: form.anonimo ? "Anônimo" : form.nome.trim(),
+          p_cpf: form.anonimo ? null : (form.cpf.trim() || null),
+          p_email: form.email.trim(),
+          p_telefone: form.telefone.trim() || null,
+          p_tipo: form.tipo,
+          p_descricao: form.descricao.trim(),
+          p_placa_veiculo: form.placa_veiculo.trim().toUpperCase() || null,
+          p_anonimo: form.anonimo,
+          p_prioridade: form.prioridade,
+          p_canal_retorno: form.canal_retorno,
+        })
         .single();
 
       if (error) throw error;
@@ -164,7 +148,11 @@ export default function OuvidoriaPublica() {
       if (anexos.length > 0 && data) {
         const urls = await uploadAnexos(data.id);
         if (urls.length > 0) {
-          await supabase.from("ouvidoria_registros").update({ anexos_urls: urls } as any).eq("id", data.id);
+          await (supabase as any).rpc("atualizar_anexos_ouvidoria_publico", {
+            p_registro_id: data.id,
+            p_protocolo: data.protocolo,
+            p_anexos_urls: urls,
+          });
         }
       }
 
