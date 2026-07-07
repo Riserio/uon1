@@ -90,10 +90,11 @@ export default function ReportarProblema() {
   const carregarRelatos = async () => {
     if (!user) return;
     setLoading(true);
+    // Exibe os relatos de todos os usuários (visibilidade liberada via policy de RLS),
+    // não apenas os do usuário atual.
     const { data, error } = await (supabase as any)
       .from("bug_reports")
       .select("*")
-      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     if (!error) setRelatos((data || []) as BugReport[]);
     setLoading(false);
@@ -291,7 +292,7 @@ export default function ReportarProblema() {
               Reportar problema
             </h1>
             <p className="text-muted-foreground">
-              Central de suporte técnico. Reporte bugs, acompanhe o status dos seus relatos e execute um autodiagnóstico do sistema.
+              Central de suporte técnico. Reporte bugs, acompanhe o status dos relatos e execute um autodiagnóstico do sistema.
             </p>
           </div>
           <div className="flex gap-2">
@@ -324,7 +325,7 @@ export default function ReportarProblema() {
 
         <Tabs defaultValue="relatos" className="space-y-4">
           <TabsList className="rounded-full bg-muted/40 backdrop-blur">
-            <TabsTrigger value="relatos" className="rounded-full">Meus relatos</TabsTrigger>
+            <TabsTrigger value="relatos" className="rounded-full">Todos os relatos</TabsTrigger>
             <TabsTrigger value="status" className="rounded-full">Status do sistema</TabsTrigger>
             <TabsTrigger value="diagnostico" className="rounded-full">Autodiagnóstico</TabsTrigger>
           </TabsList>
@@ -502,7 +503,7 @@ export default function ReportarProblema() {
                       {g.items.map((it: any, i: number) => {
                         const II = it.icon;
                         return (
-                          <div key={i} className="flex items-start gap-2 rounded-lg bg-background/60 border border-border/50 px-3 py-2">
+                          <div key={i} className="flex items-start gap-2 rounded-lg bg-background/60 border border-border-50 px-3 py-2">
                             <II className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
                               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{it.l}</p>
@@ -552,7 +553,7 @@ export default function ReportarProblema() {
               <CardContent>
                 <details>
                   <summary className="cursor-pointer text-sm text-muted-foreground">Expandir JSON técnico</summary>
-                  <pre className="mt-2 p-3 rounded-lg bg-background/60 border border-border/50 overflow-x-auto text-[11px] max-h-80">
+                  <pre className="mt-2 p-3 rounded-lg bg-background/60 border border-border-50 overflow-x-auto text-[11px] max-h-80">
 {JSON.stringify(diagnostico, null, 2)}
                   </pre>
                 </details>
