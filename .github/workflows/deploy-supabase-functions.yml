@@ -34,7 +34,10 @@ jobs:
             disparar-github-workflow \
             scheduler-sga-hinova \
             scheduler-mgf-hinova \
-            scheduler-cobranca-hinova; do
-            echo "== deploy $fn =="
+            scheduler-cobranca-hinova \
+                        gerar-resumo-cobranca \
+                                    gerar-resumo-geral; do
+                                    echo "== deploy $fn =="
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" || echo "FALHOU: $fn"
           done
+          
