@@ -68,14 +68,14 @@ export default function CobrancaInsights() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const autoAdjustedMonthRef = useRef(false);
 
-  // Filtros globais - padrão: sem filtro de mês (mostra tudo das importações
-  // ativas). Antes o padrão era "mês atual", o que deixava a tela vazia
-  // sempre que não houvesse boletos vencendo no mês corrente.
+  // Filtros globais - regra: sempre mostrar o MÊS ATUAL por padrão; se não
+  // houver boletos no mês atual, o auto-ajuste abaixo cai para o mês
+  // anterior automaticamente (regra já existente, mantida).
   const getMesAtual = () => format(new Date(), "yyyy-MM");
   const getMesAnterior = () => format(subMonths(new Date(), 1), "yyyy-MM");
 
   const [filters, setFilters] = useState<CobrancaFilters>({
-    mesReferencia: "",
+    mesReferencia: getMesAtual(),
     situacao: "todos",
     regional: "todos",
     cooperativa: "todos",
@@ -436,12 +436,13 @@ export default function CobrancaInsights() {
 
   const clearFilters = () => {
     setFilters({
-      mesReferencia: "",
+      mesReferencia: getMesAtual(),
       situacao: "todos",
       regional: "todos",
       cooperativa: "todos",
       diaVencimento: "todos",
     });
+    autoAdjustedMonthRef.current = false;
   };
 
   const hasActiveFilters =
