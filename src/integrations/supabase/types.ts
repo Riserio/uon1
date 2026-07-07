@@ -1618,33 +1618,53 @@ export type Database = {
       }
       consultas_veiculo: {
         Row: {
+          corretora_id: string | null
           data_consulta: string
+          erro: string | null
+          fonte: string
           id: string
           placa: string
           renavam: string | null
           resultado_json: Json | null
+          sucesso: boolean
           uf: string | null
           usuario_id: string
         }
         Insert: {
+          corretora_id?: string | null
           data_consulta?: string
+          erro?: string | null
+          fonte?: string
           id?: string
           placa: string
           renavam?: string | null
           resultado_json?: Json | null
+          sucesso?: boolean
           uf?: string | null
           usuario_id: string
         }
         Update: {
+          corretora_id?: string | null
           data_consulta?: string
+          erro?: string | null
+          fonte?: string
           id?: string
           placa?: string
           renavam?: string | null
           resultado_json?: Json | null
+          sucesso?: boolean
           uf?: string | null
           usuario_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "consultas_veiculo_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contatos: {
         Row: {
@@ -2247,6 +2267,50 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      detran_mg_credenciais: {
+        Row: {
+          ativo: boolean
+          corretora_id: string
+          created_at: string
+          gov_br_cpf: string
+          gov_br_senha: string
+          id: string
+          ultima_consulta_em: string | null
+          ultima_consulta_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          corretora_id: string
+          created_at?: string
+          gov_br_cpf: string
+          gov_br_senha: string
+          id?: string
+          ultima_consulta_em?: string | null
+          ultima_consulta_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          corretora_id?: string
+          created_at?: string
+          gov_br_cpf?: string
+          gov_br_senha?: string
+          id?: string
+          ultima_consulta_em?: string | null
+          ultima_consulta_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "detran_mg_credenciais_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       dispositivos_ponto: {
         Row: {
@@ -8604,6 +8668,14 @@ export type Database = {
         Returns: Json
       }
       agregar_estudo_base_todas: { Args: never; Returns: Json }
+      atualizar_anexos_ouvidoria_publico: {
+        Args: {
+          p_anexos_urls: string[]
+          p_protocolo: string
+          p_registro_id: string
+        }
+        Returns: boolean
+      }
       can_manage_gestao: { Args: { _user_id: string }; Returns: boolean }
       can_send_email: { Args: { provider_name: string }; Returns: boolean }
       can_view_profile: {
@@ -8642,6 +8714,25 @@ export type Database = {
         Args: { p_cpf?: string; p_nome?: string; p_placa?: string }
         Returns: Json
       }
+      criar_ouvidoria_registro_publico: {
+        Args: {
+          p_anonimo: boolean
+          p_canal_retorno: string
+          p_corretora_id: string
+          p_cpf: string
+          p_descricao: string
+          p_email: string
+          p_nome: string
+          p_placa_veiculo: string
+          p_prioridade: string
+          p_telefone: string
+          p_tipo: string
+        }
+        Returns: {
+          id: string
+          protocolo: string
+        }[]
+      }
       derivar_indicadores: {
         Args: { p_corretora_id: string; p_meses?: number }
         Returns: Json
@@ -8657,6 +8748,14 @@ export type Database = {
       }
       generate_contrato_numero: { Args: never; Returns: string }
       generate_lancamento_numero: { Args: never; Returns: string }
+      get_public_ouvidoria_corretora: {
+        Args: { p_slug_or_id: string }
+        Returns: {
+          id: string
+          logo_url: string
+          nome: string
+        }[]
+      }
       get_user_corretora_id: { Args: { _user_id: string }; Returns: string }
       get_user_lider_id: { Args: { _user_id: string }; Returns: string }
       get_user_role: {
