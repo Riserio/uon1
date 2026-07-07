@@ -42,6 +42,13 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
+      - name: Remover repositórios apt problemáticos (Microsoft)
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/azure-cli.list
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          sudo rm -f /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update || true
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
