@@ -221,14 +221,14 @@ serve(async (req) => {
         .eq("corretora_id", corretora_id)
         .maybeSingle();
       if (apiCred?.usar_api && apiCred?.api_token) {
-        if (apiCred.git_fallback_ativo === false) {
-          const apiStart = await startEventosApiImport(supabase, corretora_id, user);
-          return new Response(
-            JSON.stringify({ success: apiStart.started, via: "api", async: apiStart.started, message: apiStart.message }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
+        // Fallback GitHub Actions desativado globalmente para SGA/Eventos: sempre via API (assíncrono).
+        const apiStart = await startEventosApiImport(supabase, corretora_id, user);
+        return new Response(
+          JSON.stringify({ success: apiStart.started, via: "api", async: apiStart.started, message: apiStart.message }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
 
+        // eslint-disable-next-line no-unreachable
         const MAX_API_ATTEMPTS = 3;
         for (let attempt = 1; attempt <= MAX_API_ATTEMPTS; attempt++) {
           try {
@@ -262,6 +262,12 @@ serve(async (req) => {
           );
         }
       }
+
+      // Fallback GitHub Actions desativado para SGA/Eventos: exige API habilitada.
+      return new Response(
+        JSON.stringify({ success: false, message: "Importação de Eventos/SGA agora é exclusiva via API Hinova. Habilite 'Usar API' nas credenciais da associação." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
 
       // A partir daqui é fallback/crawl GitHub de fato; só agora exige secrets GitHub.
       if (!githubPat || !githubRepoOwner || !githubRepoName) {
