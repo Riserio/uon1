@@ -52,19 +52,6 @@ serve(async (req) => {
       );
     }
 
-    const { data: cred } = await supabase
-      .from("detran_mg_credenciais")
-      .select("ativo, gov_br_cpf, gov_br_senha_secret_id")
-      .eq("corretora_id", corretora_id)
-      .maybeSingle();
-
-    if (!cred || !cred.ativo || !cred.gov_br_cpf || !cred.gov_br_senha_secret_id) {
-      return new Response(
-        JSON.stringify({ success: false, message: "Login Gov.br não configurado (ou desativado) para esta associação. Configure em 'Login Gov.br (Detran-MG)'." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     if (!githubPat || !githubRepoOwner || !githubRepoName) {
       return new Response(
         JSON.stringify({ success: false, message: "Configuração do GitHub incompleta" }),
