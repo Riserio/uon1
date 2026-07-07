@@ -2315,6 +2315,65 @@ export type Database = {
           },
         ]
       }
+      detran_mg_execucoes: {
+        Row: {
+          chassi: string | null
+          corretora_id: string
+          cpf_consulta: string | null
+          created_at: string
+          erro: string | null
+          finalizado_at: string | null
+          github_run_id: string | null
+          github_run_url: string | null
+          id: string
+          placa: string
+          renavam: string | null
+          resultado_json: Json | null
+          status: string
+          usuario_id: string | null
+        }
+        Insert: {
+          chassi?: string | null
+          corretora_id: string
+          cpf_consulta?: string | null
+          created_at?: string
+          erro?: string | null
+          finalizado_at?: string | null
+          github_run_id?: string | null
+          github_run_url?: string | null
+          id?: string
+          placa: string
+          renavam?: string | null
+          resultado_json?: Json | null
+          status?: string
+          usuario_id?: string | null
+        }
+        Update: {
+          chassi?: string | null
+          corretora_id?: string
+          cpf_consulta?: string | null
+          created_at?: string
+          erro?: string | null
+          finalizado_at?: string | null
+          github_run_id?: string | null
+          github_run_url?: string | null
+          id?: string
+          placa?: string
+          renavam?: string | null
+          resultado_json?: Json | null
+          status?: string
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "detran_mg_execucoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dispositivos_ponto: {
         Row: {
           apelido: string | null

@@ -222,49 +222,21 @@ serve(async (req) => {
         .eq("corretora_id", corretora_id)
         .maybeSingle();
       if (apiCredM?.usar_api && apiCredM?.api_token) {
-        if (apiCredM.git_fallback_ativo === false) {
-          const apiStart = await startMgfApiImport(supabase, corretora_id, user);
-          return new Response(
-            JSON.stringify({ success: apiStart.started, via: "api", async: apiStart.started, message: apiStart.message }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
-
-        const MAX_API_ATTEMPTS = 3;
-        for (let attempt = 1; attempt <= MAX_API_ATTEMPTS; attempt++) {
-          try {
-            const apiResp = await fetch(`${supabaseUrl}/functions/v1/importar-api-hinova`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseServiceKey}` },
-              body: JSON.stringify({ corretora_id, modulo: "mgf" }),
-            });
-            const apiJson = await apiResp.json().catch(() => ({}));
-            if (apiJson?.success) {
-              console.log(`[MGF GitHub Workflow] Importado via API (${apiJson.total} lançamentos) — crawl dispensado (tentativa ${attempt}/${MAX_API_ATTEMPTS})`);
-              return new Response(
-                JSON.stringify({ success: true, via: "api", total: apiJson.total, message: `Importado via API: ${apiJson.total} lançamentos` }),
-                { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-              );
-            }
-            console.warn(`[MGF GitHub Workflow] API falhou na tentativa ${attempt}/${MAX_API_ATTEMPTS} (${apiJson?.message})`);
-          } catch (apiErr) {
-            console.warn(`[MGF GitHub Workflow] Erro ao chamar API na tentativa ${attempt}/${MAX_API_ATTEMPTS}:`, apiErr);
-          }
-          if (attempt < MAX_API_ATTEMPTS) {
-            await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
-          }
-        }
-        console.warn(`[MGF GitHub Workflow] API esgotou ${MAX_API_ATTEMPTS} tentativas — fallback para crawl`);
-        if (apiCredM.git_fallback_ativo === false) {
-          console.warn(`[MGF GitHub Workflow] git_fallback_ativo=false — abortando (sem crawl) para ${corretora_id}`);
-          return new Response(
-            JSON.stringify({ success: false, message: "Importação via API falhou e o fallback via GitHub está desativado nas configurações desta associação." }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
+        // Fallback GitHub Actions desativado globalmente para MGF: sempre via API (assíncrono).
+        const apiStart = await startMgfApiImport(supabase, corretora_id, user);
+        return new Response(
+          JSON.stringify({ success: apiStart.started, via: "api", async: apiStart.started, message: apiStart.message }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
 
-      // A partir daqui é fallback/crawl GitHub de fato; só agora exige secrets GitHub.
+      // Fallback GitHub Actions desativado para MGF: exige API habilitada.
+      return new Response(
+        JSON.stringify({ success: false, message: "Importação de MGF agora é exclusiva via API Hinova. Habilite 'Usar API' nas credenciais da associação." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+
+      // eslint-disable-next-line no-unreachable
       if (!githubPat || !githubRepoOwner || !githubRepoName) {
         console.error("GitHub secrets não configurados:", {
           pat: !!githubPat,
