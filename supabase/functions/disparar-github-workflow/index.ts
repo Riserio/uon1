@@ -56,58 +56,28 @@ async function startCobrancaApiImport(supabase: any, corretoraId: string, user: 
     ultima_origem: "api",
   }).eq("corretora_id", corretoraId);
 
-  const task = (async () => {
-    try {
-      const { data, error } = await supabase.rpc("importar_cobranca_api", { p_corretora_id: corretoraId });
-      if (error || data?.success === false) {
-        const msg = error?.message || data?.message || "Importação via API falhou";
-        await supabase.from("cobranca_automacao_execucoes").update({
-          status: "erro",
-          etapa_atual: "api",
-          erro: msg,
-          mensagem: "Importação via API falhou; fallback GitHub está desativado.",
-          finalizado_at: new Date().toISOString(),
-        }).eq("id", execucao?.id);
-        await supabase.from("cobranca_automacao_config").update({
-          ultimo_status: "erro",
-          ultimo_erro: msg,
-          ultima_execucao: new Date().toISOString(),
-          ultima_origem: "api",
-        }).eq("corretora_id", corretoraId);
-        return;
-      }
+  // Agenda a importação via pg_cron para evitar timeout do gateway (a RPC pode rodar por vários minutos).
+  // O job roda dentro do Postgres, comita normalmente e atualiza execução/config ao final.
+  const { error: schedErr } = await supabase.rpc("agendar_importacao_hinova_async", {
+    p_modulo: "cobranca",
+    p_corretora_id: corretoraId,
+    p_execucao_id: execucao?.id,
+  });
+  if (schedErr) {
+    const msg = schedErr.message || "Falha ao agendar importação via API";
+    await supabase.from("cobranca_automacao_execucoes").update({
+      status: "erro", etapa_atual: "api", erro: msg,
+      mensagem: "Não foi possível agendar a importação via API.",
+      finalizado_at: new Date().toISOString(),
+    }).eq("id", execucao?.id);
+    await supabase.from("cobranca_automacao_config").update({
+      ultimo_status: "erro", ultimo_erro: msg,
+      ultima_execucao: new Date().toISOString(), ultima_origem: "api",
+    }).eq("corretora_id", corretoraId);
+    return { started: false, message: msg };
+  }
 
-      const total = data?.total ?? data?.historico_inserido ?? data?.registros ?? null;
-      await supabase.from("cobranca_automacao_execucoes").update({
-        status: "sucesso",
-        etapa_atual: "concluido",
-        mensagem: `Importado via API Hinova${total !== null ? ` (${total} registros)` : ""}`,
-        registros_processados: total,
-        finalizado_at: new Date().toISOString(),
-      }).eq("id", execucao?.id);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro desconhecido na API";
-      await supabase.from("cobranca_automacao_execucoes").update({
-        status: "erro",
-        etapa_atual: "api",
-        erro: msg,
-        mensagem: "Importação via API falhou; fallback GitHub está desativado.",
-        finalizado_at: new Date().toISOString(),
-      }).eq("id", execucao?.id);
-      await supabase.from("cobranca_automacao_config").update({
-        ultimo_status: "erro",
-        ultimo_erro: msg,
-        ultima_execucao: new Date().toISOString(),
-        ultima_origem: "api",
-      }).eq("corretora_id", corretoraId);
-    }
-  })();
-
-  const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void } }).EdgeRuntime;
-  if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(task);
-  else task.catch((err) => console.error("[GitHub Workflow] Erro em background API:", err));
-
-  return { started: true, message: "Importação via API iniciada. O fallback GitHub está desativado e não será acionado." };
+  return { started: true, message: "Importação via API agendada. Executando em segundo plano; o status será atualizado ao concluir." };
 }
 
 interface WorkflowInput {
