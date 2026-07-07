@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Search, Car, AlertTriangle, CreditCard, Loader2, FileText, DollarSign, Receipt, ShieldAlert } from "lucide-react";
+import { Search, Car, AlertTriangle, CreditCard, Loader2, FileText, DollarSign, Receipt, ShieldAlert, ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import DetranMgCredenciais from "@/components/veiculos/DetranMgCredenciais";
 
@@ -72,6 +72,14 @@ export default function DebitosVeiculares() {
   const [installments, setInstallments] = useState<any[]>([]);
   const [protocol, setProtocol] = useState<string>("");
   const [rawDebtsResponse, setRawDebtsResponse] = useState<any>(null);
+
+  // Consulta direta ao Detran-MG via Gov.br (complementar à Zapay) - assíncrona:
+  // dispara o robô no GitHub Actions e faz polling do resultado.
+  const [detranMgExecucaoId, setDetranMgExecucaoId] = useState<string | null>(null);
+  const [detranMgStatus, setDetranMgStatus] = useState<"idle" | "executando" | "sucesso" | "erro">("idle");
+  const [detranMgResultado, setDetranMgResultado] = useState<any>(null);
+  const [detranMgErro, setDetranMgErro] = useState<string | null>(null);
+  const detranMgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const formatPlaca = (value: string) => {
     const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -197,6 +205,72 @@ export default function DebitosVeiculares() {
     }
   };
 
+  const pararPollingDetranMg = () => {
+    if (detranMgPollRef.current) {
+      clearInterval(detranMgPollRef.current);
+      detranMgPollRef.current = null;
+    }
+  };
+
+  const consultarDetranMg = async () => {
+    if (!vehicleInfo || !user) return;
+    let corretoraId: string | null = null;
+    const { data: cu } = await supabase
+      .from("corretora_usuarios")
+      .select("corretora_id")
+      .eq("profile_id", user.id)
+      .eq("ativo", true)
+      .maybeSingle();
+    corretoraId = (cu as any)?.corretora_id ?? null;
+
+    if (!corretoraId) {
+      toast.error("Não foi possível identificar a associação do usuário");
+      return;
+    }
+
+    setDetranMgStatus("executando");
+    setDetranMgResultado(null);
+    setDetranMgErro(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("disparar-detran-mg-workflow", {
+        body: {
+          corretora_id: corretoraId,
+          placa: vehicleInfo.license_plate,
+          renavam: vehicleInfo.renavam,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.message || "Erro ao iniciar consulta Detran-MG");
+
+      setDetranMgExecucaoId(data.execucao_id);
+      toast.info("Consulta ao Detran-MG iniciada, isso pode levar 1-2 minutos...");
+
+      pararPollingDetranMg();
+      detranMgPollRef.current = setInterval(async () => {
+        const { data: exec } = await (supabase as any)
+          .from("detran_mg_execucoes")
+          .select("status, erro, resultado_json")
+          .eq("id", data.execucao_id)
+          .maybeSingle();
+        if (!exec || exec.status === "executando") return;
+        pararPollingDetranMg();
+        setDetranMgStatus(exec.status === "sucesso" ? "sucesso" : "erro");
+        setDetranMgResultado(exec.resultado_json || null);
+        setDetranMgErro(exec.erro || null);
+        if (exec.status === "sucesso") toast.success("Consulta Detran-MG concluída");
+        else toast.error(exec.erro || "Falha na consulta ao Detran-MG");
+      }, 4000);
+    } catch (error: any) {
+      setDetranMgStatus("erro");
+      setDetranMgErro(error.message || "Erro ao iniciar consulta");
+      toast.error(error.message || "Erro ao iniciar consulta Detran-MG");
+    }
+  };
+
+  useEffect(() => {
+    return () => pararPollingDetranMg();
+  }, []);
+
   const toggleDebt = (debtId: string) => {
     setSelectedDebts((prev) =>
       prev.includes(debtId) ? prev.filter((id) => id !== debtId) : [...prev, debtId]
@@ -243,6 +317,11 @@ export default function DebitosVeiculares() {
     setInstallments([]);
     setProtocol("");
     setRawDebtsResponse(null);
+    pararPollingDetranMg();
+    setDetranMgExecucaoId(null);
+    setDetranMgStatus("idle");
+    setDetranMgResultado(null);
+    setDetranMgErro(null);
   };
 
   const totalSelected = debts
@@ -369,6 +448,66 @@ export default function DebitosVeiculares() {
         </Card>
       )}
 
+      {/* Consulta direta ao Detran-MG via Gov.br (complementar à Zapay) */}
+      {vehicleInfo && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              Consulta Direta Detran-MG (Gov.br)
+            </CardTitle>
+            <CardDescription>
+              Consulta oficial de multas, licenciamento e IPVA direto no Detran-MG, usando o login Gov.br configurado.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button
+              onClick={consultarDetranMg}
+              disabled={detranMgStatus === "executando"}
+              variant="outline"
+              className="rounded-xl"
+            >
+              {detranMgStatus === "executando" ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <ShieldCheck className="h-4 w-4 mr-2" />
+              )}
+              Consultar via Detran-MG
+            </Button>
+
+            {detranMgStatus === "executando" && (
+              <p className="text-sm text-muted-foreground">
+                Robô fazendo login no Gov.br e consultando o Detran-MG... isso pode levar 1-2 minutos.
+              </p>
+            )}
+
+            {detranMgStatus === "sucesso" && detranMgResultado && (
+              <div className="rounded-lg border p-4 space-y-2 bg-emerald-500/5 border-emerald-500/20">
+                <p className="text-sm font-medium flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" /> Consulta concluída
+                </p>
+                {detranMgResultado.multas_raw && (
+                  <p className="text-xs text-muted-foreground"><strong>Multas:</strong> {detranMgResultado.multas_raw}</p>
+                )}
+                {detranMgResultado.licenciamento_raw && (
+                  <p className="text-xs text-muted-foreground"><strong>Licenciamento:</strong> {detranMgResultado.licenciamento_raw}</p>
+                )}
+                {detranMgResultado.ipva_raw && (
+                  <p className="text-xs text-muted-foreground"><strong>IPVA:</strong> {detranMgResultado.ipva_raw}</p>
+                )}
+              </div>
+            )}
+
+            {detranMgStatus === "erro" && (
+              <div className="rounded-lg border p-4 flex gap-2 bg-destructive/5 border-destructive/20">
+                <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                <p className="text-xs text-destructive">{detranMgErro || "Falha na consulta ao Detran-MG"}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Debts - agrupados por categoria: Multas / Licenciamento / IPVA / Outros */}
       {step === "debts" && debts.length > 0 && (
         <Card>
@@ -410,18 +549,18 @@ export default function DebitosVeiculares() {
                               : "border-border hover:border-primary/50"
                           }`}
                           onClick={() => toggleDebt(debtId)}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleDebt(debtId)}
-                                className="h-4 w-4 rounded border-border"
-                              />
-                              <div>
-                                <p className="font-medium">
-                                  {debt.title || debt.titulo || debt.description || `Débito`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleDebt(debtId)}
+                              className="h-4 w-4 rounded border-border"
+                            />
+                            <div>
+                              <p className="font-medium">
+                                {debt.title || debt.titulo || debt.description || `Débito`}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
                                   {debt.type || debt.tipo || CATEGORIA_LABELS[cat]}
