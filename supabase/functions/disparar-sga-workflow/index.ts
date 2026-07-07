@@ -58,7 +58,7 @@ async function startEventosApiImport(supabase: any, corretoraId: string, user: R
 
   const task = (async () => {
     try {
-      const { data, error } = await supabase.rpc("importar_eventos_api", { p_corretora_id: corretoraId });
+      const { data, error } = await supabase.rpc("importar_eventos_api", { p_corretora_id: corretoraId, p_full: false });
       if (error || data?.success === false) {
         const msg = error?.message || data?.message || "Importação via API falhou";
         await supabase.from("sga_automacao_execucoes").update({
