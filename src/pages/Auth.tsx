@@ -157,13 +157,23 @@ export default function Auth() {
         const isPreview = /id-preview--.*\.lovable\.app$/i.test(window.location.hostname);
 
         if (isNetworkError) {
+          // Stale/corrupt refresh token in localStorage can cause background
+          // refresh loops that look like network failures. Purge and reload.
+          try {
+            Object.keys(localStorage)
+              .filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
+              .forEach((k) => localStorage.removeItem(k));
+          } catch {}
           if (isPreview) {
             toast.error(
               "Falha de rede no ambiente de Preview. Acesse pelo endereço publicado (ex: https://uon1.lovable.app) ou domínio próprio.",
               { duration: 10000 }
             );
           } else {
-            toast.error("Falha de conexão. Verifique sua internet, firewall/VPN e tente novamente.", { duration: 8000 });
+            toast.error(
+              "Falha de conexão detectada. Limpamos a sessão local — tente entrar novamente. Se persistir, verifique sua internet/VPN.",
+              { duration: 8000 }
+            );
           }
         } else {
           toast.error(msg || "Erro ao fazer login");
