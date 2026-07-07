@@ -96,7 +96,7 @@ async function notifyWebhook(payload) {
 
 async function safeScreenshot(page, name) {
   try {
-    await page.screenshot({ path: name, fullPage: true });
+    await page.screenshot({ path: name, fullPage: true, timeout: 10000 });
     log(`Screenshot salvo: ${name}`);
   } catch (e) {
     console.error(`[Detran-MG] Falha ao salvar screenshot ${name}:`, e.message);
@@ -117,14 +117,22 @@ async function detectarTelaDeConfirmacao(page) {
 }
 
 async function fazerLoginGovBr(page) {
-  log('Procurando botão de login Gov.br na página do Detran-MG...');
+  log('Procurando link/botão que leva ao formulário de consulta (com login Gov.br) na página do Detran-MG...');
   await safeScreenshot(page, 'debug_govbr_00_pagina_inicial.png');
 
+  // IMPORTANTE: a página institucional do Detran-MG tem DOIS links que mencionam
+  // Gov.br - um botão genérico "ENTRAR COM GOV.BR" no cabeçalho (login geral do
+  // site, não leva ao formulário de consulta) e um link "formulário" dentro do
+  // passo-a-passo ("Acesse o formulário e faça login com sua conta Gov.br"), que
+  // é o que realmente abre o formulário de consulta + SSO. Por isso o link
+  // "formulário" tem prioridade nos seletores abaixo - o robô já pegou o botão
+  // errado do cabeçalho antes e ficou preso numa página sem os campos esperados.
   const loginSelectors = [
+    'a:has-text("formulário")',
     'a[href*="sso.acesso.gov.br"]',
+    'a:has-text("Acessar o formulário")',
     'a:has-text("Entrar com gov.br")',
     'button:has-text("Entrar com gov.br")',
-    'a:has-text("Acessar o formulário")',
     'a:has-text("gov.br")',
   ];
 
@@ -146,7 +154,7 @@ async function fazerLoginGovBr(page) {
     // automaticamente para o SSO ao navegar direto - checamos a URL atual.
     if (!/acesso\.gov\.br/i.test(page.url())) {
       await safeScreenshot(page, 'debug_govbr_01_sem_botao_login.png');
-      throw new Error('Não foi possível localizar o botão de login Gov.br na página do Detran-MG (layout pode ter mudado)');
+      throw new Error('Não foi possível localizar o link do formulário/login Gov.br na página do Detran-MG (layout pode ter mudado)');
     }
   }
 
@@ -162,7 +170,7 @@ async function fazerLoginGovBr(page) {
   }
   if (!cpfInput) {
     await safeScreenshot(page, 'debug_govbr_03_sem_campo_cpf.png');
-    throw new Error('Campo de CPF não encontrado na tela de login Gov.br (layout pode ter mudado)');
+    throw new Error('Campo de CPF não encontrado na tela de login Gov.br (layout pode ter mudado, ou clicamos no link errado)');
   }
   await cpfInput.fill(CONFIG.GOV_BR_CPF);
 
