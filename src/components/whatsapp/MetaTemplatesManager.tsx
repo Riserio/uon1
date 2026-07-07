@@ -55,7 +55,11 @@ async function extractFunctionErrorMessage(error: any): Promise<string> {
       // caso o supabase-js (ou outro código) também tente lê-lo.
       const res = typeof error.context.clone === "function" ? error.context.clone() : error.context;
       const body = await res.json();
-      const metaMsg = body?.details?.error?.message || body?.details?.error?.error_user_msg;
+      const metaErr = body?.details?.error;
+      // A Meta quase sempre manda uma `message` genérica ("Invalid parameter"),
+      // enquanto o motivo real fica em `error_data.details` ou `error_user_msg`.
+      // Priorizamos os campos mais específicos primeiro.
+      const metaMsg = metaErr?.error_data?.details || metaErr?.error_user_msg || metaErr?.message;
       if (metaMsg) return metaMsg as string;
       if (body?.error) return typeof body.error === "string" ? body.error : JSON.stringify(body.error);
       if (body?.details) return JSON.stringify(body.details);
@@ -80,12 +84,38 @@ function statusVariant(status?: MetaStatus): { className: string; label: string 
   return { className: "bg-muted text-muted-foreground border-border", label: s || "DESCONHECIDO" };
 }
 
+// Retorna os números de variável ({{1}}, {{2}}, ...) usados num texto, em ordem
+// e sem repetição.
+function extractVariableIndexes(text: string): number[] {
+  const nums = [...text.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => parseInt(m[1], 10));
+  return Array.from(new Set(nums)).sort((a, b) => a - b);
+}
+
+// A API da Meta EXIGE um `example` para todo componente (HEADER ou BODY) que
+// contenha variáveis {{n}} — sem isso, a criação do template falha com o erro
+// genérico "Invalid parameter" (o motivo real, quando visível, é algo como
+// "Message body text contains variables. Please provide example values.").
+// Como o formulário atual não coleta exemplos, geramos valores de exemplo
+// automáticos para satisfazer a validação da Meta.
 function buildComponents(form: FormState) {
   const components: any[] = [];
+
   if (form.header.trim()) {
-    components.push({ type: "HEADER", format: "TEXT", text: form.header.trim() });
+    const headerComp: any = { type: "HEADER", format: "TEXT", text: form.header.trim() };
+    const headerVars = extractVariableIndexes(form.header);
+    if (headerVars.length > 0) {
+      headerComp.example = { header_text: headerVars.map((n) => `Exemplo${n}`) };
+    }
+    components.push(headerComp);
   }
-  components.push({ type: "BODY", text: form.body });
+
+  const bodyComp: any = { type: "BODY", text: form.body };
+  const bodyVars = extractVariableIndexes(form.body);
+  if (bodyVars.length > 0) {
+    bodyComp.example = { body_text: [bodyVars.map((n) => `Exemplo${n}`)] };
+  }
+  components.push(bodyComp);
+
   if (form.footer.trim()) {
     components.push({ type: "FOOTER", text: form.footer.trim() });
   }
