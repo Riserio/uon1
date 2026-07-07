@@ -45,10 +45,14 @@ const addDays = (d: Date, n: number): Date => {
 // padrão de tabelas já usado pelo caminho de crawl/GitHub Actions).
 function tabelasDoModulo(modulo: string): { configTable: string; execTable: string } | null {
   switch (modulo) {
-    case "cobranca": return { configTable: "cobranca_automacao_config", execTable: "cobranca_automacao_execucoes" };
-    case "eventos": return { configTable: "sga_automacao_config", execTable: "sga_automacao_execucoes" };
-    case "mgf": return { configTable: "mgf_automacao_config", execTable: "mgf_automacao_execucoes" };
-    default: return null;
+    case "cobranca":
+      return { configTable: "cobranca_automacao_config", execTable: "cobranca_automacao_execucoes" };
+    case "eventos":
+      return { configTable: "sga_automacao_config", execTable: "sga_automacao_execucoes" };
+    case "mgf":
+      return { configTable: "mgf_automacao_config", execTable: "mgf_automacao_execucoes" };
+    default:
+      return null;
   }
 }
 
@@ -92,13 +96,119 @@ async function persistApiError(supabase: any, modulo: string, corretoraId: strin
   }
 }
 
+// ---------- merge incremental ----------
+// deno-lint-ignore no-explicit-any
+type AnyRow = any;
+
+// Garante que exista exatamente UMA importação ativa para a corretora+tabela e
+// devolve o id dela. Se já existir mais de uma ativa (resquício de um bug
+// anterior em que cada rodada criava uma nova e desativava as outras, mas
+// nunca convergia), higieniza mantendo só a mais recente.
+// deno-lint-ignore no-explicit-any
+async function getOrCreateImportacaoAtiva(
+  supabase: AnyRow,
+  table: string,
+  corretoraId: string,
+  nomeArquivo: string,
+): Promise<{ id: string; isNova: boolean }> {
+  const { data: ativas } = await supabase
+    .from(table)
+    .select("id")
+    .eq("corretora_id", corretoraId)
+    .eq("ativo", true)
+    .order("created_at", { ascending: false });
+
+  if (ativas && ativas.length > 0) {
+    const id = ativas[0].id as string;
+    if (ativas.length > 1) {
+      // Higieniza duplicatas de execuções passadas antes de continuar.
+      await supabase.from(table).update({ ativo: false }).eq("corretora_id", corretoraId).neq("id", id);
+    }
+    return { id, isNova: false };
+  }
+
+  const { data: nova, error } = await supabase
+    .from(table)
+    .insert({ nome_arquivo: nomeArquivo, total_registros: 0, corretora_id: corretoraId, ativo: true })
+    .select("id")
+    .single();
+  if (error) throw new Error(`Erro ao criar importação em ${table}: ${error.message}`);
+  return { id: nova.id as string, isNova: true };
+}
+
+// Funde `newRows` (buscados agora na API, cobrindo uma janela de datas) na
+// importação ATIVA já existente, em vez do padrão antigo de criar uma
+// importação nova e desativar a anterior a cada execução.
+//
+// Regras:
+//  - Registro cuja "chave natural" (protocolo, nosso_numero, etc.) já existir
+//    na importação ativa é SUBSTITUÍDO pela versão nova (cobre alterações —
+//    situação do evento, valor do boleto, data de pagamento etc.).
+//  - Registro com chave nova é apenas inserido (complementa a base).
+//  - Registros antigos cuja chave não aparece nesta rodada (ex.: fora da
+//    janela de datas pedida agora, ou vindos de uma importação manual/Excel
+//    anterior à automação via API) NÃO são tocados — é assim que o histórico
+//    completo nunca é perdido, mesmo que cada chamada à API só traga uma
+//    janela parcial (ex.: últimos 18 meses).
+async function mergeIncremental(
+  supabase: AnyRow,
+  table: string,
+  importacaoId: string,
+  newRows: AnyRow[],
+  keyOf: (row: AnyRow) => string | null,
+  selectCols: string,
+): Promise<{ atualizados: number; novos: number; totalProcessado: number }> {
+  const PAGE = 1000;
+  const existing = new Map<string, string>(); // chave natural -> id da linha existente
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(selectCols)
+      .eq("importacao_id", importacaoId)
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`Erro ao ler ${table} existentes: ${error.message}`);
+    if (!data || data.length === 0) break;
+    for (const row of data as AnyRow[]) {
+      const k = keyOf(row);
+      if (k) existing.set(k, row.id);
+    }
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  const idsToDelete: string[] = [];
+  for (const row of newRows) {
+    const k = keyOf(row);
+    if (k && existing.has(k)) idsToDelete.push(existing.get(k)!);
+  }
+  const rowsToInsert = newRows.map((row) => ({ ...row, importacao_id: importacaoId }));
+
+  // Remove as versões antigas dos registros que serão substituídos pela nova versão.
+  for (let i = 0; i < idsToDelete.length; i += 500) {
+    const lote = idsToDelete.slice(i, i + 500);
+    const { error } = await supabase.from(table).delete().in("id", lote);
+    if (error) throw new Error(`Erro ao remover ${table} desatualizados (lote ${i}): ${error.message}`);
+  }
+
+  // Insere os registros novos e as versões atualizadas.
+  for (let i = 0; i < rowsToInsert.length; i += 500) {
+    const lote = rowsToInsert.slice(i, i + 500);
+    const { error } = await supabase.from(table).insert(lote);
+    if (error) throw new Error(`Erro ao inserir ${table} (lote ${i}): ${error.message}`);
+  }
+
+  return {
+    atualizados: idsToDelete.length,
+    novos: rowsToInsert.length - idsToDelete.length,
+    totalProcessado: rowsToInsert.length,
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   // Declarados fora do try para o catch conseguir persistir o erro real vinculado à corretora/módulo.
   let corretora_id: string | undefined;
@@ -110,7 +220,8 @@ serve(async (req) => {
     modulo = body.modulo || "eventos";
     if (!corretora_id) {
       return new Response(JSON.stringify({ success: false, message: "corretora_id é obrigatório" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -123,7 +234,8 @@ serve(async (req) => {
 
     if (!cred?.api_token || !cred?.hinova_user || !cred?.hinova_pass) {
       return new Response(JSON.stringify({ success: false, message: "API não configurada (token/usuário/senha)" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const base = (cred.api_base_url || "https://api.hinova.com.br/api/sga/v2").replace(/\/$/, "");
@@ -143,9 +255,13 @@ serve(async (req) => {
     const H = { "Content-Type": "application/json", Authorization: `Bearer ${tokenUsuario}` };
 
     if (modulo !== "eventos" && modulo !== "mgf" && modulo !== "cobranca" && modulo !== "base") {
-      return new Response(JSON.stringify({ success: false, message: `Módulo '${modulo}' ainda não implementado na API` }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ success: false, message: `Módulo '${modulo}' ainda não implementado na API` }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // ================= BASE (veículos/associados) → Cadastro + Estudo de Base =================
@@ -185,19 +301,30 @@ serve(async (req) => {
           const j = await r.json().catch(() => null);
           const arr = extrairArray(j);
           tentativas.push(`${c.method} ${c.path} → ${r.status}${arr ? ` (${arr.length})` : ""}`);
-          if (r.ok && arr && arr.length > 0) { veiculos = arr; endpointOk = `${c.method} ${c.path}`; break; }
-          if (r.ok && arr && veiculos === null) { veiculos = arr; endpointOk = `${c.method} ${c.path}`; } // guarda array vazio como fallback
+          if (r.ok && arr && arr.length > 0) {
+            veiculos = arr;
+            endpointOk = `${c.method} ${c.path}`;
+            break;
+          }
+          if (r.ok && arr && veiculos === null) {
+            veiculos = arr;
+            endpointOk = `${c.method} ${c.path}`;
+          } // guarda array vazio como fallback
         } catch (err) {
           tentativas.push(`${c.method} ${c.path} → erro`);
         }
       }
 
       if (veiculos === null) {
-        return new Response(JSON.stringify({
-          success: false, modulo: "base",
-          message: "Nenhum endpoint de listagem de veículos respondeu. Confirme o endpoint com a Hinova.",
-          tentativas,
-        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return new Response(
+          JSON.stringify({
+            success: false,
+            modulo: "base",
+            message: "Nenhum endpoint de listagem de veículos respondeu. Confirme o endpoint com a Hinova.",
+            tentativas,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
 
       // helpers de leitura tolerante a nomes de campo
@@ -206,8 +333,10 @@ serve(async (req) => {
         for (const k of keys) {
           if (o && o[k] !== undefined && o[k] !== null && o[k] !== "") return o[k];
           // suporta objeto aninhado "veiculo"/"associado"
-          if (o?.veiculo && o.veiculo[k] !== undefined && o.veiculo[k] !== null && o.veiculo[k] !== "") return o.veiculo[k];
-          if (o?.associado && o.associado[k] !== undefined && o.associado[k] !== null && o.associado[k] !== "") return o.associado[k];
+          if (o?.veiculo && o.veiculo[k] !== undefined && o.veiculo[k] !== null && o.veiculo[k] !== "")
+            return o.veiculo[k];
+          if (o?.associado && o.associado[k] !== undefined && o.associado[k] !== null && o.associado[k] !== "")
+            return o.associado[k];
         }
         return null;
       };
@@ -221,29 +350,35 @@ serve(async (req) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const a of aarr as any[]) {
           const cod = String(a.codigo_associado ?? a.codigo ?? "");
-          if (cod) assocMap.set(cod, { cidade: (a.cidade ?? a.cidade_associado ?? null), estado: (a.estado ?? a.uf ?? null) });
+          if (cod)
+            assocMap.set(cod, { cidade: a.cidade ?? a.cidade_associado ?? null, estado: a.estado ?? a.uf ?? null });
         }
-      } catch (_e) { /* segue sem cidade/estado */ }
+      } catch (_e) {
+        /* segue sem cidade/estado */
+      }
 
       // Mapear -> Cadastro (lista bruta)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cadastro = veiculos.map((v: any) => {
         const assocC = assocMap.get(String(g(v, "codigo_associado") ?? ""));
         return {
-        nome: g(v, "nome_associado", "nome", "associado_nome") as string | null,
-        cpf: g(v, "cpf", "cpf_cnpj", "documento") as string | null,
-        placa: g(v, "placa") as string | null,
-        modelo_veiculo: g(v, "modelo", "modelo_veiculo", "descricao_modelo") as string | null,
-        marca_veiculo: g(v, "marca", "montadora", "fabricante") as string | null,
-        ano_veiculo: (g(v, "ano_modelo", "ano_fabricacao", "ano") ?? null) ? String(g(v, "ano_modelo", "ano_fabricacao", "ano")) : null,
-        situacao: g(v, "situacao", "situacao_veiculo", "status") as string | null,
-        regional: g(v, "regional") as string | null,
-        cooperativa: g(v, "cooperativa") as string | null,
-        data_cadastro: dateISO(g(v, "data_cadastro", "data_contrato")),
-        data_adesao: dateISO(g(v, "data_adesao", "data_contrato")),
-        valor_protegido: num(g(v, "valor_protegido", "valor_fipe")),
-        cidade: (g(v, "cidade", "cidade_veiculo", "cidade_proprietario") as string | null) || assocC?.cidade || null,
-        estado: (g(v, "estado", "uf") as string | null) || assocC?.estado || null,
+          nome: g(v, "nome_associado", "nome", "associado_nome") as string | null,
+          cpf: g(v, "cpf", "cpf_cnpj", "documento") as string | null,
+          placa: g(v, "placa") as string | null,
+          modelo_veiculo: g(v, "modelo", "modelo_veiculo", "descricao_modelo") as string | null,
+          marca_veiculo: g(v, "marca", "montadora", "fabricante") as string | null,
+          ano_veiculo:
+            (g(v, "ano_modelo", "ano_fabricacao", "ano") ?? null)
+              ? String(g(v, "ano_modelo", "ano_fabricacao", "ano"))
+              : null,
+          situacao: g(v, "situacao", "situacao_veiculo", "status") as string | null,
+          regional: g(v, "regional") as string | null,
+          cooperativa: g(v, "cooperativa") as string | null,
+          data_cadastro: dateISO(g(v, "data_cadastro", "data_contrato")),
+          data_adesao: dateISO(g(v, "data_adesao", "data_contrato")),
+          valor_protegido: num(g(v, "valor_protegido", "valor_fipe")),
+          cidade: (g(v, "cidade", "cidade_veiculo", "cidade_proprietario") as string | null) || assocC?.cidade || null,
+          estado: (g(v, "estado", "uf") as string | null) || assocC?.estado || null,
         };
       });
 
@@ -252,24 +387,24 @@ serve(async (req) => {
       const eb = veiculos.map((v: any) => {
         const assocE = assocMap.get(String(g(v, "codigo_associado") ?? ""));
         return {
-        placa: g(v, "placa") as string | null,
-        tipo_veiculo: g(v, "tipo_veiculo", "tipo", "especie") as string | null,
-        montadora: g(v, "montadora", "marca", "fabricante") as string | null,
-        modelo: g(v, "modelo", "modelo_veiculo") as string | null,
-        ano_fabricacao: int(g(v, "ano_fabricacao", "ano")),
-        ano_modelo: int(g(v, "ano_modelo")),
-        combustivel: g(v, "combustivel") as string | null,
-        cota: g(v, "cota") as string | null,
-        categoria: g(v, "categoria") as string | null,
-        cor: g(v, "cor") as string | null,
-        valor_protegido: num(g(v, "valor_protegido")),
-        valor_fipe: num(g(v, "valor_fipe", "valor_protegido")),
-        cooperativa: g(v, "cooperativa") as string | null,
-        regional: g(v, "regional") as string | null,
-        situacao_veiculo: g(v, "situacao_veiculo", "situacao", "status") as string | null,
-        cidade_veiculo: (g(v, "cidade", "cidade_veiculo") as string | null) || assocE?.cidade || null,
-        estado: (g(v, "estado", "uf") as string | null) || assocE?.estado || null,
-        voluntario: g(v, "voluntario") as string | null,
+          placa: g(v, "placa") as string | null,
+          tipo_veiculo: g(v, "tipo_veiculo", "tipo", "especie") as string | null,
+          montadora: g(v, "montadora", "marca", "fabricante") as string | null,
+          modelo: g(v, "modelo", "modelo_veiculo") as string | null,
+          ano_fabricacao: int(g(v, "ano_fabricacao", "ano")),
+          ano_modelo: int(g(v, "ano_modelo")),
+          combustivel: g(v, "combustivel") as string | null,
+          cota: g(v, "cota") as string | null,
+          categoria: g(v, "categoria") as string | null,
+          cor: g(v, "cor") as string | null,
+          valor_protegido: num(g(v, "valor_protegido")),
+          valor_fipe: num(g(v, "valor_fipe", "valor_protegido")),
+          cooperativa: g(v, "cooperativa") as string | null,
+          regional: g(v, "regional") as string | null,
+          situacao_veiculo: g(v, "situacao_veiculo", "situacao", "status") as string | null,
+          cidade_veiculo: (g(v, "cidade", "cidade_veiculo") as string | null) || assocE?.cidade || null,
+          estado: (g(v, "estado", "uf") as string | null) || assocE?.estado || null,
+          voluntario: g(v, "voluntario") as string | null,
         };
       });
 
@@ -279,9 +414,14 @@ serve(async (req) => {
       const { data: impCad, error: impCadErr } = await supabase
         .from("cadastro_importacoes")
         .insert({ nome_arquivo: nomeArqB, total_registros: cadastro.length, corretora_id, ativo: true })
-        .select("id").single();
+        .select("id")
+        .single();
       if (impCadErr) throw new Error(`Erro import Cadastro: ${impCadErr.message}`);
-      await supabase.from("cadastro_importacoes").update({ ativo: false }).eq("corretora_id", corretora_id).neq("id", impCad.id);
+      await supabase
+        .from("cadastro_importacoes")
+        .update({ ativo: false })
+        .eq("corretora_id", corretora_id)
+        .neq("id", impCad.id);
       for (let i = 0; i < cadastro.length; i += 500) {
         const lote = cadastro.slice(i, i + 500).map((r) => ({ ...r, importacao_id: impCad.id }));
         const { error } = await supabase.from("cadastro_registros").insert(lote);
@@ -292,9 +432,14 @@ serve(async (req) => {
       const { data: impEb, error: impEbErr } = await supabase
         .from("estudo_base_importacoes")
         .insert({ nome_arquivo: nomeArqB, total_registros: eb.length, corretora_id, ativo: true })
-        .select("id").single();
+        .select("id")
+        .single();
       if (impEbErr) throw new Error(`Erro import Estudo de Base: ${impEbErr.message}`);
-      await supabase.from("estudo_base_importacoes").update({ ativo: false }).eq("corretora_id", corretora_id).neq("id", impEb.id);
+      await supabase
+        .from("estudo_base_importacoes")
+        .update({ ativo: false })
+        .eq("corretora_id", corretora_id)
+        .neq("id", impEb.id);
       for (let i = 0; i < eb.length; i += 500) {
         const lote = eb.slice(i, i + 500).map((r) => ({ ...r, importacao_id: impEb.id }));
         const { error } = await supabase.from("estudo_base_registros").insert(lote);
@@ -306,7 +451,10 @@ serve(async (req) => {
       try {
         const aggRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/agregar-estudo-base`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
           body: JSON.stringify({ corretora_id }),
         });
         agregacao = await aggRes.json().catch(() => null);
@@ -314,12 +462,24 @@ serve(async (req) => {
         console.warn("[importar-api-hinova] Falha ao agregar Estudo de Base:", err);
       }
 
-      return new Response(JSON.stringify({
-        success: true, modulo: "base", via: "api",
-        endpoint: endpointOk, tentativas,
-        total: veiculos.length, cadastro: cadastro.length, estudo_base: eb.length,
-        agregacao,
-      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      // NOTA: Cadastro/Estudo de Base ainda seguem o padrão antigo (substituição
+      // total a cada importação) — não fazem parte do escopo deste ajuste, que
+      // cobriu especificamente Cobrança, MGF e Eventos (onde o histórico estava
+      // sendo perdido a cada execução via API).
+      return new Response(
+        JSON.stringify({
+          success: true,
+          modulo: "base",
+          via: "api",
+          endpoint: endpointOk,
+          tentativas,
+          total: veiculos.length,
+          cadastro: cadastro.length,
+          estudo_base: eb.length,
+          agregacao,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // ================= COBRANÇA (boletos) =================
@@ -329,12 +489,14 @@ serve(async (req) => {
       const inicioC = body.data_inicio ? parseBR(body.data_inicio) || addDays(fimC, -540) : addDays(fimC, -540);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows: any[] = [];
-      let cursorC = new Date(inicioC), janelasC = 0;
+      let cursorC = new Date(inicioC),
+        janelasC = 0;
       while (cursorC <= fimC && janelasC < 40) {
         const janFim = addDays(cursorC, 30) > fimC ? fimC : addDays(cursorC, 30); // <=31 dias
         janelasC++;
         const r = await fetch(`${base}/listar/boleto-associado/periodo`, {
-          method: "POST", headers: H,
+          method: "POST",
+          headers: H,
           body: JSON.stringify({ data_vencimento_inicial: ddmmyyyy(cursorC), data_vencimento_final: ddmmyyyy(janFim) }),
         });
         const j = await r.json().catch(() => null);
@@ -343,7 +505,11 @@ serve(async (req) => {
         for (const b of boletos as any[]) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const veics: any[] = Array.isArray(b.veiculos) ? b.veiculos : [];
-          const placas = veics.map((v) => v.placa).filter(Boolean).join(", ") || null;
+          const placas =
+            veics
+              .map((v) => v.placa)
+              .filter(Boolean)
+              .join(", ") || null;
           rows.push({
             nome: b.nome_associado || null,
             valor: num(b.valor_boleto),
@@ -353,10 +519,16 @@ serve(async (req) => {
             situacao: b.situacao_boleto || null,
             placas,
             dados_extras: {
-              nosso_numero: b.nosso_numero, cpf: b.cpf, valor_pagamento: b.valor_pagamento,
-              tipo_boleto: b.tipo_boleto, codigo_banco: b.codigo_banco, mes_referente: b.mes_referente,
-              data_emissao: b.data_emissao, codigo_forma_pagamento: b.codigo_forma_pagamento,
-              codigo_regional: veics[0]?.codigo_regional, codigo_cooperativa: veics[0]?.codigo_cooperativa,
+              nosso_numero: b.nosso_numero,
+              cpf: b.cpf,
+              valor_pagamento: b.valor_pagamento,
+              tipo_boleto: b.tipo_boleto,
+              codigo_banco: b.codigo_banco,
+              mes_referente: b.mes_referente,
+              data_emissao: b.data_emissao,
+              codigo_forma_pagamento: b.codigo_forma_pagamento,
+              codigo_regional: veics[0]?.codigo_regional,
+              codigo_cooperativa: veics[0]?.codigo_cooperativa,
               codigo_voluntario: veics[0]?.codigo_voluntario,
             },
           });
@@ -364,26 +536,54 @@ serve(async (req) => {
         cursorC = addDays(janFim, 1);
       }
 
+      // Reaproveita a importação ATIVA existente em vez de criar uma nova e
+      // desativar a anterior — só assim o histórico fora desta janela (ex.:
+      // boletos antigos de uma importação manual) não é perdido a cada rodada.
       const nomeArqC = `API cobrança ${ddmmyyyy(inicioC)}–${ddmmyyyy(fimC)}`;
-      const { data: impC, error: impErrC } = await supabase
+      const { id: impCId } = await getOrCreateImportacaoAtiva(supabase, "cobranca_importacoes", corretora_id, nomeArqC);
+
+      const mergeResC = await mergeIncremental(
+        supabase,
+        "cobranca_boletos",
+        impCId,
+        rows,
+        (row) => (row?.dados_extras?.nosso_numero ? String(row.dados_extras.nosso_numero) : null),
+        "id, dados_extras",
+      );
+
+      const { count: totalC } = await supabase
+        .from("cobranca_boletos")
+        .select("id", { count: "exact", head: true })
+        .eq("importacao_id", impCId);
+      await supabase
         .from("cobranca_importacoes")
-        .insert({ nome_arquivo: nomeArqC, total_registros: rows.length, corretora_id, ativo: true })
-        .select("id").single();
-      if (impErrC) throw new Error(`Erro ao criar importação cobrança: ${impErrC.message}`);
-      await supabase.from("cobranca_importacoes").update({ ativo: false }).eq("corretora_id", corretora_id).neq("id", impC.id);
-      if (rows.length > 0) {
-        const comImp = rows.map((x) => ({ ...x, importacao_id: impC.id }));
-        for (let i = 0; i < comImp.length; i += 500) {
-          const { error: insErrC } = await supabase.from("cobranca_boletos").insert(comImp.slice(i, i + 500));
-          if (insErrC) throw new Error(`Erro ao inserir cobranca_boletos (lote ${i}): ${insErrC.message}`);
-        }
-      }
-      await supabase.from("cobranca_automacao_config").update({
-        ultimo_status: "sucesso", ultimo_erro: null, ultima_execucao: new Date().toISOString(), ultima_origem: "api",
-      }).eq("corretora_id", corretora_id);
-      return new Response(JSON.stringify({ success: true, modulo: "cobranca", total: rows.length, janelas: janelasC, importacao_id: impC.id, via: "api" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+        .update({ total_registros: totalC ?? mergeResC.totalProcessado })
+        .eq("id", impCId);
+
+      await supabase
+        .from("cobranca_automacao_config")
+        .update({
+          ultimo_status: "sucesso",
+          ultimo_erro: null,
+          ultima_execucao: new Date().toISOString(),
+          ultima_origem: "api",
+        })
+        .eq("corretora_id", corretora_id);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          modulo: "cobranca",
+          total: totalC ?? mergeResC.totalProcessado,
+          novos: mergeResC.novos,
+          atualizados: mergeResC.atualizados,
+          janelas: janelasC,
+          importacao_id: impCId,
+          via: "api",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // ================= MGF (lançamentos financeiros) =================
@@ -394,12 +594,19 @@ serve(async (req) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows: any[] = [];
       const PAGE = 1000;
-      let inicioPag = 0, paginas = 0;
+      let inicioPag = 0,
+        paginas = 0;
       while (paginas < 100) {
         paginas++;
         const r = await fetch(`${base}/mgf-lancamento/listar`, {
-          method: "POST", headers: H,
-          body: JSON.stringify({ data_vencimento_inicial: ddmmyyyy(inicioM), data_vencimento_final: ddmmyyyy(fimM), quantidade_por_pagina: PAGE, inicio_paginacao: inicioPag }),
+          method: "POST",
+          headers: H,
+          body: JSON.stringify({
+            data_vencimento_inicial: ddmmyyyy(inicioM),
+            data_vencimento_final: ddmmyyyy(fimM),
+            quantidade_por_pagina: PAGE,
+            inicio_paginacao: inicioPag,
+          }),
         });
         const j = await r.json().catch(() => null);
         const lancs = Array.isArray(j?.retorno) ? j.retorno : [];
@@ -428,11 +635,17 @@ serve(async (req) => {
               data_nota_fiscal: dateISO(L.data_emissao_nota_fiscal),
               quantidade_parcela: int(L.quantidade_parcela),
               dados_extras: {
-                codigo_lancamento: L.codigo_lancamento, codigo_associado: L.codigo_associado,
-                codigo_veiculo: L.codigo_veiculo, codigo_regional: L.codigo_regional,
-                codigo_cooperativa: L.codigo_cooperativa, codigo_departamento: L.codigo_departamento,
-                codigo_voluntario: L.codigo_voluntario, codigo_terceiro: L.codigo_terceiro,
-                parcela: P.parcela, desconto: P.desconto, cliente: P.cliente,
+                codigo_lancamento: L.codigo_lancamento,
+                codigo_associado: L.codigo_associado,
+                codigo_veiculo: L.codigo_veiculo,
+                codigo_regional: L.codigo_regional,
+                codigo_cooperativa: L.codigo_cooperativa,
+                codigo_departamento: L.codigo_departamento,
+                codigo_voluntario: L.codigo_voluntario,
+                codigo_terceiro: L.codigo_terceiro,
+                parcela: P.parcela,
+                desconto: P.desconto,
+                cliente: P.cliente,
               },
             });
           }
@@ -441,26 +654,56 @@ serve(async (req) => {
         inicioPag += PAGE;
       }
 
+      // Mesmo princípio de Cobrança/Eventos: reaproveita a importação ativa,
+      // nunca cria uma nova que apague o histórico anterior.
       const nomeArqM = `API MGF ${ddmmyyyy(inicioM)}–${ddmmyyyy(fimM)}`;
-      const { data: impM, error: impErrM } = await supabase
+      const { id: impMId } = await getOrCreateImportacaoAtiva(supabase, "mgf_importacoes", corretora_id, nomeArqM);
+
+      const mergeResM = await mergeIncremental(
+        supabase,
+        "mgf_dados",
+        impMId,
+        rows,
+        (row) =>
+          row?.dados_extras?.codigo_lancamento && row?.dados_extras?.parcela
+            ? `${row.dados_extras.codigo_lancamento}_${row.dados_extras.parcela}`
+            : null,
+        "id, dados_extras",
+      );
+
+      const { count: totalM } = await supabase
+        .from("mgf_dados")
+        .select("id", { count: "exact", head: true })
+        .eq("importacao_id", impMId);
+      await supabase
         .from("mgf_importacoes")
-        .insert({ nome_arquivo: nomeArqM, total_registros: rows.length, corretora_id, ativo: true })
-        .select("id").single();
-      if (impErrM) throw new Error(`Erro ao criar importação MGF: ${impErrM.message}`);
-      await supabase.from("mgf_importacoes").update({ ativo: false }).eq("corretora_id", corretora_id).neq("id", impM.id);
-      if (rows.length > 0) {
-        const comImp = rows.map((x) => ({ ...x, importacao_id: impM.id }));
-        for (let i = 0; i < comImp.length; i += 500) {
-          const { error: insErrM } = await supabase.from("mgf_dados").insert(comImp.slice(i, i + 500));
-          if (insErrM) throw new Error(`Erro ao inserir mgf_dados (lote ${i}): ${insErrM.message}`);
-        }
-      }
-      await supabase.from("mgf_automacao_config").update({
-        ultimo_status: "sucesso", ultimo_erro: null, ultima_execucao: new Date().toISOString(), ultima_origem: "api",
-      }).eq("corretora_id", corretora_id);
-      return new Response(JSON.stringify({ success: true, modulo: "mgf", total: rows.length, paginas, importacao_id: impM.id, via: "api" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+        .update({ total_registros: totalM ?? mergeResM.totalProcessado })
+        .eq("id", impMId);
+
+      await supabase
+        .from("mgf_automacao_config")
+        .update({
+          ultimo_status: "sucesso",
+          ultimo_erro: null,
+          ultima_execucao: new Date().toISOString(),
+          ultima_origem: "api",
+        })
+        .eq("corretora_id", corretora_id);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          modulo: "mgf",
+          total: totalM ?? mergeResM.totalProcessado,
+          novos: mergeResM.novos,
+          atualizados: mergeResM.atualizados,
+          paginas,
+          importacao_id: impMId,
+          via: "api",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // 2) Janela de datas (default: últimos 18 meses). data_cadastro/data_cadastro_final, máx 30 dias por janela.
@@ -522,45 +765,66 @@ serve(async (req) => {
       };
     });
 
-    // 4) Gravar importação + eventos (mesmas tabelas do crawl)
+    // 4) Reaproveita a importação ATIVA existente (mesmo princípio de Cobrança
+    // e MGF acima) — antes disso, cada execução criava uma importação nova e
+    // desativava a anterior, o que apagava (na prática) todo o histórico fora
+    // da janela de ~18 meses buscada agora. Agora só criamos uma nova na
+    // primeiríssima execução; das próximas em diante, só inserimos o que é
+    // novo e substituímos (delete+insert) o que já existia e mudou.
     const nomeArquivo = `API eventos ${ddmmyyyy(inicio)}–${ddmmyyyy(fim)}`;
-    const { data: imp, error: impErr } = await supabase
+    const { id: impId } = await getOrCreateImportacaoAtiva(supabase, "sga_importacoes", corretora_id, nomeArquivo);
+
+    const mergeRes = await mergeIncremental(
+      supabase,
+      "sga_eventos",
+      impId,
+      eventos,
+      (row) => (row?.protocolo ? String(row.protocolo) : null),
+      "id, protocolo",
+    );
+
+    // 5) Atualiza total_registros da importação e a config
+    const { count: totalEventos } = await supabase
+      .from("sga_eventos")
+      .select("id", { count: "exact", head: true })
+      .eq("importacao_id", impId);
+    await supabase
       .from("sga_importacoes")
-      .insert({ nome_arquivo: nomeArquivo, total_registros: eventos.length, corretora_id, ativo: true })
-      .select("id")
-      .single();
-    if (impErr) throw new Error(`Erro ao criar importação: ${impErr.message}`);
+      .update({ total_registros: totalEventos ?? mergeRes.totalProcessado })
+      .eq("id", impId);
 
-    // desativa importações anteriores
-    await supabase.from("sga_importacoes").update({ ativo: false }).eq("corretora_id", corretora_id).neq("id", imp.id);
+    await supabase
+      .from("sga_automacao_config")
+      .update({
+        ultimo_status: "sucesso",
+        ultimo_erro: null,
+        ultima_execucao: new Date().toISOString(),
+        ultima_origem: "api",
+      })
+      .eq("corretora_id", corretora_id);
 
-    // insere em lotes
-    if (eventos.length > 0) {
-      const comImp = eventos.map((e) => ({ ...e, importacao_id: imp.id }));
-      for (let i = 0; i < comImp.length; i += 500) {
-        const lote = comImp.slice(i, i + 500);
-        const { error: insErr } = await supabase.from("sga_eventos").insert(lote);
-        if (insErr) throw new Error(`Erro ao inserir eventos (lote ${i}): ${insErr.message}`);
-      }
-    }
-
-    // 5) Atualiza config
-    await supabase.from("sga_automacao_config").update({
-      ultimo_status: "sucesso",
-      ultimo_erro: null,
-      ultima_execucao: new Date().toISOString(),
-      ultima_origem: "api",
-    }).eq("corretora_id", corretora_id);
-
-    return new Response(JSON.stringify({ success: true, modulo: "eventos", total: eventos.length, janelas, importacao_id: imp.id, via: "api" }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        modulo: "eventos",
+        total: totalEventos ?? mergeRes.totalProcessado,
+        novos: mergeRes.novos,
+        atualizados: mergeRes.atualizados,
+        janelas,
+        importacao_id: impId,
+        via: "api",
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
     console.error("[importar-api-hinova]", msg);
     await persistApiError(supabase, modulo, corretora_id, msg);
     return new Response(JSON.stringify({ success: false, message: msg }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
