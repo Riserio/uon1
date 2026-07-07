@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Search, Car, AlertTriangle, CreditCard, Loader2, FileText, DollarSign } from "lucide-react";
+import { Search, Car, AlertTriangle, CreditCard, Loader2, FileText, DollarSign, Receipt, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import DetranMgCredenciais from "@/components/veiculos/DetranMgCredenciais";
 
 interface VehicleInfo {
   license_plate: string;
@@ -35,7 +37,32 @@ interface Installment {
   interest_rate?: number;
 }
 
+type Categoria = "multas" | "licenciamento" | "ipva" | "outros";
+
+const CATEGORIA_LABELS: Record<Categoria, string> = {
+  multas: "Multas",
+  licenciamento: "Licenciamento",
+  ipva: "IPVA",
+  outros: "Outros débitos",
+};
+
+const CATEGORIA_ICONS: Record<Categoria, any> = {
+  multas: ShieldAlert,
+  licenciamento: FileText,
+  ipva: Receipt,
+  outros: AlertTriangle,
+};
+
+function categorizarDebito(debt: any): Categoria {
+  const raw = (debt.type || debt.tipo || debt.title || debt.titulo || "").toString().toLowerCase();
+  if (raw.includes("multa") || raw.includes("infra")) return "multas";
+  if (raw.includes("licenciamento") || raw.includes("licenca") || raw.includes("licença")) return "licenciamento";
+  if (raw.includes("ipva")) return "ipva";
+  return "outros";
+}
+
 export default function DebitosVeiculares() {
+  const { user } = useAuth();
   const [placa, setPlaca] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"search" | "vehicle" | "debts" | "installments">("search");
@@ -54,6 +81,45 @@ export default function DebitosVeiculares() {
 
   const handlePlacaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPlaca(formatPlaca(e.target.value));
+  };
+
+  // Registra toda consulta (sucesso ou falha) na tabela de auditoria consultas_veiculo,
+  // para termos histórico de quem consultou o quê e quando - independente da fonte
+  // (hoje Zapay; futuramente também Detran-MG/Gov.br).
+  const registrarAuditoria = async (params: {
+    cleanPlaca: string;
+    uf?: string | null;
+    renavam?: string | null;
+    sucesso: boolean;
+    erro?: string | null;
+    resultado?: any;
+  }) => {
+    if (!user) return;
+    try {
+      let corretoraId: string | null = null;
+      const { data: cu } = await supabase
+        .from("corretora_usuarios")
+        .select("corretora_id")
+        .eq("profile_id", user.id)
+        .eq("ativo", true)
+        .maybeSingle();
+      corretoraId = (cu as any)?.corretora_id ?? null;
+
+      await (supabase as any).from("consultas_veiculo").insert({
+        placa: params.cleanPlaca,
+        renavam: params.renavam || null,
+        uf: params.uf || null,
+        usuario_id: user.id,
+        corretora_id: corretoraId,
+        fonte: "zapay",
+        sucesso: params.sucesso,
+        erro: params.erro || null,
+        resultado_json: params.resultado || null,
+      });
+    } catch (e) {
+      // Log de auditoria nunca deve travar o fluxo principal de consulta
+      console.error("Erro ao registrar auditoria da consulta:", e);
+    }
   };
 
   const consultarVeiculo = async () => {
@@ -105,6 +171,14 @@ export default function DebitosVeiculares() {
       setProtocol(debtsData.data?.protocol || debtsData.data?.protocolo || "");
       setStep(debtsList.length > 0 ? "debts" : "vehicle");
 
+      await registrarAuditoria({
+        cleanPlaca,
+        uf: vehicle.state || vehicle.uf,
+        renavam: vehicle.renavam,
+        sucesso: true,
+        resultado: debtsData.data,
+      });
+
       if (debtsList.length === 0) {
         toast.info("Veículo não possui débitos!");
       } else {
@@ -113,6 +187,11 @@ export default function DebitosVeiculares() {
     } catch (error: any) {
       console.error("Erro na consulta:", error);
       toast.error(error.message || "Erro ao consultar veículo");
+      await registrarAuditoria({
+        cleanPlaca,
+        sucesso: false,
+        erro: error.message || "Erro desconhecido",
+      });
     } finally {
       setLoading(false);
     }
@@ -170,6 +249,17 @@ export default function DebitosVeiculares() {
     .filter((d: any) => selectedDebts.includes(d.id || d.debt_id))
     .reduce((sum: number, d: any) => sum + (d.amount || d.valor || 0), 0);
 
+  // Agrupa os débitos retornados pela Zapay em multas / licenciamento / IPVA / outros,
+  // já que hoje eles chegam como uma lista genérica.
+  const debtsPorCategoria: Record<Categoria, any[]> = { multas: [], licenciamento: [], ipva: [], outros: [] };
+  debts.forEach((debt: any, idx: number) => {
+    const cat = categorizarDebito(debt);
+    debtsPorCategoria[cat].push({ ...debt, __idx: idx });
+  });
+  const categoriasComDebito = (Object.keys(CATEGORIA_LABELS) as Categoria[]).filter(
+    (c) => debtsPorCategoria[c].length > 0
+  );
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <PageHeader
@@ -177,11 +267,14 @@ export default function DebitosVeiculares() {
         title="Débitos Veiculares"
         subtitle="Consulte débitos por placa e simule parcelamento"
         actions={
-          step !== "search" ? (
-            <Button variant="outline" onClick={resetConsulta} className="rounded-xl">
-              Nova Consulta
-            </Button>
-          ) : null
+          <div className="flex items-center gap-2">
+            <DetranMgCredenciais />
+            {step !== "search" && (
+              <Button variant="outline" onClick={resetConsulta} className="rounded-xl">
+                Nova Consulta
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -276,7 +369,7 @@ export default function DebitosVeiculares() {
         </Card>
       )}
 
-      {/* Debts */}
+      {/* Debts - agrupados por categoria: Multas / Licenciamento / IPVA / Outros */}
       {step === "debts" && debts.length > 0 && (
         <Card>
           <CardHeader>
@@ -286,48 +379,72 @@ export default function DebitosVeiculares() {
             </CardTitle>
             <CardDescription>Selecione os débitos que deseja parcelar</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {debts.map((debt: any, idx: number) => {
-              const debtId = debt.id || debt.debt_id || `debt-${idx}`;
-              const isSelected = selectedDebts.includes(debtId);
+          <CardContent className="space-y-5">
+            {categoriasComDebito.map((cat) => {
+              const CatIcon = CATEGORIA_ICONS[cat];
+              const itens = debtsPorCategoria[cat];
+              const subtotal = itens.reduce((sum, d) => sum + (d.amount || d.valor || 0), 0);
               return (
-                <div
-                  key={debtId}
-                  className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                    isSelected
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
-                  }`}
-                  onClick={() => toggleDebt(debtId)}
-                >
+                <div key={cat} className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleDebt(debtId)}
-                        className="h-4 w-4 rounded border-border"
-                      />
-                      <div>
-                        <p className="font-medium">{debt.title || debt.titulo || debt.description || `Débito #${idx + 1}`}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {debt.type || debt.tipo || "Débito veicular"}
-                          {debt.due_date || debt.data_vencimento
-                            ? ` • Venc: ${debt.due_date || debt.data_vencimento}`
-                            : ""}
-                        </p>
-                      </div>
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <CatIcon className="h-4 w-4" />
+                      {CATEGORIA_LABELS[cat]}
+                      <Badge variant="secondary" className="text-xs">{itens.length}</Badge>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-lg">
-                        {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                          debt.amount || debt.valor || 0
-                        )}
-                      </p>
-                      {debt.expiration_date === null && (
-                        <Badge variant="destructive" className="text-xs">Vencido</Badge>
-                      )}
-                    </div>
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Subtotal:{" "}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(subtotal)}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {itens.map((debt: any) => {
+                      const debtId = debt.id || debt.debt_id || `debt-${debt.__idx}`;
+                      const isSelected = selectedDebts.includes(debtId);
+                      return (
+                        <div
+                          key={debtId}
+                          className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                            isSelected
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50"
+                          }`}
+                          onClick={() => toggleDebt(debtId)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleDebt(debtId)}
+                                className="h-4 w-4 rounded border-border"
+                              />
+                              <div>
+                                <p className="font-medium">
+                                  {debt.title || debt.titulo || debt.description || `Débito`}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  {debt.type || debt.tipo || CATEGORIA_LABELS[cat]}
+                                  {debt.due_date || debt.data_vencimento
+                                    ? ` • Venc: ${debt.due_date || debt.data_vencimento}`
+                                    : ""}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-lg">
+                                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+                                  debt.amount || debt.valor || 0
+                                )}
+                              </p>
+                              {debt.expiration_date === null && (
+                                <Badge variant="destructive" className="text-xs">Vencido</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
