@@ -124,6 +124,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchUserRole]);
 
   const signIn = async (email: string, password: string) => {
+    // Purge any stale/corrupt session in localStorage that could be causing
+    // background refresh loops ("Load failed" on /auth/v1/token) and blocking
+    // the LockManager used by signInWithPassword.
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      // Fallback: brute-force clear known Supabase auth storage keys.
+      try {
+        Object.keys(localStorage)
+          .filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
+          .forEach((k) => localStorage.removeItem(k));
+      } catch {}
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
