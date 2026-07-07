@@ -158,7 +158,7 @@ serve(async (req) => {
           console.warn(`[GitHub Workflow] API falhou e git_fallback_ativo=false — abortando (sem crawl) para ${corretora_id}`);
           return new Response(
             JSON.stringify({ success: false, message: "Importação via API falhou e o fallback via GitHub está desativado nas configurações desta associação." }),
-            { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
         }
       }
