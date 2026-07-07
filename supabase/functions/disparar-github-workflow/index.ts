@@ -11,7 +11,24 @@ type RequestUser = { id: string; email: string };
 // Executa a importação oficial da API em background para não estourar o limite
 // de resposta da Edge Function quando o fallback GitHub está desativado.
 // deno-lint-ignore no-explicit-any
-async function startCobrancaApiImport(supabase: any, corretoraId: string, user: RequestUser) {
+async function startCobrancaApiImport(supabase: any, corretoraId: string, user: RequestUser): Promise<{ started: boolean; message: string }> {
+  const hoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const { data: execucoesHoje } = await supabase
+    .from("cobranca_automacao_execucoes")
+    .select("id, status")
+    .eq("corretora_id", corretoraId)
+    .gte("created_at", `${hoje}T03:00:00.000Z`)
+    .in("status", ["sucesso", "executando"])
+    .limit(1);
+
+  if (execucoesHoje?.length) {
+    const st = execucoesHoje[0].status;
+    return {
+      started: false,
+      message: st === "executando" ? "Já existe uma importação via API em andamento hoje." : "Já houve uma integração com sucesso hoje.",
+    };
+  }
+
   const { data: config } = await supabase
     .from("cobranca_automacao_config")
     .select("id")
@@ -89,6 +106,8 @@ async function startCobrancaApiImport(supabase: any, corretoraId: string, user: 
   const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void } }).EdgeRuntime;
   if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(task);
   else task.catch((err) => console.error("[GitHub Workflow] Erro em background API:", err));
+
+  return { started: true, message: "Importação via API iniciada. O fallback GitHub está desativado e não será acionado." };
 }
 
 interface WorkflowInput {
@@ -212,9 +231,9 @@ serve(async (req) => {
         .maybeSingle();
       if (apiCredC?.usar_api && apiCredC?.api_token) {
         if (apiCredC.git_fallback_ativo === false) {
-          await startCobrancaApiImport(supabase, corretora_id, user);
+          const apiStart = await startCobrancaApiImport(supabase, corretora_id, user);
           return new Response(
-            JSON.stringify({ success: true, via: "api", async: true, message: "Importação via API iniciada. O fallback GitHub está desativado e não será acionado." }),
+            JSON.stringify({ success: apiStart.started, via: "api", async: apiStart.started, message: apiStart.message }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
         }
