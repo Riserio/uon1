@@ -131,7 +131,7 @@ serve(async (req) => {
       // === API-FIRST: se a associação tem API habilitada, importa cobrança via API; crawl é fallback ===
       const { data: apiCredC } = await supabase
         .from("hinova_credenciais")
-        .select("usar_api, api_token")
+        .select("usar_api, api_token, git_fallback_ativo")
         .eq("corretora_id", corretora_id)
         .maybeSingle();
       if (apiCredC?.usar_api && apiCredC?.api_token) {
@@ -152,6 +152,14 @@ serve(async (req) => {
           console.warn(`[GitHub Workflow] API falhou (${apiJson?.message}) — fallback para crawl`);
         } catch (apiErr) {
           console.warn(`[GitHub Workflow] Erro ao chamar API — fallback para crawl:`, apiErr);
+        }
+        // Respeita a configuração: se fallback GitHub está desativado, não dispara o crawl.
+        if (apiCredC.git_fallback_ativo === false) {
+          console.warn(`[GitHub Workflow] API falhou e git_fallback_ativo=false — abortando (sem crawl) para ${corretora_id}`);
+          return new Response(
+            JSON.stringify({ success: false, message: "Importação via API falhou e o fallback via GitHub está desativado nas configurações desta associação." }),
+            { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
         }
       }
 

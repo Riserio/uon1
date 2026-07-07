@@ -59,6 +59,20 @@ async function tentarViaApi(supabase: any, supabaseUrl: string, supabaseKey: str
   } catch (apiErr) {
     console.warn(`[Scheduler SGA] ${nomeAssociacao}: erro ao chamar API — fallback para crawl:`, apiErr);
   }
+  if (cred.git_fallback_ativo === false) {
+    console.warn(`[Scheduler SGA] ${nomeAssociacao}: git_fallback_ativo=false — crawl NÃO será disparado`);
+    await supabase.from("sga_automacao_execucoes").insert({
+      config_id: configId ?? null,
+      corretora_id: cred.corretora_id,
+      status: "erro",
+      etapa_atual: "api",
+      tipo_disparo: "api",
+      mensagem: "Importação via API falhou e o fallback via GitHub está desativado.",
+      erro: "API Hinova indisponível e git_fallback_ativo=false",
+      finalizado_at: new Date().toISOString(),
+    });
+    return true;
+  }
   return false;
 }
 

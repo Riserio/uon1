@@ -155,7 +155,7 @@ serve(async (req) => {
       // antes de aceitar a falha e cair para o crawl via GitHub Actions.
       const { data: apiCredM } = await supabase
         .from("hinova_credenciais")
-        .select("usar_api, api_token")
+        .select("usar_api, api_token, git_fallback_ativo")
         .eq("corretora_id", corretora_id)
         .maybeSingle();
       if (apiCredM?.usar_api && apiCredM?.api_token) {
@@ -184,6 +184,13 @@ serve(async (req) => {
           }
         }
         console.warn(`[MGF GitHub Workflow] API esgotou ${MAX_API_ATTEMPTS} tentativas — fallback para crawl`);
+        if (apiCredM.git_fallback_ativo === false) {
+          console.warn(`[MGF GitHub Workflow] git_fallback_ativo=false — abortando (sem crawl) para ${corretora_id}`);
+          return new Response(
+            JSON.stringify({ success: false, message: "Importação via API falhou e o fallback via GitHub está desativado nas configurações desta associação." }),
+            { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
       }
 
       // Buscar credenciais unificadas da Hinova
