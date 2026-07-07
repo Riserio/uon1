@@ -38,11 +38,9 @@ serve(async (req) => {
 
     if (mesReferenciaParam) {
       mesReferencia = mesReferenciaParam;
-      // Verificar se é mês anterior
       const mesAtual = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
       usandoMesAnterior = mesReferencia !== mesAtual;
     } else if (diaAtual <= 6) {
-      // Até dia 6: relatório do mês anterior
       const mesAnterior = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
       mesReferencia = `${mesAnterior.getUTCFullYear()}-${String(mesAnterior.getUTCMonth() + 1).padStart(2, "0")}`;
       usandoMesAnterior = true;
@@ -63,12 +61,7 @@ serve(async (req) => {
     // importação ativa ao mesmo tempo por desenho — uma "API cobrança
     // (histórico)" (backfill de registros antigos, mantida via cron) e uma
     // "recente" (snapshot diário do robô GitHub). As duas são complementares
-    // (a histórico só cobre o período ANTERIOR ao snapshot recente) e devem
-    // ser somadas, não tratadas como duplicatas — pegar só uma via
-    // `.single()`/`.limit(1)` (como este arquivo fazia antes) causa boletos
-    // "sumindo" sempre que a mais recente por `created_at` for a histórica
-    // (que pode ter 0 registros numa falha pontual da API) em vez da
-    // recente com dados reais.
+    // e devem ser somadas, não tratadas como duplicatas.
     let importacaoIds: string[] = [];
 
     if (!usandoMesAnterior) {
@@ -79,7 +72,6 @@ serve(async (req) => {
         .eq("ativo", true);
       importacaoIds = (ativas || []).map((r: { id: string }) => r.id);
     } else {
-      // Mês anterior: buscar por nome_arquivo contendo o mes_referencia
       const { data: byName } = await supabase
         .from("cobranca_importacoes")
         .select("id")
@@ -92,10 +84,9 @@ serve(async (req) => {
       if (byName) {
         importacaoIds = [byName.id];
       } else {
-        // Fallback: buscar por created_at dentro do mês de referência
         const [refY, refM] = mesReferencia.split("-").map(Number);
         const inicioMes = new Date(Date.UTC(refY, refM - 1, 1)).toISOString();
-        const fimMes = new Date(Date.UTC(refY, refM, 1)).toISOString(); // primeiro dia do mês seguinte
+        const fimMes = new Date(Date.UTC(refY, refM, 1)).toISOString();
 
         const { data: byDate } = await supabase
           .from("cobranca_importacoes")
@@ -110,7 +101,6 @@ serve(async (req) => {
         if (byDate) {
           importacaoIds = [byDate.id];
         } else {
-          // Último fallback: importação inativa mais recente
           const { data: inactive } = await supabase
             .from("cobranca_importacoes")
             .select("id")
@@ -128,114 +118,39 @@ serve(async (req) => {
       throw new Error("Nenhuma importação ativa encontrada");
     }
 
-    // Get ALL boletos from the active import(s) (no limit)
-    // Using pagination to get all records
-    let allBoletos: any[] = [];
-    let offset = 0;
-    const batchSize = 1000;
-    let hasMore = true;
+    // ===== Métricas calculadas DIRETO no banco (SQL agregado), não mais
+    // buscando todas as linhas cruas (podia passar de 15-17 mil boletos e
+    // demorar demais / estourar timeout, deixando o resumo geral sem essa
+    // seção). Ver função pública.calcular_resumo_cobranca(uuid[]). =====
+    const { data: metrics, error: metricsError } = await supabase.rpc("calcular_resumo_cobranca", {
+      p_importacao_ids: importacaoIds,
+    });
 
-    while (hasMore) {
-      const { data: batchBoletos, error: batchError } = await supabase
-        .from("cobranca_boletos")
-        .select("*")
-        .in("importacao_id", importacaoIds)
-        .range(offset, offset + batchSize - 1);
-
-      if (batchError) {
-        console.error("[gerar-resumo-cobranca] Error fetching boletos:", batchError);
-        throw batchError;
-      }
-
-      if (batchBoletos && batchBoletos.length > 0) {
-        allBoletos = [...allBoletos, ...batchBoletos];
-        offset += batchSize;
-        hasMore = batchBoletos.length === batchSize;
-      } else {
-        hasMore = false;
-      }
+    if (metricsError) {
+      console.error("[gerar-resumo-cobranca] Error calculando métricas:", metricsError);
+      throw metricsError;
     }
 
-    const boletos = allBoletos;
-    console.log(
-      `[gerar-resumo-cobranca] Total boletos carregados (${importacaoIds.length} importação(ões)): ${boletos.length}`,
-    );
-
-    // Helper function for case-insensitive status check
-    const isAberto = (situacao: string | null) => {
-      if (!situacao) return false;
-      return situacao.toUpperCase() === "ABERTO";
-    };
-
-    const isBaixado = (situacao: string | null) => {
-      if (!situacao) return false;
-      const upper = situacao.toUpperCase();
-      return upper === "BAIXADO" || upper.includes("BAIXADO");
-    };
-
-    // Helper: get next business day (skip weekends)
-    const getProximoDiaUtil = (dia: number): number => {
-      const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), dia));
-      const dayOfWeek = date.getUTCDay();
-      if (dayOfWeek === 6) return dia + 2; // Sábado → Segunda
-      if (dayOfWeek === 0) return dia + 1; // Domingo → Segunda
-      return dia;
-    };
-
-    // Calculate metrics
-    const totalGerados = boletos?.length || 0;
-    const boletosAbertos = boletos?.filter((b) => isAberto(b.situacao)) || [];
-    const boletosBaixados = boletos?.filter((b) => isBaixado(b.situacao)) || [];
-
-    const totalAbertos = boletosAbertos.length;
-    const totalBaixados = boletosBaixados.length;
+    const totalGerados = metrics?.total_gerados || 0;
+    const totalAbertos = metrics?.total_abertos || 0;
+    const totalBaixados = metrics?.total_baixados || 0;
+    const faturamentoEsperado = Number(metrics?.faturamento_esperado || 0);
+    const valorTotalPago = Number(metrics?.faturamento_recebido || 0);
+    const valorTotalAberto = Number(metrics?.valor_aberto || 0);
 
     const percentualInadimplencia = totalGerados > 0 ? ((totalAbertos / totalGerados) * 100).toFixed(2) : "0.00";
 
-    const valorTotalAberto = boletosAbertos.reduce((acc, b) => acc + (b.valor || 0), 0);
-    const valorTotalPago = boletosBaixados.reduce((acc, b) => acc + (b.valor || 0), 0);
-    const faturamentoEsperado = boletos?.reduce((acc, b) => acc + (b.valor || 0), 0) || 0;
-
-    // Calculate by due day - always show all open boletos regardless of date
+    const porDia = metrics?.por_dia || {};
     const diasVencimento = [5, 10, 15, 20];
     const boletosPorDia = diasVencimento
       .map((dia) => {
-        const gerados = boletos?.filter((b) => b.dia_vencimento_veiculo === dia).length || 0;
-        const abertos = boletos?.filter((b) => b.dia_vencimento_veiculo === dia && isAberto(b.situacao)).length || 0;
-
-        return `${dia} – Total Gerado (${gerados}) – Total em aberto (${abertos})`;
+        const info = porDia[String(dia)] || { gerados: 0, abertos: 0 };
+        return `${dia} – Total Gerado (${info.gerados}) – Total em aberto (${info.abertos})`;
       })
       .join("\n");
 
-    // Calculate by cooperativa
-    const cooperativaStats: Record<string, { total: number; abertos: number }> = {};
-    boletos?.forEach((b) => {
-      const coop = b.cooperativa || "Sem cooperativa";
-      if (!cooperativaStats[coop]) {
-        cooperativaStats[coop] = { total: 0, abertos: 0 };
-      }
-      cooperativaStats[coop].total++;
-      if (isAberto(b.situacao)) {
-        cooperativaStats[coop].abertos++;
-      }
-    });
-
-    // Find highest and lowest delinquency
-    let maiorInadimplencia = { nome: "N/A", percentual: 0 };
-    let menorInadimplencia = { nome: "N/A", percentual: 100 };
-
-    Object.entries(cooperativaStats).forEach(([nome, stats]) => {
-      if (stats.total >= 5) {
-        // Minimum 5 boletos to be relevant
-        const percentual = (stats.abertos / stats.total) * 100;
-        if (percentual > maiorInadimplencia.percentual) {
-          maiorInadimplencia = { nome, percentual };
-        }
-        if (percentual < menorInadimplencia.percentual) {
-          menorInadimplencia = { nome, percentual };
-        }
-      }
-    });
+    const maiorInadimplencia = metrics?.maior_inadimplencia || { nome: "N/A", percentual: 0 };
+    const menorInadimplencia = metrics?.menor_inadimplencia || { nome: "N/A", percentual: 100 };
 
     // Format currency
     const formatCurrency = (value: number) =>
@@ -283,8 +198,8 @@ Seguem abaixo informações importantes para sua gestão:
 📊 *Boletos por dia de vencimento:*
 ${boletosPorDia}
 
-🔴 *Maior inadimplência:* ${maiorInadimplencia.nome} (${maiorInadimplencia.percentual.toFixed(1)}%)
-🟢 *Menor inadimplência:* ${menorInadimplencia.nome} (${menorInadimplencia.percentual.toFixed(1)}%)`;
+🔴 *Maior inadimplência:* ${maiorInadimplencia.nome} (${Number(maiorInadimplencia.percentual).toFixed(1)}%)
+🟢 *Menor inadimplência:* ${menorInadimplencia.nome} (${Number(menorInadimplencia.percentual).toFixed(1)}%)`;
 
     return new Response(
       JSON.stringify({
