@@ -57,25 +57,27 @@ serve(async (req) => {
     const minuto = String(now.getUTCMinutes()).padStart(2, "0");
     const dataAtual = `${dia}/${mes}/${ano} às ${hora}:${minuto}`;
 
-    // Get import for this corretora
-    let importacao: any = null;
+    // Get import(s) for this corretora.
+    //
+    // IMPORTANTE: para o mês corrente, a corretora pode ter MAIS DE UMA
+    // importação ativa ao mesmo tempo por desenho — uma "API cobrança
+    // (histórico)" (backfill de registros antigos, mantida via cron) e uma
+    // "recente" (snapshot diário do robô GitHub). As duas são complementares
+    // (a histórico só cobre o período ANTERIOR ao snapshot recente) e devem
+    // ser somadas, não tratadas como duplicatas — pegar só uma via
+    // `.single()`/`.limit(1)` (como este arquivo fazia antes) causa boletos
+    // "sumindo" sempre que a mais recente por `created_at` for a histórica
+    // (que pode ter 0 registros numa falha pontual da API) em vez da
+    // recente com dados reais.
+    let importacaoIds: string[] = [];
 
     if (!usandoMesAnterior) {
-      // Mês atual: usar importação ativa.
-      // OBS: usamos order+limit+maybeSingle (em vez de .single()) porque pode
-      // haver mais de uma linha com ativo=true por falha de higienização em
-      // alguma importação anterior — .single() quebraria a função inteira
-      // (e o resumo saía todo em branco) só por causa desse dado duplicado.
-      // Com order+limit, sempre pegamos a importação ativa mais recente.
-      const { data } = await supabase
+      const { data: ativas } = await supabase
         .from("cobranca_importacoes")
         .select("id")
         .eq("corretora_id", corretora_id)
-        .eq("ativo", true)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      importacao = data;
+        .eq("ativo", true);
+      importacaoIds = (ativas || []).map((r: { id: string }) => r.id);
     } else {
       // Mês anterior: buscar por nome_arquivo contendo o mes_referencia
       const { data: byName } = await supabase
@@ -88,7 +90,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (byName) {
-        importacao = byName;
+        importacaoIds = [byName.id];
       } else {
         // Fallback: buscar por created_at dentro do mês de referência
         const [refY, refM] = mesReferencia.split("-").map(Number);
@@ -106,7 +108,7 @@ serve(async (req) => {
           .maybeSingle();
 
         if (byDate) {
-          importacao = byDate;
+          importacaoIds = [byDate.id];
         } else {
           // Último fallback: importação inativa mais recente
           const { data: inactive } = await supabase
@@ -117,16 +119,16 @@ serve(async (req) => {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          importacao = inactive;
+          importacaoIds = inactive ? [inactive.id] : [];
         }
       }
     }
 
-    if (!importacao) {
+    if (importacaoIds.length === 0) {
       throw new Error("Nenhuma importação ativa encontrada");
     }
 
-    // Get ALL boletos from active import (no limit)
+    // Get ALL boletos from the active import(s) (no limit)
     // Using pagination to get all records
     let allBoletos: any[] = [];
     let offset = 0;
@@ -137,7 +139,7 @@ serve(async (req) => {
       const { data: batchBoletos, error: batchError } = await supabase
         .from("cobranca_boletos")
         .select("*")
-        .eq("importacao_id", importacao.id)
+        .in("importacao_id", importacaoIds)
         .range(offset, offset + batchSize - 1);
 
       if (batchError) {
@@ -155,7 +157,9 @@ serve(async (req) => {
     }
 
     const boletos = allBoletos;
-    console.log(`[gerar-resumo-cobranca] Total boletos carregados: ${boletos.length}`);
+    console.log(
+      `[gerar-resumo-cobranca] Total boletos carregados (${importacaoIds.length} importação(ões)): ${boletos.length}`,
+    );
 
     // Helper function for case-insensitive status check
     const isAberto = (situacao: string | null) => {
