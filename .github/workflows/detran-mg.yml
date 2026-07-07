@@ -94,8 +94,8 @@ jobs:
 
       - name: Executar robô Detran-MG
         env:
-          CREDENTIALS_URL: ${{ secrets.CREDENTIALS_URL_DETRAN_MG || secrets.CREDENTIALS_URL }}
-          ROBOT_SECRET: ${{ secrets.ROBOT_SECRET }}
+          GOV_BR_CPF: ${{ secrets.GOV_BR_CPF }}
+          GOV_BR_SENHA: ${{ secrets.GOV_BR_SENHA }}
           WEBHOOK_URL: ${{ inputs.webhook_url || secrets.WEBHOOK_URL_DETRAN_MG }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           CORRETORA_ID: ${{ inputs.corretora_id }}
