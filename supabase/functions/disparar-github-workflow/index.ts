@@ -200,43 +200,21 @@ serve(async (req) => {
         .eq("corretora_id", corretora_id)
         .maybeSingle();
       if (apiCredC?.usar_api && apiCredC?.api_token) {
-        if (apiCredC.git_fallback_ativo === false) {
-          const apiStart = await startCobrancaApiImport(supabase, corretora_id, user);
-          return new Response(
-            JSON.stringify({ success: apiStart.started, via: "api", async: apiStart.started, message: apiStart.message }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
-
-        try {
-          const apiResp = await fetch(`${supabaseUrl}/functions/v1/importar-api-hinova`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseServiceKey}` },
-            body: JSON.stringify({ corretora_id, modulo: "cobranca" }),
-          });
-          const apiJson = await apiResp.json().catch(() => ({}));
-          if (apiJson?.success) {
-            console.log(`[GitHub Workflow] Importado via API (${apiJson.total} boletos) — crawl dispensado`);
-            return new Response(
-              JSON.stringify({ success: true, via: "api", total: apiJson.total, message: `Importado via API: ${apiJson.total} boletos` }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-            );
-          }
-          console.warn(`[GitHub Workflow] API falhou (${apiJson?.message}) — fallback para crawl`);
-        } catch (apiErr) {
-          console.warn(`[GitHub Workflow] Erro ao chamar API — fallback para crawl:`, apiErr);
-        }
-        // Respeita a configuração: se fallback GitHub está desativado, não dispara o crawl.
-        if (apiCredC.git_fallback_ativo === false) {
-          console.warn(`[GitHub Workflow] API falhou e git_fallback_ativo=false — abortando (sem crawl) para ${corretora_id}`);
-          return new Response(
-            JSON.stringify({ success: false, message: "Importação via API falhou e o fallback via GitHub está desativado nas configurações desta associação." }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
+        // Fallback GitHub Actions desativado globalmente para Cobrança: sempre via API (assíncrono).
+        const apiStart = await startCobrancaApiImport(supabase, corretora_id, user);
+        return new Response(
+          JSON.stringify({ success: apiStart.started, via: "api", async: apiStart.started, message: apiStart.message }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
 
-      // A partir daqui é fallback/crawl GitHub de fato; só agora exige secrets GitHub.
+      // Fallback GitHub Actions desativado para Cobrança: exige API habilitada.
+      return new Response(
+        JSON.stringify({ success: false, message: "Importação de Cobrança agora é exclusiva via API Hinova. Habilite 'Usar API' nas credenciais da associação." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+
+      // eslint-disable-next-line no-unreachable
       if (!githubPat || !githubRepoOwner || !githubRepoName) {
         console.error("GitHub secrets não configurados:", {
           pat: !!githubPat,
