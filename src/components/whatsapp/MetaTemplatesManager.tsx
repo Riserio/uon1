@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,534 +6,417 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, FileText, Tag, Edit2, Eye, Code } from "lucide-react";
-import DOMPurify from "dompurify";
-import { MetaTemplatesManager } from "./MetaTemplatesManager";
+import { Plus, RefreshCw, Trash2, Edit2, Loader2, MessageSquare } from "lucide-react";
 
-interface Template {
-  id: string;
-  nome: string;
-  tipo: "cobranca" | "eventos" | "mgf" | "geral" | "manual";
-  mensagem: string;
-  formato: "texto" | "html";
-  ativo: boolean;
+type MetaCategory = "UTILITY" | "MARKETING" | "AUTHENTICATION";
+type MetaStatus = "APPROVED" | "PENDING" | "REJECTED" | "IN_APPEAL" | "DISABLED" | "PAUSED" | string;
+
+interface MetaTemplate {
+  id?: string;
+  name: string;
+  status?: MetaStatus;
+  language: string;
+  category: MetaCategory;
+  components: any[];
+  rejected_reason?: string | null;
 }
 
-const TAGS_BY_TYPE: Record<string, { tag: string; descricao: string }[]> = {
-  cobranca: [
-    { tag: "{nome_associacao}", descricao: "Nome da associação" },
-    { tag: "{data_atual}", descricao: "Data atual" },
-    { tag: "{percentual_inadimplencia}", descricao: "Percentual de inadimplência" },
-    { tag: "{total_gerados}", descricao: "Total de boletos gerados" },
-    { tag: "{total_baixados}", descricao: "Total de boletos baixados" },
-    { tag: "{faturamento_esperado}", descricao: "Faturamento esperado" },
-    { tag: "{faturamento_recebido}", descricao: "Faturamento recebido" },
-    { tag: "{total_aberto}", descricao: "Total em aberto" },
-    { tag: "{boletos_por_dia}", descricao: "Boletos por dia de vencimento" },
-    { tag: "{cooperativa_maior_inadimplencia}", descricao: "Cooperativa com maior inadimplência" },
-    { tag: "{cooperativa_menor_inadimplencia}", descricao: "Cooperativa com menor inadimplência" },
-  ],
-  eventos: [
-    { tag: "{nome_associacao}", descricao: "Nome da associação" },
-    { tag: "{mes_referencia}", descricao: "Mês de referência" },
-    { tag: "{total_eventos}", descricao: "Total de eventos" },
-    { tag: "{eventos_colisao}", descricao: "Eventos de colisão" },
-    { tag: "{eventos_vidros}", descricao: "Eventos de vidros" },
-    { tag: "{eventos_furto_roubo}", descricao: "Eventos de furto/roubo" },
-    { tag: "{eventos_outros}", descricao: "Outros eventos" },
-    { tag: "{cidade_mais_eventos}", descricao: "Cidade com mais eventos" },
-    { tag: "{cooperativa_mais_eventos}", descricao: "Cooperativa com mais eventos" },
-  ],
-  mgf: [
-    { tag: "{nome_associacao}", descricao: "Nome da associação" },
-    { tag: "{mes_referencia}", descricao: "Mês de referência" },
-    { tag: "{total_lancamentos}", descricao: "Total de lançamentos" },
-    { tag: "{valor_total}", descricao: "Valor total" },
-    { tag: "{lancamentos_por_categoria}", descricao: "Lançamentos por categoria" },
-  ],
-  // Consolidado: Eventos + Cobrança + MGF em uma única mensagem.
-  // As tags abaixo correspondem exatamente ao objeto `dados` retornado pela
-  // edge function `gerar-resumo-geral` — usadas tanto na prévia manual quanto
-  // no variable_map dos agendamentos e no envio via template aprovado da Meta.
-  geral: [
-    { tag: "{nome_associacao}", descricao: "Nome da associação" },
-    { tag: "{data_geracao}", descricao: "Data/hora de geração do resumo" },
-    { tag: "{ev_mes_referencia}", descricao: "Eventos: mês de referência" },
-    { tag: "{ev_total}", descricao: "Eventos: total no mês" },
-    { tag: "{ev_colisao}", descricao: "Eventos: colisão" },
-    { tag: "{ev_vidros}", descricao: "Eventos: vidros" },
-    { tag: "{ev_furto_roubo}", descricao: "Eventos: furto/roubo" },
-    { tag: "{ev_outros}", descricao: "Eventos: outros" },
-    { tag: "{ev_cidade_top}", descricao: "Eventos: cidade com mais eventos" },
-    { tag: "{ev_cooperativa_top}", descricao: "Eventos: cooperativa com mais eventos" },
-    { tag: "{cob_mes_referencia}", descricao: "Cobrança: mês de referência" },
-    { tag: "{cob_data_atual}", descricao: "Cobrança: data atual" },
-    { tag: "{cob_percentual_inadimplencia}", descricao: "Cobrança: percentual de inadimplência" },
-    { tag: "{cob_total_gerados}", descricao: "Cobrança: boletos gerados" },
-    { tag: "{cob_total_baixados}", descricao: "Cobrança: boletos baixados" },
-    { tag: "{cob_total_inadimplentes}", descricao: "Cobrança: total de inadimplentes" },
-    { tag: "{cob_faturamento_esperado}", descricao: "Cobrança: faturamento esperado" },
-    { tag: "{cob_faturamento_recebido}", descricao: "Cobrança: faturamento recebido" },
-    { tag: "{cob_total_aberto}", descricao: "Cobrança: total em aberto" },
-    { tag: "{cob_boletos_por_dia}", descricao: "Cobrança: boletos por dia de vencimento" },
-    { tag: "{cob_coop_maior_inadimplencia}", descricao: "Cobrança: cooperativa com maior inadimplência" },
-    { tag: "{cob_coop_menor_inadimplencia}", descricao: "Cobrança: cooperativa com menor inadimplência" },
-    { tag: "{mgf_total_lancamentos}", descricao: "MGF: total de lançamentos no mês" },
-    { tag: "{mgf_valor_total}", descricao: "MGF: valor total" },
-    { tag: "{mgf_pagos}", descricao: "MGF: lançamentos pagos" },
-    { tag: "{mgf_valor_pago}", descricao: "MGF: valor pago" },
-    { tag: "{mgf_em_aberto}", descricao: "MGF: lançamentos em aberto" },
-    { tag: "{mgf_valor_aberto}", descricao: "MGF: valor em aberto" },
-    { tag: "{mgf_top_operacao}", descricao: "MGF: operação mais frequente" },
-    { tag: "{resumo_completo}", descricao: "Texto completo já formatado (para template Meta com uma única variável)" },
-  ],
-  manual: [
-    { tag: "{nome_associacao}", descricao: "Nome da associação" },
-    { tag: "{data_atual}", descricao: "Data atual" },
-  ],
+interface FormState {
+  id?: string;
+  name: string;
+  language: string;
+  category: MetaCategory;
+  header: string;
+  body: string;
+  footer: string;
+}
+
+const emptyForm: FormState = {
+  name: "",
+  language: "pt_BR",
+  category: "UTILITY",
+  header: "",
+  body: "",
+  footer: "",
 };
 
-// Sample data for preview
-const SAMPLE_DATA: Record<string, string> = {
-  "{nome_associacao}": "Associação Exemplo",
-  "{data_atual}": new Date().toLocaleDateString("pt-BR"),
-  "{percentual_inadimplencia}": "12,5%",
-  "{total_gerados}": "450",
-  "{total_baixados}": "380",
-  "{faturamento_esperado}": "R$ 125.000,00",
-  "{faturamento_recebido}": "R$ 109.375,00",
-  "{total_aberto}": "R$ 15.625,00",
-  "{boletos_por_dia}": "15 boletos/dia",
-  "{cooperativa_maior_inadimplencia}": "Cooperativa ABC",
-  "{cooperativa_menor_inadimplencia}": "Cooperativa XYZ",
-  "{mes_referencia}": "Janeiro/2026",
-  "{total_eventos}": "32",
-  "{eventos_colisao}": "18",
-  "{eventos_vidros}": "8",
-  "{eventos_furto_roubo}": "4",
-  "{eventos_outros}": "2",
-  "{cidade_mais_eventos}": "São Paulo",
-  "{cooperativa_mais_eventos}": "Cooperativa ABC",
-  "{total_lancamentos}": "120",
-  "{valor_total}": "R$ 45.000,00",
-  "{lancamentos_por_categoria}": "Manutenção: 40, Combustível: 30, Outros: 50",
-  // Geral (consolidado) — mesmos nomes de campo do objeto `dados` de gerar-resumo-geral
-  "{data_geracao}": `${new Date().toLocaleDateString("pt-BR")} às 08:00`,
-  "{ev_mes_referencia}": "Janeiro/2026",
-  "{ev_total}": "32",
-  "{ev_colisao}": "18",
-  "{ev_vidros}": "8",
-  "{ev_furto_roubo}": "4",
-  "{ev_outros}": "2",
-  "{ev_cidade_top}": "São Paulo",
-  "{ev_cooperativa_top}": "Cooperativa ABC",
-  "{cob_mes_referencia}": "Janeiro/2026",
-  "{cob_data_atual}": new Date().toLocaleDateString("pt-BR"),
-  "{cob_percentual_inadimplencia}": "12,5%",
-  "{cob_total_gerados}": "450",
-  "{cob_total_baixados}": "380",
-  "{cob_total_inadimplentes}": "54",
-  "{cob_faturamento_esperado}": "125.000,00",
-  "{cob_faturamento_recebido}": "109.375,00",
-  "{cob_total_aberto}": "15.625,00",
-  "{cob_boletos_por_dia}": "15 boletos/dia",
-  "{cob_coop_maior_inadimplencia}": "Cooperativa ABC",
-  "{cob_coop_menor_inadimplencia}": "Cooperativa XYZ",
-  "{mgf_total_lancamentos}": "120",
-  "{mgf_valor_total}": "45.000,00",
-  "{mgf_pagos}": "95",
-  "{mgf_valor_pago}": "38.000,00",
-  "{mgf_em_aberto}": "25",
-  "{mgf_valor_aberto}": "7.000,00",
-  "{mgf_top_operacao}": "Financiamento (60)",
-  "{resumo_completo}": "Resumo VANGARD da sua operação - Associação Exemplo (texto completo formatado)...",
-};
-
-function replaceTagsWithSample(text: string): string {
-  let result = text;
-  for (const [tag, value] of Object.entries(SAMPLE_DATA)) {
-    result = result.split(tag).join(value);
+// A Edge Function sempre responde com { error, details } no corpo quando algo dá
+// errado (400/500/502), mas o supabase-js só expõe isso em `error.context`
+// (o Response cru) — `error.message` é sempre a string genérica "Edge Function
+// returned a non-2xx status code". Esta função extrai o motivo real, incluindo
+// o erro específico devolvido pela própria API da Meta quando presente.
+async function extractFunctionErrorMessage(error: any): Promise<string> {
+  try {
+    if (error?.context && typeof error.context.json === "function") {
+      // O body de um Response só pode ser lido uma vez — clonar evita conflito
+      // caso o supabase-js (ou outro código) também tente lê-lo.
+      const res = typeof error.context.clone === "function" ? error.context.clone() : error.context;
+      const body = await res.json();
+      const metaErr = body?.details?.error;
+      // A Meta quase sempre manda uma `message` genérica ("Invalid parameter"),
+      // enquanto o motivo real fica em `error_data.details` ou `error_user_msg`.
+      // Priorizamos os campos mais específicos primeiro.
+      const metaMsg = metaErr?.error_data?.details || metaErr?.error_user_msg || metaErr?.message;
+      if (metaMsg) return metaMsg as string;
+      if (body?.error) return typeof body.error === "string" ? body.error : JSON.stringify(body.error);
+      if (body?.details) return JSON.stringify(body.details);
+    }
+  } catch (_e) {
+    // corpo não era JSON ou já foi consumido — cai no fallback abaixo
   }
-  return result;
+  return error?.message || "Erro desconhecido";
 }
 
-export function WhatsAppTemplates() {
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
-  const [novoTemplate, setNovoTemplate] = useState({
-    nome: "",
-    tipo: "cobranca" as Template["tipo"],
-    formato: "texto" as Template["formato"],
-    mensagem: "",
-    ativo: true,
-  });
-  const [showForm, setShowForm] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewContent, setPreviewContent] = useState("");
-  const [previewFormato, setPreviewFormato] = useState<"texto" | "html">("texto");
+function statusVariant(status?: MetaStatus): { className: string; label: string } {
+  const s = (status || "").toUpperCase();
+  if (s === "APPROVED")
+    return {
+      className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+      label: "APPROVED",
+    };
+  if (s === "PENDING" || s === "IN_APPEAL")
+    return { className: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", label: s };
+  if (s === "REJECTED" || s === "DISABLED" || s === "PAUSED")
+    return { className: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30", label: s };
+  return { className: "bg-muted text-muted-foreground border-border", label: s || "DESCONHECIDO" };
+}
+
+// Retorna os números de variável ({{1}}, {{2}}, ...) usados num texto, em ordem
+// e sem repetição.
+function extractVariableIndexes(text: string): number[] {
+  const nums = [...text.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => parseInt(m[1], 10));
+  return Array.from(new Set(nums)).sort((a, b) => a - b);
+}
+
+// A API da Meta EXIGE um `example` para todo componente (HEADER ou BODY) que
+// contenha variáveis {{n}} — sem isso, a criação do template falha com o erro
+// genérico "Invalid parameter" (o motivo real, quando visível, é algo como
+// "Message body text contains variables. Please provide example values.").
+// Como o formulário atual não coleta exemplos, geramos valores de exemplo
+// automáticos para satisfazer a validação da Meta.
+function buildComponents(form: FormState) {
+  const components: any[] = [];
+
+  if (form.header.trim()) {
+    const headerComp: any = { type: "HEADER", format: "TEXT", text: form.header.trim() };
+    const headerVars = extractVariableIndexes(form.header);
+    if (headerVars.length > 0) {
+      headerComp.example = { header_text: headerVars.map((n) => `Exemplo${n}`) };
+    }
+    components.push(headerComp);
+  }
+
+  const bodyComp: any = { type: "BODY", text: form.body };
+  const bodyVars = extractVariableIndexes(form.body);
+  if (bodyVars.length > 0) {
+    bodyComp.example = { body_text: [bodyVars.map((n) => `Exemplo${n}`)] };
+  }
+  components.push(bodyComp);
+
+  if (form.footer.trim()) {
+    components.push({ type: "FOOTER", text: form.footer.trim() });
+  }
+  return components;
+}
+
+function extractBody(t: MetaTemplate) {
+  return (t.components || []).find((c: any) => c.type === "BODY")?.text || "";
+}
+function extractHeader(t: MetaTemplate) {
+  const h = (t.components || []).find((c: any) => c.type === "HEADER");
+  return h?.text || "";
+}
+function extractFooter(t: MetaTemplate) {
+  return (t.components || []).find((c: any) => c.type === "FOOTER")?.text || "";
+}
+
+export function MetaTemplatesManager() {
+  const [templates, setTemplates] = useState<MetaTemplate[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [editing, setEditing] = useState<MetaTemplate | null>(null);
+
+  const load = async (silent = false) => {
+    if (silent) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("gerenciar-template-whatsapp", {
+        body: { action: "get" },
+      });
+      if (error) throw new Error(await extractFunctionErrorMessage(error));
+      if (data?.error) throw new Error(data.error);
+      setTemplates(data?.templates || []);
+    } catch (e: any) {
+      toast.error("Erro ao carregar templates Meta: " + (e?.message || "desconhecido"));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    loadTemplates();
+    load();
   }, []);
 
-  const loadTemplates = async () => {
-    const { data } = await supabase.from("whatsapp_templates").select("*").order("created_at", { ascending: false });
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setDialogOpen(true);
+  };
 
-    if (data) {
-      setTemplates(data.map((t: any) => ({ ...t, formato: t.formato || "texto" })) as Template[]);
-    }
+  const openEdit = (t: MetaTemplate) => {
+    setEditing(t);
+    setForm({
+      id: t.id,
+      name: t.name,
+      language: t.language,
+      category: (t.category as MetaCategory) || "UTILITY",
+      header: extractHeader(t),
+      body: extractBody(t),
+      footer: extractFooter(t),
+    });
+    setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    if (!novoTemplate.nome || !novoTemplate.mensagem) {
-      toast.error("Preencha nome e mensagem");
+    if (!form.body.trim()) {
+      toast.error("Corpo da mensagem é obrigatório");
       return;
     }
-
+    if (!editing && !/^[a-z0-9_]+$/.test(form.name)) {
+      toast.error("Nome deve conter apenas letras minúsculas, números e _");
+      return;
+    }
+    setSaving(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (editingTemplate) {
-        const { error } = await supabase
-          .from("whatsapp_templates")
-          .update({
-            nome: novoTemplate.nome,
-            tipo: novoTemplate.tipo,
-            formato: novoTemplate.formato,
-            mensagem: novoTemplate.mensagem,
-            ativo: novoTemplate.ativo,
-          })
-          .eq("id", editingTemplate.id);
-
-        if (error) throw error;
-        toast.success("Template atualizado!");
-      } else {
-        const { error } = await supabase.from("whatsapp_templates").insert({
-          nome: novoTemplate.nome,
-          tipo: novoTemplate.tipo,
-          formato: novoTemplate.formato,
-          mensagem: novoTemplate.mensagem,
-          ativo: novoTemplate.ativo,
-          created_by: user?.id,
+      const components = buildComponents(form);
+      if (editing) {
+        const { data, error } = await supabase.functions.invoke("gerenciar-template-whatsapp", {
+          body: { action: "update", template_id: editing.id, components },
         });
-
-        if (error) throw error;
-        toast.success("Template criado!");
+        if (error) throw new Error(await extractFunctionErrorMessage(error));
+        if (data?.error) throw new Error(data.error);
+        toast.success("Template atualizado (aguardando revisão da Meta)");
+      } else {
+        const { data, error } = await supabase.functions.invoke("gerenciar-template-whatsapp", {
+          body: {
+            action: "create",
+            name: form.name,
+            language: form.language,
+            category: form.category,
+            components,
+          },
+        });
+        if (error) throw new Error(await extractFunctionErrorMessage(error));
+        if (data?.error) throw new Error(data.error);
+        toast.success("Template criado (aguardando aprovação da Meta)");
       }
-
-      setNovoTemplate({ nome: "", tipo: "cobranca", formato: "texto", mensagem: "", ativo: true });
-      setEditingTemplate(null);
-      setShowForm(false);
-      loadTemplates();
-    } catch (error: any) {
-      console.error("Error saving template:", error);
-      toast.error("Erro ao salvar: " + error.message);
+      setDialogOpen(false);
+      await load(true);
+    } catch (e: any) {
+      toast.error("Erro: " + (e?.message || "desconhecido"));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleEdit = (template: Template) => {
-    setEditingTemplate(template);
-    setNovoTemplate({
-      nome: template.nome,
-      tipo: template.tipo,
-      formato: template.formato || "texto",
-      mensagem: template.mensagem,
-      ativo: template.ativo,
-    });
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este template?")) return;
-
+  const handleDelete = async (t: MetaTemplate) => {
+    if (!confirm(`Excluir template "${t.name}" da Meta? Esta ação é irreversível.`)) return;
     try {
-      const { error } = await supabase.from("whatsapp_templates").delete().eq("id", id);
-
-      if (error) throw error;
-      toast.success("Template excluído!");
-      loadTemplates();
-    } catch (error: any) {
-      toast.error("Erro ao excluir: " + error.message);
-    }
-  };
-
-  const insertTag = (tag: string) => {
-    setNovoTemplate({
-      ...novoTemplate,
-      mensagem: novoTemplate.mensagem + tag,
-    });
-  };
-
-  const openPreview = (mensagem: string, formato: "texto" | "html") => {
-    const rendered = replaceTagsWithSample(mensagem);
-    setPreviewContent(rendered);
-    setPreviewFormato(formato);
-    setPreviewOpen(true);
-  };
-
-  const getTipoBadgeColor = (tipo: string) => {
-    switch (tipo) {
-      case "cobranca":
-        return "bg-blue-100 text-blue-800";
-      case "eventos":
-        return "bg-orange-100 text-orange-800";
-      case "mgf":
-        return "bg-purple-100 text-purple-800";
-      case "geral":
-        return "bg-indigo-100 text-indigo-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+      const { data, error } = await supabase.functions.invoke("gerenciar-template-whatsapp", {
+        body: { action: "delete", name: t.name, template_id: t.id },
+      });
+      if (error) throw new Error(await extractFunctionErrorMessage(error));
+      if (data?.error) throw new Error(data.error);
+      toast.success("Template excluído");
+      await load(true);
+    } catch (e: any) {
+      toast.error("Erro ao excluir: " + (e?.message || "desconhecido"));
     }
   };
 
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="internos" className="w-full">
-        <TabsList>
-          <TabsTrigger value="internos">Templates internos</TabsTrigger>
-          <TabsTrigger value="meta">Templates Meta</TabsTrigger>
-        </TabsList>
-        <TabsContent value="meta" className="mt-4">
-          <MetaTemplatesManager />
-        </TabsContent>
-        <TabsContent value="internos" className="mt-4 space-y-6">
-          {/* Preview Dialog */}
-          <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-primary" />
-                  Prévia do Template
-                </DialogTitle>
-              </DialogHeader>
-              <div className="flex-1 overflow-auto border rounded-lg bg-background">
-                {previewFormato === "html" ? (
-                  <div className="p-6" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewContent) }} />
-                ) : (
-                  <pre className="p-6 text-sm whitespace-pre-wrap font-sans text-foreground">{previewContent}</pre>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                * As tags foram substituídas por dados de exemplo para visualização
-              </p>
-            </DialogContent>
-          </Dialog>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Templates de Mensagem
-                  </CardTitle>
-                  <CardDescription>
-                    Gerencie os templates de mensagens com tags dinâmicas (texto ou HTML)
-                  </CardDescription>
-                </div>
-                <Button
-                  onClick={() => {
-                    setShowForm(!showForm);
-                    setEditingTemplate(null);
-                    setNovoTemplate({ nome: "", tipo: "cobranca", formato: "texto", mensagem: "", ativo: true });
-                  }}
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Templates da Meta (WhatsApp Business)
+            </CardTitle>
+            <CardDescription>
+              Gerencie os templates oficiais da Meta usados para iniciar conversas fora da janela de 24h.
+            </CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+              Atualizar status
+            </Button>
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo template
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Carregando...
+          </div>
+        ) : templates.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8">Nenhum template cadastrado na Meta</p>
+        ) : (
+          <div className="space-y-3">
+            {templates.map((t) => {
+              const st = statusVariant(t.status);
+              const body = extractBody(t);
+              return (
+                <div
+                  key={`${t.name}-${t.language}-${t.id ?? ""}`}
+                  className="border rounded-2xl p-4 hover:bg-muted/40 transition-colors backdrop-blur"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo Template
-                </Button>
-              </div>
-            </CardHeader>
-
-            {showForm && (
-              <CardContent className="border-b">
-                <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label>Nome do Template *</Label>
-                      <Input
-                        placeholder="Ex: Resumo Diário de Cobrança"
-                        value={novoTemplate.nome}
-                        onChange={(e) => setNovoTemplate({ ...novoTemplate, nome: e.target.value })}
-                      />
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <h4 className="font-medium truncate">{t.name}</h4>
+                        <Badge variant="outline" className={st.className}>
+                          {st.label}
+                        </Badge>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {t.language}
+                        </Badge>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {t.category}
+                        </Badge>
+                      </div>
+                      {t.rejected_reason && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mb-1">Motivo: {t.rejected_reason}</p>
+                      )}
+                      <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans line-clamp-3">
+                        {body}
+                      </pre>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Tipo *</Label>
-                      <Select
-                        value={novoTemplate.tipo}
-                        onValueChange={(v) => setNovoTemplate({ ...novoTemplate, tipo: v as Template["tipo"] })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cobranca">Cobrança</SelectItem>
-                          <SelectItem value="eventos">Eventos</SelectItem>
-                          <SelectItem value="mgf">MGF</SelectItem>
-                          <SelectItem value="geral">Geral (Consolidado)</SelectItem>
-                          <SelectItem value="manual">Manual</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(t)} title="Editar">
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(t)} title="Excluir">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Formato *</Label>
-                      <Select
-                        value={novoTemplate.formato}
-                        onValueChange={(v) => setNovoTemplate({ ...novoTemplate, formato: v as Template["formato"] })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="texto">Texto</SelectItem>
-                          <SelectItem value="html">HTML</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Tag className="h-4 w-4" />
-                      Tags Disponíveis
-                    </Label>
-                    <div className="flex flex-wrap gap-2">
-                      {TAGS_BY_TYPE[novoTemplate.tipo]?.map((item) => (
-                        <Button
-                          key={item.tag}
-                          variant="outline"
-                          size="sm"
-                          onClick={() => insertTag(item.tag)}
-                          title={item.descricao}
-                        >
-                          {item.tag}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {novoTemplate.formato === "html" ? (
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Code className="h-4 w-4" />
-                        Código HTML *
-                      </Label>
-                      <Tabs defaultValue="code">
-                        <TabsList className="mb-2">
-                          <TabsTrigger value="code">Código</TabsTrigger>
-                          <TabsTrigger value="preview">Prévia</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="code">
-                          <Textarea
-                            placeholder="<html>&#10;<body>&#10;  <h1>Olá {nome_associacao}</h1>&#10;  <p>Seu relatório está pronto.</p>&#10;</body>&#10;</html>"
-                            value={novoTemplate.mensagem}
-                            onChange={(e) => setNovoTemplate({ ...novoTemplate, mensagem: e.target.value })}
-                            rows={14}
-                            className="font-mono text-sm"
-                          />
-                        </TabsContent>
-                        <TabsContent value="preview">
-                          <div className="border rounded-lg p-4 min-h-[200px] bg-background">
-                            <div
-                              dangerouslySetInnerHTML={{
-                                __html: DOMPurify.sanitize(replaceTagsWithSample(novoTemplate.mensagem)),
-                              }}
-                            />
-                          </div>
-                        </TabsContent>
-                      </Tabs>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Label>Mensagem *</Label>
-                      <Textarea
-                        placeholder="Digite a mensagem usando as tags disponíveis..."
-                        value={novoTemplate.mensagem}
-                        onChange={(e) => setNovoTemplate({ ...novoTemplate, mensagem: e.target.value })}
-                        rows={10}
-                        className="font-mono text-sm"
-                      />
-                      <p className="text-xs text-muted-foreground">Use *texto* para negrito no WhatsApp</p>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    <Button onClick={handleSave}>
-                      <Save className="h-4 w-4 mr-2" />
-                      {editingTemplate ? "Atualizar" : "Salvar"}
-                    </Button>
-                    <Button variant="outline" onClick={() => openPreview(novoTemplate.mensagem, novoTemplate.formato)}>
-                      <Eye className="h-4 w-4 mr-2" />
-                      Prévia
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowForm(false);
-                        setEditingTemplate(null);
-                      }}
-                    >
-                      Cancelar
-                    </Button>
                   </div>
                 </div>
-              </CardContent>
-            )}
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
 
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {templates.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">Nenhum template cadastrado</p>
-                ) : (
-                  templates.map((template) => (
-                    <div key={template.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-medium">{template.nome}</h4>
-                            <Badge className={getTipoBadgeColor(template.tipo)}>{template.tipo}</Badge>
-                            <Badge
-                              variant={template.formato === "html" ? "default" : "secondary"}
-                              className="text-[10px]"
-                            >
-                              {template.formato === "html" ? "HTML" : "Texto"}
-                            </Badge>
-                            {!template.ativo && <Badge variant="secondary">Inativo</Badge>}
-                          </div>
-                          <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans line-clamp-3">
-                            {template.mensagem}
-                          </pre>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openPreview(template.mensagem, template.formato)}
-                            title="Prévia"
-                          >
-                            <Eye className="h-4 w-4 text-primary" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(template)}>
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(template.id)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editing ? `Editar template: ${editing.name}` : "Novo template Meta"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2 md:col-span-1">
+                <Label>Nome *</Label>
+                <Input
+                  value={form.name}
+                  disabled={!!editing}
+                  onChange={(e) => setForm({ ...form, name: e.target.value.toLowerCase() })}
+                  placeholder="ex: cobranca_diaria"
+                />
+                <p className="text-[10px] text-muted-foreground">Minúsculas, números e _</p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+              <div className="space-y-2">
+                <Label>Idioma *</Label>
+                <Select
+                  value={form.language}
+                  onValueChange={(v) => setForm({ ...form, language: v })}
+                  disabled={!!editing}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pt_BR">Português (BR)</SelectItem>
+                    <SelectItem value="pt_PT">Português (PT)</SelectItem>
+                    <SelectItem value="en_US">Inglês (US)</SelectItem>
+                    <SelectItem value="es">Espanhol</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Categoria *</Label>
+                <Select
+                  value={form.category}
+                  onValueChange={(v) => setForm({ ...form, category: v as MetaCategory })}
+                  disabled={!!editing}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UTILITY">UTILITY</SelectItem>
+                    <SelectItem value="MARKETING">MARKETING</SelectItem>
+                    <SelectItem value="AUTHENTICATION">AUTHENTICATION</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cabeçalho (opcional)</Label>
+              <Input
+                value={form.header}
+                onChange={(e) => setForm({ ...form, header: e.target.value })}
+                placeholder="Ex.: Resumo diário de cobrança"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Corpo *</Label>
+              <Textarea
+                value={form.body}
+                onChange={(e) => setForm({ ...form, body: e.target.value })}
+                rows={8}
+                placeholder={"Olá {{1}}, seu resumo do dia está pronto.\nTotal: {{2}}"}
+                className="font-mono text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Use variáveis no formato {"{{1}}, {{2}}..."} — a Meta valida a ordem sequencial.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Rodapé (opcional)</Label>
+              <Input
+                value={form.footer}
+                onChange={(e) => setForm({ ...form, footer: e.target.value })}
+                placeholder="Ex.: Não responda a esta mensagem"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editing ? "Salvar alterações" : "Enviar para aprovação"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }
