@@ -23,7 +23,7 @@ const MAX_RETRIES = 5; // teto de tentativas automáticas antes de parar
 async function tentarViaApi(supabase: any, supabaseUrl: string, supabaseKey: string, corretoraId: string, configId: string | undefined, nomeAssociacao: string): Promise<boolean> {
   const { data: cred } = await supabase
     .from("hinova_credenciais")
-    .select("usar_api, api_token")
+    .select("usar_api, api_token, git_fallback_ativo")
     .eq("corretora_id", corretoraId)
     .maybeSingle();
 
@@ -53,6 +53,20 @@ async function tentarViaApi(supabase: any, supabaseUrl: string, supabaseKey: str
     console.warn(`[Scheduler MGF] ${nomeAssociacao}: API falhou (${apiJson?.message}) — fallback para crawl`);
   } catch (apiErr) {
     console.warn(`[Scheduler MGF] ${nomeAssociacao}: erro ao chamar API — fallback para crawl:`, apiErr);
+  }
+  if (cred.git_fallback_ativo === false) {
+    console.warn(`[Scheduler MGF] ${nomeAssociacao}: git_fallback_ativo=false — crawl NÃO será disparado`);
+    await supabase.from("mgf_automacao_execucoes").insert({
+      config_id: configId ?? null,
+      corretora_id: corretoraId,
+      status: "erro",
+      etapa_atual: "api",
+      tipo_disparo: "api",
+      mensagem: "Importação via API falhou e o fallback via GitHub está desativado.",
+      erro: "API Hinova indisponível e git_fallback_ativo=false",
+      finalizado_at: new Date().toISOString(),
+    });
+    return true;
   }
   return false;
 }
