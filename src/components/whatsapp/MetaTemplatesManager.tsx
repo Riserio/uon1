@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Plus, RefreshCw, Trash2, Edit2, Loader2, MessageSquare } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Plus, RefreshCw, Trash2, Edit2, Loader2, MessageSquare } from "lucide-react";
 
-type MetaCategory = 'UTILITY' | 'MARKETING' | 'AUTHENTICATION';
-type MetaStatus = 'APPROVED' | 'PENDING' | 'REJECTED' | 'IN_APPEAL' | 'DISABLED' | 'PAUSED' | string;
+type MetaCategory = "UTILITY" | "MARKETING" | "AUTHENTICATION";
+type MetaStatus = "APPROVED" | "PENDING" | "REJECTED" | "IN_APPEAL" | "DISABLED" | "PAUSED" | string;
 
 interface MetaTemplate {
   id?: string;
@@ -35,46 +35,72 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
-  name: '',
-  language: 'pt_BR',
-  category: 'UTILITY',
-  header: '',
-  body: '',
-  footer: '',
+  name: "",
+  language: "pt_BR",
+  category: "UTILITY",
+  header: "",
+  body: "",
+  footer: "",
 };
 
+// A Edge Function sempre responde com { error, details } no corpo quando algo dá
+// errado (400/500/502), mas o supabase-js só expõe isso em `error.context`
+// (o Response cru) — `error.message` é sempre a string genérica "Edge Function
+// returned a non-2xx status code". Esta função extrai o motivo real, incluindo
+// o erro específico devolvido pela própria API da Meta quando presente.
+async function extractFunctionErrorMessage(error: any): Promise<string> {
+  try {
+    if (error?.context && typeof error.context.json === "function") {
+      // O body de um Response só pode ser lido uma vez — clonar evita conflito
+      // caso o supabase-js (ou outro código) também tente lê-lo.
+      const res = typeof error.context.clone === "function" ? error.context.clone() : error.context;
+      const body = await res.json();
+      const metaMsg = body?.details?.error?.message || body?.details?.error?.error_user_msg;
+      if (metaMsg) return metaMsg as string;
+      if (body?.error) return typeof body.error === "string" ? body.error : JSON.stringify(body.error);
+      if (body?.details) return JSON.stringify(body.details);
+    }
+  } catch (_e) {
+    // corpo não era JSON ou já foi consumido — cai no fallback abaixo
+  }
+  return error?.message || "Erro desconhecido";
+}
+
 function statusVariant(status?: MetaStatus): { className: string; label: string } {
-  const s = (status || '').toUpperCase();
-  if (s === 'APPROVED')
-    return { className: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30', label: 'APPROVED' };
-  if (s === 'PENDING' || s === 'IN_APPEAL')
-    return { className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30', label: s };
-  if (s === 'REJECTED' || s === 'DISABLED' || s === 'PAUSED')
-    return { className: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30', label: s };
-  return { className: 'bg-muted text-muted-foreground border-border', label: s || 'DESCONHECIDO' };
+  const s = (status || "").toUpperCase();
+  if (s === "APPROVED")
+    return {
+      className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+      label: "APPROVED",
+    };
+  if (s === "PENDING" || s === "IN_APPEAL")
+    return { className: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", label: s };
+  if (s === "REJECTED" || s === "DISABLED" || s === "PAUSED")
+    return { className: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30", label: s };
+  return { className: "bg-muted text-muted-foreground border-border", label: s || "DESCONHECIDO" };
 }
 
 function buildComponents(form: FormState) {
   const components: any[] = [];
   if (form.header.trim()) {
-    components.push({ type: 'HEADER', format: 'TEXT', text: form.header.trim() });
+    components.push({ type: "HEADER", format: "TEXT", text: form.header.trim() });
   }
-  components.push({ type: 'BODY', text: form.body });
+  components.push({ type: "BODY", text: form.body });
   if (form.footer.trim()) {
-    components.push({ type: 'FOOTER', text: form.footer.trim() });
+    components.push({ type: "FOOTER", text: form.footer.trim() });
   }
   return components;
 }
 
 function extractBody(t: MetaTemplate) {
-  return (t.components || []).find((c: any) => c.type === 'BODY')?.text || '';
+  return (t.components || []).find((c: any) => c.type === "BODY")?.text || "";
 }
 function extractHeader(t: MetaTemplate) {
-  const h = (t.components || []).find((c: any) => c.type === 'HEADER');
-  return h?.text || '';
+  const h = (t.components || []).find((c: any) => c.type === "HEADER");
+  return h?.text || "";
 }
 function extractFooter(t: MetaTemplate) {
-  return (t.components || []).find((c: any) => c.type === 'FOOTER')?.text || '';
+  return (t.components || []).find((c: any) => c.type === "FOOTER")?.text || "";
 }
 
 export function MetaTemplatesManager() {
@@ -90,14 +116,14 @@ export function MetaTemplatesManager() {
     if (silent) setRefreshing(true);
     else setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('gerenciar-template-whatsapp', {
-        body: { action: 'get' },
+      const { data, error } = await supabase.functions.invoke("gerenciar-template-whatsapp", {
+        body: { action: "get" },
       });
-      if (error) throw error;
+      if (error) throw new Error(await extractFunctionErrorMessage(error));
       if (data?.error) throw new Error(data.error);
       setTemplates(data?.templates || []);
     } catch (e: any) {
-      toast.error('Erro ao carregar templates Meta: ' + (e?.message || 'desconhecido'));
+      toast.error("Erro ao carregar templates Meta: " + (e?.message || "desconhecido"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -120,7 +146,7 @@ export function MetaTemplatesManager() {
       id: t.id,
       name: t.name,
       language: t.language,
-      category: (t.category as MetaCategory) || 'UTILITY',
+      category: (t.category as MetaCategory) || "UTILITY",
       header: extractHeader(t),
       body: extractBody(t),
       footer: extractFooter(t),
@@ -130,41 +156,41 @@ export function MetaTemplatesManager() {
 
   const handleSave = async () => {
     if (!form.body.trim()) {
-      toast.error('Corpo da mensagem é obrigatório');
+      toast.error("Corpo da mensagem é obrigatório");
       return;
     }
     if (!editing && !/^[a-z0-9_]+$/.test(form.name)) {
-      toast.error('Nome deve conter apenas letras minúsculas, números e _');
+      toast.error("Nome deve conter apenas letras minúsculas, números e _");
       return;
     }
     setSaving(true);
     try {
       const components = buildComponents(form);
       if (editing) {
-        const { data, error } = await supabase.functions.invoke('gerenciar-template-whatsapp', {
-          body: { action: 'update', template_id: editing.id, components },
+        const { data, error } = await supabase.functions.invoke("gerenciar-template-whatsapp", {
+          body: { action: "update", template_id: editing.id, components },
         });
-        if (error) throw error;
+        if (error) throw new Error(await extractFunctionErrorMessage(error));
         if (data?.error) throw new Error(data.error);
-        toast.success('Template atualizado (aguardando revisão da Meta)');
+        toast.success("Template atualizado (aguardando revisão da Meta)");
       } else {
-        const { data, error } = await supabase.functions.invoke('gerenciar-template-whatsapp', {
+        const { data, error } = await supabase.functions.invoke("gerenciar-template-whatsapp", {
           body: {
-            action: 'create',
+            action: "create",
             name: form.name,
             language: form.language,
             category: form.category,
             components,
           },
         });
-        if (error) throw error;
+        if (error) throw new Error(await extractFunctionErrorMessage(error));
         if (data?.error) throw new Error(data.error);
-        toast.success('Template criado (aguardando aprovação da Meta)');
+        toast.success("Template criado (aguardando aprovação da Meta)");
       }
       setDialogOpen(false);
       await load(true);
     } catch (e: any) {
-      toast.error('Erro: ' + (e?.message || 'desconhecido'));
+      toast.error("Erro: " + (e?.message || "desconhecido"));
     } finally {
       setSaving(false);
     }
@@ -173,15 +199,15 @@ export function MetaTemplatesManager() {
   const handleDelete = async (t: MetaTemplate) => {
     if (!confirm(`Excluir template "${t.name}" da Meta? Esta ação é irreversível.`)) return;
     try {
-      const { data, error } = await supabase.functions.invoke('gerenciar-template-whatsapp', {
-        body: { action: 'delete', name: t.name, template_id: t.id },
+      const { data, error } = await supabase.functions.invoke("gerenciar-template-whatsapp", {
+        body: { action: "delete", name: t.name, template_id: t.id },
       });
-      if (error) throw error;
+      if (error) throw new Error(await extractFunctionErrorMessage(error));
       if (data?.error) throw new Error(data.error);
-      toast.success('Template excluído');
+      toast.success("Template excluído");
       await load(true);
     } catch (e: any) {
-      toast.error('Erro ao excluir: ' + (e?.message || 'desconhecido'));
+      toast.error("Erro ao excluir: " + (e?.message || "desconhecido"));
     }
   };
 
@@ -200,7 +226,7 @@ export function MetaTemplatesManager() {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
               Atualizar status
             </Button>
             <Button size="sm" onClick={openCreate}>
@@ -224,7 +250,7 @@ export function MetaTemplatesManager() {
               const body = extractBody(t);
               return (
                 <div
-                  key={`${t.name}-${t.language}-${t.id ?? ''}`}
+                  key={`${t.name}-${t.language}-${t.id ?? ""}`}
                   className="border rounded-2xl p-4 hover:bg-muted/40 transition-colors backdrop-blur"
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -242,9 +268,7 @@ export function MetaTemplatesManager() {
                         </Badge>
                       </div>
                       {t.rejected_reason && (
-                        <p className="text-xs text-red-600 dark:text-red-400 mb-1">
-                          Motivo: {t.rejected_reason}
-                        </p>
+                        <p className="text-xs text-red-600 dark:text-red-400 mb-1">Motivo: {t.rejected_reason}</p>
                       )}
                       <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans line-clamp-3">
                         {body}
@@ -269,7 +293,7 @@ export function MetaTemplatesManager() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editing ? `Editar template: ${editing.name}` : 'Novo template Meta'}</DialogTitle>
+            <DialogTitle>{editing ? `Editar template: ${editing.name}` : "Novo template Meta"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-3">
@@ -335,11 +359,11 @@ export function MetaTemplatesManager() {
                 value={form.body}
                 onChange={(e) => setForm({ ...form, body: e.target.value })}
                 rows={8}
-                placeholder={'Olá {{1}}, seu resumo do dia está pronto.\nTotal: {{2}}'}
+                placeholder={"Olá {{1}}, seu resumo do dia está pronto.\nTotal: {{2}}"}
                 className="font-mono text-sm"
               />
               <p className="text-[10px] text-muted-foreground">
-                Use variáveis no formato {'{{1}}, {{2}}...'} — a Meta valida a ordem sequencial.
+                Use variáveis no formato {"{{1}}, {{2}}..."} — a Meta valida a ordem sequencial.
               </p>
             </div>
 
@@ -358,7 +382,7 @@ export function MetaTemplatesManager() {
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {editing ? 'Salvar alterações' : 'Enviar para aprovação'}
+              {editing ? "Salvar alterações" : "Enviar para aprovação"}
             </Button>
           </DialogFooter>
         </DialogContent>
