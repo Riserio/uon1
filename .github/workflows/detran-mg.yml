@@ -1,0 +1,143 @@
+name: Detran-MG - Consulta via Gov.br
+run-name: "Detran-MG · ${{ inputs.placa }} · ${{ inputs.execucao_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      corretora_id:
+        description: 'ID da corretora/associação'
+        required: true
+        type: string
+      placa:
+        description: 'Placa do veículo'
+        required: true
+        type: string
+      renavam:
+        description: 'Renavam (opcional)'
+        required: false
+        type: string
+      chassi:
+        description: 'Chassi (opcional)'
+        required: false
+        type: string
+      cpf_consulta:
+        description: 'CPF do proprietário para a consulta (opcional)'
+        required: false
+        type: string
+      execucao_id:
+        description: 'ID da execução no banco'
+        required: true
+        type: string
+      webhook_url:
+        description: 'URL do webhook para callback'
+        required: false
+        type: string
+
+jobs:
+  consultar-detran-mg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache dependências do robô
+        uses: actions/cache@v4
+        id: robot-cache
+        with:
+          path: .robot-deps/node_modules
+          key: ${{ runner.os }}-robot-deps-playwright-1.49.1-v2
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-1.49.1-v2
+
+      - name: Instalar dependências do robô (com retry)
+        if: steps.robot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .robot-deps && cd .robot-deps
+          [ -f package.json ] || echo '{"name":"robot-deps","private":true}' > package.json
+          for i in 1 2 3; do
+            npm install --no-audit --no-fund playwright@1.49.1 axios && break
+            echo "npm install falhou (tentativa $i), aguardando..." && sleep 20
+            [ "$i" = "3" ] && exit 1
+          done
+
+      - name: Instalar Playwright Chromium (com retry)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
+          cd .robot-deps
+          for i in 1 2 3; do
+            npx playwright install chromium --with-deps && break
+            echo "playwright install falhou (tentativa $i), aguardando..." && sleep 20
+            [ "$i" = "3" ] && exit 1
+          done
+
+      - name: Instalar dependências do sistema (se browser em cache)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: |
+          cd .robot-deps
+          for i in 1 2 3; do
+            npx playwright install-deps chromium && break
+            echo "install-deps falhou (tentativa $i), aguardando..." && sleep 20
+            [ "$i" = "3" ] && exit 1
+          done
+
+      - name: Executar robô Detran-MG
+        env:
+          CREDENTIALS_URL: ${{ secrets.CREDENTIALS_URL_DETRAN_MG || secrets.CREDENTIALS_URL }}
+          ROBOT_SECRET: ${{ secrets.ROBOT_SECRET }}
+          WEBHOOK_URL: ${{ inputs.webhook_url || secrets.WEBHOOK_URL_DETRAN_MG }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+          CORRETORA_ID: ${{ inputs.corretora_id }}
+          PLACA: ${{ inputs.placa }}
+          RENAVAM: ${{ inputs.renavam }}
+          CHASSI: ${{ inputs.chassi }}
+          CPF_CONSULTA: ${{ inputs.cpf_consulta }}
+          EXECUCAO_ID: ${{ inputs.execucao_id }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: NODE_PATH=$PWD/.robot-deps/node_modules node scripts/robo-detran-mg.cjs
+
+      - name: Notificar erro ao webhook (fallback)
+        if: failure()
+        env:
+          WEBHOOK_URL: ${{ inputs.webhook_url || secrets.WEBHOOK_URL_DETRAN_MG }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+          EXECUCAO_ID: ${{ inputs.execucao_id }}
+          CORRETORA_ID: ${{ inputs.corretora_id }}
+        run: |
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -s -X POST "$WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -H "x-webhook-secret: $WEBHOOK_SECRET" \
+              -d "{
+                \"action\": \"error\",
+                \"execucao_id\": \"$EXECUCAO_ID\",
+                \"corretora_id\": \"$CORRETORA_ID\",
+                \"error_message\": \"GitHub Actions falhou antes de concluir (erro de setup/infraestrutura ou robô travou). Veja os logs do run.\"
+              }" || echo "Falha ao notificar webhook (ignorado)"
+          else
+            echo "WEBHOOK_URL não definido, pulando notificação"
+          fi
+
+      - name: Upload screenshots de debug (se houver)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots-detran-mg
+          path: |
+            debug_govbr_*.png
+            debug_detran_mg_*.png
+            erro_detran_mg.png
+          if-no-files-found: ignore
+          retention-days: 3
