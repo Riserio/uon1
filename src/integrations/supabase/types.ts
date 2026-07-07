@@ -2274,8 +2274,9 @@ export type Database = {
           corretora_id: string
           created_at: string
           gov_br_cpf: string
-          gov_br_senha: string
+          gov_br_senha_secret_id: string | null
           id: string
+          senha_configurada: boolean | null
           ultima_consulta_em: string | null
           ultima_consulta_status: string | null
           updated_at: string
@@ -2285,8 +2286,9 @@ export type Database = {
           corretora_id: string
           created_at?: string
           gov_br_cpf: string
-          gov_br_senha: string
+          gov_br_senha_secret_id?: string | null
           id?: string
+          senha_configurada?: boolean | null
           ultima_consulta_em?: string | null
           ultima_consulta_status?: string | null
           updated_at?: string
@@ -2296,8 +2298,9 @@ export type Database = {
           corretora_id?: string
           created_at?: string
           gov_br_cpf?: string
-          gov_br_senha?: string
+          gov_br_senha_secret_id?: string | null
           id?: string
+          senha_configurada?: boolean | null
           ultima_consulta_em?: string | null
           ultima_consulta_status?: string | null
           updated_at?: string
@@ -8782,6 +8785,10 @@ export type Database = {
       jsonb_object_keys_count: { Args: { j: Json }; Returns: number }
       marcar_git_fallback_desativado: { Args: never; Returns: undefined }
       reset_email_rate_limits: { Args: never; Returns: undefined }
+      set_detran_mg_senha: {
+        Args: { p_corretora_id: string; p_senha: string }
+        Returns: undefined
+      }
       sga_proxima_data_inicio: {
         Args: { _corretora_id: string }
         Returns: string
