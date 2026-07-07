@@ -7,7 +7,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload, Database, BarChart3, History, Filter, Calendar as CalendarIcon, CreditCard, MapPin, DollarSign, LogOut, Building2, Activity, TrendingUp, ArrowLeftRight, ChevronDown } from "lucide-react";
+import {
+  ArrowLeft,
+  Upload,
+  Database,
+  BarChart3,
+  History,
+  Filter,
+  Calendar as CalendarIcon,
+  CreditCard,
+  MapPin,
+  DollarSign,
+  LogOut,
+  Building2,
+  Activity,
+  TrendingUp,
+  ArrowLeftRight,
+  ChevronDown,
+} from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, parse, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -50,31 +67,35 @@ export default function CobrancaInsights() {
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const autoAdjustedMonthRef = useRef(false);
-  
-  // Filtros globais - padrão: mês atual
+
+  // Filtros globais - padrão: sem filtro de mês (mostra tudo das importações
+  // ativas). Antes o padrão era "mês atual", o que deixava a tela vazia
+  // sempre que não houvesse boletos vencendo no mês corrente.
   const getMesAtual = () => format(new Date(), "yyyy-MM");
   const getMesAnterior = () => format(subMonths(new Date(), 1), "yyyy-MM");
-  
+
   const [filters, setFilters] = useState<CobrancaFilters>({
-    mesReferencia: getMesAtual(),
+    mesReferencia: "",
     situacao: "todos",
     regional: "todos",
     cooperativa: "todos",
     diaVencimento: "todos",
   });
-  
+
   // Detectar se é acesso via portal (parceiro)
-  const isPortalAccess = location.pathname.startsWith('/portal');
-  
+  const isPortalAccess = location.pathname.startsWith("/portal");
+
   // Verifica se pode ver histórico (superintendente ou admin)
   const canViewHistorico = userRole === "superintendente" || userRole === "admin";
-  
+
   // Associações e permissões
   const [associacoes, setAssociacoes] = useState<any[]>([]);
   const [selectedAssociacao, setSelectedAssociacao] = useState<string>("");
   const [loadingAssociacoes, setLoadingAssociacoes] = useState(true);
-  const [modulosBi, setModulosBi] = useState<string[]>(['indicadores', 'eventos', 'mgf', 'cobranca']);
-  const [corretoraData, setCorretoraData] = useState<{ id: string; nome: string; logo_url?: string | null } | null>(null);
+  const [modulosBi, setModulosBi] = useState<string[]>(["indicadores", "eventos", "mgf", "cobranca"]);
+  const [corretoraData, setCorretoraData] = useState<{ id: string; nome: string; logo_url?: string | null } | null>(
+    null,
+  );
   const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
 
   // Extrair opções únicas para filtros
@@ -100,10 +121,10 @@ export default function CobrancaInsights() {
 
   // Boletos filtrados (excluir cancelados por padrão)
   const filteredBoletos = useMemo(() => {
-    let result = boletos.filter(b => b.situacao?.toUpperCase() !== 'CANCELADO');
-    
+    let result = boletos.filter((b) => b.situacao?.toUpperCase() !== "CANCELADO");
+
     if (filters.mesReferencia) {
-      result = result.filter(b => {
+      result = result.filter((b) => {
         const dataRef = b.data_vencimento_original || b.data_vencimento;
         if (!dataRef) return false;
         const mes = String(dataRef).substring(0, 7);
@@ -111,18 +132,18 @@ export default function CobrancaInsights() {
       });
     }
     if (filters.situacao !== "todos") {
-      result = result.filter(b => b.situacao?.toUpperCase() === filters.situacao.toUpperCase());
+      result = result.filter((b) => b.situacao?.toUpperCase() === filters.situacao.toUpperCase());
     }
     if (filters.regional !== "todos") {
-      result = result.filter(b => b.regional_boleto === filters.regional);
+      result = result.filter((b) => b.regional_boleto === filters.regional);
     }
     if (filters.cooperativa !== "todos") {
-      result = result.filter(b => b.cooperativa === filters.cooperativa);
+      result = result.filter((b) => b.cooperativa === filters.cooperativa);
     }
     if (filters.diaVencimento !== "todos") {
-      result = result.filter(b => String(b.dia_vencimento_veiculo) === filters.diaVencimento);
+      result = result.filter((b) => String(b.dia_vencimento_veiculo) === filters.diaVencimento);
     }
-    
+
     return result;
   }, [boletos, filters]);
 
@@ -135,29 +156,26 @@ export default function CobrancaInsights() {
     }
   }, [biLayout?.selectedAssociacao, biLayout?.associacoes, isPortalAccess]);
 
-
-
-
   // Carregar associações (only for portal access)
   useEffect(() => {
     if (biLayout && !isPortalAccess) return;
-    
+
     // Portal access: use corretora from portal context directly
     if (isPortalAccess && portalLayout?.corretora) {
       const c = portalLayout.corretora;
       setAssociacoes([{ id: c.id, nome: c.nome }]);
       setSelectedAssociacao(c.id);
       setCorretoraData({ id: c.id, nome: c.nome, logo_url: c.logo_url });
-      setModulosBi(c.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
+      setModulosBi(c.modulos_bi || ["indicadores", "eventos", "mgf", "cobranca", "estudo-base"]);
       setMultipleAssociacoes(portalLayout.corretorasDisponiveis.length > 1);
       setLoadingAssociacoes(false);
       return;
     }
-    
+
     async function fetchAssociacoes() {
       try {
         const associacaoParam = searchParams.get("associacao");
-        
+
         if (isPortalAccess && associacaoParam) {
           let { data: corretora } = await supabase
             .from("corretoras")
@@ -182,24 +200,24 @@ export default function CobrancaInsights() {
             return;
           }
         }
-        
+
         const cached = getCachedAssociacoes();
         if (cached && cached.length > 0 && !associacoes.length) {
           setAssociacoes(cached);
           const ap = searchParams.get("associacao") || searchParams.get("corretora");
-          if (ap && cached.some(c => c.id === ap)) {
+          if (ap && cached.some((c) => c.id === ap)) {
             setSelectedAssociacao(ap);
           } else if (!selectedAssociacao) {
             setSelectedAssociacao(cached[0].id);
           }
           setLoadingAssociacoes(false);
         }
-        
+
         const { data, error } = await supabase.from("corretoras").select("id, nome").order("nome");
         if (error) throw error;
         setAssociacoes(data || []);
         setCachedAssociacoes(data || []);
-        
+
         if (!cached || cached.length === 0) {
           const ap2 = searchParams.get("associacao") || searchParams.get("corretora");
           if (ap2 && data?.some((c) => c.id === ap2)) {
@@ -229,7 +247,7 @@ export default function CobrancaInsights() {
 
     // Cache global: exibição instantânea
     if (!forceRefresh) {
-      const globalCached = getBICachedData(selectedAssociacao, 'cobranca');
+      const globalCached = getBICachedData(selectedAssociacao, "cobranca");
       if (globalCached && globalCached.data.length > 0) {
         setBoletos(globalCached.data);
         setImportacaoAtiva(globalCached.importacao);
@@ -237,7 +255,7 @@ export default function CobrancaInsights() {
         return;
       }
       if (isPortalAccess) {
-        const cached = getPrefetchedData<any>(selectedAssociacao, 'cobranca');
+        const cached = getPrefetchedData<any>(selectedAssociacao, "cobranca");
         if (cached && cached.length > 0) {
           setBoletos(cached);
           setLoading(false);
@@ -248,22 +266,29 @@ export default function CobrancaInsights() {
 
     setLoading(true);
     try {
-      const { data: importacao, error: impError } = await supabase
+      // IMPORTANTE: pode haver MAIS DE UMA importação ativa ao mesmo tempo
+      // por desenho — uma "API cobrança (histórico)" (backfill de registros
+      // antigos, mantida via cron) e uma "recente" (snapshot diário). As
+      // duas são complementares e devem ser somadas — usar .single()/.limit(1)
+      // aqui falha sempre que há mais de uma ativa (é o caso normal hoje) e
+      // fazia a tela cair silenciosamente em "Nenhum Dado Disponível".
+      const { data: importacoesAtivas, error: impError } = await supabase
         .from("cobranca_importacoes")
         .select("*")
         .eq("ativo", true)
         .eq("corretora_id", selectedAssociacao)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+        .order("created_at", { ascending: false });
 
-      if (impError && impError.code !== "PGRST116") {
+      if (impError) {
         console.error("Erro ao buscar importação:", impError);
       }
 
-      if (importacao) {
-        setImportacaoAtiva(importacao);
-        
+      if (importacoesAtivas && importacoesAtivas.length > 0) {
+        // Para exibição (nome do arquivo, data etc.) usa a mais recente,
+        // mas os boletos são somados de TODAS as importações ativas.
+        setImportacaoAtiva(importacoesAtivas[0]);
+        const importacaoIds = importacoesAtivas.map((i) => i.id);
+
         const BATCH_SIZE = 1000;
         let allBoletos: any[] = [];
         let hasMore = true;
@@ -273,7 +298,7 @@ export default function CobrancaInsights() {
           const { data: batch, error: bError } = await supabase
             .from("cobranca_boletos")
             .select("*")
-            .eq("importacao_id", importacao.id)
+            .in("importacao_id", importacaoIds)
             .range(offset, offset + BATCH_SIZE - 1);
 
           if (bError) {
@@ -297,8 +322,8 @@ export default function CobrancaInsights() {
         const boletosFiel = dedupSGAFiel(allBoletos);
         console.log(`[Cobranca] Boletos brutos: ${allBoletos.length} → após dedup SGA: ${boletosFiel.length}`);
         setBoletos(boletosFiel);
-        setBICachedData(selectedAssociacao, 'cobranca', boletosFiel, importacao);
-        if (isPortalAccess) savePrefetchedData(selectedAssociacao, 'cobranca', boletosFiel);
+        setBICachedData(selectedAssociacao, "cobranca", boletosFiel, importacoesAtivas[0]);
+        if (isPortalAccess) savePrefetchedData(selectedAssociacao, "cobranca", boletosFiel);
       } else {
         setBoletos([]);
         setImportacaoAtiva(null);
@@ -321,24 +346,24 @@ export default function CobrancaInsights() {
     }
   }, [selectedAssociacao]);
 
-    // Auto-ajuste do mes de referencia: usa mes atual, mas cai para o mes anterior se nao houver boleto no mes atual (so ajusta 1x por associacao)
-    useEffect(() => {
-          if (autoAdjustedMonthRef.current) return;
-          if (loading) return;
-          if (boletos.length === 0) return;
-          if (filters.mesReferencia !== getMesAtual()) return;
+  // Auto-ajuste do mes de referencia: usa mes atual, mas cai para o mes anterior se nao houver boleto no mes atual (so ajusta 1x por associacao)
+  useEffect(() => {
+    if (autoAdjustedMonthRef.current) return;
+    if (loading) return;
+    if (boletos.length === 0) return;
+    if (filters.mesReferencia !== getMesAtual()) return;
 
-          const temBoletoNoMesAtual = boletos.some((b) => {
-                  const dataRef = b.data_vencimento_original || b.data_vencimento;
-                  if (!dataRef) return false;
-                  return String(dataRef).substring(0, 7) === getMesAtual();
-          });
+    const temBoletoNoMesAtual = boletos.some((b) => {
+      const dataRef = b.data_vencimento_original || b.data_vencimento;
+      if (!dataRef) return false;
+      return String(dataRef).substring(0, 7) === getMesAtual();
+    });
 
-          if (!temBoletoNoMesAtual) {
-                  setFilters((f) => ({ ...f, mesReferencia: getMesAnterior() }));
-          }
-          autoAdjustedMonthRef.current = true;
-    }, [boletos, loading]);
+    if (!temBoletoNoMesAtual) {
+      setFilters((f) => ({ ...f, mesReferencia: getMesAnterior() }));
+    }
+    autoAdjustedMonthRef.current = true;
+  }, [boletos, loading]);
 
   // Realtime: atualizar dashboard quando nova importação for detectada ou automação finalizar
   useEffect(() => {
@@ -347,58 +372,58 @@ export default function CobrancaInsights() {
     const channel = supabase
       .channel(`cobranca-dashboard-${selectedAssociacao}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'cobranca_importacoes',
+          event: "INSERT",
+          schema: "public",
+          table: "cobranca_importacoes",
           filter: `corretora_id=eq.${selectedAssociacao}`,
         },
         (payload) => {
-          console.log('Nova importação detectada via realtime:', payload);
+          console.log("Nova importação detectada via realtime:", payload);
           // Se a nova importação já está ativa, atualizar imediatamente
           if ((payload.new as any)?.ativo === true) {
-            toast.info('Nova importação detectada! Atualizando dashboard...');
+            toast.info("Nova importação detectada! Atualizando dashboard...");
             fetchBoletos(true);
           }
-        }
+        },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'cobranca_importacoes',
+          event: "UPDATE",
+          schema: "public",
+          table: "cobranca_importacoes",
           filter: `corretora_id=eq.${selectedAssociacao}`,
         },
         (payload) => {
-          console.log('Importação atualizada via realtime:', payload);
+          console.log("Importação atualizada via realtime:", payload);
           // Se a importação foi ativada, atualizar
           if (payload.new && (payload.new as any).ativo === true) {
-            toast.info('Importação atualizada! Atualizando dashboard...');
+            toast.info("Importação atualizada! Atualizando dashboard...");
             fetchBoletos(true);
           }
-        }
+        },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'cobranca_automacao_execucoes',
+          event: "UPDATE",
+          schema: "public",
+          table: "cobranca_automacao_execucoes",
           filter: `corretora_id=eq.${selectedAssociacao}`,
         },
         (payload) => {
           // Quando a automação finaliza com sucesso, atualizar o dashboard
-          if (payload.new && (payload.new as any).status === 'sucesso') {
-            console.log('Automação finalizada com sucesso via realtime:', payload);
-            toast.success('Sincronização automática concluída! Atualizando dashboard...');
+          if (payload.new && (payload.new as any).status === "sucesso") {
+            console.log("Automação finalizada com sucesso via realtime:", payload);
+            toast.success("Sincronização automática concluída! Atualizando dashboard...");
             // Pequeno delay para garantir que a importação foi ativada
             setTimeout(() => {
               fetchBoletos(true);
             }, 1000);
           }
-        }
+        },
       )
       .subscribe();
 
@@ -407,11 +432,11 @@ export default function CobrancaInsights() {
     };
   }, [selectedAssociacao]);
 
-  const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
+  const selectedAssociacaoNome = associacoes.find((a) => a.id === selectedAssociacao)?.nome || "";
 
   const clearFilters = () => {
     setFilters({
-      mesReferencia: getMesAtual(),
+      mesReferencia: "",
       situacao: "todos",
       regional: "todos",
       cooperativa: "todos",
@@ -419,7 +444,12 @@ export default function CobrancaInsights() {
     });
   };
 
-  const hasActiveFilters = filters.mesReferencia || filters.situacao !== "todos" || filters.regional !== "todos" || filters.cooperativa !== "todos" || filters.diaVencimento !== "todos";
+  const hasActiveFilters =
+    filters.mesReferencia ||
+    filters.situacao !== "todos" ||
+    filters.regional !== "todos" ||
+    filters.cooperativa !== "todos" ||
+    filters.diaVencimento !== "todos";
 
   // Update shared header dynamic props
   useEffect(() => {
@@ -432,7 +462,7 @@ export default function CobrancaInsights() {
     }
   }, [filteredBoletos.length, hasActiveFilters, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
 
-  const tabs = isPortalAccess 
+  const tabs = isPortalAccess
     ? [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
         { id: "tabela", label: "Dados Completos", icon: Database },
@@ -453,12 +483,12 @@ export default function CobrancaInsights() {
   };
 
   // Montar lista de módulos disponíveis para o carrossel
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base')[] = [
-    ...(modulosBi.includes('indicadores') ? ['indicadores'] as const : []),
-    ...(modulosBi.includes('eventos') ? ['eventos'] as const : []),
-    ...(modulosBi.includes('mgf') ? ['mgf'] as const : []),
-    ...(modulosBi.includes('cobranca') ? ['cobranca'] as const : []),
-    ...(modulosBi.includes('estudo-base') ? ['estudo-base'] as const : []),
+  const availableModules: ("indicadores" | "eventos" | "mgf" | "cobranca" | "estudo-base")[] = [
+    ...(modulosBi.includes("indicadores") ? (["indicadores"] as const) : []),
+    ...(modulosBi.includes("eventos") ? (["eventos"] as const) : []),
+    ...(modulosBi.includes("mgf") ? (["mgf"] as const) : []),
+    ...(modulosBi.includes("cobranca") ? (["cobranca"] as const) : []),
+    ...(modulosBi.includes("estudo-base") ? (["estudo-base"] as const) : []),
   ];
 
   const portalContent = (
@@ -470,7 +500,7 @@ export default function CobrancaInsights() {
             id: corretoraData.id,
             nome: corretoraData.nome,
             logo_url: corretoraData.logo_url,
-            modulos_bi: modulosBi
+            modulos_bi: modulosBi,
           }}
           showChangeButton={multipleAssociacoes}
           onChangeCorretora={handleChangeAssociacao}
@@ -505,7 +535,7 @@ export default function CobrancaInsights() {
             <CardContent className="p-0">
               {/* Header clicável */}
               <button
-                onClick={() => setFiltersOpen(o => !o)}
+                onClick={() => setFiltersOpen((o) => !o)}
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl"
               >
                 <div className="flex items-center gap-2">
@@ -513,28 +543,52 @@ export default function CobrancaInsights() {
                   <span className="font-semibold text-sm">Filtros</span>
                   {hasActiveFilters && (
                     <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-emerald-600 text-[10px] text-white font-bold">
-                      {[filters.situacao !== "todos", filters.regional !== "todos", filters.cooperativa !== "todos", filters.diaVencimento !== "todos"].filter(Boolean).length + (filters.mesReferencia ? 1 : 0)}
+                      {[
+                        filters.situacao !== "todos",
+                        filters.regional !== "todos",
+                        filters.cooperativa !== "todos",
+                        filters.diaVencimento !== "todos",
+                      ].filter(Boolean).length + (filters.mesReferencia ? 1 : 0)}
                     </span>
                   )}
                   {!filtersOpen && hasActiveFilters && (
                     <span className="text-xs text-muted-foreground truncate max-w-[280px]">
                       {[
-                        filters.mesReferencia && format(new Date(parseInt(filters.mesReferencia.split("-")[0]), parseInt(filters.mesReferencia.split("-")[1]) - 1, 1), "MMM/yy", { locale: ptBR }),
+                        filters.mesReferencia &&
+                          format(
+                            new Date(
+                              parseInt(filters.mesReferencia.split("-")[0]),
+                              parseInt(filters.mesReferencia.split("-")[1]) - 1,
+                              1,
+                            ),
+                            "MMM/yy",
+                            { locale: ptBR },
+                          ),
                         filters.situacao !== "todos" && filters.situacao,
                         filters.regional !== "todos" && filters.regional,
                         filters.cooperativa !== "todos" && filters.cooperativa,
                         filters.diaVencimento !== "todos" && `Dia ${filters.diaVencimento}`,
-                      ].filter(Boolean).join(" · ")}
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   {hasActiveFilters && (
-                    <button onClick={(e) => { e.stopPropagation(); clearFilters(); }} className="text-xs text-muted-foreground hover:text-foreground px-2 py-0.5 rounded">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearFilters();
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground px-2 py-0.5 rounded"
+                    >
                       Limpar
                     </button>
                   )}
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? "rotate-180" : ""}`}
+                  />
                 </div>
               </button>
               {filtersOpen && (
@@ -548,12 +602,20 @@ export default function CobrancaInsights() {
                             variant="outline"
                             className={cn(
                               "h-9 w-full justify-start text-left font-normal",
-                              !filters.mesReferencia && "text-muted-foreground"
+                              !filters.mesReferencia && "text-muted-foreground",
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {filters.mesReferencia ? (
-                              format(new Date(parseInt(filters.mesReferencia.split("-")[0]), parseInt(filters.mesReferencia.split("-")[1]) - 1, 1), "MMMM 'de' yyyy", { locale: ptBR })
+                              format(
+                                new Date(
+                                  parseInt(filters.mesReferencia.split("-")[0]),
+                                  parseInt(filters.mesReferencia.split("-")[1]) - 1,
+                                  1,
+                                ),
+                                "MMMM 'de' yyyy",
+                                { locale: ptBR },
+                              )
                             ) : (
                               <span>Selecione o mês</span>
                             )}
@@ -567,8 +629,10 @@ export default function CobrancaInsights() {
                                 <Select
                                   value={filters.mesReferencia ? filters.mesReferencia.split("-")[1] : ""}
                                   onValueChange={(mes) => {
-                                    const ano = filters.mesReferencia ? filters.mesReferencia.split("-")[0] : String(new Date().getFullYear());
-                                    setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
+                                    const ano = filters.mesReferencia
+                                      ? filters.mesReferencia.split("-")[0]
+                                      : String(new Date().getFullYear());
+                                    setFilters((f) => ({ ...f, mesReferencia: `${ano}-${mes}` }));
                                   }}
                                 >
                                   <SelectTrigger className="h-9">
@@ -589,7 +653,9 @@ export default function CobrancaInsights() {
                                       { value: "11", label: "Novembro" },
                                       { value: "12", label: "Dezembro" },
                                     ].map((m) => (
-                                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                      <SelectItem key={m.value} value={m.value}>
+                                        {m.label}
+                                      </SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
@@ -600,7 +666,7 @@ export default function CobrancaInsights() {
                                   value={filters.mesReferencia ? filters.mesReferencia.split("-")[0] : ""}
                                   onValueChange={(ano) => {
                                     const mes = filters.mesReferencia ? filters.mesReferencia.split("-")[1] : "01";
-                                    setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
+                                    setFilters((f) => ({ ...f, mesReferencia: `${ano}-${mes}` }));
                                   }}
                                 >
                                   <SelectTrigger className="h-9">
@@ -608,15 +674,33 @@ export default function CobrancaInsights() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((ano) => (
-                                      <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
+                                      <SelectItem key={ano} value={String(ano)}>
+                                        {ano}
+                                      </SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
                               </div>
                             </div>
                             <div className="flex justify-between pt-2 border-t">
-                              <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => setFilters(f => ({ ...f, mesReferencia: "" }))}>Limpar</Button>
-                              <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => setFilters(f => ({ ...f, mesReferencia: format(new Date(), "yyyy-MM") }))}>Mês Atual</Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-emerald-600 hover:text-emerald-700"
+                                onClick={() => setFilters((f) => ({ ...f, mesReferencia: "" }))}
+                              >
+                                Limpar
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-emerald-600 hover:text-emerald-700"
+                                onClick={() =>
+                                  setFilters((f) => ({ ...f, mesReferencia: format(new Date(), "yyyy-MM") }))
+                                }
+                              >
+                                Mês Atual
+                              </Button>
                             </div>
                           </div>
                         </PopoverContent>
@@ -624,41 +708,77 @@ export default function CobrancaInsights() {
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Situação</label>
-                      <Select value={filters.situacao} onValueChange={(v) => setFilters(f => ({ ...f, situacao: v }))}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
+                      <Select
+                        value={filters.situacao}
+                        onValueChange={(v) => setFilters((f) => ({ ...f, situacao: v }))}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Todas" />
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="todos">Todas</SelectItem>
-                          {filterOptions.situacoes.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          {filterOptions.situacoes.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Regional</label>
-                      <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
+                      <Select
+                        value={filters.regional}
+                        onValueChange={(v) => setFilters((f) => ({ ...f, regional: v }))}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Todas" />
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="todos">Todas Regionais</SelectItem>
-                          {filterOptions.regionais.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                          {filterOptions.regionais.map((r) => (
+                            <SelectItem key={r} value={r}>
+                              {r}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Cooperativa</label>
-                      <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
+                      <Select
+                        value={filters.cooperativa}
+                        onValueChange={(v) => setFilters((f) => ({ ...f, cooperativa: v }))}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Todas" />
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="todos">Todas Cooperativas</SelectItem>
-                          {filterOptions.cooperativas.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          {filterOptions.cooperativas.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Dia Vencimento</label>
-                      <Select value={filters.diaVencimento} onValueChange={(v) => setFilters(f => ({ ...f, diaVencimento: v }))}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <Select
+                        value={filters.diaVencimento}
+                        onValueChange={(v) => setFilters((f) => ({ ...f, diaVencimento: v }))}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Todos" />
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="todos">Todos</SelectItem>
-                          {filterOptions.diasVencimento.map(d => <SelectItem key={d} value={String(d)}>Dia {d}</SelectItem>)}
+                          {filterOptions.diasVencimento.map((d) => (
+                            <SelectItem key={d} value={String(d)}>
+                              Dia {d}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -669,8 +789,6 @@ export default function CobrancaInsights() {
           </Card>
         </div>
       )}
-
-
 
       {/* Tabs */}
       <div className="container mx-auto px-4 py-6">
@@ -698,8 +816,8 @@ export default function CobrancaInsights() {
           </div>
 
           <TabsContent value="dashboard">
-            <CobrancaDashboard 
-              boletos={filteredBoletos} 
+            <CobrancaDashboard
+              boletos={filteredBoletos}
               loading={loading}
               corretoraId={selectedAssociacao}
               mesReferencia={filters.mesReferencia}
@@ -708,19 +826,12 @@ export default function CobrancaInsights() {
           </TabsContent>
 
           <TabsContent value="tabela">
-            <CobrancaTabela 
-              boletos={filteredBoletos} 
-              loading={loading}
-              corretoraId={selectedAssociacao}
-            />
+            <CobrancaTabela boletos={filteredBoletos} loading={loading} corretoraId={selectedAssociacao} />
           </TabsContent>
 
           {!isPortalAccess && (
             <TabsContent value="importar">
-              <CobrancaImportacao 
-                corretoraId={selectedAssociacao}
-                onImportSuccess={fetchBoletos}
-              />
+              <CobrancaImportacao corretoraId={selectedAssociacao} onImportSuccess={fetchBoletos} />
             </TabsContent>
           )}
         </Tabs>
@@ -752,9 +863,7 @@ export default function CobrancaInsights() {
         currentModule="cobranca"
       >
         <div className="min-h-screen bg-background">
-          <PortalPageWrapper>
-            {portalContent}
-          </PortalPageWrapper>
+          <PortalPageWrapper>{portalContent}</PortalPageWrapper>
         </div>
       </PortalCarouselProvider>
     );
