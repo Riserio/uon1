@@ -13,20 +13,29 @@ const corsHeaders = {
 // whatsapp") e devolve uma URL pública + nome de arquivo prontos para anexar
 // como header.document num template da Meta (WhatsApp).
 //
+// Paleta e tipografia seguem o design system do app (src/index.css):
+// --primary 247 51% 35% (indigo), --foreground 222 47% 11% (navy escuro),
+// --muted 220 14% 96%, --border 220 13% 91%, --muted-foreground 220 9% 46%,
+// --chart-1..4 (azul, verde-água, âmbar, roxo) — mesmas cores usadas nos
+// gráficos e cards das telas de Eventos/Cobrança/MGF.
+//
 // Reaproveita o mesmo agregador de dados já usado na mensagem de texto
 // (gerar-resumo-geral), então o conteúdo do PDF é sempre consistente com o
 // que já é enviado por WhatsApp/telas do BI — sem duplicar lógica de cálculo.
 // ============================================================================
 
-const NAVY = rgb(0.11, 0.15, 0.32);
-const GOLD = rgb(0.78, 0.58, 0.14);
-const GREEN = rgb(0.09, 0.55, 0.35);
-const BLUE = rgb(0.14, 0.42, 0.75);
-const PURPLE = rgb(0.45, 0.28, 0.68);
-const GRAY_BG = rgb(0.96, 0.96, 0.97);
-const GRAY_TEXT = rgb(0.35, 0.35, 0.38);
-const DARK_TEXT = rgb(0.12, 0.12, 0.14);
+// Cores convertidas de HSL (design system) para RGB 0-1
+const PRIMARY = rgb(54 / 255, 44 / 255, 135 / 255); // --primary 247 51% 35% (indigo)
+const NAVY_TEXT = rgb(15 / 255, 23 / 255, 41 / 255); // --foreground 222 47% 11%
+const AMBER = rgb(250 / 255, 177 / 255, 30 / 255); // --chart-3 40 96% 55%
+const CHART_BLUE = rgb(43 / 255, 108 / 255, 238 / 255); // --chart-1 220 85% 55%
+const CHART_TEAL = rgb(26 / 255, 188 / 255, 156 / 255); // --chart-2 168 76% 42%
+const CHART_PURPLE = rgb(153 / 255, 82 / 255, 224 / 255); // --chart-4 270 70% 60%
+const MUTED_BG = rgb(243 / 255, 244 / 255, 246 / 255); // --muted 220 14% 96%
+const BORDER = rgb(229 / 255, 231 / 255, 235 / 255); // --border 220 13% 91%
+const MUTED_TEXT = rgb(107 / 255, 114 / 255, 128 / 255); // --muted-foreground 220 9% 46%
 const WHITE = rgb(1, 1, 1);
+const PRIMARY_TINT = rgb(0.86, 0.85, 0.94); // indigo bem clarinho p/ texto sobre fundo primary
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -81,55 +90,93 @@ serve(async (req) => {
         y: yy,
         size: opts.size ?? 10,
         font: opts.font ?? fontRegular,
-        color: opts.color ?? DARK_TEXT,
+        color: opts.color ?? NAVY_TEXT,
       });
     };
 
-    // ----- Cabeçalho (faixa navy) -----
-    const headerHeight = 96;
-    page.drawRectangle({ x: 0, y: y - headerHeight, width, height: headerHeight, color: NAVY });
-    drawText("RESUMO VANGARD", marginX, y - 34, { size: 20, font: fontBold, color: WHITE });
-    drawText(`Operação: ${nomeAssociacao}`, marginX, y - 56, { size: 12, font: fontBold, color: GOLD });
-    drawText(`Gerado em ${dados.data_geracao || "-"}`, marginX, y - 74, { size: 9, font: fontRegular, color: rgb(0.85, 0.85, 0.9) });
-    y -= headerHeight + 24;
+    const drawTextRight = (
+      text: string,
+      xRight: number,
+      yy: number,
+      opts: { size?: number; font?: typeof fontRegular; color?: ReturnType<typeof rgb> } = {},
+    ) => {
+      const size = opts.size ?? 10;
+      const font = opts.font ?? fontRegular;
+      const w = font.widthOfTextAtSize(text, size);
+      drawText(text, xRight - w, yy, { size, font, color: opts.color });
+    };
 
-    // ----- Helper: desenha uma seção com barra colorida + grid label/valor -----
+    // ----- Cabeçalho (faixa indigo — cor --primary do design system) -----
+    const headerHeight = 108;
+    page.drawRectangle({ x: 0, y: y - headerHeight, width, height: headerHeight, color: PRIMARY });
+    // linha de destaque âmbar no rodapé do cabeçalho, mesmo acento usado em cards de destaque do app
+    page.drawRectangle({ x: 0, y: y - headerHeight, width, height: 3, color: AMBER });
+    drawText("RESUMO VANGARD", marginX, y - 38, { size: 21, font: fontBold, color: WHITE });
+    drawText(nomeAssociacao.toUpperCase(), marginX, y - 60, { size: 12, font: fontBold, color: AMBER });
+    drawText(`Gerado em ${dados.data_geracao || "-"}`, marginX, y - 82, {
+      size: 9,
+      font: fontRegular,
+      color: PRIMARY_TINT,
+    });
+    y -= headerHeight + 26;
+
+    // ----- Helper: desenha uma seção (card) com barra colorida + grid label/valor -----
     const drawSection = (
       title: string,
       accent: ReturnType<typeof rgb>,
       rows: { label: string; value: string }[],
       periodo?: string,
     ) => {
-      const rowH = 20;
-      const sectionH = 34 + rows.length * rowH + 10;
-      // fundo
-      page.drawRectangle({ x: marginX, y: y - sectionH, width: width - marginX * 2, height: sectionH, color: GRAY_BG });
-      // barra de destaque à esquerda
-      page.drawRectangle({ x: marginX, y: y - sectionH, width: 5, height: sectionH, color: accent });
-      // título
-      drawText(title, marginX + 16, y - 22, { size: 13, font: fontBold, color: accent });
-      if (periodo) {
-        drawText(periodo, width - marginX - 16 - fontRegular.widthOfTextAtSize(periodo, 9), y - 22, {
-          size: 9,
-          color: GRAY_TEXT,
-        });
-      }
-      let ry = y - 44;
-      const colX2 = marginX + (width - marginX * 2) / 2 + 8;
-      rows.forEach((r, i) => {
-        const cx = i % 2 === 0 ? marginX + 16 : colX2;
-        if (i % 2 === 0 && i > 0) ry -= rowH;
-        drawText(r.label, cx, ry, { size: 9, color: GRAY_TEXT });
-        drawText(r.value, cx, ry - 13, { size: 11.5, font: fontBold, color: DARK_TEXT });
+      const rowH = 32;
+      const titleAreaH = 32;
+      const bottomPad = 16;
+      const numRows = Math.ceil(rows.length / 2);
+      const sectionH = titleAreaH + numRows * rowH + bottomPad;
+
+      // fundo do card + borda sutil (mesmo padrão dos cards do app: fundo muted, borda leve)
+      page.drawRectangle({
+        x: marginX,
+        y: y - sectionH,
+        width: width - marginX * 2,
+        height: sectionH,
+        color: MUTED_BG,
+        borderColor: BORDER,
+        borderWidth: 1,
       });
-      y -= sectionH + 18;
+      // barra de destaque à esquerda (mesma cor do chart da seção)
+      page.drawRectangle({ x: marginX, y: y - sectionH, width: 4, height: sectionH, color: accent });
+
+      // título
+      drawText(title, marginX + 18, y - 23, { size: 12.5, font: fontBold, color: accent });
+      if (periodo) {
+        drawTextRight(periodo, width - marginX - 18, y - 23, { size: 8.5, color: MUTED_TEXT });
+      }
+
+      // linha divisória entre título e grid
+      page.drawRectangle({
+        x: marginX + 1,
+        y: y - titleAreaH,
+        width: width - marginX * 2 - 2,
+        height: 0.75,
+        color: BORDER,
+      });
+
+      let ry = y - titleAreaH - 20;
+      const colX2 = marginX + (width - marginX * 2) / 2 + 10;
+      rows.forEach((r, i) => {
+        const cx = i % 2 === 0 ? marginX + 18 : colX2;
+        if (i % 2 === 0 && i > 0) ry -= rowH;
+        drawText(r.label, cx, ry, { size: 8.5, font: fontRegular, color: MUTED_TEXT });
+        drawText(r.value, cx, ry - 16, { size: 12.5, font: fontBold, color: NAVY_TEXT });
+      });
+      y -= sectionH + 20;
     };
 
     // ----- Financeiro / Cobrança -----
     if (modulos.cobranca) {
       drawSection(
         "FATURAMENTO & COBRANÇA",
-        GREEN,
+        CHART_TEAL,
         [
           { label: "Faturamento esperado", value: String(dados.cob_faturamento_esperado ?? "-") },
           { label: "Faturamento recebido", value: String(dados.cob_faturamento_recebido ?? "-") },
@@ -148,7 +195,7 @@ serve(async (req) => {
     if (modulos.eventos) {
       drawSection(
         "EVENTOS",
-        BLUE,
+        CHART_BLUE,
         [
           { label: "Total de eventos", value: String(dados.ev_total ?? "-") },
           { label: "Colisão", value: String(dados.ev_colisao ?? "-") },
@@ -164,7 +211,7 @@ serve(async (req) => {
 
     // ----- MGF -----
     if (modulos.mgf) {
-      drawSection("MGF — LANÇAMENTOS DO MÊS", PURPLE, [
+      drawSection("MGF — LANÇAMENTOS DO MÊS", CHART_PURPLE, [
         { label: "Total de lançamentos", value: String(dados.mgf_total_lancamentos ?? "-") },
         { label: "Valor total", value: `R$ ${dados.mgf_valor_total ?? "-"}` },
         { label: "Pagos", value: String(dados.mgf_pagos ?? "-") },
@@ -175,17 +222,34 @@ serve(async (req) => {
       ]);
     }
 
-    // ----- Rodapé -----
+    // ----- Rodapé: CTA "Abrir Painel" (botão sólido cor --primary, igual aos botões do app) -----
     const slug = corretora?.slug;
     const painelUrl = slug ? `https://uon1.com.br/${slug}/dashboard` : null;
-    drawText("Consulte o painel completo para mais detalhes e histórico.", marginX, 50, {
-      size: 9,
-      color: GRAY_TEXT,
+
+    const footerY = 92;
+    page.drawRectangle({
+      x: marginX,
+      y: footerY - 0.75,
+      width: width - marginX * 2,
+      height: 0.75,
+      color: BORDER,
     });
+
     if (painelUrl) {
-      drawText(painelUrl, marginX, 36, { size: 9, font: fontBold, color: BLUE });
+      const btnH = 30;
+      const btnW = 150;
+      const btnY = footerY - 20 - btnH;
+      page.drawRectangle({ x: marginX, y: btnY, width: btnW, height: btnH, color: PRIMARY });
+      drawText("Abrir Painel  →", marginX + 18, btnY + 10.5, { size: 10.5, font: fontBold, color: WHITE });
+      drawText(painelUrl, marginX + btnW + 14, btnY + 10.5, { size: 9, font: fontRegular, color: MUTED_TEXT });
+    } else {
+      drawText("Consulte o painel completo para mais detalhes e histórico.", marginX, footerY - 30, {
+        size: 9,
+        color: MUTED_TEXT,
+      });
     }
-    drawText("VANGARD · Business Intelligence Operacional", marginX, 20, { size: 8, color: GRAY_TEXT });
+
+    drawText("VANGARD · Business Intelligence Operacional", marginX, 22, { size: 8, color: MUTED_TEXT });
 
     const pdfBytes = await pdfDoc.save();
 
