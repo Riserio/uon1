@@ -8968,7 +8968,7 @@ export type Database = {
         Returns: boolean
       }
       calcular_resumo_cobranca: {
-        Args: { p_importacao_ids: string[] }
+        Args: { p_importacao_ids: string[]; p_mes_referencia?: string }
         Returns: Json
       }
       can_manage_gestao: { Args: { _user_id: string }; Returns: boolean }
