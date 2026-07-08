@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, RefreshCw, Trash2, Edit2, Loader2, MessageSquare } from "lucide-react";
+import { Plus, RefreshCw, Trash2, Edit2, Loader2, MessageSquare, FileText, CheckCircle2 } from "lucide-react";
 
 type MetaCategory = "UTILITY" | "MARKETING" | "AUTHENTICATION";
 type MetaStatus = "APPROVED" | "PENDING" | "REJECTED" | "IN_APPEAL" | "DISABLED" | "PAUSED" | string;
+type HeaderFormat = "NONE" | "TEXT" | "DOCUMENT";
 
 interface MetaTemplate {
   id?: string;
@@ -29,18 +30,32 @@ interface FormState {
   name: string;
   language: string;
   category: MetaCategory;
-  header: string;
+  headerFormat: HeaderFormat;
+  header: string; // usado quando headerFormat === "TEXT"
+  headerHandle: string; // usado quando headerFormat === "DOCUMENT" (gerado via upload-meta-header-example)
+  headerExampleFilename: string;
   body: string;
   footer: string;
+  hasUrlButton: boolean;
+  buttonText: string;
+  buttonUrlBase: string;
+  buttonUrlExample: string;
 }
 
 const emptyForm: FormState = {
   name: "",
   language: "pt_BR",
   category: "UTILITY",
+  headerFormat: "NONE",
   header: "",
+  headerHandle: "",
+  headerExampleFilename: "",
   body: "",
   footer: "",
+  hasUrlButton: false,
+  buttonText: "Abrir Painel",
+  buttonUrlBase: "https://uon1.com.br",
+  buttonUrlExample: "",
 };
 
 // A Edge Function sempre responde com { error, details } no corpo quando algo dá
@@ -97,16 +112,27 @@ function extractVariableIndexes(text: string): number[] {
 // "Message body text contains variables. Please provide example values.").
 // Como o formulário atual não coleta exemplos, geramos valores de exemplo
 // automáticos para satisfazer a validação da Meta.
-function buildComponents(form: FormState) {
+//
+// `originalComponents` (opcional) é usado quando o header é DOCUMENT e o
+// usuário está apenas editando outro campo (sem gerar um novo exemplo/handle
+// nesta sessão) — nesse caso reaproveitamos o HEADER já aprovado sem alterá-lo.
+function buildComponents(form: FormState, originalComponents?: any[]) {
   const components: any[] = [];
 
-  if (form.header.trim()) {
+  if (form.headerFormat === "TEXT" && form.header.trim()) {
     const headerComp: any = { type: "HEADER", format: "TEXT", text: form.header.trim() };
     const headerVars = extractVariableIndexes(form.header);
     if (headerVars.length > 0) {
       headerComp.example = { header_text: headerVars.map((n) => `Exemplo${n}`) };
     }
     components.push(headerComp);
+  } else if (form.headerFormat === "DOCUMENT") {
+    if (form.headerHandle) {
+      components.push({ type: "HEADER", format: "DOCUMENT", example: { header_handle: [form.headerHandle] } });
+    } else {
+      const existing = (originalComponents || []).find((c: any) => c.type === "HEADER" && c.format === "DOCUMENT");
+      if (existing) components.push(existing);
+    }
   }
 
   const bodyComp: any = { type: "BODY", text: form.body };
@@ -119,18 +145,49 @@ function buildComponents(form: FormState) {
   if (form.footer.trim()) {
     components.push({ type: "FOOTER", text: form.footer.trim() });
   }
+
+  if (form.hasUrlButton && form.buttonText.trim() && form.buttonUrlBase.trim()) {
+    const base = form.buttonUrlBase.trim().replace(/\/+$/, "");
+    components.push({
+      type: "BUTTONS",
+      buttons: [
+        {
+          type: "URL",
+          text: form.buttonText.trim(),
+          url: `${base}/{{1}}`,
+          example: [form.buttonUrlExample.trim() || `${base}/exemplo`],
+        },
+      ],
+    });
+  }
+
   return components;
 }
 
+function extractHeaderInfo(t: MetaTemplate): { format: HeaderFormat; text: string } {
+  const h = (t.components || []).find((c: any) => c.type === "HEADER");
+  if (!h) return { format: "NONE", text: "" };
+  if (h.format === "DOCUMENT") return { format: "DOCUMENT", text: "" };
+  return { format: "TEXT", text: h.text || "" };
+}
 function extractBody(t: MetaTemplate) {
   return (t.components || []).find((c: any) => c.type === "BODY")?.text || "";
 }
-function extractHeader(t: MetaTemplate) {
-  const h = (t.components || []).find((c: any) => c.type === "HEADER");
-  return h?.text || "";
-}
 function extractFooter(t: MetaTemplate) {
   return (t.components || []).find((c: any) => c.type === "FOOTER")?.text || "";
+}
+function extractButton(t: MetaTemplate) {
+  const b = (t.components || []).find((c: any) => c.type === "BUTTONS");
+  const urlBtn = (b?.buttons || []).find((x: any) => x.type === "URL");
+  if (!urlBtn) return { has: false, text: "Abrir Painel", base: "https://uon1.com.br", example: "" };
+  const url: string = urlBtn.url || "";
+  const base = url.replace(/\/\{\{\d+\}\}\s*$/, "");
+  return {
+    has: true,
+    text: urlBtn.text || "Abrir Painel",
+    base: base || "https://uon1.com.br",
+    example: (Array.isArray(urlBtn.example) && urlBtn.example[0]) || "",
+  };
 }
 
 export function MetaTemplatesManager() {
@@ -141,6 +198,9 @@ export function MetaTemplatesManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<MetaTemplate | null>(null);
+  const [corretoras, setCorretoras] = useState<{ id: string; nome: string; slug: string | null }[]>([]);
+  const [exemploCorretoraId, setExemploCorretoraId] = useState<string>("");
+  const [gerandoExemplo, setGerandoExemplo] = useState(false);
 
   const load = async (silent = false) => {
     if (silent) setRefreshing(true);
@@ -162,6 +222,14 @@ export function MetaTemplatesManager() {
 
   useEffect(() => {
     load();
+    supabase
+      .from("corretoras")
+      .select("id, nome, slug")
+      .order("nome")
+      .then(({ data }) => {
+        setCorretoras(data || []);
+        if (data && data.length > 0) setExemploCorretoraId(data[0].id);
+      });
   }, []);
 
   const openCreate = () => {
@@ -172,16 +240,42 @@ export function MetaTemplatesManager() {
 
   const openEdit = (t: MetaTemplate) => {
     setEditing(t);
+    const headerInfo = extractHeaderInfo(t);
+    const btn = extractButton(t);
     setForm({
       id: t.id,
       name: t.name,
       language: t.language,
       category: (t.category as MetaCategory) || "UTILITY",
-      header: extractHeader(t),
+      headerFormat: headerInfo.format,
+      header: headerInfo.text,
+      headerHandle: "", // handle não é recuperável a partir do template já aprovado — só necessário se gerar um novo exemplo
+      headerExampleFilename: "",
       body: extractBody(t),
       footer: extractFooter(t),
+      hasUrlButton: btn.has,
+      buttonText: btn.text,
+      buttonUrlBase: btn.base,
+      buttonUrlExample: btn.example,
     });
     setDialogOpen(true);
+  };
+
+  const gerarExemploDocumento = async () => {
+    setGerandoExemplo(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("upload-meta-header-example", {
+        body: exemploCorretoraId ? { corretora_id: exemploCorretoraId } : {},
+      });
+      if (error) throw new Error(await extractFunctionErrorMessage(error));
+      if (!data?.success) throw new Error(data?.error || "Falha ao gerar exemplo");
+      setForm((f) => ({ ...f, headerHandle: data.header_handle, headerExampleFilename: data.filename }));
+      toast.success("PDF de exemplo gerado e enviado à Meta");
+    } catch (e: any) {
+      toast.error("Erro ao gerar exemplo: " + (e?.message || "desconhecido"));
+    } finally {
+      setGerandoExemplo(false);
+    }
   };
 
   const handleSave = async () => {
@@ -193,9 +287,13 @@ export function MetaTemplatesManager() {
       toast.error("Nome deve conter apenas letras minúsculas, números e _");
       return;
     }
+    if (form.headerFormat === "DOCUMENT" && !form.headerHandle && !editing) {
+      toast.error("Gere o PDF de exemplo antes de enviar para aprovação (cabeçalho tipo Documento)");
+      return;
+    }
     setSaving(true);
     try {
-      const components = buildComponents(form);
+      const components = buildComponents(form, editing?.components);
       if (editing) {
         const { data, error } = await supabase.functions.invoke("gerenciar-template-whatsapp", {
           body: { action: "update", template_id: editing.id, components },
@@ -278,6 +376,7 @@ export function MetaTemplatesManager() {
             {templates.map((t) => {
               const st = statusVariant(t.status);
               const body = extractBody(t);
+              const headerInfo = extractHeaderInfo(t);
               return (
                 <div
                   key={`${t.name}-${t.language}-${t.id ?? ""}`}
@@ -296,6 +395,11 @@ export function MetaTemplatesManager() {
                         <Badge variant="secondary" className="text-[10px]">
                           {t.category}
                         </Badge>
+                        {headerInfo.format === "DOCUMENT" && (
+                          <Badge variant="outline" className="text-[10px] gap-1 border-blue-500/30 text-blue-600 dark:text-blue-400">
+                            <FileText className="h-3 w-3" /> Anexo PDF
+                          </Badge>
+                        )}
                       </div>
                       {t.rejected_reason && (
                         <p className="text-xs text-red-600 dark:text-red-400 mb-1">Motivo: {t.rejected_reason}</p>
@@ -321,7 +425,7 @@ export function MetaTemplatesManager() {
       </CardContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? `Editar template: ${editing.name}` : "Novo template Meta"}</DialogTitle>
           </DialogHeader>
@@ -375,13 +479,80 @@ export function MetaTemplatesManager() {
             </div>
 
             <div className="space-y-2">
-              <Label>Cabeçalho (opcional)</Label>
-              <Input
-                value={form.header}
-                onChange={(e) => setForm({ ...form, header: e.target.value })}
-                placeholder="Ex.: Resumo diário de cobrança"
-              />
+              <Label>Tipo de cabeçalho</Label>
+              <Select
+                value={form.headerFormat}
+                onValueChange={(v) => setForm({ ...form, headerFormat: v as HeaderFormat })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">Nenhum</SelectItem>
+                  <SelectItem value="TEXT">Texto</SelectItem>
+                  <SelectItem value="DOCUMENT">Documento (PDF)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
+            {form.headerFormat === "TEXT" && (
+              <div className="space-y-2">
+                <Label>Texto do cabeçalho</Label>
+                <Input
+                  value={form.header}
+                  onChange={(e) => setForm({ ...form, header: e.target.value })}
+                  placeholder="Ex.: Resumo diário de cobrança"
+                />
+              </div>
+            )}
+
+            {form.headerFormat === "DOCUMENT" && (
+              <div className="space-y-2 rounded-xl border p-3 bg-muted/30">
+                <Label className="text-xs text-muted-foreground">
+                  Cabeçalho de documento (PDF) — a Meta exige um arquivo de exemplo real para aprovar o template. O
+                  PDF de verdade (com os dados de cada associação) é gerado e anexado automaticamente em cada envio.
+                </Label>
+                {editing && extractHeaderInfo(editing).format === "DOCUMENT" && !form.headerHandle && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Cabeçalho Documento já aprovado — só gere um novo exemplo
+                    se precisar reenviar para revisão.
+                  </p>
+                )}
+                <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                  <Select value={exemploCorretoraId} onValueChange={setExemploCorretoraId}>
+                    <SelectTrigger className="w-full sm:w-64">
+                      <SelectValue placeholder="Associação de exemplo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {corretoras.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={gerarExemploDocumento}
+                    disabled={gerandoExemplo}
+                  >
+                    {gerandoExemplo ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileText className="h-4 w-4 mr-2" />
+                    )}
+                    Gerar PDF de exemplo e enviar à Meta
+                  </Button>
+                </div>
+                {form.headerHandle && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Exemplo pronto ({form.headerExampleFilename})
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Corpo *</Label>
@@ -404,6 +575,50 @@ export function MetaTemplatesManager() {
                 onChange={(e) => setForm({ ...form, footer: e.target.value })}
                 placeholder="Ex.: Não responda a esta mensagem"
               />
+            </div>
+
+            <div className="space-y-2 rounded-xl border p-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={form.hasUrlButton}
+                  onChange={(e) => setForm({ ...form, hasUrlButton: e.target.checked })}
+                  className="h-4 w-4 rounded border-input"
+                />
+                Adicionar botão de link (ex.: "Abrir Painel")
+              </label>
+              {form.hasUrlButton && (
+                <div className="grid gap-2 md:grid-cols-2 pt-1">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Texto do botão</Label>
+                    <Input
+                      value={form.buttonText}
+                      onChange={(e) => setForm({ ...form, buttonText: e.target.value })}
+                      placeholder="Abrir Painel"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">URL base</Label>
+                    <Input
+                      value={form.buttonUrlBase}
+                      onChange={(e) => setForm({ ...form, buttonUrlBase: e.target.value })}
+                      placeholder="https://uon1.com.br"
+                    />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <Label className="text-xs">URL de exemplo (para aprovação da Meta)</Label>
+                    <Input
+                      value={form.buttonUrlExample}
+                      onChange={(e) => setForm({ ...form, buttonUrlExample: e.target.value })}
+                      placeholder="https://uon1.com.br/associacao-exemplo/dashboard"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Em cada envio, a URL final é montada automaticamente como URL base + "/associacao/dashboard" da
+                      corretora de destino.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
