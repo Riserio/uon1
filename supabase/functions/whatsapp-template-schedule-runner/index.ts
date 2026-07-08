@@ -62,7 +62,11 @@ async function getTemplateParamSpec(name: string, language: string): Promise<Tem
   const hasUrlButton = !!buttonsComp?.buttons?.some(
     (b: any) => b.type === "URL" && /\{\{\s*1\s*\}\}\s*$/.test(b.url || ""),
   );
-  const headerFormat: "NONE" | "TEXT" | "DOCUMENT" = !header ? "NONE" : header.format === "DOCUMENT" ? "DOCUMENT" : "TEXT";
+  const headerFormat: "NONE" | "TEXT" | "DOCUMENT" = !header
+    ? "NONE"
+    : header.format === "DOCUMENT"
+      ? "DOCUMENT"
+      : "TEXT";
   const spec: TemplateSpec = {
     header: headerFormat === "TEXT" ? countPlaceholders(header?.text || "") : 0,
     body: countPlaceholders(body?.text || ""),
@@ -231,6 +235,20 @@ function sanitizeParam(v: any): string {
   );
 }
 
+// Gera um slug URL-safe a partir de um texto qualquer (ex.: o nome da corretora).
+// Usado como FALLBACK do sufixo do botão dinâmico quando a corretora não tem
+// `slug` cadastrado — assim o parâmetro do botão NUNCA vai vazio, o que
+// dispararia o erro #132012 ("Parameter format does not match format...").
+function slugify(s?: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[^\x00-\x7F]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function buildParameters(schedule: any, dados: Record<string, any>): { type: "text"; text: string }[] {
   const order: string[] =
     Array.isArray(schedule.variable_map?.order) && schedule.variable_map.order.length > 0
@@ -311,8 +329,20 @@ async function sendTemplate(
 
       // Botão "Abrir Painel" (URL dinâmica) — o sufixo enviado aqui substitui
       // o {{1}} no final da URL base configurada no template.
+      //
+      // IMPORTANTE: como o botão é DINÂMICO, a Meta EXIGE um parâmetro não-vazio.
+      // Um sufixo vazio (corretora sem `slug`) dispara o erro #132012
+      // ("Parameter format does not match format in the created template").
+      // Por isso caímos para um slug derivado do nome da corretora e, em último
+      // caso, para "portal", garantindo que o parâmetro NUNCA vá vazio.
       if (expected.hasUrlButton) {
-        const suffix = corretoraSlug ? `${corretoraSlug}/dashboard` : "";
+        const base = (corretoraSlug && corretoraSlug.trim()) || slugify(headerText) || "portal";
+        const suffix = `${base}/dashboard`;
+        if (!corretoraSlug || !corretoraSlug.trim()) {
+          console.warn(
+            `[whatsapp-template-schedule-runner] Corretora sem slug — usando fallback "${suffix}" no botão. Cadastre o slug real para o link abrir corretamente.`,
+          );
+        }
         components.push({
           type: "button",
           sub_type: "url",
@@ -346,7 +376,12 @@ async function sendTemplate(
     body: JSON.stringify(body),
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(json?.error?.message || "Erro Meta API");
+  // Surfaça o detalhe real da Meta (error_data.details) — é onde a API diz
+  // exatamente QUAL componente/parâmetro está errado (ex.: botão, header).
+  if (!res.ok) {
+    console.error("[whatsapp-template-schedule-runner] Erro Meta API:", JSON.stringify(json?.error));
+    throw new Error(json?.error?.error_data?.details || json?.error?.message || "Erro Meta API");
+  }
   return json.messages?.[0]?.id || null;
 }
 
