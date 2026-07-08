@@ -83,7 +83,7 @@ const normalizeHeader = (header: string): string => {
 // Parse de data brasileira ou serial Excel
 const parseDate = (value: any): string | null => {
   if (!value) return null;
-  
+
   if (typeof value === "number") {
     if (value < 1 || value > 100000) return null;
     try {
@@ -96,7 +96,7 @@ const parseDate = (value: any): string | null => {
       return null;
     }
   }
-  
+
   if (typeof value === "string") {
     const parts = value.split("/");
     if (parts.length === 3) {
@@ -105,13 +105,13 @@ const parseDate = (value: any): string | null => {
       const month = parseInt(p2);
       let year = parseInt(p3);
       if (year < 100) year += 2000;
-      
+
       if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900 && year <= 2100) {
         return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       }
     }
   }
-  
+
   return null;
 };
 
@@ -119,15 +119,29 @@ const parseDate = (value: any): string | null => {
 const parseMoneyValue = (value: any): number => {
   if (!value) return 0;
   if (typeof value === "number") return value;
-  
+
   const cleaned = String(value)
     .replace(/R\$\s*/g, "")
     .replace(/\./g, "")
     .replace(",", ".")
     .trim();
-  
+
   const num = parseFloat(cleaned);
   return isNaN(num) ? 0 : num;
+};
+
+// Alguns campos (ex.: REGIONAL, COOPERATIVA, REGIONAL VEICULO) às vezes chegam
+// da API/robô do SGA como objeto {"codigo":"...","descricao":"..."} em vez de
+// texto puro. Se gravados assim, o campo texto acaba armazenando o JSON bruto
+// (ex.: {"codigo":"80","descricao":"VENDAS INTERNAS."}), poluindo dashboards e
+// agregações que agrupam por esse campo. Esta função extrai um rótulo legível
+// sempre que o valor recebido for um objeto.
+const extractTextValue = (value: any): string | null => {
+  if (value == null) return null;
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return value.descricao ?? value.nome ?? value.name ?? value.codigo ?? JSON.stringify(value);
+  }
+  return String(value) || null;
 };
 
 serve(async (req) => {
@@ -136,12 +150,12 @@ serve(async (req) => {
   }
 
   const startTime = Date.now();
-  
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const webhookSecret = Deno.env.get("WEBHOOK_SECRET");
-    
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Verificar secret se configurado
@@ -181,10 +195,10 @@ serve(async (req) => {
       );
     }
 
-    const { 
-      corretora_id, 
-      dados, 
-      nome_arquivo, 
+    const {
+      corretora_id,
+      dados,
+      nome_arquivo,
       execucao_id,
       github_run_id,
       status,
@@ -221,22 +235,22 @@ serve(async (req) => {
       if (status === 'sucesso' || status === 'erro') {
         updateData.finalizado_at = new Date().toISOString();
         updateData.duracao_segundos = Math.round((Date.now() - startTime) / 1000);
-        
+
         // Se erro, agendar retry em 1 hora (com limite máximo)
         if (status === 'erro') {
           // Limite máximo de retries para evitar loop infinito
           const MAX_RETRIES = 3;
-          
+
           // Buscar retry_count atual
           const { data: currentExec } = await supabase
             .from("sga_automacao_execucoes")
             .select("retry_count")
             .eq("id", execucao_id)
             .single();
-          
+
           const newRetryCount = (currentExec?.retry_count || 0) + 1;
           updateData.retry_count = newRetryCount;
-          
+
           // Só agenda retry se não ultrapassou o limite
           if (newRetryCount < MAX_RETRIES) {
             updateData.proxima_tentativa_at = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
@@ -365,9 +379,9 @@ serve(async (req) => {
         Object.keys(row).forEach(excelCol => {
           const normalizedCol = normalizeHeader(excelCol);
           const dbCol = COLUMN_MAP[normalizedCol];
-          
+
           if (!dbCol || processedDbCols.has(dbCol)) return;
-          
+
           const value = row[excelCol];
           processedDbCols.add(dbCol);
 
@@ -383,9 +397,10 @@ serve(async (req) => {
           else if (dbCol === "ano_fabricacao") {
             record[dbCol] = value ? parseInt(String(value)) || null : null;
           }
-          // Texto normal
+          // Texto normal - extrai .descricao quando o valor vier como objeto
+          // {"codigo":"...","descricao":"..."} em vez de gravar o JSON bruto.
           else {
-            record[dbCol] = value || null;
+            record[dbCol] = extractTextValue(value);
           }
         });
 
@@ -419,7 +434,7 @@ serve(async (req) => {
 
       for (let i = 0; i < recordsValidos.length; i += batchSize) {
         const batch = recordsValidos.slice(i, i + batchSize);
-        
+
         const { error: batchError } = await supabase
           .from("sga_eventos")
           .insert(batch);
@@ -451,17 +466,17 @@ serve(async (req) => {
       try {
         // Coletar status únicos deste lote
         const uniqueStatuses = [...new Set(records.map((r: any) => r.situacao_evento).filter(Boolean))] as string[];
-        
+
         if (uniqueStatuses.length > 0) {
           // Buscar status já existentes para esta corretora
           const { data: existingConfigs } = await supabase
             .from("gestao_associacao_status_config")
             .select("nome")
             .eq("corretora_id", corretora_id);
-          
+
           const existingNames = new Set((existingConfigs || []).map((c: any) => c.nome));
           const newStatuses = uniqueStatuses.filter(s => !existingNames.has(s));
-          
+
           if (newStatuses.length > 0) {
             // Buscar maior ordem existente
             const { data: maxOrdemData } = await supabase
@@ -470,9 +485,9 @@ serve(async (req) => {
               .eq("corretora_id", corretora_id)
               .order("ordem", { ascending: false })
               .limit(1);
-            
+
             let nextOrdem = (maxOrdemData?.[0]?.ordem || 0) + 1;
-            
+
             // Cores automáticas por padrão de nome
             const getAutoColor = (nome: string): string => {
               const upper = nome.toUpperCase();
@@ -485,7 +500,7 @@ serve(async (req) => {
               if (upper.includes("ANALISE") || upper.includes("COMITE")) return "#6366f1";
               return "#64748b";
             };
-            
+
             const inserts = newStatuses.map(nome => ({
               nome,
               cor: getAutoColor(nome),
@@ -493,11 +508,11 @@ serve(async (req) => {
               ativo: true,
               corretora_id,
             }));
-            
+
             const { error: insertError } = await supabase
               .from("gestao_associacao_status_config")
               .insert(inserts);
-            
+
             if (insertError) {
               console.error("[Webhook SGA] Erro ao auto-criar status:", insertError);
             } else {
@@ -512,7 +527,7 @@ serve(async (req) => {
       // Finalizar apenas no último chunk
       if (execucao_id && isLastChunk) {
         const durationSeconds = Math.round((Date.now() - startTime) / 1000);
-        
+
         await supabase
           .from("sga_automacao_execucoes")
           .update({
@@ -551,7 +566,7 @@ serve(async (req) => {
           .select("config_id")
           .eq("id", execucao_id)
           .single();
-        
+
         if (execConfig?.config_id) {
           await supabase
             .from("sga_automacao_execucoes")
@@ -559,7 +574,7 @@ serve(async (req) => {
             .eq("config_id", execConfig.config_id)
             .in("status", ["erro", "parado", "cancelled"])
             .neq("id", execucao_id);
-          
+
           console.log("[Webhook SGA] Execuções com erro/parado anteriores removidas");
         }
 
@@ -592,7 +607,7 @@ serve(async (req) => {
 
           if (waConfig?.envio_automatico_eventos) {
             console.log("[Webhook SGA] Envio automático de WhatsApp ativado, disparando...");
-            
+
             const fluxoId = (waConfig as any).fluxo_eventos_id;
             const phoneNumbers = (waConfig.telefone_whatsapp || "").split(",").map((p: string) => p.trim()).filter(Boolean);
             const metaToken = Deno.env.get("META_WHATSAPP_TOKEN");
@@ -650,8 +665,8 @@ serve(async (req) => {
       console.log(`[Webhook SGA] Chunk ${chunk_atual || 1}/${total_chunks || 1} concluído: ${recordsValidos.length} registros`);
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           message: `${recordsValidos.length} registros importados (chunk ${chunk_atual || 1}/${total_chunks || 1})`,
           importacao_id: importacaoId,
         }),
