@@ -121,9 +121,10 @@ serve(async (req) => {
     // ===== Métricas calculadas DIRETO no banco (SQL agregado), não mais
     // buscando todas as linhas cruas (podia passar de 15-17 mil boletos e
     // demorar demais / estourar timeout, deixando o resumo geral sem essa
-    // seção). Ver função pública.calcular_resumo_cobranca(uuid[]). =====
+    // seção). Ver função pública.calcular_resumo_cobranca(uuid[], text). =====
     const { data: metrics, error: metricsError } = await supabase.rpc("calcular_resumo_cobranca", {
       p_importacao_ids: importacaoIds,
+      p_mes_referencia: mesReferencia,
     });
 
     if (metricsError) {
