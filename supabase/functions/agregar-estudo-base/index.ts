@@ -74,6 +74,10 @@ serve(async (req) => {
     const ref = typeof body.data_referencia === "string" && /^\d{4}-\d{2}/.test(body.data_referencia)
       ? `${body.data_referencia.slice(0, 7)}-01`
       : `${new Date().toISOString().slice(0, 7)}-01`;
+    const refAno = Number(ref.slice(0, 4));
+    const refMes = Number(ref.slice(5, 7));
+    const inicioMesStr = `${ref.slice(0, 7)}-01`;
+    const fimMesStr = new Date(Date.UTC(refAno, refMes, 1)).toISOString().slice(0, 10);
 
     // 1) importação ativa de Estudo de Base da associação
     const { data: imp } = await supabase
@@ -99,7 +103,7 @@ serve(async (req) => {
     while (true) {
       const { data, error } = await supabase
         .from("estudo_base_registros")
-        .select("tipo_veiculo, categoria, valor_protegido, valor_fipe, situacao_veiculo")
+        .select("tipo_veiculo, categoria, valor_protegido, valor_fipe, situacao_veiculo, voluntario, data_contrato")
         .eq("importacao_id", imp.id)
         .range(offset, offset + PAGE - 1);
       if (error) throw error;
@@ -114,6 +118,15 @@ serve(async (req) => {
     const acc: Record<Cat, Ac> = Object.fromEntries(CATS.map((c) => [c, { qtd: 0, protegido: 0, valorProt: 0, valorTotal: 0 }])) as Record<Cat, Ac>;
     let totalGeral = 0, totalAtivos = 0;
 
+    // 3b) total de associados (voluntário) únicos e cadastros novos no mês -
+    // calculado automaticamente a partir da base ativa, em vez de depender de
+    // upload manual da planilha "Associados" no PID (que parou de ser enviada
+    // a partir de jan/2026 e deixava total_associados/cadastros_realizados
+    // zerados). Fonte: estudo_base_registros.voluntario (nome do associado
+    // responsável pelo veículo) + data_contrato.
+    const voluntariosAtivos = new Set<string>();
+    const voluntariosNovosNoMes = new Set<string>();
+
     for (const r of rows) {
       if (!isAtivo(r.situacao_veiculo)) continue; // base considera veículos ativos
       totalGeral++;
@@ -125,7 +138,19 @@ serve(async (req) => {
       a.qtd++;
       if (vEf > 0) { a.protegido++; a.valorTotal += vEf; }
       if (vProt > 0) a.valorProt += vProt;
+
+      const voluntario = (r.voluntario || "").trim();
+      if (voluntario) {
+        voluntariosAtivos.add(voluntario);
+        const dataContrato: string | null = r.data_contrato;
+        if (dataContrato && dataContrato >= inicioMesStr && dataContrato < fimMesStr) {
+          voluntariosNovosNoMes.add(voluntario);
+        }
+      }
     }
+
+    const totalAssociados = voluntariosAtivos.size;
+    const cadastrosRealizados = voluntariosNovosNoMes.size;
 
     // 4) montar linha do pid_estudo_base (qtd, protegido, valor e ticket médio por categoria)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -152,7 +177,7 @@ serve(async (req) => {
     linha["valor_protegido_geral"] = Math.round(somaValor);
     linha["tm_geral"] = somaProt > 0 ? Math.round(somaValor / somaProt) : 0;
 
-    // 5) upsert: um registro por associação/mês
+    // 5) upsert: um registro por associação/mês (pid_estudo_base)
     const { data: existente } = await supabase
       .from("pid_estudo_base")
       .select("id")
@@ -168,11 +193,44 @@ serve(async (req) => {
       if (error) throw error;
     }
 
+    // 5b) upsert total_associados/cadastros_realizados em pid_operacional
+    // (mesmo mês/associação). Não mexe nos demais campos dessa tabela.
+    const { data: pidExistente } = await supabase
+      .from("pid_operacional")
+      .select("id")
+      .eq("corretora_id", corretora_id)
+      .eq("ano", refAno)
+      .eq("mes", refMes)
+      .maybeSingle();
+
+    if (pidExistente?.id) {
+      const { error: pidErr } = await supabase
+        .from("pid_operacional")
+        .update({
+          total_associados: totalAssociados,
+          cadastros_realizados: cadastrosRealizados,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", pidExistente.id);
+      if (pidErr) throw pidErr;
+    } else {
+      const { error: pidErr } = await supabase.from("pid_operacional").insert({
+        corretora_id,
+        ano: refAno,
+        mes: refMes,
+        total_associados: totalAssociados,
+        cadastros_realizados: cadastrosRealizados,
+      });
+      if (pidErr) throw pidErr;
+    }
+
     return new Response(JSON.stringify({
       success: true,
       message: `Estudo de Base agregado (${totalGeral} veículos, mês ${ref.slice(0, 7)})`,
       data_referencia: ref,
       total: totalGeral,
+      total_associados: totalAssociados,
+      cadastros_realizados: cadastrosRealizados,
       por_categoria: Object.fromEntries(CATS.map((c) => [c, acc[c].qtd])),
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
