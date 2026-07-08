@@ -230,55 +230,77 @@ export default function MGFInsights() {
 
     setLoading(true);
     try {
-      const { data: importacao, error: impError } = await supabase
+      // IMPORTANTE: pode existir mais de uma importação "ativa" simultânea
+      // para a mesma corretora — ex.: um upload manual de Excel (snapshot
+      // histórico/já liquidado) e uma importação incremental via API
+      // (dados recentes, ainda em aberto). Ambas são complementares e
+      // precisam ser somadas; buscar só a mais recente ("limit(1).single()")
+      // escondia dados reais de "A Pagar"/"Vencido"/"Multa+Juros" sempre
+      // que a importação mais recente fosse um snapshot 100% já pago.
+      const { data: importacoes, error: impError } = await supabase
         .from("mgf_importacoes")
         .select("id, nome_arquivo, colunas_detectadas, total_registros, created_at")
         .eq("ativo", true)
         .eq("corretora_id", selectedAssociacao)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+        .order("created_at", { ascending: false });
 
-      if (impError && impError.code !== "PGRST116") {
+      if (impError) {
         console.error("Erro ao buscar importação:", impError);
       }
 
-      if (importacao) {
-        setImportacaoAtiva(importacao);
-        setColunas(Array.isArray(importacao.colunas_detectadas) ? (importacao.colunas_detectadas as string[]) : []);
+      if (importacoes && importacoes.length > 0) {
+        const importacaoMaisRecente = importacoes[0];
+        const importacaoParaExibicao = {
+          ...importacaoMaisRecente,
+          total_registros: importacoes.reduce((acc, i) => acc + (i.total_registros || 0), 0),
+        };
+        setImportacaoAtiva(importacaoParaExibicao);
+        setColunas(
+          Array.isArray(importacaoMaisRecente.colunas_detectadas)
+            ? (importacaoMaisRecente.colunas_detectadas as string[])
+            : [],
+        );
 
         const BATCH_SIZE = 1000;
-        let allDados: any[] = [];
-        let hasMore = true;
-        let offset = 0;
         const SELECT_COLS =
           "id, operacao, sub_operacao, descricao, fornecedor, centro_custo, valor, valor_pagamento, data_vencimento, data_vencimento_original, situacao_pagamento, data_pagamento, controle_interno, veiculo_evento, cooperativa, regional, regional_evento, forma_pagamento, tipo_veiculo, categoria_veiculo, multa, juros, nota_fiscal, valor_total_lancamento, data_nota_fiscal, quantidade_parcela, veiculo_lancamento, classificacao_veiculo, associado, cnpj_fornecedor, cpf_cnpj_cliente, nome_fantasia_fornecedor, voluntario, mes_referente, impostos, protocolo_evento, motivo_evento, terceiro_evento, data_evento, placa_terceiro_evento";
 
-        while (hasMore) {
-          const { data: batch, error: dataError } = await supabase
-            .from("mgf_dados")
-            .select(SELECT_COLS)
-            .eq("importacao_id", importacao.id)
-            .range(offset, offset + BATCH_SIZE - 1);
+        let allDados: any[] = [];
 
-          if (dataError) {
-            console.error("Erro ao buscar dados:", dataError);
-            break;
+        for (const imp of importacoes) {
+          let hasMore = true;
+          let offset = 0;
+
+          while (hasMore) {
+            const { data: batch, error: dataError } = await supabase
+              .from("mgf_dados")
+              .select(SELECT_COLS)
+              .eq("importacao_id", imp.id)
+              .range(offset, offset + BATCH_SIZE - 1);
+
+            if (dataError) {
+              console.error("Erro ao buscar dados:", dataError);
+              break;
+            }
+
+            if (batch && batch.length > 0) {
+              allDados = [...allDados, ...batch];
+              offset += BATCH_SIZE;
+              hasMore = batch.length === BATCH_SIZE;
+            } else {
+              hasMore = false;
+            }
+
+            if (allDados.length >= 100000) {
+              hasMore = false;
+            }
           }
 
-          if (batch && batch.length > 0) {
-            allDados = [...allDados, ...batch];
-            offset += BATCH_SIZE;
-            hasMore = batch.length === BATCH_SIZE;
-          } else {
-            hasMore = false;
-          }
-
-          if (offset >= 100000) break;
+          if (allDados.length >= 100000) break;
         }
 
         setDados(allDados);
-        setBICachedData(selectedAssociacao, "mgf", allDados, importacao);
+        setBICachedData(selectedAssociacao, "mgf", allDados, importacaoParaExibicao);
         if (isPortalAccess) savePrefetchedData(selectedAssociacao, "mgf", allDados);
       } else {
         setDados([]);
