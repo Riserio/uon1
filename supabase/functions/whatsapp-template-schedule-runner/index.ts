@@ -11,10 +11,11 @@ const META_TOKEN = Deno.env.get("META_WHATSAPP_TOKEN")!;
 const META_PHONE_ID = Deno.env.get("META_WHATSAPP_PHONE_NUMBER_ID")!;
 const META_WABA_ID = Deno.env.get("META_WHATSAPP_BUSINESS_ACCOUNT_ID") || "";
 
-// Cache: template name -> number of {{n}} placeholders in HEADER/BODY components.
-const templateParamSpecCache = new Map<string, { header: number; body: number }>();
+// Cache: template name -> spec (placeholders + tipo de header + botão dinâmico).
+type TemplateSpec = { header: number; body: number; headerFormat: "NONE" | "TEXT" | "DOCUMENT"; hasUrlButton: boolean };
+const templateParamSpecCache = new Map<string, TemplateSpec>();
 
-async function getTemplateParamSpec(name: string, language: string): Promise<{ header: number; body: number } | null> {
+async function getTemplateParamSpec(name: string, language: string): Promise<TemplateSpec | null> {
   const cacheKey = `${name}::${language}`;
   if (templateParamSpecCache.has(cacheKey)) return templateParamSpecCache.get(cacheKey)!;
 
@@ -48,9 +49,18 @@ async function getTemplateParamSpec(name: string, language: string): Promise<{ h
   const components = match.components || [];
   const header = components.find((c: any) => c.type === "HEADER");
   const body = components.find((c: any) => c.type === "BODY");
-  const spec = {
-    header: countPlaceholders(header?.text || ""),
+  const buttonsComp = components.find((c: any) => c.type === "BUTTONS");
+  // Botão de URL dinâmico: a Meta representa isso como um botão tipo URL cuja
+  // `url` termina com {{1}} (o sufixo é enviado como parâmetro no send-time).
+  const hasUrlButton = !!buttonsComp?.buttons?.some(
+    (b: any) => b.type === "URL" && /\{\{\s*1\s*\}\}\s*$/.test(b.url || ""),
+  );
+  const headerFormat: "NONE" | "TEXT" | "DOCUMENT" = !header ? "NONE" : header.format === "DOCUMENT" ? "DOCUMENT" : "TEXT";
+  const spec: TemplateSpec = {
+    header: headerFormat === "TEXT" ? countPlaceholders(header?.text || "") : 0,
     body: countPlaceholders(body?.text || ""),
+    headerFormat,
+    hasUrlButton,
   };
   templateParamSpecCache.set(cacheKey, spec);
   return spec;
@@ -222,28 +232,66 @@ function buildParameters(schedule: any, dados: Record<string, any>): { type: "te
   return order.map((field) => ({ type: "text", text: sanitizeParam(dados[field]) }));
 }
 
+// Gera (uma única vez por execução do agendamento) o PDF do resumo, para
+// templates cujo header seja do tipo Documento. Reaproveitado entre todos os
+// destinatários da mesma rodada de envio — evita gerar/subir o mesmo PDF
+// várias vezes.
+async function gerarPdfResumo(corretora_id: string): Promise<{ url: string; filename: string } | null> {
+  try {
+    const pdfRes = await fetch(`${SUPABASE_URL}/functions/v1/gerar-pdf-resumo-geral`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+      body: JSON.stringify({ corretora_id }),
+    });
+    const pdfJson = await pdfRes.json();
+    if (!pdfRes.ok || !pdfJson?.success) {
+      console.error("[whatsapp-template-schedule-runner] Falha ao gerar PDF do resumo:", pdfJson?.error);
+      return null;
+    }
+    return { url: pdfJson.url, filename: pdfJson.filename };
+  } catch (e) {
+    console.error("[whatsapp-template-schedule-runner] Erro gerando PDF do header:", e);
+    return null;
+  }
+}
+
 async function sendTemplate(
   phone: string,
   schedule: any,
   params: { type: "text"; text: string }[],
   headerText: string,
+  corretoraSlug: string | null,
+  pdfInfo: { url: string; filename: string } | null,
 ) {
   const formatted = phone.replace(/\D/g, "").startsWith("55")
     ? phone.replace(/\D/g, "")
     : `55${phone.replace(/\D/g, "")}`;
 
-  // Adjust params to match the template's actual HEADER/BODY placeholder count.
+  const components: any[] = [];
   let adjustedParams = params;
-  let headerParams: { type: "text"; text: string }[] = [];
+
   try {
     const expected = await getTemplateParamSpec(schedule.template_name, schedule.template_language || "pt_BR");
     if (expected) {
-      if (expected.header > 0) {
-        headerParams = Array.from({ length: expected.header }, (_, index) => ({
+      if (expected.headerFormat === "DOCUMENT") {
+        if (pdfInfo) {
+          components.push({
+            type: "header",
+            parameters: [{ type: "document", document: { link: pdfInfo.url, filename: pdfInfo.filename } }],
+          });
+        } else {
+          console.error(
+            "[whatsapp-template-schedule-runner] Template exige header Documento mas o PDF não pôde ser gerado — enviando sem header.",
+          );
+        }
+      } else if (expected.headerFormat === "TEXT" && expected.header > 0) {
+        const headerParams = Array.from({ length: expected.header }, (_, index) => ({
           type: "text" as const,
           text: index === 0 ? headerText : "-",
         }));
+        components.push({ type: "header", parameters: headerParams });
       }
+
       if (params.length > expected.body) {
         adjustedParams = params.slice(0, expected.body);
       } else if (params.length < expected.body) {
@@ -252,14 +300,28 @@ async function sendTemplate(
           ...Array.from({ length: expected.body - params.length }, () => ({ type: "text" as const, text: "-" })),
         ];
       }
-    }
-  } catch {
-    /* fall back to provided params */
-  }
+      if (adjustedParams.length > 0) components.push({ type: "body", parameters: adjustedParams });
 
-  const components = [];
-  if (headerParams.length > 0) components.push({ type: "header", parameters: headerParams });
-  if (adjustedParams.length > 0) components.push({ type: "body", parameters: adjustedParams });
+      // Botão "Abrir Painel" (URL dinâmica) — o sufixo enviado aqui substitui
+      // o {{1}} no final da URL base configurada no template.
+      if (expected.hasUrlButton) {
+        const suffix = corretoraSlug ? `${corretoraSlug}/dashboard` : "";
+        components.push({
+          type: "button",
+          sub_type: "url",
+          index: "0",
+          parameters: [{ type: "text", text: suffix }],
+        });
+      }
+    } else if (adjustedParams.length > 0) {
+      components.push({ type: "body", parameters: adjustedParams });
+    }
+  } catch (e) {
+    console.error("[whatsapp-template-schedule-runner] Erro montando componentes do template:", e);
+    if (adjustedParams.length > 0 && !components.some((c) => c.type === "body")) {
+      components.push({ type: "body", parameters: adjustedParams });
+    }
+  }
 
   const body: any = {
     messaging_product: "whatsapp",
@@ -286,7 +348,7 @@ async function runOne(supabase: any, schedule: any) {
   try {
     const { data: corretora } = await supabase
       .from("corretoras")
-      .select("nome")
+      .select("nome, slug")
       .eq("id", schedule.corretora_id)
       .maybeSingle();
     const dados = await generateData(supabase, schedule.data_source, schedule.corretora_id);
@@ -296,11 +358,19 @@ async function runOne(supabase: any, schedule: any) {
     const recipients: string[] = Array.isArray(schedule.recipients) ? schedule.recipients : [];
     if (recipients.length === 0) throw new Error("Sem destinatários");
 
+    // Se o template usa header tipo Documento, gera o PDF UMA vez e reaproveita
+    // para todos os destinatários deste envio.
+    let pdfInfo: { url: string; filename: string } | null = null;
+    const spec = await getTemplateParamSpec(schedule.template_name, schedule.template_language || "pt_BR");
+    if (spec?.headerFormat === "DOCUMENT") {
+      pdfInfo = await gerarPdfResumo(schedule.corretora_id);
+    }
+
     const results: string[] = [];
     for (const phone of recipients) {
       if (!phone?.trim()) continue;
       try {
-        const id = await sendTemplate(phone.trim(), schedule, params, headerText);
+        const id = await sendTemplate(phone.trim(), schedule, params, headerText, corretora?.slug || null, pdfInfo);
         results.push(`${phone}:ok`);
         await supabase.from("whatsapp_messages").insert({
           direction: "out",
