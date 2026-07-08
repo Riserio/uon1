@@ -347,31 +347,41 @@ export default function SGAInsights() {
         setImportacaoAtiva(importacao);
 
         const BATCH_SIZE = 1000;
+        const MAX_ROWS = 100000;
+        const CONCURRENCY = 8;
+
+        // Busca o total de eventos primeiro (head request, sem baixar dados)
+        // para poder disparar as páginas em ondas paralelas em vez de uma
+        // sequencial de cada vez — corretoras com milhares de eventos
+        // levavam dezenas de requisições em série, deixando a tela lenta
+        // para carregar.
+        const { count } = await supabase
+          .from("sga_eventos")
+          .select("*", { count: "exact", head: true })
+          .eq("importacao_id", importacao.id);
+
+        const total = Math.min(count || 0, MAX_ROWS);
+        const numBatches = Math.ceil(total / BATCH_SIZE);
+
         let allEventos: any[] = [];
-        let hasMore = true;
-        let offset = 0;
+        for (let i = 0; i < numBatches; i += CONCURRENCY) {
+          const wave = Array.from({ length: Math.min(CONCURRENCY, numBatches - i) }, (_, j) => {
+            const offset = (i + j) * BATCH_SIZE;
+            return supabase
+              .from("sga_eventos")
+              .select("*")
+              .eq("importacao_id", importacao.id)
+              .range(offset, offset + BATCH_SIZE - 1);
+          });
 
-        while (hasMore) {
-          const { data: batch, error: evError } = await supabase
-            .from("sga_eventos")
-            .select("*")
-            .eq("importacao_id", importacao.id)
-            .range(offset, offset + BATCH_SIZE - 1);
-
-          if (evError) {
-            console.error("Erro ao buscar eventos:", evError);
-            break;
+          const results = await Promise.all(wave);
+          for (const { data: batch, error: evError } of results) {
+            if (evError) {
+              console.error("Erro ao buscar eventos:", evError);
+              continue;
+            }
+            if (batch) allEventos = allEventos.concat(batch);
           }
-
-          if (batch && batch.length > 0) {
-            allEventos = [...allEventos, ...batch];
-            offset += BATCH_SIZE;
-            hasMore = batch.length === BATCH_SIZE;
-          } else {
-            hasMore = false;
-          }
-
-          if (offset >= 100000) break;
         }
 
         setEventos(allEventos);

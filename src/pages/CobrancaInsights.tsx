@@ -290,31 +290,42 @@ export default function CobrancaInsights() {
         const importacaoIds = importacoesAtivas.map((i) => i.id);
 
         const BATCH_SIZE = 1000;
+        const MAX_ROWS = 100000;
+        const CONCURRENCY = 8;
+
+        // Busca o total de boletos primeiro (head request, sem baixar dados)
+        // para poder disparar as páginas em ondas paralelas em vez de uma
+        // sequencial de cada vez. Corretoras com histórico + recente somados
+        // chegam a dezenas de milhares de boletos (ex.: ~97 mil), o que
+        // levava a ~97 requisições em série e deixava a tela de Cobrança
+        // visivelmente lenta para carregar.
+        const { count } = await supabase
+          .from("cobranca_boletos")
+          .select("*", { count: "exact", head: true })
+          .in("importacao_id", importacaoIds);
+
+        const total = Math.min(count || 0, MAX_ROWS);
+        const numBatches = Math.ceil(total / BATCH_SIZE);
+
         let allBoletos: any[] = [];
-        let hasMore = true;
-        let offset = 0;
+        for (let i = 0; i < numBatches; i += CONCURRENCY) {
+          const wave = Array.from({ length: Math.min(CONCURRENCY, numBatches - i) }, (_, j) => {
+            const offset = (i + j) * BATCH_SIZE;
+            return supabase
+              .from("cobranca_boletos")
+              .select("*")
+              .in("importacao_id", importacaoIds)
+              .range(offset, offset + BATCH_SIZE - 1);
+          });
 
-        while (hasMore) {
-          const { data: batch, error: bError } = await supabase
-            .from("cobranca_boletos")
-            .select("*")
-            .in("importacao_id", importacaoIds)
-            .range(offset, offset + BATCH_SIZE - 1);
-
-          if (bError) {
-            console.error("Erro ao buscar boletos:", bError);
-            break;
+          const results = await Promise.all(wave);
+          for (const { data: batch, error: bError } of results) {
+            if (bError) {
+              console.error("Erro ao buscar boletos:", bError);
+              continue;
+            }
+            if (batch) allBoletos = allBoletos.concat(batch);
           }
-
-          if (batch && batch.length > 0) {
-            allBoletos = [...allBoletos, ...batch];
-            offset += BATCH_SIZE;
-            hasMore = batch.length === BATCH_SIZE;
-          } else {
-            hasMore = false;
-          }
-
-          if (offset >= 100000) break;
         }
 
         // Aplicar deduplicação fiel ao SGA: 1 boleto por pessoa+vencimento (maior valor)
