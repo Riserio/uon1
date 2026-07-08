@@ -240,7 +240,7 @@ serve(async (req) => {
       const btnW = 150;
       const btnY = footerY - 20 - btnH;
       page.drawRectangle({ x: marginX, y: btnY, width: btnW, height: btnH, color: PRIMARY });
-      drawText("Abrir Painel  →", marginX + 18, btnY + 10.5, { size: 10.5, font: fontBold, color: WHITE });
+      drawText("Abrir Painel  >", marginX + 18, btnY + 10.5, { size: 10.5, font: fontBold, color: WHITE });
       drawText(painelUrl, marginX + btnW + 14, btnY + 10.5, { size: 9, font: fontRegular, color: MUTED_TEXT });
     } else {
       drawText("Consulte o painel completo para mais detalhes e histórico.", marginX, footerY - 30, {
