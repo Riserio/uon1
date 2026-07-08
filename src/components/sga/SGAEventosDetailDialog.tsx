@@ -105,7 +105,13 @@ export default function SGAEventosDetailDialog({
         filtered = eventos.filter((e) => e.regional === filterValue);
         break;
       case "estado":
-        filtered = eventos.filter((e) => e.evento_estado === filterValue);
+        // "Eventos por Estado" agrupa por evento_estado com fallback para
+        // associado_estado (ver SGADashboard.tsx) — o filtro precisa usar a
+        // mesma lógica para o drilldown bater com o gráfico.
+        filtered = eventos.filter((e) => (e.evento_estado || e.associado_estado) === filterValue);
+        break;
+      case "cidade":
+        filtered = eventos.filter((e) => e.evento_cidade === filterValue);
         break;
       case "motivo":
         filtered = eventos.filter((e) => e.motivo_evento === filterValue);
@@ -163,7 +169,7 @@ export default function SGAEventosDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[85vh] flex flex-col overflow-hidden"> 
+      <DialogContent className="max-w-4xl h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Car className="h-5 w-5 text-primary" />
@@ -209,7 +215,9 @@ export default function SGAEventosDetailDialog({
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredEventos.map((evento, index) => (
+                {filteredEventos.map((evento, index) => {
+                  const estadoExibicao = evento.evento_estado || evento.associado_estado;
+                  return (
                   <div
                     key={evento.id || index}
                     className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
@@ -237,9 +245,9 @@ export default function SGAEventosDetailDialog({
                           <div className="flex items-center gap-1.5">
                             <MapPin className="h-3.5 w-3.5" />
                             <span>{evento.evento_cidade || "-"}</span>
-                            {evento.evento_estado && (
+                            {estadoExibicao && (
                               <span className="text-xs">
-                                ({evento.evento_estado})
+                                ({estadoExibicao})
                               </span>
                             )}
                           </div>
@@ -299,7 +307,8 @@ export default function SGAEventosDetailDialog({
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </ScrollArea>

@@ -127,7 +127,23 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
     const toArr = (obj: any, limit = 10) =>
       Object.entries(obj).map(([name, value]) => ({ name, value: value as number })).sort((a, b) => b.value - a.value).slice(0, limit);
 
-    const porEstado = reduce("evento_estado");
+    // Estado: "evento_estado" (local do sinistro) só vem preenchido em ~43%
+    // dos registros na fonte SGA/Hinova. "associado_estado" (UF do
+    // associado) é muito mais completo (~91%). Para o gráfico refletir a
+    // cobertura real de estados, usamos evento_estado quando disponível e
+    // caímos para associado_estado como fallback — em vez de descartar
+    // silenciosamente a maioria dos eventos que não têm evento_estado.
+    const porEstado = eventos.reduce((acc: any, e) => {
+      const val = e.evento_estado || e.associado_estado || "";
+      if (val && val !== "N/I" && val !== "NAO INFORMADO" && val !== "NÃO INFORMADO") {
+        acc[val] = (acc[val] || 0) + 1;
+      }
+      return acc;
+    }, {});
+    // Cidade: só existe "evento_cidade" (não há cidade do associado na base
+    // SGA); é preenchida em ~27% dos registros na fonte. Mesmo parcial, é
+    // informação relevante para alguns gráficos e por isso é exibida.
+    const porCidade = reduce("evento_cidade");
     const porMotivo = reduce("motivo_evento");
     const porSituacao = reduce("situacao_evento");
     const porRegional = reduce("regional");
@@ -182,6 +198,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
 
     return {
       estadoData: toArr(porEstado),
+      cidadeData: toArr(porCidade, 10),
       motivoData: toArr(porMotivo, 15),
       situacaoData: toArr(porSituacao, 15),
       regionalData: toArr(porRegional),
@@ -342,7 +359,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         </Card>
       </div>
 
-      {/* Estado (bars) + Tipo Veículo (donut) */}
+      {/* Estado (bars) + Cidade (bars) */}
       <div className="grid gap-3 lg:grid-cols-2">
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Estado</CardTitle></CardHeader>
@@ -351,11 +368,41 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5">
+            <CardTitle className="text-sm font-semibold">Eventos por Cidade</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {stats.cidadeData.length > 0 ? (
+              <>
+                <BarWidget data={stats.cidadeData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+                <p className="text-[10px] text-muted-foreground text-center mt-2">
+                  Cidade do evento disponível em parte dos registros importados do SGA.
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-4">Sem dados de cidade</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tipo Veículo (donut) */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Tipo de Veículo</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
             <MiniDonut data={stats.tipoVeiculoData} total={totalEventos} />
           </CardContent>
         </Card>
+        {/* Envolvimento (movido para cá para preencher a coluna, quando disponível) */}
+        {stats.envolvimentoData.length > 0 && (
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Envolvimento</CardTitle></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <MiniDonut data={stats.envolvimentoData} total={totalEventos} />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Cooperativa Eventos + Custos */}
@@ -377,16 +424,6 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </CardContent>
         </Card>
       </div>
-
-      {/* Envolvimento */}
-      {stats.envolvimentoData.length > 0 && (
-        <Card className="rounded-2xl border-border/40">
-          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Envolvimento</CardTitle></CardHeader>
-          <CardContent className="px-4 pb-4">
-            <MiniDonut data={stats.envolvimentoData} total={totalEventos} />
-          </CardContent>
-        </Card>
-      )}
 
       <SGAEventosDetailDialog
         open={detailDialog.open}
