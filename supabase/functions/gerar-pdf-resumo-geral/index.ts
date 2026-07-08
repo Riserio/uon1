@@ -17,7 +17,8 @@ const corsHeaders = {
 // Vangard (/images/vangard-logo.png) no cabeçalho, seções em formato de
 // tabela (linha + borda inferior) em vez de cards, acento laranja único,
 // botão sólido preto "Abrir Painel" no rodapé apontando para
-// vangard.uon1.com.br/{slug}/dashboard.
+// vangard.uon1.com.br/{slug}/dashboard. "Referência" = data de emissão do
+// relatório (não o mês de referência financeiro/eventos).
 //
 // Reaproveita o mesmo agregador de dados já usado na mensagem de texto
 // (gerar-resumo-geral), então o conteúdo do PDF é sempre consistente com o
@@ -69,6 +70,13 @@ serve(async (req) => {
     }
     const dados: Record<string, any> = resumoJson.dados || {};
     const modulos = resumoJson.modulos_incluidos || {};
+
+    // ----- Data de emissão (São Paulo, UTC-3) — usada no cabeçalho, no card
+    // "Referência" e no nome do arquivo/caminho no Storage. -----
+    const nowSP = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    const dataEmissao = `${pad2(nowSP.getUTCDate())}/${pad2(nowSP.getUTCMonth() + 1)}/${nowSP.getUTCFullYear()}`;
+    const dataLabelArquivo = `${pad2(nowSP.getUTCDate())}-${pad2(nowSP.getUTCMonth() + 1)}-${nowSP.getUTCFullYear()}`;
 
     // ---- Monta o PDF ----
     const pdfDoc = await PDFDocument.create();
@@ -134,7 +142,7 @@ serve(async (req) => {
     }
 
     drawTextRight("Resumo executivo", width - marginX, y - 20, { size: 22, font: fontBold, color: BLACK });
-    drawTextRight(dados.cob_mes_referencia || dados.ev_mes_referencia || "-", width - marginX, y - 36, {
+    drawTextRight(dataEmissao, width - marginX, y - 36, {
       size: 11,
       color: GRAY_TEXT,
     });
@@ -147,7 +155,7 @@ serve(async (req) => {
     page.drawRectangle({ x: marginX, y: y - 2, width: width - marginX * 2, height: 2, color: rgb(236 / 255, 236 / 255, 236 / 255) });
     y -= 30;
 
-    // ----- Cards de contexto: Operação | Referência -----
+    // ----- Cards de contexto: Operação | Referência (data de emissão) -----
     const cardW = (width - marginX * 2 - 16) / 2;
     const cardH = 54;
     const drawInfoCard = (x: number, label: string, value: string) => {
@@ -164,7 +172,7 @@ serve(async (req) => {
       drawText(value, x + 16, y - 38, { size: 14, font: fontBold, color: BLACK });
     };
     drawInfoCard(marginX, "Operação", nomeAssociacao.toUpperCase());
-    drawInfoCard(marginX + cardW + 16, "Referência", dados.cob_mes_referencia || dados.ev_mes_referencia || "-");
+    drawInfoCard(marginX + cardW + 16, "Referência", dataEmissao);
     y -= cardH + 28;
 
     // ----- Helper: seção em formato de tabela (título com barra + linhas) -----
@@ -234,8 +242,6 @@ serve(async (req) => {
     const slug = corretora?.slug;
     const painelUrl = slug ? `${PAINEL_BASE}/${slug}/dashboard` : null;
 
-    const footerTop = 118;
-    if (y < footerTop) y = footerTop; // evita sobrepor se as seções acabarem muito perto do rodapé
     const footerY = 118;
     page.drawRectangle({
       x: marginX,
@@ -264,11 +270,8 @@ serve(async (req) => {
     const pdfBytes = await pdfDoc.save();
 
     // ----- Upload no Storage -----
-    const now = new Date(Date.now() - 3 * 60 * 60 * 1000); // UTC-3
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const dataLabel = `${pad(now.getUTCDate())}-${pad(now.getUTCMonth() + 1)}-${now.getUTCFullYear()}`;
-    const displayFilename = `Resumo_VANGARD_${dataLabel}.pdf`;
-    const storagePath = `${corretora_id}/${Date.now()}-${dataLabel}.pdf`;
+    const displayFilename = `Resumo_VANGARD_${dataLabelArquivo}.pdf`;
+    const storagePath = `${corretora_id}/${Date.now()}-${dataLabelArquivo}.pdf`;
 
     const { error: uploadError } = await supabase.storage
       .from("relatorios-whatsapp")
