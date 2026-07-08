@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, FileText, Tag, Edit2, Eye, Code } from "lucide-react";
+import { Plus, Save, Trash2, FileText, Tag, Edit2, Eye, Code, ExternalLink } from "lucide-react";
 import DOMPurify from "dompurify";
 import { MetaTemplatesManager } from "./MetaTemplatesManager";
 
@@ -141,6 +141,14 @@ function replaceTagsWithSample(text: string): string {
   return result;
 }
 
+// Nome de arquivo de exemplo igual ao gerado pela função gerar-pdf-resumo-geral
+// (Resumo_VANGARD_DD-MM-YYYY.pdf), só para a prévia refletir o envio real.
+function samplePdfFilename(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `Resumo_VANGARD_${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}.pdf`;
+}
+
 export function WhatsAppTemplates() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
@@ -155,6 +163,7 @@ export function WhatsAppTemplates() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewContent, setPreviewContent] = useState("");
   const [previewFormato, setPreviewFormato] = useState<"texto" | "html">("texto");
+  const [previewTipo, setPreviewTipo] = useState<Template["tipo"]>("manual");
 
   useEffect(() => {
     loadTemplates();
@@ -250,10 +259,14 @@ export function WhatsAppTemplates() {
     });
   };
 
-  const openPreview = (mensagem: string, formato: "texto" | "html") => {
+  // O tipo "geral" é o único que corresponde ao template Meta "relatorio_geral"
+  // (header Documento + botão "Abrir Painel"). Para os demais tipos a prévia
+  // mostra só o texto/HTML, já que nenhum outro template interno tem anexo.
+  const openPreview = (mensagem: string, formato: "texto" | "html", tipo: Template["tipo"] = "manual") => {
     const rendered = replaceTagsWithSample(mensagem);
     setPreviewContent(rendered);
     setPreviewFormato(formato);
+    setPreviewTipo(tipo);
     setPreviewOpen(true);
   };
 
@@ -285,22 +298,55 @@ export function WhatsAppTemplates() {
         <TabsContent value="internos" className="mt-4 space-y-6">
           {/* Preview Dialog */}
           <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogContent className="max-w-md max-h-[85vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Eye className="h-5 w-5 text-primary" />
-                  Prévia do Template
+                  Prévia de envio
                 </DialogTitle>
               </DialogHeader>
-              <div className="flex-1 overflow-auto border rounded-lg bg-background">
-                {previewFormato === "html" ? (
-                  <div className="p-6" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewContent) }} />
-                ) : (
-                  <pre className="p-6 text-sm whitespace-pre-wrap font-sans text-foreground">{previewContent}</pre>
-                )}
+              <div className="flex-1 overflow-auto rounded-lg bg-[#e5ddd5] dark:bg-[#0b141a] p-4">
+                {/* Bolha estilo WhatsApp — reflete exatamente o que a Meta envia:
+                    anexo de documento (quando geral) + corpo + botão de link. */}
+                <div className="max-w-[300px] ml-auto rounded-lg bg-white dark:bg-[#202c33] shadow overflow-hidden text-sm">
+                  {previewTipo === "geral" && (
+                    <div className="flex items-center gap-2 p-3 bg-black/[0.03] dark:bg-white/[0.04] border-b border-black/5 dark:border-white/10">
+                      <div className="h-9 w-9 rounded bg-red-500/10 flex items-center justify-center shrink-0">
+                        <FileText className="h-5 w-5 text-red-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium truncate text-foreground">{samplePdfFilename()}</p>
+                        <p className="text-[10px] text-muted-foreground">PDF · anexado automaticamente no envio</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="p-3">
+                    {previewFormato === "html" ? (
+                      <div
+                        className="text-foreground"
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewContent) }}
+                      />
+                    ) : (
+                      <pre className="whitespace-pre-wrap font-sans text-foreground text-[13px] leading-snug">
+                        {previewContent}
+                      </pre>
+                    )}
+                  </div>
+                  {previewTipo === "geral" && (
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 border-t border-black/5 dark:border-white/10 text-[#00a5f4] text-[13px] font-medium"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Abrir Painel
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                * As tags foram substituídas por dados de exemplo para visualização
+                * Tags substituídas por dados de exemplo.
+                {previewTipo === "geral" &&
+                  " O anexo e o botão só aparecem para o tipo Geral (consolidado), que corresponde ao template Meta relatorio_geral."}
               </p>
             </DialogContent>
           </Dialog>
@@ -377,6 +423,14 @@ export function WhatsAppTemplates() {
                     </div>
                   </div>
 
+                  {novoTemplate.tipo === "geral" && (
+                    <p className="text-xs text-muted-foreground bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900 rounded-lg px-3 py-2">
+                      Este texto é só uma referência — o envio real do tipo Geral acontece pelo template aprovado na
+                      Meta (aba "Templates Meta" → relatorio_geral), que já inclui o PDF anexado e o botão "Abrir
+                      Painel". Use a Prévia abaixo para ver como chega no WhatsApp.
+                    </p>
+                  )}
+
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
                       <Tag className="h-4 w-4" />
@@ -447,7 +501,10 @@ export function WhatsAppTemplates() {
                       <Save className="h-4 w-4 mr-2" />
                       {editingTemplate ? "Atualizar" : "Salvar"}
                     </Button>
-                    <Button variant="outline" onClick={() => openPreview(novoTemplate.mensagem, novoTemplate.formato)}>
+                    <Button
+                      variant="outline"
+                      onClick={() => openPreview(novoTemplate.mensagem, novoTemplate.formato, novoTemplate.tipo)}
+                    >
                       <Eye className="h-4 w-4 mr-2" />
                       Prévia
                     </Button>
@@ -483,6 +540,11 @@ export function WhatsAppTemplates() {
                             >
                               {template.formato === "html" ? "HTML" : "Texto"}
                             </Badge>
+                            {template.tipo === "geral" && (
+                              <Badge variant="outline" className="text-[10px] gap-1 border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                <FileText className="h-3 w-3" /> PDF + botão
+                              </Badge>
+                            )}
                             {!template.ativo && <Badge variant="secondary">Inativo</Badge>}
                           </div>
                           <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans line-clamp-3">
@@ -493,7 +555,7 @@ export function WhatsAppTemplates() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => openPreview(template.mensagem, template.formato)}
+                            onClick={() => openPreview(template.mensagem, template.formato, template.tipo)}
                             title="Prévia"
                           >
                             <Eye className="h-4 w-4 text-primary" />
