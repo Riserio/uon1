@@ -305,8 +305,14 @@ async function sendTemplate(
             parameters: [{ type: "document", document: { link: pdfInfo.url, filename: pdfInfo.filename } }],
           });
         } else {
-          console.error(
-            "[whatsapp-template-schedule-runner] Template exige header Documento mas o PDF não pôde ser gerado — enviando sem header.",
+          // O template EXIGE header Documento. Mandar sem ele faz a Meta
+          // rejeitar com o #132012 críptico. Melhor abortar com mensagem clara:
+          // quase sempre é o bucket público "relatorios-whatsapp" que não existe
+          // (não é criado por migration) ou a função gerar-pdf-resumo-geral
+          // falhando.
+          throw new Error(
+            "Template exige header Documento (PDF), mas o PDF não foi gerado. " +
+              "Verifique a função gerar-pdf-resumo-geral e o bucket público 'relatorios-whatsapp' no Supabase.",
           );
         }
       } else if (expected.headerFormat === "TEXT" && expected.header > 0) {
