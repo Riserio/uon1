@@ -8,34 +8,34 @@ const corsHeaders = {
 };
 
 // ============================================================================
-// Gera um PDF profissional de 1 página com o Resumo VANGARD (Eventos +
-// Cobrança + MGF), sobe no Supabase Storage (bucket público "relatorios-
-// whatsapp") e devolve uma URL pública + nome de arquivo prontos para anexar
-// como header.document num template da Meta (WhatsApp).
+// Gera um PDF de 1 página com o Resumo executivo (Financeiro + Eventos + MGF +
+// Destaques), sobe no Supabase Storage (bucket público "relatorios-whatsapp")
+// e devolve uma URL pública + nome de arquivo prontos para anexar como
+// header.document num template da Meta (WhatsApp).
 //
-// Paleta e tipografia seguem o design system do app (src/index.css):
-// --primary 247 51% 35% (indigo), --foreground 222 47% 11% (navy escuro),
-// --muted 220 14% 96%, --border 220 13% 91%, --muted-foreground 220 9% 46%,
-// --chart-1..4 (azul, verde-água, âmbar, roxo) — mesmas cores usadas nos
-// gráficos e cards das telas de Eventos/Cobrança/MGF.
+// Layout "clean e moderno" aprovado pelo usuário: fundo branco, logo real da
+// Vangard (/images/vangard-logo.png) no cabeçalho, seções em formato de
+// tabela (linha + borda inferior) em vez de cards, acento laranja único,
+// botão sólido preto "Abrir Painel" no rodapé apontando para
+// vangard.uon1.com.br/{slug}/dashboard.
 //
 // Reaproveita o mesmo agregador de dados já usado na mensagem de texto
 // (gerar-resumo-geral), então o conteúdo do PDF é sempre consistente com o
 // que já é enviado por WhatsApp/telas do BI — sem duplicar lógica de cálculo.
 // ============================================================================
 
-// Cores convertidas de HSL (design system) para RGB 0-1
-const PRIMARY = rgb(54 / 255, 44 / 255, 135 / 255); // --primary 247 51% 35% (indigo)
-const NAVY_TEXT = rgb(15 / 255, 23 / 255, 41 / 255); // --foreground 222 47% 11%
-const AMBER = rgb(250 / 255, 177 / 255, 30 / 255); // --chart-3 40 96% 55%
-const CHART_BLUE = rgb(43 / 255, 108 / 255, 238 / 255); // --chart-1 220 85% 55%
-const CHART_TEAL = rgb(26 / 255, 188 / 255, 156 / 255); // --chart-2 168 76% 42%
-const CHART_PURPLE = rgb(153 / 255, 82 / 255, 224 / 255); // --chart-4 270 70% 60%
-const MUTED_BG = rgb(243 / 255, 244 / 255, 246 / 255); // --muted 220 14% 96%
-const BORDER = rgb(229 / 255, 231 / 255, 235 / 255); // --border 220 13% 91%
-const MUTED_TEXT = rgb(107 / 255, 114 / 255, 128 / 255); // --muted-foreground 220 9% 46%
+const BLACK = rgb(17 / 255, 17 / 255, 17 / 255); // #111111
+const ORANGE = rgb(255 / 255, 107 / 255, 26 / 255); // #FF6B1A
+const GRAY_TEXT = rgb(107 / 255, 114 / 255, 128 / 255); // #6B7280 (label)
+const GRAY_MUTED = rgb(119 / 255, 119 / 255, 119 / 255); // #777777 (footer/legenda)
+const CARD_BG = rgb(250 / 255, 250 / 255, 250 / 255); // #FAFAFA
+const CARD_BORDER = rgb(239 / 255, 239 / 255, 239 / 255); // #EFEFEF
+const ROW_BORDER = rgb(236 / 255, 236 / 255, 236 / 255); // #ECECEC
+const GREEN_SUCCESS = rgb(22 / 255, 163 / 255, 74 / 255); // #16A34A
 const WHITE = rgb(1, 1, 1);
-const PRIMARY_TINT = rgb(0.86, 0.85, 0.94); // indigo bem clarinho p/ texto sobre fundo primary
+
+const PAINEL_BASE = "https://vangard.uon1.com.br";
+const LOGO_URL = `${PAINEL_BASE}/images/vangard-logo.png`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -76,8 +76,21 @@ serve(async (req) => {
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const { width } = page.getSize();
-    const marginX = 40;
+    const marginX = 48;
     let y = 841.89;
+
+    // Logo real da Vangard — busca o PNG estático do próprio app e embute no PDF.
+    // Se falhar (rede indisponível etc.), cai para um wordmark em texto.
+    let logoImage: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
+    try {
+      const logoRes = await fetch(LOGO_URL);
+      if (logoRes.ok) {
+        const logoBytes = new Uint8Array(await logoRes.arrayBuffer());
+        logoImage = await pdfDoc.embedPng(logoBytes);
+      }
+    } catch (_e) {
+      logoImage = null;
+    }
 
     const drawText = (
       text: string,
@@ -90,7 +103,7 @@ serve(async (req) => {
         y: yy,
         size: opts.size ?? 10,
         font: opts.font ?? fontRegular,
-        color: opts.color ?? NAVY_TEXT,
+        color: opts.color ?? BLACK,
       });
     };
 
@@ -106,150 +119,147 @@ serve(async (req) => {
       drawText(text, xRight - w, yy, { size, font, color: opts.color });
     };
 
-    // ----- Cabeçalho (faixa indigo — cor --primary do design system) -----
-    const headerHeight = 108;
-    page.drawRectangle({ x: 0, y: y - headerHeight, width, height: headerHeight, color: PRIMARY });
-    // linha de destaque âmbar no rodapé do cabeçalho, mesmo acento usado em cards de destaque do app
-    page.drawRectangle({ x: 0, y: y - headerHeight, width, height: 3, color: AMBER });
-    drawText("RESUMO VANGARD", marginX, y - 38, { size: 21, font: fontBold, color: WHITE });
-    drawText(nomeAssociacao.toUpperCase(), marginX, y - 60, { size: 12, font: fontBold, color: AMBER });
-    drawText(`Gerado em ${dados.data_geracao || "-"}`, marginX, y - 82, {
-      size: 9,
-      font: fontRegular,
-      color: PRIMARY_TINT,
+    // ----- Cabeçalho: logo à esquerda, título à direita, linha de baixo -----
+    const topPad = 50;
+    y -= topPad;
+
+    if (logoImage) {
+      const targetH = 44;
+      const scale = targetH / logoImage.height;
+      const logoW = logoImage.width * scale;
+      page.drawImage(logoImage, { x: marginX, y: y - targetH, width: logoW, height: targetH });
+    } else {
+      drawText("VANGARD", marginX, y - 16, { size: 15, font: fontBold, color: BLACK });
+      drawText("G E S T O R A", marginX, y - 28, { size: 7, font: fontRegular, color: GRAY_MUTED });
+    }
+
+    drawTextRight("Resumo executivo", width - marginX, y - 20, { size: 22, font: fontBold, color: BLACK });
+    drawTextRight(dados.cob_mes_referencia || dados.ev_mes_referencia || "-", width - marginX, y - 36, {
+      size: 11,
+      color: GRAY_TEXT,
     });
-    y -= headerHeight + 26;
+    drawTextRight(`Gerado em ${dados.data_geracao || "-"}`, width - marginX, y - 50, {
+      size: 9,
+      color: GRAY_TEXT,
+    });
 
-    // ----- Helper: desenha uma seção (card) com barra colorida + grid label/valor -----
-    const drawSection = (
-      title: string,
-      accent: ReturnType<typeof rgb>,
-      rows: { label: string; value: string }[],
-      periodo?: string,
-    ) => {
-      const rowH = 32;
-      const titleAreaH = 32;
-      const bottomPad = 16;
-      const numRows = Math.ceil(rows.length / 2);
-      const sectionH = titleAreaH + numRows * rowH + bottomPad;
+    y -= 64;
+    page.drawRectangle({ x: marginX, y: y - 2, width: width - marginX * 2, height: 2, color: rgb(236 / 255, 236 / 255, 236 / 255) });
+    y -= 30;
 
-      // fundo do card + borda sutil (mesmo padrão dos cards do app: fundo muted, borda leve)
+    // ----- Cards de contexto: Operação | Referência -----
+    const cardW = (width - marginX * 2 - 16) / 2;
+    const cardH = 54;
+    const drawInfoCard = (x: number, label: string, value: string) => {
       page.drawRectangle({
-        x: marginX,
-        y: y - sectionH,
-        width: width - marginX * 2,
-        height: sectionH,
-        color: MUTED_BG,
-        borderColor: BORDER,
+        x,
+        y: y - cardH,
+        width: cardW,
+        height: cardH,
+        color: CARD_BG,
+        borderColor: CARD_BORDER,
         borderWidth: 1,
       });
-      // barra de destaque à esquerda (mesma cor do chart da seção)
-      page.drawRectangle({ x: marginX, y: y - sectionH, width: 4, height: sectionH, color: accent });
+      drawText(label, x + 16, y - 20, { size: 9, color: GRAY_MUTED });
+      drawText(value, x + 16, y - 38, { size: 14, font: fontBold, color: BLACK });
+    };
+    drawInfoCard(marginX, "Operação", nomeAssociacao.toUpperCase());
+    drawInfoCard(marginX + cardW + 16, "Referência", dados.cob_mes_referencia || dados.ev_mes_referencia || "-");
+    y -= cardH + 28;
 
-      // título
-      drawText(title, marginX + 18, y - 23, { size: 12.5, font: fontBold, color: accent });
-      if (periodo) {
-        drawTextRight(periodo, width - marginX - 18, y - 23, { size: 8.5, color: MUTED_TEXT });
-      }
+    // ----- Helper: seção em formato de tabela (título com barra + linhas) -----
+    type Row = { label: string; value: string; color?: ReturnType<typeof rgb> };
+    const drawTableSection = (title: string, rows: Row[]) => {
+      page.drawRectangle({ x: marginX, y: y - 14, width: 4, height: 14, color: ORANGE });
+      drawText(title.toUpperCase(), marginX + 14, y - 11, { size: 11, font: fontBold, color: BLACK });
+      y -= 30;
 
-      // linha divisória entre título e grid
-      page.drawRectangle({
-        x: marginX + 1,
-        y: y - titleAreaH,
-        width: width - marginX * 2 - 2,
-        height: 0.75,
-        color: BORDER,
+      const rowH = 26;
+      rows.forEach((r) => {
+        drawText(r.label, marginX, y, { size: 10, color: GRAY_TEXT });
+        drawTextRight(r.value, width - marginX, y, { size: 11.5, font: fontBold, color: r.color ?? BLACK });
+        page.drawRectangle({ x: marginX, y: y - 10, width: width - marginX * 2, height: 0.75, color: ROW_BORDER });
+        y -= rowH;
       });
-
-      let ry = y - titleAreaH - 20;
-      const colX2 = marginX + (width - marginX * 2) / 2 + 10;
-      rows.forEach((r, i) => {
-        const cx = i % 2 === 0 ? marginX + 18 : colX2;
-        if (i % 2 === 0 && i > 0) ry -= rowH;
-        drawText(r.label, cx, ry, { size: 8.5, font: fontRegular, color: MUTED_TEXT });
-        drawText(r.value, cx, ry - 16, { size: 12.5, font: fontBold, color: NAVY_TEXT });
-      });
-      y -= sectionH + 20;
+      y -= 12;
     };
 
-    // ----- Financeiro / Cobrança -----
+    // ----- Financeiro -----
     if (modulos.cobranca) {
-      drawSection(
-        "FATURAMENTO & COBRANÇA",
-        CHART_TEAL,
-        [
-          { label: "Faturamento esperado", value: String(dados.cob_faturamento_esperado ?? "-") },
-          { label: "Faturamento recebido", value: String(dados.cob_faturamento_recebido ?? "-") },
-          { label: "Valor em aberto", value: String(dados.cob_total_aberto ?? "-") },
-          { label: "Inadimplência geral", value: String(dados.cob_percentual_inadimplencia ?? "-") },
-          { label: "Boletos gerados", value: String(dados.cob_total_gerados ?? "-") },
-          { label: "Boletos baixados", value: String(dados.cob_total_baixados ?? "-") },
-          { label: "Maior inadimplência", value: String(dados.cob_coop_maior_inadimplencia ?? "-") },
-          { label: "Menor inadimplência", value: String(dados.cob_coop_menor_inadimplencia ?? "-") },
-        ],
-        dados.cob_mes_referencia ? `Ref: ${dados.cob_mes_referencia}` : undefined,
-      );
+      drawTableSection("Financeiro", [
+        { label: "Faturamento esperado", value: String(dados.cob_faturamento_esperado ?? "-") },
+        { label: "Faturamento recebido", value: String(dados.cob_faturamento_recebido ?? "-"), color: GREEN_SUCCESS },
+        { label: "Valor em aberto", value: String(dados.cob_total_aberto ?? "-"), color: ORANGE },
+        { label: "Boletos gerados", value: String(dados.cob_total_gerados ?? "-") },
+        { label: "Boletos baixados", value: String(dados.cob_total_baixados ?? "-") },
+        { label: "Inadimplência", value: String(dados.cob_percentual_inadimplencia ?? "-"), color: ORANGE },
+      ]);
     }
 
     // ----- Eventos -----
     if (modulos.eventos) {
-      drawSection(
-        "EVENTOS",
-        CHART_BLUE,
-        [
-          { label: "Total de eventos", value: String(dados.ev_total ?? "-") },
-          { label: "Colisão", value: String(dados.ev_colisao ?? "-") },
-          { label: "Vidros", value: String(dados.ev_vidros ?? "-") },
-          { label: "Furto/Roubo", value: String(dados.ev_furto_roubo ?? "-") },
-          { label: "Outros", value: String(dados.ev_outros ?? "-") },
-          { label: "Cidade com mais eventos", value: String(dados.ev_cidade_top ?? "-") },
-          { label: "Cooperativa com mais eventos", value: String(dados.ev_cooperativa_top ?? "-") },
-        ],
-        dados.ev_mes_referencia ? `Ref: ${dados.ev_mes_referencia}` : undefined,
-      );
+      drawTableSection("Eventos", [
+        { label: "Total de eventos", value: String(dados.ev_total ?? "-") },
+        { label: "Colisão", value: String(dados.ev_colisao ?? "-") },
+        { label: "Vidros", value: String(dados.ev_vidros ?? "-") },
+        { label: "Furto/Roubo", value: String(dados.ev_furto_roubo ?? "-") },
+        { label: "Outros", value: String(dados.ev_outros ?? "-") },
+        { label: "Cidade com mais eventos", value: String(dados.ev_cidade_top ?? "-") },
+        { label: "Cooperativa com mais eventos", value: String(dados.ev_cooperativa_top ?? "-") },
+      ]);
     }
 
     // ----- MGF -----
     if (modulos.mgf) {
-      drawSection("MGF — LANÇAMENTOS DO MÊS", CHART_PURPLE, [
+      drawTableSection("MGF — lançamentos do mês", [
         { label: "Total de lançamentos", value: String(dados.mgf_total_lancamentos ?? "-") },
         { label: "Valor total", value: `R$ ${dados.mgf_valor_total ?? "-"}` },
         { label: "Pagos", value: String(dados.mgf_pagos ?? "-") },
-        { label: "Valor pago", value: `R$ ${dados.mgf_valor_pago ?? "-"}` },
+        { label: "Valor pago", value: `R$ ${dados.mgf_valor_pago ?? "-"}`, color: GREEN_SUCCESS },
         { label: "Em aberto", value: String(dados.mgf_em_aberto ?? "-") },
-        { label: "Valor em aberto", value: `R$ ${dados.mgf_valor_aberto ?? "-"}` },
+        { label: "Valor em aberto", value: `R$ ${dados.mgf_valor_aberto ?? "-"}`, color: ORANGE },
         { label: "Operação mais frequente", value: String(dados.mgf_top_operacao ?? "-") },
       ]);
     }
 
-    // ----- Rodapé: CTA "Abrir Painel" (botão sólido cor --primary, igual aos botões do app) -----
-    const slug = corretora?.slug;
-    const painelUrl = slug ? `https://uon1.com.br/${slug}/dashboard` : null;
+    // ----- Destaques -----
+    if (modulos.cobranca) {
+      drawTableSection("Destaques", [
+        { label: "Maior inadimplência", value: String(dados.cob_coop_maior_inadimplencia ?? "-") },
+        { label: "Menor inadimplência", value: String(dados.cob_coop_menor_inadimplencia ?? "-"), color: GREEN_SUCCESS },
+      ]);
+    }
 
-    const footerY = 92;
+    // ----- Rodapé: wordmark + link à esquerda, botão "Abrir Painel" à direita -----
+    const slug = corretora?.slug;
+    const painelUrl = slug ? `${PAINEL_BASE}/${slug}/dashboard` : null;
+
+    const footerTop = 118;
+    if (y < footerTop) y = footerTop; // evita sobrepor se as seções acabarem muito perto do rodapé
+    const footerY = 118;
     page.drawRectangle({
       x: marginX,
-      y: footerY - 0.75,
+      y: footerY,
       width: width - marginX * 2,
-      height: 0.75,
-      color: BORDER,
+      height: 2,
+      color: rgb(236 / 255, 236 / 255, 236 / 255),
     });
+
+    drawText("VANGARD", marginX, footerY - 22, { size: 11, font: fontBold, color: BLACK });
+    drawText("Business Intelligence Operacional", marginX, footerY - 36, { size: 9, color: GRAY_MUTED });
+    if (painelUrl) {
+      drawText(painelUrl.replace("https://", ""), marginX, footerY - 50, { size: 9, color: GRAY_MUTED });
+    }
 
     if (painelUrl) {
       const btnH = 30;
-      const btnW = 150;
-      const btnY = footerY - 20 - btnH;
-      page.drawRectangle({ x: marginX, y: btnY, width: btnW, height: btnH, color: PRIMARY });
-      drawText("Abrir Painel  >", marginX + 18, btnY + 10.5, { size: 10.5, font: fontBold, color: WHITE });
-      drawText(painelUrl, marginX + btnW + 14, btnY + 10.5, { size: 9, font: fontRegular, color: MUTED_TEXT });
-    } else {
-      drawText("Consulte o painel completo para mais detalhes e histórico.", marginX, footerY - 30, {
-        size: 9,
-        color: MUTED_TEXT,
-      });
+      const btnLabel = "Abrir Painel  >";
+      const btnW = fontBold.widthOfTextAtSize(btnLabel, 11) + 36;
+      const btnX = width - marginX - btnW;
+      const btnY = footerY - 22 - btnH;
+      page.drawRectangle({ x: btnX, y: btnY, width: btnW, height: btnH, color: BLACK });
+      drawText(btnLabel, btnX + 18, btnY + 10.5, { size: 11, font: fontBold, color: WHITE });
     }
-
-    drawText("VANGARD · Business Intelligence Operacional", marginX, 22, { size: 8, color: MUTED_TEXT });
 
     const pdfBytes = await pdfDoc.save();
 
