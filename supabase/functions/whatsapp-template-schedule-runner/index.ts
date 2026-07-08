@@ -12,12 +12,19 @@ const META_PHONE_ID = Deno.env.get("META_WHATSAPP_PHONE_NUMBER_ID")!;
 const META_WABA_ID = Deno.env.get("META_WHATSAPP_BUSINESS_ACCOUNT_ID") || "";
 
 // Cache: template name -> spec (placeholders + tipo de header + botão dinâmico).
+// TTL curto (2 min) — funções Edge podem ficar "quentes" entre invocações, e um
+// cache sem expiração continuaria mandando a estrutura antiga do template por
+// tempo indeterminado após uma edição/aprovação na Meta (foi exatamente isso
+// que causou o erro #132012 "Parameter format does not match format in the
+// created template" logo após aprovarmos o header Documento + botão).
 type TemplateSpec = { header: number; body: number; headerFormat: "NONE" | "TEXT" | "DOCUMENT"; hasUrlButton: boolean };
-const templateParamSpecCache = new Map<string, TemplateSpec>();
+const TEMPLATE_SPEC_TTL_MS = 2 * 60 * 1000;
+const templateParamSpecCache = new Map<string, { spec: TemplateSpec; fetchedAt: number }>();
 
 async function getTemplateParamSpec(name: string, language: string): Promise<TemplateSpec | null> {
   const cacheKey = `${name}::${language}`;
-  if (templateParamSpecCache.has(cacheKey)) return templateParamSpecCache.get(cacheKey)!;
+  const cached = templateParamSpecCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < TEMPLATE_SPEC_TTL_MS) return cached.spec;
 
   let wabaId = META_WABA_ID;
   if (!wabaId) {
@@ -62,7 +69,7 @@ async function getTemplateParamSpec(name: string, language: string): Promise<Tem
     headerFormat,
     hasUrlButton,
   };
-  templateParamSpecCache.set(cacheKey, spec);
+  templateParamSpecCache.set(cacheKey, { spec, fetchedAt: Date.now() });
   return spec;
 }
 
