@@ -382,11 +382,15 @@ async function sendTemplate(
     body: JSON.stringify(body),
   });
   const json = await res.json();
-  // Surfaça o detalhe real da Meta (error_data.details) — é onde a API diz
-  // exatamente QUAL componente/parâmetro está errado (ex.: botão, header).
+  // ==== MODO DIAGNÓSTICO (temporário) ====
+  // Em caso de erro, grava o objeto de erro COMPLETO da Meta + o PAYLOAD exato
+  // enviado, tudo em `erro_mensagem`. Assim dá pra ver, via SQL, qual componente
+  // (header/body/botão) a Meta está rejeitando no #132012. Depois de descobrir,
+  // volte este bloco para o `throw` normal (details || message).
   if (!res.ok) {
     console.error("[whatsapp-template-schedule-runner] Erro Meta API:", JSON.stringify(json?.error));
-    throw new Error(json?.error?.error_data?.details || json?.error?.message || "Erro Meta API");
+    const diag = "META_FULL:" + JSON.stringify(json?.error || json) + " || PAYLOAD:" + JSON.stringify(body);
+    throw new Error(diag.slice(0, 3500));
   }
   return json.messages?.[0]?.id || null;
 }
