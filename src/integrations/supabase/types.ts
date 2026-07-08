@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      _sync_queue: {
+        Row: {
+          corretora_id: string
+          id: number
+          modulo: string
+          status: string
+          tentativas: number
+          ultimo_erro: string | null
+          updated_at: string
+        }
+        Insert: {
+          corretora_id: string
+          id?: number
+          modulo: string
+          status?: string
+          tentativas?: number
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Update: {
+          corretora_id?: string
+          id?: number
+          modulo?: string
+          status?: string
+          tentativas?: number
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       administradora: {
         Row: {
           cnpj: string | null
@@ -1394,6 +1424,7 @@ export type Database = {
           corretora_id: string | null
           created_at: string
           id: string
+          meta: Json | null
           nome_arquivo: string
           total_registros: number | null
           updated_at: string
@@ -1403,6 +1434,7 @@ export type Database = {
           corretora_id?: string | null
           created_at?: string
           id?: string
+          meta?: Json | null
           nome_arquivo: string
           total_registros?: number | null
           updated_at?: string
@@ -1412,6 +1444,7 @@ export type Database = {
           corretora_id?: string | null
           created_at?: string
           id?: string
+          meta?: Json | null
           nome_arquivo?: string
           total_registros?: number | null
           updated_at?: string
@@ -6762,6 +6795,13 @@ export type Database = {
             referencedRelation: "sga_eventos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sga_eventos_historico_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "sga_eventos_ativos"
+            referencedColumns: ["id"]
+          },
         ]
       }
       sga_importacoes: {
@@ -8718,9 +8758,190 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      cobranca_boletos_ativos: {
+        Row: {
+          cooperativa: string | null
+          corretora_id: string | null
+          created_at: string | null
+          dados_extras: Json | null
+          data_pagamento: string | null
+          data_vencimento: string | null
+          data_vencimento_original: string | null
+          dia_vencimento_veiculo: number | null
+          id: string | null
+          importacao_id: string | null
+          nome: string | null
+          origem_importacao: string | null
+          placas: string | null
+          qtde_dias_atraso_vencimento_original: number | null
+          regional_boleto: string | null
+          situacao: string | null
+          valor: number | null
+          voluntario: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobranca_boletos_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: false
+            referencedRelation: "cobranca_importacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobranca_importacoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mgf_dados_ativos: {
+        Row: {
+          associado: string | null
+          categoria_veiculo: string | null
+          centro_custo: string | null
+          classificacao: string | null
+          classificacao_veiculo: string | null
+          cnpj_fornecedor: string | null
+          controle_interno: string | null
+          cooperativa: string | null
+          corretora_id: string | null
+          cpf_cnpj_cliente: string | null
+          created_at: string | null
+          custo: number | null
+          dados_extras: Json | null
+          data_cadastro: string | null
+          data_evento: string | null
+          data_nota_fiscal: string | null
+          data_pagamento: string | null
+          data_vencimento: string | null
+          data_vencimento_original: string | null
+          descricao: string | null
+          forma_pagamento: string | null
+          fornecedor: string | null
+          id: string | null
+          importacao_id: string | null
+          impostos: number | null
+          juros: number | null
+          mes_referente: string | null
+          modelo_veiculo: string | null
+          motivo_evento: string | null
+          multa: number | null
+          nome_fantasia_fornecedor: string | null
+          nota_fiscal: string | null
+          operacao: string | null
+          origem_importacao: string | null
+          placa: string | null
+          placa_terceiro_evento: string | null
+          protocolo_evento: string | null
+          quantidade_parcela: number | null
+          regional: string | null
+          regional_evento: string | null
+          situacao: string | null
+          situacao_pagamento: string | null
+          status: string | null
+          sub_operacao: string | null
+          terceiro_evento: string | null
+          tipo_evento: string | null
+          tipo_veiculo: string | null
+          valor: number | null
+          valor_pagamento: number | null
+          valor_total_lancamento: number | null
+          veiculo_evento: string | null
+          veiculo_lancamento: string | null
+          voluntario: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mgf_dados_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: false
+            referencedRelation: "mgf_importacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mgf_importacoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sga_eventos_ativos: {
+        Row: {
+          analista_responsavel: string | null
+          ano_fabricacao: number | null
+          associado_estado: string | null
+          categoria_veiculo: string | null
+          classificacao: string | null
+          cooperativa: string | null
+          corretora_id: string | null
+          created_at: string | null
+          custo_evento: number | null
+          data_alteracao: string | null
+          data_cadastro_evento: string | null
+          data_cadastro_item: string | null
+          data_conclusao: string | null
+          data_evento: string | null
+          data_previsao_entrega: string | null
+          data_ultima_alteracao_situacao: string | null
+          data_ultima_descricao_interna: string | null
+          envolvimento: string | null
+          envolvimento_terceiro: string | null
+          evento_cidade: string | null
+          evento_estado: string | null
+          evento_logradouro: string | null
+          id: string | null
+          importacao_id: string | null
+          modelo_veiculo: string | null
+          modelo_veiculo_terceiro: string | null
+          motivo_evento: string | null
+          numero_bo: string | null
+          observacoes: string | null
+          origem_importacao: string | null
+          participacao: number | null
+          passivel_ressarcimento: string | null
+          placa: string | null
+          placa_terceiro: string | null
+          previsao_valor_reparo: number | null
+          protocolo: string | null
+          regional: string | null
+          regional_veiculo: string | null
+          situacao_analise_evento: string | null
+          situacao_evento: string | null
+          solicitou_carro_reserva: string | null
+          tipo_evento: string | null
+          tipo_veiculo_terceiro: string | null
+          ultima_descricao_bo: string | null
+          ultima_descricao_interna: string | null
+          usuario_alteracao: string | null
+          valor_mao_de_obra: number | null
+          valor_protegido_veiculo: number | null
+          valor_reparo: number | null
+          voluntario: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sga_eventos_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: false
+            referencedRelation: "sga_importacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sga_importacoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      _processar_fila_sync: { Args: never; Returns: Json }
       administrativo_can_view_profile: {
         Args: { target_profile_id: string; viewer_id: string }
         Returns: boolean
@@ -8745,6 +8966,10 @@ export type Database = {
           p_registro_id: string
         }
         Returns: boolean
+      }
+      calcular_resumo_cobranca: {
+        Args: { p_importacao_ids: string[] }
+        Returns: Json
       }
       can_manage_gestao: { Args: { _user_id: string }; Returns: boolean }
       can_send_email: { Args: { provider_name: string }; Returns: boolean }
