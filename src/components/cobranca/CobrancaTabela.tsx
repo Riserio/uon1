@@ -1,8 +1,17 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
- import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, SearchCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, SearchCheck, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
@@ -14,6 +23,8 @@ interface CobrancaTabelaProps {
   loading: boolean;
   corretoraId?: string;
 }
+
+const TODOS = "__todos__";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -41,24 +52,49 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [revistoriaOpen, setRevistoriaOpen] = useState(false);
-  
-  // Filtros individuais
-  const [filtroDataPagamento, setFiltroDataPagamento] = useState("");
+  const [maisFiltrosAberto, setMaisFiltrosAberto] = useState(false);
+
+  // Filtro sempre visível (uso mais comum)
+  const [filtroSituacao, setFiltroSituacao] = useState("");
+
+  // Filtros avançados (dentro do colapse "Mais filtros")
+  const [filtroDataPagamentoDe, setFiltroDataPagamentoDe] = useState("");
+  const [filtroDataPagamentoAte, setFiltroDataPagamentoAte] = useState("");
+  const [filtroDataVencimentoDe, setFiltroDataVencimentoDe] = useState("");
+  const [filtroDataVencimentoAte, setFiltroDataVencimentoAte] = useState("");
   const [filtroDiaVencimento, setFiltroDiaVencimento] = useState("");
   const [filtroRegional, setFiltroRegional] = useState("");
   const [filtroCooperativa, setFiltroCooperativa] = useState("");
   const [filtroVoluntario, setFiltroVoluntario] = useState("");
   const [filtroPlacas, setFiltroPlacas] = useState("");
-  const [filtroSituacao, setFiltroSituacao] = useState("");
-  const [filtroDataVencimento, setFiltroDataVencimento] = useState("");
+
+  // Opções dinâmicas (baseadas nos dados carregados), evita digitar errado
+  // e deixa claro quais valores realmente existem.
+  const opcoesSituacao = useMemo(() => {
+    const set = new Set<string>();
+    boletos.forEach(b => { if (b.situacao) set.add(String(b.situacao).toUpperCase()); });
+    return Array.from(set).sort();
+  }, [boletos]);
+
+  const opcoesRegional = useMemo(() => {
+    const set = new Set<string>();
+    boletos.forEach(b => { if (b.regional_boleto) set.add(String(b.regional_boleto)); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [boletos]);
+
+  const opcoesCooperativa = useMemo(() => {
+    const set = new Set<string>();
+    boletos.forEach(b => { if (b.cooperativa) set.add(String(b.cooperativa)); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [boletos]);
 
   const filteredBoletos = useMemo(() => {
     let result = [...boletos];
-    
+
     // Busca geral
     if (search) {
       const searchLower = search.toLowerCase();
-      result = result.filter(b => 
+      result = result.filter(b =>
         (b.nome || "").toLowerCase().includes(searchLower) ||
         (b.placas || "").toLowerCase().includes(searchLower) ||
         (b.voluntario || "").toLowerCase().includes(searchLower) ||
@@ -66,19 +102,30 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
         (b.cooperativa || "").toLowerCase().includes(searchLower)
       );
     }
-    
-    // Filtros individuais
-    if (filtroDataPagamento) {
-      result = result.filter(b => b.data_pagamento && b.data_pagamento.includes(filtroDataPagamento));
+
+    if (filtroSituacao) {
+      result = result.filter(b => (b.situacao || "").toUpperCase() === filtroSituacao);
+    }
+    if (filtroDataPagamentoDe) {
+      result = result.filter(b => b.data_pagamento && b.data_pagamento.slice(0, 10) >= filtroDataPagamentoDe);
+    }
+    if (filtroDataPagamentoAte) {
+      result = result.filter(b => b.data_pagamento && b.data_pagamento.slice(0, 10) <= filtroDataPagamentoAte);
+    }
+    if (filtroDataVencimentoDe) {
+      result = result.filter(b => b.data_vencimento && b.data_vencimento.slice(0, 10) >= filtroDataVencimentoDe);
+    }
+    if (filtroDataVencimentoAte) {
+      result = result.filter(b => b.data_vencimento && b.data_vencimento.slice(0, 10) <= filtroDataVencimentoAte);
     }
     if (filtroDiaVencimento) {
       result = result.filter(b => String(b.dia_vencimento_veiculo) === filtroDiaVencimento);
     }
     if (filtroRegional) {
-      result = result.filter(b => (b.regional_boleto || "").toLowerCase().includes(filtroRegional.toLowerCase()));
+      result = result.filter(b => (b.regional_boleto || "") === filtroRegional);
     }
     if (filtroCooperativa) {
-      result = result.filter(b => (b.cooperativa || "").toLowerCase().includes(filtroCooperativa.toLowerCase()));
+      result = result.filter(b => (b.cooperativa || "") === filtroCooperativa);
     }
     if (filtroVoluntario) {
       result = result.filter(b => (b.voluntario || "").toLowerCase().includes(filtroVoluntario.toLowerCase()));
@@ -86,15 +133,14 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
     if (filtroPlacas) {
       result = result.filter(b => (b.placas || "").toLowerCase().includes(filtroPlacas.toLowerCase()));
     }
-    if (filtroSituacao) {
-      result = result.filter(b => (b.situacao || "").toLowerCase().includes(filtroSituacao.toLowerCase()));
-    }
-    if (filtroDataVencimento) {
-      result = result.filter(b => b.data_vencimento && b.data_vencimento.includes(filtroDataVencimento));
-    }
-    
+
     return result;
-  }, [boletos, search, filtroDataPagamento, filtroDiaVencimento, filtroRegional, filtroCooperativa, filtroVoluntario, filtroPlacas, filtroSituacao, filtroDataVencimento]);
+  }, [
+    boletos, search, filtroSituacao,
+    filtroDataPagamentoDe, filtroDataPagamentoAte,
+    filtroDataVencimentoDe, filtroDataVencimentoAte,
+    filtroDiaVencimento, filtroRegional, filtroCooperativa, filtroVoluntario, filtroPlacas,
+  ]);
 
   const paginatedBoletos = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -127,18 +173,26 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
 
   const clearFilters = () => {
     setSearch("");
-    setFiltroDataPagamento("");
+    setFiltroSituacao("");
+    setFiltroDataPagamentoDe("");
+    setFiltroDataPagamentoAte("");
+    setFiltroDataVencimentoDe("");
+    setFiltroDataVencimentoAte("");
     setFiltroDiaVencimento("");
     setFiltroRegional("");
     setFiltroCooperativa("");
     setFiltroVoluntario("");
     setFiltroPlacas("");
-    setFiltroSituacao("");
-    setFiltroDataVencimento("");
     setCurrentPage(1);
   };
 
-  const hasFilters = search || filtroDataPagamento || filtroDiaVencimento || filtroRegional || filtroCooperativa || filtroVoluntario || filtroPlacas || filtroSituacao || filtroDataVencimento;
+  const filtrosAvancadosAtivos = [
+    filtroDataPagamentoDe, filtroDataPagamentoAte,
+    filtroDataVencimentoDe, filtroDataVencimentoAte,
+    filtroDiaVencimento, filtroRegional, filtroCooperativa, filtroVoluntario, filtroPlacas,
+  ].filter(Boolean).length;
+
+  const hasFilters = !!(search || filtroSituacao || filtrosAvancadosAtivos);
 
   const inadimplentesAberto = useMemo(() => {
     return filteredBoletos.filter(b => (b.situacao || "").toUpperCase() === "ABERTO" && b.placas);
@@ -186,7 +240,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
       <CardHeader>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <CardTitle>Dados Completos ({filteredBoletos.length.toLocaleString()} registros)</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 Limpar Filtros
@@ -206,9 +260,9 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
         </div>
       </CardHeader>
       <CardContent>
-        {/* Busca geral */}
-        <div className="mb-4">
-          <div className="relative">
+        {/* Busca geral + situação (uso mais comum, sempre visíveis) */}
+        <div className="flex flex-col sm:flex-row gap-2 mb-3">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por nome, placa, voluntário, regional ou cooperativa..."
@@ -217,61 +271,132 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               className="pl-10"
             />
           </div>
+
+          <Select
+            value={filtroSituacao || TODOS}
+            onValueChange={(v) => { setFiltroSituacao(v === TODOS ? "" : v); setCurrentPage(1); }}
+          >
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Situação" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todas as situações</SelectItem>
+              {opcoesSituacao.map(op => (
+                <SelectItem key={op} value={op}>{op}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant="outline"
+            size="default"
+            onClick={() => setMaisFiltrosAberto(v => !v)}
+            className="gap-1.5 shrink-0"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Mais filtros
+            {filtrosAvancadosAtivos > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filtrosAvancadosAtivos}</Badge>
+            )}
+            <ChevronDown className={`h-4 w-4 transition-transform ${maisFiltrosAberto ? "rotate-180" : ""}`} />
+          </Button>
         </div>
 
-        {/* Filtros individuais */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
-          <Input
-            placeholder="Data Pag."
-            type="date"
-            value={filtroDataPagamento}
-            onChange={(e) => { setFiltroDataPagamento(e.target.value); setCurrentPage(1); }}
-            className="h-8 text-xs"
-          />
-          <Input
-            placeholder="Dia Venc."
-            value={filtroDiaVencimento}
-            onChange={(e) => { setFiltroDiaVencimento(e.target.value); setCurrentPage(1); }}
-            className="h-8 text-xs"
-          />
-          <Input
-            placeholder="Regional"
-            value={filtroRegional}
-            onChange={(e) => { setFiltroRegional(e.target.value); setCurrentPage(1); }}
-            className="h-8 text-xs"
-          />
-          <Input
-            placeholder="Cooperativa"
-            value={filtroCooperativa}
-            onChange={(e) => { setFiltroCooperativa(e.target.value); setCurrentPage(1); }}
-            className="h-8 text-xs"
-          />
-          <Input
-            placeholder="Voluntário"
-            value={filtroVoluntario}
-            onChange={(e) => { setFiltroVoluntario(e.target.value); setCurrentPage(1); }}
-            className="h-8 text-xs"
-          />
-          <Input
-            placeholder="Placa"
-            value={filtroPlacas}
-            onChange={(e) => { setFiltroPlacas(e.target.value); setCurrentPage(1); }}
-            className="h-8 text-xs"
-          />
-          <Input
-            placeholder="Situação"
-            value={filtroSituacao}
-            onChange={(e) => { setFiltroSituacao(e.target.value); setCurrentPage(1); }}
-            className="h-8 text-xs"
-          />
-          <Input
-            placeholder="Data Venc."
-            type="date"
-            value={filtroDataVencimento}
-            onChange={(e) => { setFiltroDataVencimento(e.target.value); setCurrentPage(1); }}
-            className="h-8 text-xs"
-          />
-        </div>
+        {/* Filtros avançados (colapsável) */}
+        {maisFiltrosAberto && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4 p-3 rounded-lg border bg-muted/30">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Data Pagamento — de</Label>
+              <Input
+                type="date"
+                value={filtroDataPagamentoDe}
+                onChange={(e) => { setFiltroDataPagamentoDe(e.target.value); setCurrentPage(1); }}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Data Pagamento — até</Label>
+              <Input
+                type="date"
+                value={filtroDataPagamentoAte}
+                onChange={(e) => { setFiltroDataPagamentoAte(e.target.value); setCurrentPage(1); }}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Data Vencimento — de</Label>
+              <Input
+                type="date"
+                value={filtroDataVencimentoDe}
+                onChange={(e) => { setFiltroDataVencimentoDe(e.target.value); setCurrentPage(1); }}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Data Vencimento — até</Label>
+              <Input
+                type="date"
+                value={filtroDataVencimentoAte}
+                onChange={(e) => { setFiltroDataVencimentoAte(e.target.value); setCurrentPage(1); }}
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Regional</Label>
+              <Select
+                value={filtroRegional || TODOS}
+                onValueChange={(v) => { setFiltroRegional(v === TODOS ? "" : v); setCurrentPage(1); }}
+              >
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Todas" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODOS}>Todas</SelectItem>
+                  {opcoesRegional.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Cooperativa</Label>
+              <Select
+                value={filtroCooperativa || TODOS}
+                onValueChange={(v) => { setFiltroCooperativa(v === TODOS ? "" : v); setCurrentPage(1); }}
+              >
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Todas" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODOS}>Todas</SelectItem>
+                  {opcoesCooperativa.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Dia Vencimento</Label>
+              <Input
+                placeholder="Ex: 10"
+                value={filtroDiaVencimento}
+                onChange={(e) => { setFiltroDiaVencimento(e.target.value); setCurrentPage(1); }}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Voluntário</Label>
+              <Input
+                placeholder="Nome do voluntário"
+                value={filtroVoluntario}
+                onChange={(e) => { setFiltroVoluntario(e.target.value); setCurrentPage(1); }}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Placa</Label>
+              <Input
+                placeholder="Ex: ABC1234"
+                value={filtroPlacas}
+                onChange={(e) => { setFiltroPlacas(e.target.value); setCurrentPage(1); }}
+                className="h-9 text-xs"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Tabela */}
         <div className="overflow-x-auto border rounded-lg">
@@ -314,8 +439,8 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
                   </td>
                   <td className="p-2 text-center">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                      b.situacao?.toUpperCase() === "BAIXADO" 
-                        ? "bg-green-100 text-green-700" 
+                      b.situacao?.toUpperCase() === "BAIXADO"
+                        ? "bg-green-100 text-green-700"
                         : b.situacao?.toUpperCase() === "ABERTO"
                         ? "bg-red-100 text-red-700"
                         : "bg-gray-100 text-gray-700"
