@@ -190,6 +190,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       });
     };
     const aVencer7 = filterAVencer(7);
+    const aVencer15 = filterAVencer(15);
     const aVencer30 = filterAVencer(30);
     const aVencer60 = filterAVencer(60);
     const aVencer90 = filterAVencer(90);
@@ -263,6 +264,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       totalRegistros, valorTotal, valorPago, qtdPagos, valorAPagar, qtdAPagar,
       valorVencido, qtdVencidos, totalMulta, totalJuros, ticketMedio, fornecedoresUnicos, taxaPagamento,
       qtdAVencer7: aVencer7.length, valorAVencer7: aVencer7.reduce((acc, d) => acc + (d.valor || 0), 0),
+      qtdAVencer15: aVencer15.length, valorAVencer15: aVencer15.reduce((acc, d) => acc + (d.valor || 0), 0),
       qtdAVencer30: aVencer30.length, valorAVencer30: aVencer30.reduce((acc, d) => acc + (d.valor || 0), 0),
       qtdAVencer60: aVencer60.length, valorAVencer60: aVencer60.reduce((acc, d) => acc + (d.valor || 0), 0),
       qtdAVencer90: aVencer90.length, valorAVencer90: aVencer90.reduce((acc, d) => acc + (d.valor || 0), 0),
@@ -345,7 +347,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       </div>
 
       {/* Taxa de Pagamento + Vencimentos Row */}
-      <div className="grid gap-3 grid-cols-1 md:grid-cols-5">
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-6">
         {/* Taxa de pagamento card com radial */}
         <Card className="rounded-2xl border-border/40 md:col-span-1">
           <CardContent className="p-4 flex flex-col items-center justify-center gap-1 h-full">
@@ -355,9 +357,10 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         </Card>
 
         {/* Vencimentos */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-4 md:col-span-4">
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-5 md:col-span-5">
           {[
             { label: "Vence em 7 dias", value: formatCurrency(stats.valorAVencer7), qtd: stats.qtdAVencer7, cls: "border-l-yellow-500" },
+            { label: "Vence em 15 dias", value: formatCurrency(stats.valorAVencer15), qtd: stats.qtdAVencer15, cls: "border-l-lime-500" },
             { label: "Vence em 30 dias", value: formatCurrency(stats.valorAVencer30), qtd: stats.qtdAVencer30, cls: "border-l-amber-500" },
             { label: "Vence em 60 dias", value: formatCurrency(stats.valorAVencer60), qtd: stats.qtdAVencer60, cls: "border-l-orange-500" },
             { label: "Vence em 90 dias", value: formatCurrency(stats.valorAVencer90), qtd: stats.qtdAVencer90, cls: "border-l-cyan-500" },
