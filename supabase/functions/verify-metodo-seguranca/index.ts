@@ -44,8 +44,11 @@ serve(async (req) => {
     }
 
     // Resolve o profile (usuário) e a associação (corretora) vinculada a ele.
-    // Um parceiro está vinculado a no máximo uma corretora ativa (mesma regra
-    // usada pela função get_user_corretora_id no banco).
+    // OBS: alguns profiles de teste têm MAIS DE UM vínculo ativo simultâneo
+    // em corretora_usuarios — nesse caso a escolha precisa ser determinística
+    // (senão a config de 2FA "muda sozinha" a cada login, dependendo de qual
+    // linha o Postgres devolve). Usa a corretora mais recentemente acessada
+    // como critério — mesmo critério agora usado em get_user_corretora_id().
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("id")
@@ -61,6 +64,8 @@ serve(async (req) => {
         .select("corretora_id")
         .eq("profile_id", profileId)
         .eq("ativo", true)
+        .order("ultimo_acesso", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       corretoraId = vinculo?.corretora_id ?? null;
@@ -122,9 +127,84 @@ serve(async (req) => {
       });
     }
 
-    // ===== Cria uma solicitação de aprovação por dispositivo =====
+    // ===== Solicita acesso por dispositivo (aprovação persistente + IP) =====
+    // Diferente do modelo antigo (1 pedido por login), agora o dispositivo é
+    // identificado por fingerprint e o registro é PERSISTENTE: uma vez
+    // aprovado, os próximos logins do mesmo aparelho não pedem aprovação de
+    // novo (mesmo padrão do módulo Ponto — dispositivos_ponto). Quando a
+    // associação exige IP fixo pra aquele dispositivo (exigir_ip), o IP
+    // atual precisa bater com o IP salvo na aprovação.
     if (action === "dispositivo-solicitar") {
-      const { deviceInfo } = body;
+      const { deviceInfo, fingerprint } = body;
+      const ipAddress =
+        body.ip ||
+        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        req.headers.get("cf-connecting-ip") ||
+        req.headers.get("x-real-ip") ||
+        null;
+
+      if (!corretoraId) {
+        return new Response(JSON.stringify({ error: "Associação não encontrada para este usuário" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Dispositivo sem fingerprint (navegador bloqueando canvas/etc) —
+      // segue no modelo antigo, sempre pede aprovação nova.
+      const { data: existente } = fingerprint
+        ? await supabaseAdmin
+            .from("device_approval_requests")
+            .select("id, status, exigir_ip, ip_aprovado")
+            .eq("corretora_id", corretoraId)
+            .eq("profile_id", profileId)
+            .eq("fingerprint", fingerprint)
+            .maybeSingle()
+        : { data: null };
+
+      if (existente) {
+        if (existente.status === "approved") {
+          if (existente.exigir_ip && existente.ip_aprovado && existente.ip_aprovado !== ipAddress) {
+            return new Response(
+              JSON.stringify({
+                status: "blocked",
+                message: `Este dispositivo só está liberado para o IP ${existente.ip_aprovado}. Seu IP atual é ${ipAddress ?? "desconhecido"} — peça nova aprovação ao administrador.`,
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          }
+          await supabaseAdmin
+            .from("device_approval_requests")
+            .update({ ultimo_uso_em: new Date().toISOString(), ip_address: ipAddress, device_info: deviceInfo || null })
+            .eq("id", existente.id);
+          return new Response(JSON.stringify({ status: "approved", requestId: existente.id }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (existente.status === "blocked") {
+          return new Response(
+            JSON.stringify({ status: "blocked", message: "Este dispositivo foi bloqueado pelo administrador." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        // pending / denied / expired -> reabre como pendente e atualiza dados
+        await supabaseAdmin
+          .from("device_approval_requests")
+          .update({
+            status: "pending",
+            device_info: deviceInfo || null,
+            ip_address: ipAddress,
+            requested_at: new Date().toISOString(),
+            resolved_at: null,
+            resolved_by: null,
+          })
+          .eq("id", existente.id);
+        return new Response(JSON.stringify({ status: "pending", requestId: existente.id }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       const { data: created, error: insertError } = await supabaseAdmin
         .from("device_approval_requests")
@@ -133,6 +213,8 @@ serve(async (req) => {
           profile_id: profileId,
           email,
           device_info: deviceInfo || null,
+          fingerprint: fingerprint || null,
+          ip_address: ipAddress,
           status: "pending",
         })
         .select("id")
@@ -146,7 +228,7 @@ serve(async (req) => {
         });
       }
 
-      return new Response(JSON.stringify({ requestId: created.id }), {
+      return new Response(JSON.stringify({ status: "pending", requestId: created.id }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
