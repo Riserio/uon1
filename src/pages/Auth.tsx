@@ -1,6 +1,6 @@
 import LogoUon1 from "@/assets/uon1-logo.png";
 import LoginBackgroundDefault from "@/assets/login-background-default.png";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,12 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { signInSchema, signUpSchema } from "@/lib/validationSchemas";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { ShieldCheck, ArrowLeft, QrCode, Eye, EyeOff } from "lucide-react";
+import { ShieldCheck, ArrowLeft, QrCode, Eye, EyeOff, KeyRound, Smartphone, Loader2 } from "lucide-react";
 
 
-type Step = "CREDENTIALS" | "TOTP" | "TOTP_SETUP";
+type Step = "CREDENTIALS" | "TOTP" | "TOTP_SETUP" | "PALAVRA_CHAVE" | "DISPOSITIVO_AGUARDANDO";
 type LoginPhase = "idle" | "credentials" | "totp";
+type MetodoVerificacao = "totp" | "palavra_chave" | "dispositivo";
 
 type MinimalUser = {
   id: string;
@@ -38,11 +39,25 @@ export default function Auth() {
   const [loginPhase, setLoginPhase] = useState<LoginPhase>("idle");
   const [showPassword, setShowPassword] = useState(false);
 
+  // Palavra-chave (método alternativo de verificação em duas etapas)
+  const [palavraChave, setPalavraChave] = useState("");
+
+  // Aprovação por dispositivo (método alternativo de verificação em duas etapas)
+  const [deviceRequestId, setDeviceRequestId] = useState<string | null>(null);
+  const [deviceStatus, setDeviceStatus] = useState<"pending" | "approved" | "denied" | "expired">("pending");
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const { config } = useAppConfig();
   const navigate = useNavigate();
-  
+
   const loginBackground = config.login_image_url || LoginBackgroundDefault;
+
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
 
   const checkTOTPStatus = async (currentUser?: MinimalUser) => {
     const effectiveUser: MinimalUser | undefined =
@@ -71,7 +86,7 @@ export default function Auth() {
 
       // Fetch QR code (will reuse existing secret if already configured)
       await setupTOTP(effectiveUser, false);
-      
+
       if (totpData?.enabled) {
         // User already has TOTP configured - go directly to verification
         setStep("TOTP");
@@ -119,7 +134,7 @@ export default function Auth() {
       }
 
       setQrCodeUri(data.qrCodeUri);
-      
+
       if (forceReset) {
         toast.success("Novo QR Code gerado! Escaneie novamente.");
         setStep("TOTP_SETUP");
@@ -136,6 +151,111 @@ export default function Auth() {
     await setupTOTP({ id: user.id, email: user.email }, true);
     setTotpCode("");
     setSubmitting(false);
+  };
+
+  // Consulta em verify-metodo-seguranca qual método a associação deste
+  // usuário usa (totp / palavra_chave / dispositivo) e direciona o fluxo.
+  // Em caso de qualquer falha na consulta, cai no padrão histórico (TOTP)
+  // para nunca travar o login de ninguém.
+  const resolverMetodoEDirecionar = async (currentUser: MinimalUser) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-metodo-seguranca", {
+        body: { action: "metodo", email: currentUser.email },
+      });
+
+      const metodo: MetodoVerificacao = !error && data?.metodo ? data.metodo : "totp";
+
+      if (metodo === "palavra_chave") {
+        setStep("PALAVRA_CHAVE");
+      } else if (metodo === "dispositivo") {
+        await solicitarAprovacaoDispositivo(currentUser);
+      } else {
+        await checkTOTPStatus(currentUser);
+      }
+    } catch (error) {
+      console.error("Erro ao resolver método de verificação:", error);
+      await checkTOTPStatus(currentUser);
+    }
+  };
+
+  const handleVerifyPalavraChave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!palavraChave.trim()) return;
+    setSubmitting(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-metodo-seguranca", {
+        body: { action: "palavra-chave", email: user?.email, palavra: palavraChave },
+      });
+
+      if (error) {
+        console.error("Edge function error:", error);
+        toast.error("Erro ao validar palavra-chave. Tente novamente.");
+        setSubmitting(false);
+        return;
+      }
+
+      if (!data?.valid) {
+        toast.error(data?.error || "Palavra-chave incorreta. Tente novamente.");
+        setSubmitting(false);
+        return;
+      }
+
+      toast.success("Acesso confirmado com sucesso!");
+      navigate("/portal", { replace: true });
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao validar palavra-chave. Tente novamente.");
+    }
+
+    setSubmitting(false);
+  };
+
+  const solicitarAprovacaoDispositivo = async (currentUser: MinimalUser) => {
+    setStep("DISPOSITIVO_AGUARDANDO");
+    setDeviceStatus("pending");
+
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-metodo-seguranca", {
+        body: {
+          action: "dispositivo-solicitar",
+          email: currentUser.email,
+          deviceInfo: navigator.userAgent,
+        },
+      });
+
+      if (error || !data?.requestId) {
+        console.error("Erro ao solicitar aprovação de dispositivo:", error);
+        toast.error("Erro ao solicitar aprovação. Tente novamente.");
+        setStep("CREDENTIALS");
+        return;
+      }
+
+      setDeviceRequestId(data.requestId);
+
+      // Faz polling do status a cada 3s até ser aprovado, negado, ou expirar.
+      pollingRef.current = setInterval(async () => {
+        const { data: statusData } = await supabase.functions.invoke("verify-metodo-seguranca", {
+          body: { action: "dispositivo-status", email: currentUser.email, requestId: data.requestId },
+        });
+
+        const status = statusData?.status || "expired";
+        if (status === "approved") {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          setDeviceStatus("approved");
+          toast.success("Dispositivo aprovado! Redirecionando...");
+          navigate("/portal", { replace: true });
+        } else if (status === "denied" || status === "expired") {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          setDeviceStatus(status);
+          toast.error(status === "denied" ? "Acesso negado por um administrador." : "Solicitação expirou.");
+        }
+      }, 3000);
+    } catch (error) {
+      console.error("Erro ao solicitar aprovação de dispositivo:", error);
+      toast.error("Erro ao solicitar aprovação. Tente novamente.");
+      setStep("CREDENTIALS");
+    }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -204,7 +324,7 @@ export default function Auth() {
         };
 
         setLoginPhase("totp");
-        await checkTOTPStatus(currentUser);
+        await resolverMetodoEDirecionar(currentUser);
       } else {
         toast.success("Login realizado com sucesso!");
         navigate(redirectTo, { replace: true });
@@ -356,8 +476,30 @@ export default function Auth() {
 
   const showCredentialsStep = step === "CREDENTIALS";
 
+  const stepTitle =
+    step === "TOTP_SETUP"
+      ? "Configure Google Authenticator"
+      : step === "TOTP"
+        ? "Validação em duas etapas"
+        : step === "PALAVRA_CHAVE"
+          ? "Validação em duas etapas"
+          : step === "DISPOSITIVO_AGUARDANDO"
+            ? "Aprovação de dispositivo"
+            : "";
+
+  const stepDescription =
+    step === "TOTP_SETUP"
+      ? "Escaneie o QR code e digite o código gerado"
+      : step === "TOTP"
+        ? "Digite o código do Google Authenticator para concluir o login"
+        : step === "PALAVRA_CHAVE"
+          ? "Digite a palavra-chave da sua associação para concluir o login"
+          : step === "DISPOSITIVO_AGUARDANDO"
+            ? "Aguarde a aprovação de um administrador para concluir o login"
+            : "";
+
   return (
-    <div 
+    <div
       className="min-h-screen flex items-center justify-center relative overflow-hidden"
       style={{
         backgroundImage: `url(${loginBackground})`,
@@ -392,7 +534,7 @@ export default function Auth() {
             <img src={LogoUon1} alt="UON1 Logo" className="w-32 h-auto opacity-80" />
           </div>
         )}
-        
+
         <CardHeader className="space-y-2 pb-6">
           <div className="flex items-center justify-between">
             <div>
@@ -401,24 +543,24 @@ export default function Auth() {
                   ? isSignUp
                     ? "Cadastrar"
                     : "Entrar"
-                  : step === "TOTP_SETUP"
-                    ? "Configure Google Authenticator"
-                    : "Validação em duas etapas"}
+                  : stepTitle}
               </CardTitle>
               <CardDescription className="text-muted-foreground">
                 {showCredentialsStep
                   ? isSignUp
                     ? "Crie sua conta para começar."
                     : "Insira suas credenciais para continuar."
-                  : step === "TOTP_SETUP"
-                    ? "Escaneie o QR code e digite o código gerado"
-                    : "Digite o código do Google Authenticator para concluir o login"}
+                  : stepDescription}
               </CardDescription>
             </div>
 
             {!showCredentialsStep &&
               (step === "TOTP_SETUP" ? (
                 <QrCode className="w-8 h-8 text-blue-600" />
+              ) : step === "PALAVRA_CHAVE" ? (
+                <KeyRound className="w-8 h-8 text-blue-600" />
+              ) : step === "DISPOSITIVO_AGUARDANDO" ? (
+                <Smartphone className="w-8 h-8 text-blue-600" />
               ) : (
                 <ShieldCheck className="w-8 h-8 text-blue-600" />
               ))}
@@ -499,7 +641,7 @@ export default function Auth() {
                       ? "Criando conta..."
                       : loginPhase === "credentials"
                         ? "Validando credenciais..."
-                        : "Validando autenticação por TOTP..."}
+                        : "Validando autenticação..."}
                   </div>
                 ) : isSignUp ? (
                   "Criar Conta"
@@ -573,6 +715,86 @@ export default function Auth() {
                 )}
               </Button>
             </form>
+          ) : step === "PALAVRA_CHAVE" ? (
+            <form onSubmit={handleVerifyPalavraChave} className="space-y-4">
+              <div className="flex flex-col items-center space-y-3 pb-2">
+                <div className="h-16 w-16 rounded-full bg-blue-50 flex items-center justify-center">
+                  <KeyRound className="w-8 h-8 text-blue-600" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="palavra-chave" className="text-sm font-medium">
+                  Palavra-chave
+                </Label>
+                <Input
+                  id="palavra-chave"
+                  type="text"
+                  value={palavraChave}
+                  onChange={(e) => setPalavraChave(e.target.value)}
+                  required
+                  placeholder="Digite a palavra-chave"
+                  className="h-11 text-center"
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">
+                  Palavra combinada com a sua associação. Fale com um administrador se não souber.
+                </p>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-11 bg-[#362c89] hover:bg-[#362c89]/90 text-white font-medium transition-colors"
+                disabled={submitting || !palavraChave.trim()}
+              >
+                {submitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Validando...
+                  </div>
+                ) : (
+                  "Confirmar acesso"
+                )}
+              </Button>
+            </form>
+          ) : step === "DISPOSITIVO_AGUARDANDO" ? (
+            <div className="space-y-4">
+              <div className="flex flex-col items-center space-y-4 py-4 text-center">
+                {deviceStatus === "pending" ? (
+                  <>
+                    <div className="h-16 w-16 rounded-full bg-blue-50 flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Enviamos uma solicitação de aprovação para um administrador.
+                      <br />
+                      Assim que for aceita, você entrará automaticamente.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="h-16 w-16 rounded-full bg-red-50 flex items-center justify-center">
+                      <Smartphone className="w-8 h-8 text-red-500" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {deviceStatus === "denied"
+                        ? "Sua solicitação de acesso foi negada."
+                        : "Sua solicitação expirou."}
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {deviceStatus !== "pending" && (
+                <Button
+                  type="button"
+                  className="w-full h-11 bg-[#362c89] hover:bg-[#362c89]/90 text-white font-medium transition-colors"
+                  onClick={() => user && solicitarAprovacaoDispositivo({ id: user.id, email: user.email })}
+                >
+                  Tentar novamente
+                </Button>
+              )}
+            </div>
           ) : (
             <form onSubmit={handleVerifyTotp} className="space-y-4">
               {qrCodeUri && (
@@ -589,7 +811,7 @@ export default function Auth() {
                   </p>
                 </div>
               )}
-              
+
               <div className="space-y-2">
                 <Label htmlFor="totp" className="text-sm font-medium">
                   Código de verificação
@@ -624,7 +846,7 @@ export default function Auth() {
                   "Confirmar acesso"
                 )}
               </Button>
-              
+
               <Button
                 type="button"
                 variant="outline"
@@ -645,10 +867,14 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={() => {
+                  if (pollingRef.current) clearInterval(pollingRef.current);
                   setStep("CREDENTIALS");
                   setTotpCode("");
                   setPassword("");
                   setQrCodeUri("");
+                  setPalavraChave("");
+                  setDeviceRequestId(null);
+                  setDeviceStatus("pending");
                 }}
                 className="flex items-center gap-1 text-[#362c89] hover:text-[#362c89]/80 font-medium"
               >

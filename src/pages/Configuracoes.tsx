@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { 
-  Palette, Image as ImageIcon, Settings, Shield, Bell, 
+import {
+  Palette, Image as ImageIcon, Settings, Shield, Bell,
   Monitor, Moon, Sun, Upload, RotateCcw, Save, Eye,
   Globe, Lock, Mail, Smartphone, Users, Share2, Blocks
 } from "lucide-react";
@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import Usuarios from "@/pages/Usuarios";
 import { BrandingCompartilhamento } from "@/components/configuracoes/BrandingCompartilhamento";
 import { GestaoModulosConfig } from "@/components/configuracoes/GestaoModulosConfig";
+import { SegurancaAcessoConfig } from "@/components/configuracoes/SegurancaAcessoConfig";
 
 interface ConfigColors {
   primary: string;
@@ -324,9 +325,10 @@ export default function Configuracoes() {
                   <p className="text-sm text-muted-foreground mt-1">Controle políticas de segurança</p>
                 </div>
 
+                <SegurancaAcessoConfig readOnly={!canManageUsers} />
+
                 <div className="space-y-3">
                   {[
-                    { icon: Lock, title: "Autenticação de dois fatores", desc: "Requer verificação adicional no login", defaultOn: false },
                     { icon: Globe, title: "Sessão única por usuário", desc: "Desconectar sessões anteriores ao fazer login", defaultOn: true },
                     { icon: Smartphone, title: "Acesso mobile", desc: "Permitir login em dispositivos móveis", defaultOn: true },
                     { icon: Mail, title: "Notificar login suspeito", desc: "Enviar email ao detectar acesso de novo dispositivo", defaultOn: false },
