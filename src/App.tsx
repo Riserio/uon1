@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { usePontoAlertas } from "@/hooks/usePontoAlertas";
@@ -212,6 +212,19 @@ function DomainBasedRoute() {
   return <Navigate to="/auth" replace />;
 }
 
+// Links do WhatsApp (templates Meta) mandam apenas o slug da associação como
+// sufixo da URL (ex.: vangard.uon1.com.br/exclusive), sem "/login" ou
+// "/dashboard" — um parâmetro de botão dinâmico com "/" já causou o erro
+// #132012 da Meta antes, então o slug é enviado "puro". Sem esta rota, esse
+// link puro não batia com nenhuma rota registrada e caía no catch-all
+// NotFound ("não encontrado"). Esta rota resolve o slug e manda para a tela
+// de login dessa associação — depois do login o próprio fluxo já navega
+// para "/:slug/dashboard".
+function SlugPortalRedirect() {
+  const { slug } = useParams<{ slug: string }>();
+  return <Navigate to={`/${slug}/login`} replace />;
+}
+
 // Global safety net for uncaught promise rejections
 if (typeof window !== 'undefined') {
   window.addEventListener('unhandledrejection', (event) => {
@@ -236,6 +249,14 @@ const App = () => (
               {/* Portal PID Routes */}
           <Route path="/:slug/login" element={<PortalLogin />} />
           <Route path="/:slug/dashboard" element={<PortalDashboard />} />
+          {/* Link "puro" (sem /login ou /dashboard) vindo dos templates do
+              WhatsApp — resolve para a tela de login da associação. Fica
+              DEPOIS das rotas de dois segmentos acima e antes das rotas
+              estáticas de um segmento (/auth, /dashboard etc.) não importa,
+              pois o React Router prioriza segmentos estáticos sobre :params
+              com a mesma especificidade — "/auth" sempre casa com "/auth"
+              antes de "/:slug". */}
+          <Route path="/:slug" element={<SlugPortalRedirect />} />
 
               {/* Regular App Routes */}
               <Route path="/auth" element={<Auth />} />
