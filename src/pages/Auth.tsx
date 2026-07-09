@@ -17,7 +17,7 @@ import { ShieldCheck, ArrowLeft, QrCode, Eye, EyeOff, KeyRound, Smartphone, Load
 
 type Step = "CREDENTIALS" | "TOTP" | "TOTP_SETUP" | "PALAVRA_CHAVE" | "DISPOSITIVO_AGUARDANDO";
 type LoginPhase = "idle" | "credentials" | "totp";
-type MetodoVerificacao = "totp" | "palavra_chave" | "dispositivo";
+type MetodoVerificacao = "totp" | "palavra_chave" | "dispositivo" | "nenhum";
 
 type MinimalUser = {
   id: string;
@@ -165,7 +165,10 @@ export default function Auth() {
 
       const metodo: MetodoVerificacao = !error && data?.metodo ? data.metodo : "totp";
 
-      if (metodo === "palavra_chave") {
+      if (metodo === "nenhum") {
+        toast.success("Login realizado com sucesso!");
+        navigate("/portal", { replace: true });
+      } else if (metodo === "palavra_chave") {
         setStep("PALAVRA_CHAVE");
       } else if (metodo === "dispositivo") {
         await solicitarAprovacaoDispositivo(currentUser);
