@@ -14,9 +14,37 @@ type DeviceRequest = {
   corretora_id: string | null;
   email: string;
   device_info: string | null;
+  ip_address: string | null;
   status: string;
   requested_at: string;
 };
+
+// Extrai um resumo legível do navegador/SO a partir do User-Agent bruto,
+// já que mostrar a string inteira não ajuda quem vai aprovar/negar.
+function resumoDispositivo(userAgent: string | null): string {
+  if (!userAgent) return "Dispositivo desconhecido";
+  const so = /Windows/.test(userAgent)
+    ? "Windows"
+    : /Mac OS X/.test(userAgent)
+      ? "Mac"
+      : /Android/.test(userAgent)
+        ? "Android"
+        : /iPhone|iPad/.test(userAgent)
+          ? "iOS"
+          : /Linux/.test(userAgent)
+            ? "Linux"
+            : "Dispositivo";
+  const navegador = /Edg\//.test(userAgent)
+    ? "Edge"
+    : /Chrome\//.test(userAgent)
+      ? "Chrome"
+      : /Firefox\//.test(userAgent)
+        ? "Firefox"
+        : /Safari\//.test(userAgent)
+          ? "Safari"
+          : "navegador";
+  return `${so} · ${navegador}`;
+}
 
 // Precisa gerar exatamente o mesmo hash que a edge function
 // verify-metodo-seguranca usa para validar a palavra-chave no login
@@ -61,7 +89,7 @@ export function SegurancaAcessoConfig({ readOnly = false }: SegurancaAcessoConfi
         supabase.from("corretora_seguranca_config").select("corretora_id, metodo"),
         supabase
           .from("device_approval_requests")
-          .select("id, corretora_id, email, device_info, status, requested_at")
+          .select("id, corretora_id, email, device_info, ip_address, status, requested_at")
           .eq("status", "pending")
           .order("requested_at", { ascending: false }),
       ]);
@@ -198,7 +226,8 @@ export function SegurancaAcessoConfig({ readOnly = false }: SegurancaAcessoConfi
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{p.email}</p>
                   <p className="text-[11px] text-muted-foreground truncate">
-                    {corretoraNome} · {new Date(p.requested_at).toLocaleString("pt-BR")}
+                    {corretoraNome} · {resumoDispositivo(p.device_info)} · IP {p.ip_address || "desconhecido"} ·{" "}
+                    {new Date(p.requested_at).toLocaleString("pt-BR")}
                   </p>
                 </div>
                 {!readOnly && (
