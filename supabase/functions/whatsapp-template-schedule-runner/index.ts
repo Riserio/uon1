@@ -343,7 +343,12 @@ async function sendTemplate(
       // caso, para "portal", garantindo que o parâmetro NUNCA vá vazio.
       if (expected.hasUrlButton) {
         const base = (corretoraSlug && corretoraSlug.trim()) || slugify(headerText) || "portal";
-        const suffix = `${base}/dashboard`;
+        // Meta rejeita parâmetros de botão URL dinâmico com caracteres
+        // problemáticos (espaços, quebras, muitas vezes também '/'). Como o
+        // {{1}} normalmente representa apenas o segmento final da URL base
+        // (ex.: https://uon1.com.br/{{1}}), enviamos APENAS o slug — sem
+        // "/dashboard" — para evitar o erro #132012.
+        const suffix = slugify(base) || "portal";
         if (!corretoraSlug || !corretoraSlug.trim()) {
           console.warn(
             `[whatsapp-template-schedule-runner] Corretora sem slug — usando fallback "${suffix}" no botão. Cadastre o slug real para o link abrir corretamente.`,
