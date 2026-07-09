@@ -67,6 +67,11 @@ export default function CobrancaInsights() {
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const autoAdjustedMonthRef = useRef(false);
+  // Contador de requisições em voo: usado para descartar respostas
+  // "atrasadas" de uma associação anterior quando o usuário troca de
+  // associação rapidamente (evita misturar/sobrescrever dados novos com
+  // uma resposta antiga que só terminou de chegar depois).
+  const fetchIdRef = useRef(0);
 
   // Filtros globais - regra: sempre mostrar o MÊS ATUAL por padrão; se não
   // houver boletos no mês atual, o auto-ajuste abaixo cai para o mês
@@ -264,6 +269,13 @@ export default function CobrancaInsights() {
       }
     }
 
+    // Marca esta chamada como a "mais recente". Se, ao terminar, uma chamada
+    // mais nova já tiver começado (troca rápida de associação/filtro), esta
+    // resposta é descartada em vez de sobrescrever o estado com dados
+    // desatualizados ou de outra associação.
+    const myFetchId = ++fetchIdRef.current;
+    const isStale = () => myFetchId !== fetchIdRef.current;
+
     setLoading(true);
     try {
       // IMPORTANTE: pode haver MAIS DE UMA importação ativa ao mesmo tempo
@@ -279,14 +291,12 @@ export default function CobrancaInsights() {
         .eq("corretora_id", selectedAssociacao)
         .order("created_at", { ascending: false });
 
-      if (impError) {
-        console.error("Erro ao buscar importação:", impError);
-      }
+      if (impError) throw impError;
+      if (isStale()) return;
 
       if (importacoesAtivas && importacoesAtivas.length > 0) {
         // Para exibição (nome do arquivo, data etc.) usa a mais recente,
         // mas os boletos são somados de TODAS as importações ativas.
-        setImportacaoAtiva(importacoesAtivas[0]);
         const importacaoIds = importacoesAtivas.map((i) => i.id);
 
         const BATCH_SIZE = 1000;
@@ -299,16 +309,31 @@ export default function CobrancaInsights() {
         // chegam a dezenas de milhares de boletos (ex.: ~97 mil), o que
         // levava a ~97 requisições em série e deixava a tela de Cobrança
         // visivelmente lenta para carregar.
-        const { count } = await supabase
+        //
+        // IMPORTANTE: esta consulta (head request) já teve erros engolidos
+        // silenciosamente aqui antes — uma falha transitória fazia `count`
+        // ficar undefined, `total` virar 0 e a tela mostrar "Nenhum Dado
+        // Disponível" mesmo com boletos existindo no banco. Agora um erro
+        // aqui interrompe o fluxo (vai para o catch) em vez de fingir que
+        // há 0 registros.
+        const { count, error: countError } = await supabase
           .from("cobranca_boletos")
           .select("*", { count: "exact", head: true })
           .in("importacao_id", importacaoIds);
+
+        if (countError) throw countError;
+        if (isStale()) return;
 
         const total = Math.min(count || 0, MAX_ROWS);
         const numBatches = Math.ceil(total / BATCH_SIZE);
 
         let allBoletos: any[] = [];
+        let batchErrorCount = 0;
         for (let i = 0; i < numBatches; i += CONCURRENCY) {
+          // Aborta ondas restantes se uma troca de associação/filtro mais
+          // recente já começou — evita trabalho (e banda) desperdiçados.
+          if (isStale()) return;
+
           const wave = Array.from({ length: Math.min(CONCURRENCY, numBatches - i) }, (_, j) => {
             const offset = (i + j) * BATCH_SIZE;
             return supabase
@@ -322,10 +347,20 @@ export default function CobrancaInsights() {
           for (const { data: batch, error: bError } of results) {
             if (bError) {
               console.error("Erro ao buscar boletos:", bError);
+              batchErrorCount++;
               continue;
             }
             if (batch) allBoletos = allBoletos.concat(batch);
           }
+        }
+
+        if (isStale()) return;
+
+        if (total > 0 && allBoletos.length === 0) {
+          // O banco reportou registros mas nenhum lote retornou dados: trata
+          // como falha (não como "sem dados") para não gravar um resultado
+          // vazio incorreto em cache por 10 minutos.
+          throw new Error(`Falha ao carregar boletos de cobrança: ${total} esperados, 0 recebidos`);
         }
 
         // Aplicar deduplicação fiel ao SGA: 1 boleto por pessoa+vencimento (maior valor)
@@ -333,16 +368,29 @@ export default function CobrancaInsights() {
         const boletosFiel = dedupSGAFiel(allBoletos);
         console.log(`[Cobranca] Boletos brutos: ${allBoletos.length} → após dedup SGA: ${boletosFiel.length}`);
         setBoletos(boletosFiel);
-        setBICachedData(selectedAssociacao, "cobranca", boletosFiel, importacoesAtivas[0]);
+        setImportacaoAtiva(importacoesAtivas[0]);
+
+        // Só grava em cache se a leitura foi completa (sem erros de lote) —
+        // um resultado parcial não deve virar "verdade" cacheada por 10 min.
+        if (batchErrorCount === 0) {
+          setBICachedData(selectedAssociacao, "cobranca", boletosFiel, importacoesAtivas[0]);
+        }
         if (isPortalAccess) savePrefetchedData(selectedAssociacao, "cobranca", boletosFiel);
+
+        if (batchErrorCount > 0) {
+          toast.warning("Alguns lotes de boletos falharam ao carregar. Os dados exibidos podem estar incompletos — tente Sincronizar novamente.");
+        }
       } else {
         setBoletos([]);
         setImportacaoAtiva(null);
       }
     } catch (error) {
       console.error("Erro:", error);
+      if (!isStale()) {
+        toast.error("Erro ao carregar dados de Cobrança. Tente novamente em instantes.");
+      }
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   };
 
