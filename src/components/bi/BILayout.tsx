@@ -77,7 +77,12 @@ function BILayoutInner() {
         />
       </div>
 
-      <Outlet />
+      {/* key força remount completo da página do módulo sempre que a
+          associação selecionada mudar (inclusive ao entrar/sair da Visão
+          Administradora). Sem isso, uma página que ainda está buscando dados
+          da associação anterior podia terminar de carregar DEPOIS da troca e
+          "misturar" dados de duas associações diferentes na mesma tela. */}
+      <Outlet key={selectedAssociacao || 'loading'} />
 
       <BIAuditLogDialog
         open={historicoDialogOpen}

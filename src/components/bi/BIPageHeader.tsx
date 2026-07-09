@@ -100,16 +100,20 @@ export default function BIPageHeader({
   const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
 
-  // Vai direto para a Visão Administradora e limpa o parametro de associacao da URL,
-  // para nao voltar a abrir a ultima associacao selecionada.
+  // Vai para a Visão Administradora: limpa o parametro de associacao da URL
+  // (para nao voltar a abrir a ultima associacao selecionada) e navega sempre
+  // para a tela principal do menu (/pid), mesmo se o clique aconteceu em outro
+  // módulo (Eventos, MGF, Cobrança, etc.) — antes ficava "preso" na tela atual
+  // e podia misturar dados da associação anterior com a visão administradora.
   const irParaAdministradora = () => {
+    onAssociacaoChange('__admin__');
+    navigate('/pid', { replace: false });
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.delete('associacao');
       next.delete('corretora');
       return next;
     }, { replace: true });
-    onAssociacaoChange('__admin__');
   };
   const { config } = useAppConfig();
   const headerLogo = config.header_logo_url || "/images/logo-vg.png";
