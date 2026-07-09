@@ -21,7 +21,7 @@ interface MGFTabelaProps {
   loading: boolean;
 }
 
-type StatusKey = "a_vencer" | "vencido" | "pago";
+type StatusKey = "a_vencer" | "vencido" | "pago" | "inativo";
 type Periodo = 7 | 15 | 30 | 60 | 90 | "custom";
 
 interface TabelaFilters {
@@ -40,6 +40,7 @@ const STATUS_OPTS: { key: StatusKey; label: string; onCls: string }[] = [
   { key: "a_vencer", label: "A Vencer", onCls: "bg-amber-500 hover:bg-amber-500/90 text-white border-amber-500" },
   { key: "vencido", label: "Vencido", onCls: "bg-red-500 hover:bg-red-500/90 text-white border-red-500" },
   { key: "pago", label: "Pago", onCls: "bg-emerald-600 hover:bg-emerald-600/90 text-white border-emerald-600" },
+  { key: "inativo", label: "Inativos (cancel./exclu./estorn.)", onCls: "bg-gray-500 hover:bg-gray-500/90 text-white border-gray-500" },
 ];
 
 // Colunas visíveis conforme solicitado
@@ -108,8 +109,17 @@ const isPagoRow = (d: any) => {
   return sit.includes("pago") || sit.includes("paga") || !!d.data_pagamento;
 };
 
-// Classifica o lançamento em relação a hoje: pago / vencido / a_vencer.
+// Lançamentos que NÃO são obrigações reais (cancelados/excluídos/estornados).
+// Mesma regra usada no MGFDashboard — não devem contar como pago / a pagar /
+// a vencer / vencido, para não distorcer os números.
+const isInativoRow = (d: any) => {
+  const sit = d.situacao_pagamento?.toLowerCase() || "";
+  return sit.includes("cancel") || sit.includes("exclu") || sit.includes("estorn");
+};
+
+// Classifica o lançamento em relação a hoje: pago / vencido / a_vencer / inativo.
 const rowVencStatus = (d: any, hoje: Date): StatusKey | null => {
+  if (isInativoRow(d)) return "inativo";
   if (isPagoRow(d)) return "pago";
   if (!d.data_vencimento) return null;
   const venc = new Date(d.data_vencimento);
@@ -119,8 +129,10 @@ const rowVencStatus = (d: any, hoje: Date): StatusKey | null => {
 
 // Função para determinar status de vencimento (usado na cor da célula/linha)
 const getVencimentoStatus = (dataVencimento: string | null, situacao: string | null, dataPagamento: string | null) => {
+  const sitLower = situacao?.toLowerCase() || "";
+  if (sitLower.includes("cancel") || sitLower.includes("exclu") || sitLower.includes("estorn")) return "inativo";
   if (!dataVencimento) return null;
-  if (situacao?.toLowerCase().includes("pago") || dataPagamento) return "pago";
+  if (sitLower.includes("pago") || dataPagamento) return "pago";
 
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -138,9 +150,10 @@ const getVencimentoStatus = (dataVencimento: string | null, situacao: string | n
 const getSituacaoColor = (situacao: string | null) => {
   if (!situacao) return "";
   const s = situacao.toLowerCase();
+  if (s.includes("cancel") || s.includes("exclu") || s.includes("estorn")) return "bg-gray-400/20 text-gray-600 border-gray-400/30";
   if (s.includes("pago")) return "bg-green-500/20 text-green-700 border-green-500/30";
   if (s.includes("pendente") || s.includes("aberto")) return "bg-yellow-500/20 text-yellow-700 border-yellow-500/30";
-  if (s.includes("cancel") || s.includes("vencid")) return "bg-red-500/20 text-red-700 border-red-500/30";
+  if (s.includes("vencid")) return "bg-red-500/20 text-red-700 border-red-500/30";
   return "bg-blue-500/20 text-blue-700 border-blue-500/30";
 };
 
@@ -155,6 +168,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
     a_vencer: true,
     vencido: true,
     pago: false,
+    inativo: false,
   });
 
   // Filtros detalhados
@@ -244,8 +258,8 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
       });
     }
 
-    // Filtro de STATUS (a vencer / vencido / pago)
-    const anyStatus = status.a_vencer || status.vencido || status.pago;
+    // Filtro de STATUS (a vencer / vencido / pago / inativo)
+    const anyStatus = status.a_vencer || status.vencido || status.pago || status.inativo;
     if (anyStatus) {
       result = result.filter((d) => {
         const st = rowVencStatus(d, hoje);
@@ -319,7 +333,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
     });
     setPeriodo(7);
     setCustomVenc(undefined);
-    setStatus({ a_vencer: true, vencido: true, pago: false });
+    setStatus({ a_vencer: true, vencido: true, pago: false, inativo: false });
     setPage(0);
   };
 
@@ -371,6 +385,9 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
       const st = getVencimentoStatus(value, row.situacao_pagamento, row.data_pagamento);
       const formattedDate = new Date(value).toLocaleDateString("pt-BR");
 
+      if (st === "inativo") {
+        return <span className="text-muted-foreground line-through">{formattedDate}</span>;
+      }
       if (st === "vencido") {
         return <span className="text-red-600 font-semibold">{formattedDate}</span>;
       }
@@ -410,6 +427,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
   // Row background based on status
   const getRowClassName = (row: any) => {
     const st = getVencimentoStatus(row.data_vencimento, row.situacao_pagamento, row.data_pagamento);
+    if (st === "inativo") return "bg-gray-50 dark:bg-gray-900/20 opacity-60 hover:opacity-100";
     if (st === "vencido") return "bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30";
     if (st === "vence_7") return "bg-orange-50 dark:bg-orange-950/20 hover:bg-orange-100 dark:hover:bg-orange-950/30";
     if (st === "pago") return "bg-green-50 dark:bg-green-950/10 hover:bg-green-100 dark:hover:bg-green-950/20";
