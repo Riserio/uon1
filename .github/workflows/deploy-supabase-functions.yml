@@ -21,6 +21,14 @@ jobs:
         uses: supabase/setup-cli@v1
         with:
           version: latest
+        env:
+          # supabase/setup-cli resolve a versao "latest" chamando a API do
+          # GitHub sem autenticacao (limite de 60 req/h por IP do runner
+          # compartilhado) — isso estava estourando com
+          # "Failed to resolve latest Supabase CLI release: rate limit
+          # exceeded". Passando o GITHUB_TOKEN do proprio workflow sobe o
+          # limite pra 5000 req/h e resolve.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy edge functions (API Hinova + base)
         run: |
@@ -36,8 +44,8 @@ jobs:
             scheduler-mgf-hinova \
             scheduler-cobranca-hinova \
                         gerar-resumo-cobranca \
-                                    gerar-resumo-geral; do
-                                    echo "== deploy $fn =="
+                                    gerar-resumo-geral \
+            verify-metodo-seguranca; do
+            echo "== deploy $fn =="
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" || echo "FALHOU: $fn"
           done
-          
