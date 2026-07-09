@@ -2157,6 +2157,44 @@ export type Database = {
           },
         ]
       }
+      corretora_seguranca_config: {
+        Row: {
+          corretora_id: string
+          created_at: string
+          metodo: string
+          palavra_chave_atualizada_em: string | null
+          palavra_chave_hash: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          corretora_id: string
+          created_at?: string
+          metodo?: string
+          palavra_chave_atualizada_em?: string | null
+          palavra_chave_hash?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          corretora_id?: string
+          created_at?: string
+          metodo?: string
+          palavra_chave_atualizada_em?: string | null
+          palavra_chave_hash?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corretora_seguranca_config_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       corretora_usuarios: {
         Row: {
           acesso_exclusivo_pid: boolean | null
@@ -2400,6 +2438,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "detran_mg_execucoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_approval_requests: {
+        Row: {
+          corretora_id: string | null
+          device_info: string | null
+          email: string
+          id: string
+          profile_id: string | null
+          requested_at: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          corretora_id?: string | null
+          device_info?: string | null
+          email: string
+          id?: string
+          profile_id?: string | null
+          requested_at?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          corretora_id?: string | null
+          device_info?: string | null
+          email?: string
+          id?: string
+          profile_id?: string | null
+          requested_at?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_approval_requests_corretora_id_fkey"
             columns: ["corretora_id"]
             isOneToOne: false
             referencedRelation: "corretoras"
