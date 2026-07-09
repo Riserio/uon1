@@ -12,7 +12,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { signInSchema, signUpSchema } from "@/lib/validationSchemas";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { ShieldCheck, ArrowLeft, QrCode, Eye, EyeOff, KeyRound, Smartphone, Loader2 } from "lucide-react";
+import { getDeviceFingerprint, getClientIp } from "@/lib/deviceFingerprint";
+import { ShieldCheck, ArrowLeft, QrCode, Eye, EyeOff, KeyRound, Smartphone, Loader2, ShieldAlert } from "lucide-react";
 
 
 type Step = "CREDENTIALS" | "TOTP" | "TOTP_SETUP" | "PALAVRA_CHAVE" | "DISPOSITIVO_AGUARDANDO";
@@ -42,9 +43,12 @@ export default function Auth() {
   // Palavra-chave (método alternativo de verificação em duas etapas)
   const [palavraChave, setPalavraChave] = useState("");
 
-  // Aprovação por dispositivo (método alternativo de verificação em duas etapas)
+  // Aprovação por dispositivo (método alternativo de verificação em duas etapas).
+  // "blocked" = dispositivo já aprovado antes, mas com trava de IP ativa e o
+  // IP atual não bate com o aprovado (mesmo padrão do módulo Ponto).
   const [deviceRequestId, setDeviceRequestId] = useState<string | null>(null);
-  const [deviceStatus, setDeviceStatus] = useState<"pending" | "approved" | "denied" | "expired">("pending");
+  const [deviceStatus, setDeviceStatus] = useState<"pending" | "approved" | "denied" | "expired" | "blocked">("pending");
+  const [deviceMessage, setDeviceMessage] = useState<string>("");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { signIn, signUp, user, loading: authLoading } = useAuth();
@@ -214,21 +218,53 @@ export default function Auth() {
     setSubmitting(false);
   };
 
+  // Aprovação por dispositivo: agora persistente (identificado por
+  // fingerprint) e reaproveitada entre logins — mesmo padrão do módulo
+  // Ponto. Se o dispositivo já foi aprovado antes, o login segue direto
+  // (sem tela de espera), a não ser que a associação exija o mesmo IP e o
+  // IP atual tenha mudado — nesse caso fica bloqueado até nova aprovação.
   const solicitarAprovacaoDispositivo = async (currentUser: MinimalUser) => {
     setStep("DISPOSITIVO_AGUARDANDO");
     setDeviceStatus("pending");
+    setDeviceMessage("");
 
     try {
+      const { fingerprint, userAgent, plataforma, navegador } = await getDeviceFingerprint();
+      const ip = await getClientIp();
+
       const { data, error } = await supabase.functions.invoke("verify-metodo-seguranca", {
         body: {
           action: "dispositivo-solicitar",
           email: currentUser.email,
-          deviceInfo: navigator.userAgent,
+          deviceInfo: `${navegador} em ${plataforma} — ${userAgent}`,
+          fingerprint,
+          ip,
         },
       });
 
-      if (error || !data?.requestId) {
+      if (error) {
         console.error("Erro ao solicitar aprovação de dispositivo:", error);
+        toast.error("Erro ao solicitar aprovação. Tente novamente.");
+        setStep("CREDENTIALS");
+        return;
+      }
+
+      // Dispositivo já aprovado antes (e sem bloqueio de IP) — entra direto,
+      // sem precisar esperar aprovação de novo.
+      if (data?.status === "approved") {
+        setDeviceStatus("approved");
+        toast.success("Dispositivo reconhecido! Entrando...");
+        navigate("/portal", { replace: true });
+        return;
+      }
+
+      if (data?.status === "blocked") {
+        setDeviceStatus("blocked");
+        setDeviceMessage(data?.message || "Este dispositivo está bloqueado.");
+        return;
+      }
+
+      if (!data?.requestId) {
         toast.error("Erro ao solicitar aprovação. Tente novamente.");
         setStep("CREDENTIALS");
         return;
@@ -248,10 +284,16 @@ export default function Auth() {
           setDeviceStatus("approved");
           toast.success("Dispositivo aprovado! Redirecionando...");
           navigate("/portal", { replace: true });
-        } else if (status === "denied" || status === "expired") {
+        } else if (status === "denied" || status === "expired" || status === "blocked") {
           if (pollingRef.current) clearInterval(pollingRef.current);
           setDeviceStatus(status);
-          toast.error(status === "denied" ? "Acesso negado por um administrador." : "Solicitação expirou.");
+          toast.error(
+            status === "denied"
+              ? "Acesso negado por um administrador."
+              : status === "blocked"
+                ? "Este dispositivo foi bloqueado."
+                : "Solicitação expirou."
+          );
         }
       }, 3000);
     } catch (error) {
@@ -774,6 +816,15 @@ export default function Auth() {
                       Assim que for aceita, você entrará automaticamente.
                     </p>
                   </>
+                ) : deviceStatus === "blocked" ? (
+                  <>
+                    <div className="h-16 w-16 rounded-full bg-amber-50 flex items-center justify-center">
+                      <ShieldAlert className="w-8 h-8 text-amber-600" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {deviceMessage || "Este dispositivo está bloqueado para o IP atual."}
+                    </p>
+                  </>
                 ) : (
                   <>
                     <div className="h-16 w-16 rounded-full bg-red-50 flex items-center justify-center">
@@ -878,6 +929,7 @@ export default function Auth() {
                   setPalavraChave("");
                   setDeviceRequestId(null);
                   setDeviceStatus("pending");
+                  setDeviceMessage("");
                 }}
                 className="flex items-center gap-1 text-[#362c89] hover:text-[#362c89]/80 font-medium"
               >
