@@ -1031,6 +1031,33 @@ serve(async (req) => {
       }
     } else {
       // Modo tradicional (substituir): desativar importações anteriores e criar uma nova
+      //
+      // Auto-cura: garante no máximo UMA importação ativa chamada literalmente
+      // "API cobrança (histórico)" por corretora. Antes, se por qualquer motivo
+      // mais de uma linha com esse nome ficasse ativa ao mesmo tempo, NENHUMA
+      // delas era desativada pelo .neq abaixo (ele protege todas que têm esse
+      // nome), fazendo os registros serem somados em dobro nos relatórios de
+      // Cobrança. Mantém apenas a mais recente, igual ao padrão já usado em
+      // importar-api-hinova/getOrCreateImportacaoAtiva.
+      const { data: historicosAtivos } = await supabase
+        .from("cobranca_importacoes")
+        .select("id")
+        .eq("ativo", true)
+        .eq("corretora_id", corretoraId)
+        .eq("nome_arquivo", "API cobrança (histórico)")
+        .order("created_at", { ascending: false });
+
+      if (historicosAtivos && historicosAtivos.length > 1) {
+        const idsParaDesativar = historicosAtivos.slice(1).map((h) => h.id);
+        await supabase
+          .from("cobranca_importacoes")
+          .update({ ativo: false })
+          .in("id", idsParaDesativar);
+        console.log(
+          `[Webhook] Auto-cura: desativadas ${idsParaDesativar.length} importações "histórico" duplicadas da corretora ${corretoraId}`,
+        );
+      }
+
       await supabase
         .from("cobranca_importacoes")
         .update({ ativo: false })
