@@ -153,19 +153,27 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       return sit.includes('pago') || sit.includes('paga') || !!d.data_pagamento;
     };
 
+    // Lançamentos que NÃO são obrigações reais (cancelados/excluídos/estornados).
+    // Não devem contar como pago / a pagar / a vencer / vencido.
+    const isInativo = (d: any) => {
+      const sit = d.situacao_pagamento?.toLowerCase() || '';
+      return sit.includes('cancel') || sit.includes('exclu') || sit.includes('estorn');
+    };
+
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     hoje.setHours(0, 0, 0, 0);
 
     const totalRegistros = dados.length;
     const valorTotal = dados.reduce((acc, d) => acc + (d.valor || 0), 0);
-    const pagos = dados.filter(d => isPago(d));
+    const pagos = dados.filter(d => !isInativo(d) && isPago(d));
     const valorPago = pagos.reduce((acc, d) => acc + (d.valor_pagamento || d.valor || 0), 0);
     const qtdPagos = pagos.length;
-    const aPagar = dados.filter(d => !isPago(d));
+    const aPagar = dados.filter(d => !isInativo(d) && !isPago(d));
     const valorAPagar = aPagar.reduce((acc, d) => acc + (d.valor || 0), 0);
     const qtdAPagar = aPagar.length;
     const vencidos = dados.filter(d => {
+      if (isInativo(d)) return false;
       if (isPago(d)) return false;
       if (!d.data_vencimento) return false;
       return new Date(d.data_vencimento) < hoje;
@@ -178,12 +186,17 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     const fornecedoresUnicos = new Set(dados.filter(d => d.fornecedor || d.nome_fantasia_fornecedor).map(d => d.fornecedor || d.nome_fantasia_fornecedor)).size;
     const taxaPagamento = valorTotal > 0 ? (valorPago / valorTotal) * 100 : 0;
 
+    // Contagem (apenas quantidade) dos lançamentos fora do cálculo financeiro.
+    const sitLower = (d: any) => d.situacao_pagamento?.toLowerCase() || '';
+    const qtdCanceladas = dados.filter(d => sitLower(d).includes('cancel')).length;
+    const qtdExcluidas = dados.filter(d => sitLower(d).includes('exclu')).length;
+    const qtdEstornadas = dados.filter(d => sitLower(d).includes('estorn')).length;
+
     const filterAVencer = (fim: number) => {
       const f = new Date(hoje); f.setDate(f.getDate() + fim);
       return dados.filter(d => {
         if (isPago(d)) return false;
-        const sit = d.situacao_pagamento?.toLowerCase() || '';
-        if (sit.includes('cancel')) return false;
+        if (isInativo(d)) return false;
         if (!d.data_vencimento) return false;
         const venc = new Date(d.data_vencimento);
         return venc >= hoje && venc <= f;
@@ -268,6 +281,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       qtdAVencer30: aVencer30.length, valorAVencer30: aVencer30.reduce((acc, d) => acc + (d.valor || 0), 0),
       qtdAVencer60: aVencer60.length, valorAVencer60: aVencer60.reduce((acc, d) => acc + (d.valor || 0), 0),
       qtdAVencer90: aVencer90.length, valorAVencer90: aVencer90.reduce((acc, d) => acc + (d.valor || 0), 0),
+      qtdCanceladas, qtdExcluidas, qtdEstornadas,
       operacaoData: buildRanking("operacao"),
       subOperacaoData: buildRanking("sub_operacao"),
       situacaoData: buildRanking("situacao_pagamento"),
@@ -375,6 +389,18 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
           ))}
         </div>
       </div>
+
+      {/* Informativo: lançamentos fora do cálculo (só quantidade) */}
+      {(stats.qtdCanceladas + stats.qtdExcluidas + stats.qtdEstornadas) > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border/40 bg-muted/30 px-4 py-2 text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground">Fora do cálculo financeiro (não contam como obrigação):</span>
+          <span>Canceladas: <b className="text-foreground">{stats.qtdCanceladas}</b></span>
+          <span>Excluídas: <b className="text-foreground">{stats.qtdExcluidas}</b></span>
+          <span>Estornadas: <b className="text-foreground">{stats.qtdEstornadas}</b></span>
+          <span className="text-muted-foreground/70">·</span>
+          <span>Total: <b className="text-foreground">{(stats.qtdCanceladas + stats.qtdExcluidas + stats.qtdEstornadas).toLocaleString()} boleto(s)</b></span>
+        </div>
+      )}
 
       {/* Evolução Temporal */}
       {stats.timelineData.length > 0 && (
