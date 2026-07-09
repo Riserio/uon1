@@ -218,11 +218,12 @@ function DomainBasedRoute() {
 // #132012 da Meta antes, então o slug é enviado "puro". Sem esta rota, esse
 // link puro não batia com nenhuma rota registrada e caía no catch-all
 // NotFound ("não encontrado"). Esta rota resolve o slug e manda para a tela
-// de login dessa associação — depois do login o próprio fluxo já navega
-// para "/:slug/dashboard".
+// de login PRINCIPAL (/auth — Supabase Auth + TOTP + isParceiro), que é a
+// que realmente funciona. O login "/:slug/login" (sistema antigo via edge
+// function portal-auth) foi abandonado e está dando erro — não usar.
 function SlugPortalRedirect() {
   const { slug } = useParams<{ slug: string }>();
-  return <Navigate to={`/${slug}/login`} replace />;
+  return <Navigate to={`/${slug}/auth`} replace />;
 }
 
 // Global safety net for uncaught promise rejections
@@ -249,6 +250,12 @@ const App = () => (
               {/* Portal PID Routes */}
           <Route path="/:slug/login" element={<PortalLogin />} />
           <Route path="/:slug/dashboard" element={<PortalDashboard />} />
+          {/* Tela de login PRINCIPAL, acessada com o slug da associação na
+              URL (ex.: /exclusive/auth) — mesmo componente de /auth, só
+              muda a URL para o link do WhatsApp continuar "de cara" com o
+              nome da associação. O login em si não depende do slug: após
+              autenticar, o próprio fluxo (isParceiro) manda para /portal. */}
+          <Route path="/:slug/auth" element={<Auth />} />
           {/* Link "puro" (sem /login ou /dashboard) vindo dos templates do
               WhatsApp — resolve para a tela de login da associação. Fica
               DEPOIS das rotas de dois segmentos acima e antes das rotas
