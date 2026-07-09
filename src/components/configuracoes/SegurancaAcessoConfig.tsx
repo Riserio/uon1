@@ -4,13 +4,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { KeyRound, ShieldCheck, Smartphone, Check, X, Loader2, Search } from "lucide-react";
+import { KeyRound, ShieldCheck, Smartphone, ShieldOff, Check, X, Loader2, Search, ChevronDown } from "lucide-react";
 
 type Corretora = { id: string; nome: string };
-type SegurancaConfig = { corretora_id: string; metodo: "totp" | "palavra_chave" | "dispositivo" };
+type SegurancaConfig = { corretora_id: string; metodo: "totp" | "palavra_chave" | "dispositivo" | "nenhum" };
 type DeviceRequest = {
   id: string;
   corretora_id: string | null;
@@ -40,6 +38,7 @@ const metodoInfo: Record<string, { label: string; icon: any }> = {
   totp: { label: "Google Authenticator (TOTP)", icon: ShieldCheck },
   palavra_chave: { label: "Palavra-chave", icon: KeyRound },
   dispositivo: { label: "Aprovação por dispositivo", icon: Smartphone },
+  nenhum: { label: "Nenhuma (sem 2ª etapa)", icon: ShieldOff },
 };
 
 export function SegurancaAcessoConfig({ readOnly = false }: SegurancaAcessoConfigProps) {
@@ -52,6 +51,7 @@ export function SegurancaAcessoConfig({ readOnly = false }: SegurancaAcessoConfi
   const [pendentes, setPendentes] = useState<DeviceRequest[]>([]);
   const [resolvendo, setResolvendo] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
+  const [expandido, setExpandido] = useState(false);
 
   const loadTudo = async () => {
     setLoading(true);
@@ -228,52 +228,57 @@ export function SegurancaAcessoConfig({ readOnly = false }: SegurancaAcessoConfi
         </div>
       )}
 
-      {/* Método de verificação por associação */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-sm font-semibold">Método de verificação em duas etapas por associação</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Cada associação pode usar um método diferente para o segundo fator de login dos parceiros.
-            </p>
+      {/* Método de verificação por associação — colapsado por padrão, no mesmo
+          estilo dos demais itens desta tela (ícone + título + descrição). */}
+      <div className="rounded-xl border border-border/50 bg-muted/10 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setExpandido((v) => !v)}
+          className="w-full flex items-center justify-between gap-4 p-4 hover:bg-muted/20 transition-colors text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Método de verificação em duas etapas por associação</p>
+              <p className="text-[11px] text-muted-foreground">
+                Cada associação pode usar um método diferente para o segundo fator de login dos parceiros.
+              </p>
+            </div>
           </div>
-          <div className="relative w-full sm:w-56">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Buscar associação..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              className="h-9 pl-8"
-            />
-          </div>
-        </div>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200 ${expandido ? "rotate-180" : ""}`}
+          />
+        </button>
 
-        {corretoras.length === 0 && (
-          <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma associação cadastrada.</p>
-        )}
+        {expandido && (
+          <div className="px-4 pb-4 space-y-3 border-t border-border/50 pt-3">
+            <div className="relative w-full sm:w-56 ml-auto">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Buscar associação..."
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                className="h-9 pl-8"
+              />
+            </div>
 
-        {corretoras.length > 0 && corretorasFiltradas.length === 0 && (
-          <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma associação encontrada.</p>
-        )}
+            {corretoras.length === 0 && (
+              <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma associação cadastrada.</p>
+            )}
 
-        {corretorasFiltradas.length > 0 && (
-          <Accordion type="single" collapsible className="rounded-xl border border-border/50 divide-y overflow-hidden">
+            {corretoras.length > 0 && corretorasFiltradas.length === 0 && (
+              <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma associação encontrada.</p>
+            )}
+
             {corretorasFiltradas.map((c) => {
               const metodo = configs[c.id]?.metodo || "totp";
-              const info = metodoInfo[metodo];
-              const Icon = info.icon;
               return (
-                <AccordionItem key={c.id} value={c.id} className="border-b-0 px-4">
-                  <AccordionTrigger className="hover:no-underline py-3">
-                    <div className="flex items-center justify-between gap-3 flex-1 pr-2">
-                      <p className="text-sm font-medium">{c.nome}</p>
-                      <Badge variant="secondary" className="gap-1.5 font-normal">
-                        <Icon className="h-3 w-3" /> {info.label}
-                      </Badge>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="space-y-3">
+                <div key={c.id} className="rounded-xl border border-border/50 p-4 bg-background space-y-3">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <p className="text-sm font-medium">{c.nome}</p>
                     <Select
                       value={metodo}
                       onValueChange={(v) => handleMetodoChange(c.id, v)}
@@ -298,34 +303,39 @@ export function SegurancaAcessoConfig({ readOnly = false }: SegurancaAcessoConfi
                             <Smartphone className="h-3.5 w-3.5" /> Aprovação por dispositivo
                           </span>
                         </SelectItem>
+                        <SelectItem value="nenhum">
+                          <span className="flex items-center gap-2">
+                            <ShieldOff className="h-3.5 w-3.5" /> Nenhuma (sem 2ª etapa)
+                          </span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
 
-                    {metodo === "palavra_chave" && !readOnly && (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="text"
-                          placeholder="Definir/alterar palavra-chave"
-                          value={novaPalavra[c.id] || ""}
-                          onChange={(e) => setNovaPalavra((prev) => ({ ...prev, [c.id]: e.target.value }))}
-                          className="h-9"
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-9 shrink-0"
-                          disabled={saving === c.id}
-                          onClick={() => handleSalvarPalavra(c.id)}
-                        >
-                          Salvar
-                        </Button>
-                      </div>
-                    )}
-                  </AccordionContent>
-                </AccordionItem>
+                  {metodo === "palavra_chave" && !readOnly && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Definir/alterar palavra-chave"
+                        value={novaPalavra[c.id] || ""}
+                        onChange={(e) => setNovaPalavra((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                        className="h-9"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 shrink-0"
+                        disabled={saving === c.id}
+                        onClick={() => handleSalvarPalavra(c.id)}
+                      >
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+                </div>
               );
             })}
-          </Accordion>
+          </div>
         )}
       </div>
     </div>
