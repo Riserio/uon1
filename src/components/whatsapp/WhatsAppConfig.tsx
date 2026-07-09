@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { MessageCircle, Save, Clock, CheckCircle, XCircle, Plus, Trash2, Phone, Zap, RotateCcw, Bell } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatPhone } from '@/lib/validators';
 import { WhatsAppTemplateSchedules } from './WhatsAppTemplateSchedules';
@@ -414,16 +416,25 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         {/* === ENVIOS AUTOMÁTICOS === */}
         <TabsContent value="envios" className="space-y-4">
           {/* Post-import triggers */}
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Zap className="h-4 w-4 text-amber-500" /> Disparo após importação
-              </CardTitle>
-              <CardDescription>
-                Quando a importação de BI terminar, dispara o fluxo de automação selecionado.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <Collapsible>
+            <Card className="rounded-2xl">
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer select-none [&[data-state=open]_svg.chev]:rotate-180">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="space-y-1.5">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Zap className="h-4 w-4 text-amber-500" /> Disparo após importação
+                      </CardTitle>
+                      <CardDescription>
+                        Quando a importação de BI terminar, dispara o fluxo de automação selecionado.
+                      </CardDescription>
+                    </div>
+                    <ChevronDown className="chev h-4 w-4 text-muted-foreground transition-transform shrink-0" />
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-3">
               {([
                 { key: 'cobranca', label: 'Resumo de Cobrança', toggle: 'envio_automatico_cobranca', flow: 'fluxo_cobranca_id' },
                 { key: 'eventos', label: 'Resumo de Eventos', toggle: 'envio_automatico_eventos', flow: 'fluxo_eventos_id' },
@@ -451,8 +462,10 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
                   </div>
                 );
               })}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
           {/* Scheduled templates */}
           {selectedCorretora && <WhatsAppTemplateSchedules corretoraId={selectedCorretora} />}
