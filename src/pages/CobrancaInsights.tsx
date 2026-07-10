@@ -43,6 +43,7 @@ import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useBILayoutOptional } from "@/contexts/BILayoutContext";
 import { usePortalLayoutOptional } from "@/contexts/PortalLayoutContext";
 
+// touch: force new deploy (rebuild) picking up server-side RPC dashboard
 export interface CobrancaFilters {
   mesReferencia: string;
   situacao: string;
