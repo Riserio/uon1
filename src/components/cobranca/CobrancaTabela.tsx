@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,20 +11,48 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, SearchCheck, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, SearchCheck, SlidersHorizontal, ChevronDown, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import RevistoriaInadimplenciaDialog from "./RevistoriaInadimplenciaDialog";
+import type { CobrancaFilters } from "@/pages/CobrancaInsights";
 
+// NOTE (escalabilidade): esta tabela não recebe mais o array cru de
+// boletos (poderia ser 500k+ linhas para associações grandes). Ela busca
+// sua própria página de dados via a RPC `listar_cobranca_boletos_dedup`
+// (dedup + filtros + paginação feitos no servidor), refazendo a busca a
+// cada mudança de filtro/busca/página. A busca por texto é debounced em
+// 300ms para não disparar uma query a cada tecla digitada.
 interface CobrancaTabelaProps {
-  boletos: any[];
+  importacaoIds: string[];
+  globalFilters: CobrancaFilters;
+  filterOptions: {
+    regionais: string[];
+    cooperativas: string[];
+    diasVencimento: number[];
+    situacoes: string[];
+  };
   loading: boolean;
   corretoraId?: string;
 }
 
 const TODOS = "__todos__";
+const NONE_SENTINEL = "__none__";
+const ITEMS_PER_PAGE = 50;
+// Cap de exportação: exportar o dataset filtrado inteiro (que pode passar
+// de 100 mil linhas em associações grandes como a VALECAR) num único
+// download travaria o navegador. Reaproveitamos a mesma RPC paginada com
+// um limite alto (sem offset) — cobre o caso comum (poucos milhares de
+// linhas após filtrar) e, quando o total filtrado excede o cap, avisamos
+// o usuário e sugerimos refinar os filtros em vez de tentar trazer tudo.
+const EXPORT_CAP = 50000;
+// Cap para a lista de "Revistoria" (boletos em aberto com placa) — mesma
+// lógica: nunca busca o dataset inteiro de uma vez.
+const REVISTORIA_CAP = 20000;
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -46,10 +74,9 @@ const formatDate = (dateStr: string | null) => {
   }
 };
 
-const ITEMS_PER_PAGE = 50;
-
-export default function CobrancaTabela({ boletos, loading, corretoraId }: CobrancaTabelaProps) {
+export default function CobrancaTabela({ importacaoIds, globalFilters, filterOptions, loading, corretoraId }: CobrancaTabelaProps) {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [revistoriaOpen, setRevistoriaOpen] = useState(false);
   const [maisFiltrosAberto, setMaisFiltrosAberto] = useState(false);
@@ -68,107 +95,217 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
   const [filtroVoluntario, setFiltroVoluntario] = useState("");
   const [filtroPlacas, setFiltroPlacas] = useState("");
 
-  // Opções dinâmicas (baseadas nos dados carregados), evita digitar errado
-  // e deixa claro quais valores realmente existem.
-  const opcoesSituacao = useMemo(() => {
-    const set = new Set<string>();
-    boletos.forEach(b => { if (b.situacao) set.add(String(b.situacao).toUpperCase()); });
-    return Array.from(set).sort();
-  }, [boletos]);
+  // Dados da página atual (vindos do servidor)
+  const [rows, setRows] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [tableLoading, setTableLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
-  const opcoesRegional = useMemo(() => {
-    const set = new Set<string>();
-    boletos.forEach(b => { if (b.regional_boleto) set.add(String(b.regional_boleto)); });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [boletos]);
+  // Contagem/lista de "Revistoria" (ABERTO + placa preenchida)
+  const [revistoriaCount, setRevistoriaCount] = useState(0);
+  const [revistoriaRows, setRevistoriaRows] = useState<any[]>([]);
+  const [revistoriaLoading, setRevistoriaLoading] = useState(false);
 
-  const opcoesCooperativa = useMemo(() => {
-    const set = new Set<string>();
-    boletos.forEach(b => { if (b.cooperativa) set.add(String(b.cooperativa)); });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [boletos]);
+  const fetchIdRef = useRef(0);
 
-  const filteredBoletos = useMemo(() => {
-    let result = [...boletos];
+  // Debounce da busca (300ms) para não disparar uma query a cada tecla
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-    // Busca geral
-    if (search) {
-      const searchLower = search.toLowerCase();
-      result = result.filter(b =>
-        (b.nome || "").toLowerCase().includes(searchLower) ||
-        (b.placas || "").toLowerCase().includes(searchLower) ||
-        (b.voluntario || "").toLowerCase().includes(searchLower) ||
-        (b.regional_boleto || "").toLowerCase().includes(searchLower) ||
-        (b.cooperativa || "").toLowerCase().includes(searchLower)
-      );
+  // Opções dos dropdowns: vêm de `filterOptions` (RPC leve, escopo = todas
+  // as importações ativas, sem aplicar os filtros atuais — pode mostrar
+  // alguma opção sem resultado no filtro corrente, tradeoff aceitável
+  // para evitar mais uma query pesada só para popular dropdowns).
+  const opcoesSituacao = filterOptions?.situacoes || [];
+  const opcoesRegional = filterOptions?.regionais || [];
+  const opcoesCooperativa = filterOptions?.cooperativas || [];
+
+  // Combina o filtro global (vindo do painel de Filtros da página) com o
+  // filtro local da tabela para o mesmo campo. Se os dois estiverem
+  // preenchidos e forem diferentes, força um resultado vazio (nenhum
+  // boleto pode satisfazer duas situações/regionais diferentes ao mesmo
+  // tempo) em vez de simplesmente ignorar um dos dois filtros.
+  const combineFilter = (localValue: string, globalValue: string | undefined): string | null => {
+    const g = globalValue && globalValue !== "todos" ? globalValue : null;
+    if (localValue && g && localValue.toUpperCase() !== g.toUpperCase()) return NONE_SENTINEL;
+    return localValue || g || null;
+  };
+
+  const effectiveSituacao = combineFilter(filtroSituacao, globalFilters.situacao);
+  const effectiveRegional = combineFilter(filtroRegional, globalFilters.regional);
+  const effectiveCooperativa = combineFilter(filtroCooperativa, globalFilters.cooperativa);
+  const effectiveDiaVencimento = combineFilter(filtroDiaVencimento, globalFilters.diaVencimento);
+
+  // Situação forçada para "ABERTO" usada pela Revistoria — mas se o
+  // usuário já filtrou explicitamente por outra situação (ex.: BAIXADO),
+  // nenhum boleto pode satisfazer as duas ao mesmo tempo, então força 0
+  // resultados em vez de ignorar o filtro escolhido.
+  const revistoriaSituacao = effectiveSituacao === NONE_SENTINEL
+    ? NONE_SENTINEL
+    : (effectiveSituacao && effectiveSituacao.toUpperCase() !== "ABERTO" ? NONE_SENTINEL : "ABERTO");
+
+  const buildRpcParams = (limit: number, offset: number) => ({
+    p_importacao_ids: importacaoIds,
+    p_mes_referencia: globalFilters.mesReferencia || null,
+    p_situacao: effectiveSituacao,
+    p_regional: effectiveRegional,
+    p_cooperativa: effectiveCooperativa,
+    p_dia_vencimento: effectiveDiaVencimento && effectiveDiaVencimento !== NONE_SENTINEL ? Number(effectiveDiaVencimento) : (effectiveDiaVencimento === NONE_SENTINEL ? -999999 : null),
+    p_search: debouncedSearch || null,
+    p_data_pagamento_de: filtroDataPagamentoDe || null,
+    p_data_pagamento_ate: filtroDataPagamentoAte || null,
+    p_data_vencimento_de: filtroDataVencimentoDe || null,
+    p_data_vencimento_ate: filtroDataVencimentoAte || null,
+    p_voluntario: filtroVoluntario || null,
+    p_placas: filtroPlacas || null,
+    p_sort_col: "data_vencimento",
+    p_sort_dir: "desc",
+    p_limit: limit,
+    p_offset: offset,
+  });
+
+  // Busca a página atual sempre que filtros/busca/página mudam
+  useEffect(() => {
+    if (!importacaoIds.length) {
+      setRows([]);
+      setTotalCount(0);
+      setTableLoading(false);
+      return;
     }
 
-    if (filtroSituacao) {
-      result = result.filter(b => (b.situacao || "").toUpperCase() === filtroSituacao);
-    }
-    if (filtroDataPagamentoDe) {
-      result = result.filter(b => b.data_pagamento && b.data_pagamento.slice(0, 10) >= filtroDataPagamentoDe);
-    }
-    if (filtroDataPagamentoAte) {
-      result = result.filter(b => b.data_pagamento && b.data_pagamento.slice(0, 10) <= filtroDataPagamentoAte);
-    }
-    if (filtroDataVencimentoDe) {
-      result = result.filter(b => b.data_vencimento && b.data_vencimento.slice(0, 10) >= filtroDataVencimentoDe);
-    }
-    if (filtroDataVencimentoAte) {
-      result = result.filter(b => b.data_vencimento && b.data_vencimento.slice(0, 10) <= filtroDataVencimentoAte);
-    }
-    if (filtroDiaVencimento) {
-      result = result.filter(b => String(b.dia_vencimento_veiculo) === filtroDiaVencimento);
-    }
-    if (filtroRegional) {
-      result = result.filter(b => (b.regional_boleto || "") === filtroRegional);
-    }
-    if (filtroCooperativa) {
-      result = result.filter(b => (b.cooperativa || "") === filtroCooperativa);
-    }
-    if (filtroVoluntario) {
-      result = result.filter(b => (b.voluntario || "").toLowerCase().includes(filtroVoluntario.toLowerCase()));
-    }
-    if (filtroPlacas) {
-      result = result.filter(b => (b.placas || "").toLowerCase().includes(filtroPlacas.toLowerCase()));
-    }
+    const myFetchId = ++fetchIdRef.current;
+    setTableLoading(true);
 
-    return result;
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("listar_cobranca_boletos_dedup", buildRpcParams(ITEMS_PER_PAGE, (currentPage - 1) * ITEMS_PER_PAGE) as any);
+        if (myFetchId !== fetchIdRef.current) return;
+        if (error) throw error;
+        setRows((data as any)?.rows || []);
+        setTotalCount((data as any)?.totalCount || 0);
+      } catch (error) {
+        console.error("Erro ao carregar tabela de cobrança:", error);
+        if (myFetchId === fetchIdRef.current) {
+          toast.error("Erro ao carregar os dados da tabela. Tente novamente.");
+        }
+      } finally {
+        if (myFetchId === fetchIdRef.current) setTableLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    boletos, search, filtroSituacao,
-    filtroDataPagamentoDe, filtroDataPagamentoAte,
-    filtroDataVencimentoDe, filtroDataVencimentoAte,
-    filtroDiaVencimento, filtroRegional, filtroCooperativa, filtroVoluntario, filtroPlacas,
+    importacaoIds.join(","), globalFilters.mesReferencia, globalFilters.situacao, globalFilters.regional,
+    globalFilters.cooperativa, globalFilters.diaVencimento, debouncedSearch, filtroSituacao,
+    filtroDataPagamentoDe, filtroDataPagamentoAte, filtroDataVencimentoDe, filtroDataVencimentoAte,
+    filtroDiaVencimento, filtroRegional, filtroCooperativa, filtroVoluntario, filtroPlacas, currentPage,
   ]);
 
-  const paginatedBoletos = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredBoletos.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredBoletos, currentPage]);
+  // Reset de página quando qualquer filtro/busca muda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    debouncedSearch, filtroSituacao, filtroDataPagamentoDe, filtroDataPagamentoAte,
+    filtroDataVencimentoDe, filtroDataVencimentoAte, filtroDiaVencimento, filtroRegional,
+    filtroCooperativa, filtroVoluntario, filtroPlacas,
+    globalFilters.mesReferencia, globalFilters.situacao, globalFilters.regional,
+    globalFilters.cooperativa, globalFilters.diaVencimento,
+  ]);
 
-  const totalPages = Math.ceil(filteredBoletos.length / ITEMS_PER_PAGE);
+  // Contagem de candidatos à Revistoria (ABERTO + placa), respeitando os
+  // filtros atuais — busca leve (limit=1, só usamos o totalCount).
+  useEffect(() => {
+    if (!corretoraId || !importacaoIds.length) {
+      setRevistoriaCount(0);
+      return;
+    }
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("listar_cobranca_boletos_dedup", {
+          ...buildRpcParams(1, 0),
+          p_situacao: revistoriaSituacao,
+          p_placas: filtroPlacas || "",
+        } as any);
+        if (error) throw error;
+        setRevistoriaCount((data as any)?.totalCount || 0);
+      } catch (error) {
+        console.error("Erro ao contar revistoria:", error);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    importacaoIds.join(","), corretoraId, globalFilters.mesReferencia, globalFilters.situacao,
+    globalFilters.regional, globalFilters.cooperativa, globalFilters.diaVencimento,
+    filtroSituacao, filtroRegional, filtroCooperativa, filtroDiaVencimento, filtroPlacas,
+    filtroDataPagamentoDe, filtroDataPagamentoAte, filtroDataVencimentoDe, filtroDataVencimentoAte, filtroVoluntario,
+  ]);
 
-  const handleExport = () => {
-    const exportData = filteredBoletos.map(b => ({
-      "Data Pagamento": formatDate(b.data_pagamento),
-      "Data Vencimento Original": formatDate(b.data_vencimento_original),
-      "Dia Vencimento Veículo": b.dia_vencimento_veiculo,
-      "Regional": b.regional_boleto,
-      "Cooperativa": b.cooperativa,
-      "Voluntário": b.voluntario,
-      "Nome": b.nome,
-      "Placas": b.placas,
-      "Valor": b.valor,
-      "Data Vencimento": formatDate(b.data_vencimento),
-      "Dias Atraso": b.qtde_dias_atraso_vencimento_original,
-      "Situação": b.situacao
-    }));
+  const totalPages = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Cobrança");
-    XLSX.writeFile(wb, `cobranca_export_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
+  const handleOpenRevistoria = async () => {
+    if (!corretoraId) return;
+    setRevistoriaLoading(true);
+    setRevistoriaOpen(true);
+    try {
+      const { data, error } = await supabase.rpc("listar_cobranca_boletos_dedup", {
+        ...buildRpcParams(REVISTORIA_CAP, 0),
+        p_situacao: revistoriaSituacao,
+        p_placas: filtroPlacas || "",
+      } as any);
+      if (error) throw error;
+      const allRows = (data as any)?.rows || [];
+      if (((data as any)?.totalCount || 0) > REVISTORIA_CAP) {
+        toast.warning(`Revistoria limitada aos primeiros ${REVISTORIA_CAP.toLocaleString('pt-BR')} boletos em aberto com placa.`);
+      }
+      setRevistoriaRows(allRows);
+    } catch (error) {
+      console.error("Erro ao carregar lista de revistoria:", error);
+      toast.error("Erro ao carregar lista de revistoria.");
+    } finally {
+      setRevistoriaLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { data, error } = await supabase.rpc("listar_cobranca_boletos_dedup", buildRpcParams(EXPORT_CAP, 0) as any);
+      if (error) throw error;
+      const allRows = (data as any)?.rows || [];
+      const exportTotal = (data as any)?.totalCount || 0;
+
+      if (exportTotal > EXPORT_CAP) {
+        toast.warning(
+          `Exportação limitada às primeiras ${EXPORT_CAP.toLocaleString('pt-BR')} de ${exportTotal.toLocaleString('pt-BR')} linhas filtradas. Refine os filtros para exportar um subconjunto menor.`
+        );
+      }
+
+      const exportData = allRows.map((b: any) => ({
+        "Data Pagamento": formatDate(b.data_pagamento),
+        "Data Vencimento Original": formatDate(b.data_vencimento_original),
+        "Dia Vencimento Veículo": b.dia_vencimento_veiculo,
+        "Regional": b.regional_boleto,
+        "Cooperativa": b.cooperativa,
+        "Voluntário": b.voluntario,
+        "Nome": b.nome,
+        "Placas": b.placas,
+        "Valor": b.valor,
+        "Data Vencimento": formatDate(b.data_vencimento),
+        "Dias Atraso": b.qtde_dias_atraso_vencimento_original,
+        "Situação": b.situacao
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Cobrança");
+      XLSX.writeFile(wb, `cobranca_export_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`);
+    } catch (error) {
+      console.error("Erro ao exportar:", error);
+      toast.error("Erro ao exportar dados.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const clearFilters = () => {
@@ -194,10 +331,6 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
 
   const hasFilters = !!(search || filtroSituacao || filtrosAvancadosAtivos);
 
-  const inadimplentesAberto = useMemo(() => {
-    return filteredBoletos.filter(b => (b.situacao || "").toUpperCase() === "ABERTO" && b.placas);
-  }, [filteredBoletos]);
-
   // Determinar cor da linha baseado na situação
   const getRowClass = (situacao: string) => {
     if (!situacao) return "";
@@ -220,7 +353,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
     );
   }
 
-  if (!boletos.length) {
+  if (!importacaoIds.length) {
     return (
       <Card className="text-center py-12">
         <CardContent>
@@ -239,21 +372,24 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
     <Card>
       <CardHeader>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <CardTitle>Dados Completos ({filteredBoletos.length.toLocaleString()} registros)</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Dados Completos ({totalCount.toLocaleString('pt-BR')} registros)
+            {tableLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          </CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 Limpar Filtros
               </Button>
             )}
-             {corretoraId && inadimplentesAberto.length > 0 && (
-               <Button variant="outline" size="sm" onClick={() => setRevistoriaOpen(true)} className="gap-1.5">
+             {corretoraId && revistoriaCount > 0 && (
+               <Button variant="outline" size="sm" onClick={handleOpenRevistoria} className="gap-1.5">
                  <SearchCheck className="h-4 w-4" />
-                 Revistoria ({inadimplentesAberto.length})
+                 Revistoria ({revistoriaCount.toLocaleString('pt-BR')})
                </Button>
              )}
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
+              {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
               Exportar
             </Button>
           </div>
@@ -267,14 +403,14 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
             <Input
               placeholder="Buscar por nome, placa, voluntário, regional ou cooperativa..."
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => setSearch(e.target.value)}
               className="pl-10"
             />
           </div>
 
           <Select
             value={filtroSituacao || TODOS}
-            onValueChange={(v) => { setFiltroSituacao(v === TODOS ? "" : v); setCurrentPage(1); }}
+            onValueChange={(v) => setFiltroSituacao(v === TODOS ? "" : v)}
           >
             <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Situação" />
@@ -310,7 +446,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               <Input
                 type="date"
                 value={filtroDataPagamentoDe}
-                onChange={(e) => { setFiltroDataPagamentoDe(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => setFiltroDataPagamentoDe(e.target.value)}
                 className="h-9 text-xs"
               />
             </div>
@@ -319,7 +455,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               <Input
                 type="date"
                 value={filtroDataPagamentoAte}
-                onChange={(e) => { setFiltroDataPagamentoAte(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => setFiltroDataPagamentoAte(e.target.value)}
                 className="h-9 text-xs"
               />
             </div>
@@ -328,7 +464,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               <Input
                 type="date"
                 value={filtroDataVencimentoDe}
-                onChange={(e) => { setFiltroDataVencimentoDe(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => setFiltroDataVencimentoDe(e.target.value)}
                 className="h-9 text-xs"
               />
             </div>
@@ -337,7 +473,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               <Input
                 type="date"
                 value={filtroDataVencimentoAte}
-                onChange={(e) => { setFiltroDataVencimentoAte(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => setFiltroDataVencimentoAte(e.target.value)}
                 className="h-9 text-xs"
               />
             </div>
@@ -346,7 +482,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               <Label className="text-xs text-muted-foreground">Regional</Label>
               <Select
                 value={filtroRegional || TODOS}
-                onValueChange={(v) => { setFiltroRegional(v === TODOS ? "" : v); setCurrentPage(1); }}
+                onValueChange={(v) => setFiltroRegional(v === TODOS ? "" : v)}
               >
                 <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Todas" /></SelectTrigger>
                 <SelectContent>
@@ -359,7 +495,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               <Label className="text-xs text-muted-foreground">Cooperativa</Label>
               <Select
                 value={filtroCooperativa || TODOS}
-                onValueChange={(v) => { setFiltroCooperativa(v === TODOS ? "" : v); setCurrentPage(1); }}
+                onValueChange={(v) => setFiltroCooperativa(v === TODOS ? "" : v)}
               >
                 <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Todas" /></SelectTrigger>
                 <SelectContent>
@@ -373,7 +509,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               <Input
                 placeholder="Ex: 10"
                 value={filtroDiaVencimento}
-                onChange={(e) => { setFiltroDiaVencimento(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => setFiltroDiaVencimento(e.target.value)}
                 className="h-9 text-xs"
               />
             </div>
@@ -382,7 +518,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               <Input
                 placeholder="Nome do voluntário"
                 value={filtroVoluntario}
-                onChange={(e) => { setFiltroVoluntario(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => setFiltroVoluntario(e.target.value)}
                 className="h-9 text-xs"
               />
             </div>
@@ -391,7 +527,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               <Input
                 placeholder="Ex: ABC1234"
                 value={filtroPlacas}
-                onChange={(e) => { setFiltroPlacas(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => setFiltroPlacas(e.target.value)}
                 className="h-9 text-xs"
               />
             </div>
@@ -418,7 +554,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
               </tr>
             </thead>
             <tbody>
-              {paginatedBoletos.map((b, i) => (
+              {rows.map((b, i) => (
                 <tr key={b.id || i} className={`border-b hover:bg-muted/50 ${getRowClass(b.situacao)}`}>
                   <td className="p-2">{formatDate(b.data_pagamento)}</td>
                   <td className="p-2">{formatDate(b.data_vencimento_original)}</td>
@@ -450,6 +586,13 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
                   </td>
                 </tr>
               ))}
+              {!tableLoading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={12} className="p-8 text-center text-muted-foreground">
+                    Nenhum registro encontrado com os filtros atuais.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -458,14 +601,14 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4">
             <p className="text-sm text-muted-foreground">
-              Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredBoletos.length)} de {filteredBoletos.length}
+              Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} de {totalCount.toLocaleString('pt-BR')}
             </p>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
+                disabled={currentPage === 1 || tableLoading}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -476,7 +619,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
+                disabled={currentPage === totalPages || tableLoading}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -490,7 +633,7 @@ export default function CobrancaTabela({ boletos, loading, corretoraId }: Cobran
       <RevistoriaInadimplenciaDialog
         open={revistoriaOpen}
         onOpenChange={setRevistoriaOpen}
-        inadimplentes={inadimplentesAberto}
+        inadimplentes={revistoriaLoading ? [] : revistoriaRows}
         corretoraId={corretoraId}
       />
     )}
