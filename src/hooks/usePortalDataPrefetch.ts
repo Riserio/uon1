@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 type ModuleData = {
   eventos?: any[];
   mgf?: any[];
-  cobranca?: any[];
   'estudo-base'?: any[];
   indicadores?: boolean;
 };
@@ -37,15 +36,15 @@ export function usePortalDataPrefetch(
     // Pré-carregar cada módulo em segundo plano
     modulesToPrefetch.forEach(module => {
       const cacheKey = `${corretoraId}-${module}`;
-      
+
       // Evitar pré-carregar se já está no cache ou em progresso
       if (prefetchedRef.current.has(cacheKey) || prefetchPromises[cacheKey]) return;
-      
+
       prefetchedRef.current.add(cacheKey);
-      
+
       // Delay para não sobrecarregar (escalonar as requisições)
       const delay = modulesToPrefetch.indexOf(module) * 500;
-      
+
       setTimeout(() => {
         prefetchModule(corretoraId, module as any);
       }, delay);
@@ -57,10 +56,10 @@ export function usePortalDataPrefetch(
 
 async function prefetchModule(
   corretoraId: string,
-  module: 'eventos' | 'mgf' | 'cobranca'
+  module: 'eventos' | 'mgf'
 ) {
   const cacheKey = `${corretoraId}-${module}`;
-  
+
   // Evitar múltiplas requisições paralelas para o mesmo módulo
   if (prefetchPromises[cacheKey]) return prefetchPromises[cacheKey];
 
@@ -74,9 +73,6 @@ async function prefetchModule(
           break;
         case 'mgf':
           await prefetchMGF(corretoraId);
-          break;
-        case 'cobranca':
-          await prefetchCobranca(corretoraId);
           break;
       }
       console.log(`[Prefetch] Concluído: ${module}`);
@@ -127,7 +123,7 @@ async function prefetchMGF(corretoraId: string) {
 
   if (importacao) {
     const SELECT_COLS = "id, operacao, sub_operacao, valor, situacao_pagamento, data_vencimento, cooperativa, regional";
-    
+
     const { data: mgf } = await supabase
       .from("mgf_dados")
       .select(SELECT_COLS)
@@ -136,28 +132,6 @@ async function prefetchMGF(corretoraId: string) {
 
     if (!prefetchCache[corretoraId]) prefetchCache[corretoraId] = {};
     prefetchCache[corretoraId].mgf = mgf || [];
-  }
-}
-
-async function prefetchCobranca(corretoraId: string) {
-  const { data: importacao } = await supabase
-    .from("cobranca_importacoes")
-    .select("id")
-    .eq("ativo", true)
-    .eq("corretora_id", corretoraId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  if (importacao) {
-    const { data: boletos } = await supabase
-      .from("cobranca_boletos")
-      .select("id, situacao, valor, data_vencimento_original, dia_vencimento_veiculo, cooperativa, regional_boleto")
-      .eq("importacao_id", importacao.id)
-      .limit(1000);
-
-    if (!prefetchCache[corretoraId]) prefetchCache[corretoraId] = {};
-    prefetchCache[corretoraId].cobranca = boletos || [];
   }
 }
 
