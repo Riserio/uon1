@@ -362,7 +362,13 @@ export default function PortalSidebar(props: Props) {
   const prefetchModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' =
     (props.currentModule === 'acompanhamento-eventos' || props.currentModule === 'ouvidoria')
       ? 'indicadores' : props.currentModule;
-  usePortalDataPrefetch(props.corretora.id, prefetchModule, availableModules);
+  // 'cobranca' é excluída do pré-carregamento: a tela de Cobrança usa RPCs
+  // server-side (rápidas o suficiente) e não consome mais o cache de
+  // pré-carregamento — mantê-la aqui só gerava uma chamada "vazia" (log de
+  // início/fim sem buscar nada) toda vez que o parceiro navegava por outro
+  // módulo do portal.
+  const prefetchAvailableModules = availableModules.filter(m => m !== 'cobranca');
+  usePortalDataPrefetch(props.corretora.id, prefetchModule, prefetchAvailableModules);
 
   useEffect(() => {
     localStorage.setItem("portal-sidebar-expanded", String(expanded));
