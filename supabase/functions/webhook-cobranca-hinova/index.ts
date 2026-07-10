@@ -1030,24 +1030,34 @@ serve(async (req) => {
         console.log("[Webhook] Importação criada para mês anterior:", importacao.id);
       }
     } else {
-      // Modo tradicional (substituir): desativa TODAS as importações ativas
-      // dessa corretora, sem exceção por nome de arquivo, e cria uma nova.
+      // Modo tradicional (substituir): desativa as importações ativas
+      // ANTERIORES dessa corretora com o MESMO nome de arquivo, e cria uma
+      // nova.
       //
-      // Antes havia uma exceção (.neq nome_arquivo = "API cobrança (histórico)")
-      // que protegia da desativação qualquer importação já chamada assim — e
-      // como a importação nova recebe o MESMO nome nesse fluxo, ela nunca
-      // desativava a anterior: ficavam DUAS importações "histórico" ativas ao
-      // mesmo tempo, e a view cobranca_boletos_ativos (usada pelos dashboards)
-      // somava os boletos das duas, dobrando os valores de Cobrança. Um índice
-      // único parcial (uq_cobranca_importacoes_ativo, 1 ativa por corretora)
-      // também foi adicionado no banco como segunda trava, então mesmo que
-      // algum outro fluxo tente pular esse update, o INSERT abaixo falha alto
-      // (erro visível) em vez de duplicar silenciosamente.
+      // IMPORTANTE: por desenho, uma corretora pode ter 2 importações ativas
+      // ao mesmo tempo — uma "API cobrança (histórico)" (backfill de
+      // registros antigos) e uma "recente" (snapshot diário) — e a view
+      // cobranca_boletos_ativos + gerar-resumo-cobranca somam as duas de
+      // propósito (ver comentário em supabase/functions/gerar-resumo-cobranca).
+      // NÃO desativar por tipo diferente aqui, senão cada nova importação
+      // "recente" apaga a "histórico" ativa (e vice-versa).
+      //
+      // O bug original era: `.neq(nome_arquivo, "API cobrança (histórico)")`
+      // excluía TODAS as linhas com esse nome da desativação — inclusive a
+      // importação anterior de MESMO nome — então quando uma nova importação
+      // "histórico" chegava, a "histórico" antiga nunca era desativada:
+      // ficavam DUAS ativas com o MESMO nome, e a soma dobrava. A correção é
+      // filtrar por nome de arquivo igual (mesmo tipo), não por todos os
+      // ativos da corretora. Um índice único parcial por (corretora_id,
+      // nome_arquivo) WHERE ativo, no banco, é a segunda trava: garante no
+      // máximo 1 ativa por tipo/corretora, então mesmo que outro fluxo pule
+      // esse update, o INSERT abaixo falha alto em vez de duplicar.
       await supabase
         .from("cobranca_importacoes")
         .update({ ativo: false })
         .eq("ativo", true)
-        .eq("corretora_id", corretoraId);
+        .eq("corretora_id", corretoraId)
+        .eq("nome_arquivo", nomeArquivo);
 
       // Economia: mantém o detalhe boleto-a-boleto só da importação que vai
       // ficar ativa + as 2 inativas mais recentes (buffer de segurança para
