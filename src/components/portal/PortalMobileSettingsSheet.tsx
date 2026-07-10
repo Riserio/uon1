@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Settings, Star, ArrowLeftRight, LogOut, Download, CheckCircle2 } from "lucide-react";
+import { Settings, Star, ArrowLeftRight, LogOut, Download, CheckCircle2, Share, SquarePlus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODULE_CONFIG, PortalModule } from "@/lib/portalModules";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
@@ -37,6 +38,7 @@ export default function PortalMobileSettingsSheet({
   onNavigateModule,
 }: Props) {
   const { canInstall, isIos, isStandalone, promptInstall } = usePwaInstall();
+  const [showIosSteps, setShowIosSteps] = useState(false);
 
   const handleToggleFavorito = (mod: PortalModule) => {
     if (!favoritos.includes(mod) && favoritos.length >= maxFavoritos) {
@@ -52,14 +54,18 @@ export default function PortalMobileSettingsSheet({
       return;
     }
     if (canInstall) {
+      // Android/Chrome: instalação real em 1 toque, sem sair do app.
       const accepted = await promptInstall();
       if (accepted) toast.success("App instalado!");
       return;
     }
     if (isIos) {
-      toast.info('No Safari, toque em Compartilhar e depois em "Adicionar à Tela de Início".', {
-        duration: 8000,
-      });
+      // iOS/Safari não expõe API de instalação programática (restrição da
+      // Apple) — não existe forma de instalar com 1 toque como no Android.
+      // Em vez de um toast que some, mostramos um passo a passo fixo aqui
+      // dentro do diálogo, com os ícones reais do Safari, pra deixar claro
+      // o caminho sem precisar "ficar procurando" no navegador.
+      setShowIosSteps(true);
       return;
     }
     toast.info("Instalação não disponível neste navegador. Tente pelo Chrome ou Safari.");
@@ -136,6 +142,41 @@ export default function PortalMobileSettingsSheet({
                 )}
                 <span>{isStandalone ? "App já instalado" : "Adicionar à tela inicial"}</span>
               </button>
+
+              {showIosSteps && !isStandalone && (
+                <div className="relative rounded-lg border border-border/60 bg-muted/30 p-3 space-y-3">
+                  <button
+                    onClick={() => setShowIosSteps(false)}
+                    className="absolute top-2 right-2 p-1 text-muted-foreground/60 hover:text-muted-foreground"
+                    aria-label="Fechar"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                  <p className="text-xs text-muted-foreground pr-5">
+                    O Safari não permite instalar com 1 toque — é uma restrição da Apple,
+                    não do app. Siga os 2 passos abaixo (leva 5 segundos):
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      1
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span>Toque no ícone</span>
+                      <Share className="h-4 w-4 text-blue-500" />
+                      <span>Compartilhar, na barra do Safari</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      2
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <SquarePlus className="h-4 w-4 text-foreground" />
+                      <span>Toque em "Adicionar à Tela de Início"</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="border-t border-border/50" />
