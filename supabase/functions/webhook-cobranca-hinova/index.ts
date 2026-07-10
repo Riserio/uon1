@@ -1030,40 +1030,57 @@ serve(async (req) => {
         console.log("[Webhook] Importação criada para mês anterior:", importacao.id);
       }
     } else {
-      // Modo tradicional (substituir): desativar importações anteriores e criar uma nova
+      // Modo tradicional (substituir): desativa TODAS as importações ativas
+      // dessa corretora, sem exceção por nome de arquivo, e cria uma nova.
       //
-      // Auto-cura: garante no máximo UMA importação ativa chamada literalmente
-      // "API cobrança (histórico)" por corretora. Antes, se por qualquer motivo
-      // mais de uma linha com esse nome ficasse ativa ao mesmo tempo, NENHUMA
-      // delas era desativada pelo .neq abaixo (ele protege todas que têm esse
-      // nome), fazendo os registros serem somados em dobro nos relatórios de
-      // Cobrança. Mantém apenas a mais recente, igual ao padrão já usado em
-      // importar-api-hinova/getOrCreateImportacaoAtiva.
-      const { data: historicosAtivos } = await supabase
-        .from("cobranca_importacoes")
-        .select("id")
-        .eq("ativo", true)
-        .eq("corretora_id", corretoraId)
-        .eq("nome_arquivo", "API cobrança (histórico)")
-        .order("created_at", { ascending: false });
-
-      if (historicosAtivos && historicosAtivos.length > 1) {
-        const idsParaDesativar = historicosAtivos.slice(1).map((h) => h.id);
-        await supabase
-          .from("cobranca_importacoes")
-          .update({ ativo: false })
-          .in("id", idsParaDesativar);
-        console.log(
-          `[Webhook] Auto-cura: desativadas ${idsParaDesativar.length} importações "histórico" duplicadas da corretora ${corretoraId}`,
-        );
-      }
-
+      // Antes havia uma exceção (.neq nome_arquivo = "API cobrança (histórico)")
+      // que protegia da desativação qualquer importação já chamada assim — e
+      // como a importação nova recebe o MESMO nome nesse fluxo, ela nunca
+      // desativava a anterior: ficavam DUAS importações "histórico" ativas ao
+      // mesmo tempo, e a view cobranca_boletos_ativos (usada pelos dashboards)
+      // somava os boletos das duas, dobrando os valores de Cobrança. Um índice
+      // único parcial (uq_cobranca_importacoes_ativo, 1 ativa por corretora)
+      // também foi adicionado no banco como segunda trava, então mesmo que
+      // algum outro fluxo tente pular esse update, o INSERT abaixo falha alto
+      // (erro visível) em vez de duplicar silenciosamente.
       await supabase
         .from("cobranca_importacoes")
         .update({ ativo: false })
         .eq("ativo", true)
-        .eq("corretora_id", corretoraId)
-        .neq("nome_arquivo", "API cobrança (histórico)");
+        .eq("corretora_id", corretoraId);
+
+      // Economia: mantém o detalhe boleto-a-boleto só da importação que vai
+      // ficar ativa + as 2 inativas mais recentes (buffer de segurança para
+      // comparação/depuração). O histórico de tendência (inadimplência etc.)
+      // já vive agregado em cobranca_inadimplencia_historico, então reter
+      // todo boleto de toda importação passada pra sempre só inflava
+      // cobranca_boletos sem necessidade (chegou a 4,8M linhas / 1,7GB).
+      // Não bloqueia a importação em caso de erro — só loga.
+      try {
+        const { data: inativasAntigas } = await supabase
+          .from("cobranca_importacoes")
+          .select("id")
+          .eq("corretora_id", corretoraId)
+          .eq("ativo", false)
+          .order("created_at", { ascending: false })
+          .range(2, 999);
+        if (inativasAntigas && inativasAntigas.length > 0) {
+          const idsParaLimpar = inativasAntigas.map((i) => i.id);
+          const { error: purgeError } = await supabase
+            .from("cobranca_boletos")
+            .delete()
+            .in("importacao_id", idsParaLimpar);
+          if (purgeError) {
+            console.error("[Webhook] Erro ao purgar boletos de importações antigas:", purgeError);
+          } else {
+            console.log(
+              `[Webhook] Economia: purgados boletos de ${idsParaLimpar.length} importações antigas (corretora ${corretoraId})`,
+            );
+          }
+        }
+      } catch (cleanupErr) {
+        console.error("[Webhook] Erro (não bloqueante) na limpeza de importações antigas:", cleanupErr);
+      }
 
       const totalReg = typeof total_registros === "number" && total_registros > 0 ? total_registros : dados.length;
 
