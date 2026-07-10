@@ -161,7 +161,11 @@ export default function PortalLayout() {
           onLogout={handleLogout}
         />
 
-        <div id="portal-main-content" className="transition-all duration-300 ease-in-out">
+        {/* pb-28 no mobile dá espaço suficiente para o último card do
+            conteúdo não ficar colado/sobreposto pela barra flutuante
+            (PortalMobileNav, fixed no rodapé). No desktop a navegação é a
+            sidebar lateral, então não precisa desse respiro extra. */}
+        <div id="portal-main-content" className="transition-all duration-300 ease-in-out pb-28 md:pb-0">
           <PortalPageWrapper>
             <Outlet context={{ corretora, corretorasDisponiveis }} />
           </PortalPageWrapper>
