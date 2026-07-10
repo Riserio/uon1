@@ -47,15 +47,15 @@ function BarWidget({ data, total, colorFn, isCurrency }: { data: { name: string;
         const pct = isCurrency ? (item.value / maxVal) * 100 : (total > 0 ? (item.value / total) * 100 : 0);
         const color = item.fill ?? (colorFn ? colorFn(i) : COLORS[i % COLORS.length]);
         return (
-          <div key={item.name} className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground truncate w-28 shrink-0" title={item.name}>{item.name}</span>
-            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+          <div key={item.name} className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] text-muted-foreground truncate w-20 sm:w-28 shrink-0" title={item.name}>{item.name}</span>
+            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden min-w-0">
               <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: color }} />
             </div>
-            <span className="text-[11px] font-bold tabular-nums w-16 text-right">
+            <span className="text-[11px] font-bold tabular-nums w-14 sm:w-16 text-right shrink-0 truncate">
               {isCurrency ? formatCompactCurrency(item.value) : item.value.toLocaleString("pt-BR")}
             </span>
-            {!isCurrency && <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">{pct.toFixed(0)}%</span>}
+            {!isCurrency && <span className="text-[10px] text-muted-foreground tabular-nums w-9 sm:w-10 text-right shrink-0">{pct.toFixed(0)}%</span>}
           </div>
         );
       })}
@@ -83,10 +83,10 @@ function MiniDonut({ data, total }: { data: { name: string; value: number }[]; t
         {top6.map((item, i) => {
           const pct = total > 0 ? (item.value / total) * 100 : 0;
           return (
-            <div key={item.name} className="flex items-center gap-1.5">
+            <div key={item.name} className="flex items-center gap-1.5 min-w-0">
               <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-              <span className="text-[11px] text-muted-foreground truncate flex-1">{item.name}</span>
-              <span className="text-[11px] font-bold tabular-nums">{pct.toFixed(0)}%</span>
+              <span className="text-[11px] text-muted-foreground truncate flex-1 min-w-0">{item.name}</span>
+              <span className="text-[11px] font-bold tabular-nums shrink-0">{pct.toFixed(0)}%</span>
             </div>
           );
         })}
@@ -257,21 +257,21 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
   const totalEventos = eventos.length;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-full overflow-x-hidden">
       {/* KPI Cards */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-2.5 sm:gap-3 grid-cols-2 md:grid-cols-4">
         {[
           { label: "Custo Total", value: formatCompactCurrency(stats.totalCusto), icon: DollarSign, cls: "text-primary bg-primary/5 border-primary/20" },
           { label: "Total Reparo", value: formatCompactCurrency(stats.totalReparo), icon: Car, cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
           { label: "Média Participação", value: formatCompactCurrency(stats.mediaParticipacao), icon: TrendingUp, cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
           { label: "Estados Distintos", value: stats.totalEstadosDistintos.toString(), icon: MapPin, cls: "text-violet-600 bg-violet-500/5 border-violet-500/20" },
         ].map(({ label, value, icon: Icon, cls }) => (
-          <Card key={label} className={`rounded-2xl border ${cls}`}>
-            <CardContent className="p-4">
-              <div className={`flex items-center gap-1.5 text-[11px] font-medium mb-1.5 ${cls.split(" ")[0]}`}>
-                <Icon className="h-3 w-3" />{label}
+          <Card key={label} className={`rounded-2xl border min-w-0 ${cls}`}>
+            <CardContent className="p-3 sm:p-4 min-w-0">
+              <div className={`flex items-center gap-1.5 text-[11px] font-medium mb-1.5 truncate ${cls.split(" ")[0]}`}>
+                <Icon className="h-3 w-3 shrink-0" /><span className="truncate">{label}</span>
               </div>
-              <div className="text-xl font-bold tracking-tight">{value}</div>
+              <div className="text-base sm:text-xl font-bold tracking-tight truncate" title={value}>{value}</div>
             </CardContent>
           </Card>
         ))}
