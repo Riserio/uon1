@@ -3,11 +3,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { usePontoAlertas } from "@/hooks/usePontoAlertas";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
+import { useDynamicAppIcon } from "@/hooks/useDynamicAppIcon";
 // sidebar is now self-contained in AppSidebar
 import { AppSidebar } from "@/components/AppSidebar";
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
@@ -212,20 +213,6 @@ function DomainBasedRoute() {
   return <Navigate to="/auth" replace />;
 }
 
-// Links do WhatsApp (templates Meta) mandam apenas o slug da associação como
-// sufixo da URL (ex.: vangard.uon1.com.br/exclusive), sem "/login" ou
-// "/dashboard" — um parâmetro de botão dinâmico com "/" já causou o erro
-// #132012 da Meta antes, então o slug é enviado "puro". Sem esta rota, esse
-// link puro não batia com nenhuma rota registrada e caía no catch-all
-// NotFound ("não encontrado"). Esta rota resolve o slug e manda para a tela
-// de login PRINCIPAL (/auth — Supabase Auth + TOTP + isParceiro), que é a
-// que realmente funciona. O login "/:slug/login" (sistema antigo via edge
-// function portal-auth) foi abandonado e está dando erro — não usar.
-function SlugPortalRedirect() {
-  const { slug } = useParams<{ slug: string }>();
-  return <Navigate to={`/${slug}/auth`} replace />;
-}
-
 // Global safety net for uncaught promise rejections
 if (typeof window !== 'undefined') {
   window.addEventListener('unhandledrejection', (event) => {
@@ -236,7 +223,14 @@ if (typeof window !== 'undefined') {
 
 import { ErrorReportPrompt } from "@/components/report/ErrorReportPrompt";
 
-const App = () => (
+const App = () => {
+  // Aplica o ícone customizado (Configurações > Imagens > Ícone do App) no
+  // apple-touch-icon assim que o app carrega, em qualquer rota — não mexe
+  // no ícone da aba do navegador, só no ícone usado ao "Adicionar à Tela
+  // de Início" no iOS. O manifest (Android) já é dinâmico via edge function.
+  useDynamicAppIcon();
+
+  return (
   <BrowserRouter>
     <QueryClientProvider client={queryClient}>
       <PortalAuthProvider>
@@ -250,20 +244,6 @@ const App = () => (
               {/* Portal PID Routes */}
           <Route path="/:slug/login" element={<PortalLogin />} />
           <Route path="/:slug/dashboard" element={<PortalDashboard />} />
-          {/* Tela de login PRINCIPAL, acessada com o slug da associação na
-              URL (ex.: /exclusive/auth) — mesmo componente de /auth, só
-              muda a URL para o link do WhatsApp continuar "de cara" com o
-              nome da associação. O login em si não depende do slug: após
-              autenticar, o próprio fluxo (isParceiro) manda para /portal. */}
-          <Route path="/:slug/auth" element={<Auth />} />
-          {/* Link "puro" (sem /login ou /dashboard) vindo dos templates do
-              WhatsApp — resolve para a tela de login da associação. Fica
-              DEPOIS das rotas de dois segmentos acima e antes das rotas
-              estáticas de um segmento (/auth, /dashboard etc.) não importa,
-              pois o React Router prioriza segmentos estáticos sobre :params
-              com a mesma especificidade — "/auth" sempre casa com "/auth"
-              antes de "/:slug". */}
-          <Route path="/:slug" element={<SlugPortalRedirect />} />
 
               {/* Regular App Routes */}
               <Route path="/auth" element={<Auth />} />
@@ -365,6 +345,7 @@ const App = () => (
       </PortalAuthProvider>
     </QueryClientProvider>
   </BrowserRouter>
-);
+  );
+};
 
 export default App;
