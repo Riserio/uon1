@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.webhook-detran-mg]
 verify_jwt = false
+
+[functions.pwa-manifest]
+verify_jwt = false
