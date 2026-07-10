@@ -655,18 +655,18 @@ export default function SGAInsights() {
       {filteredEventos.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
           <div
-            className={`grid grid-cols-2 gap-4 ${filters.status === "em_andamento" ? "md:grid-cols-2" : "md:grid-cols-4"}`}
+            className={`grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 ${filters.status === "em_andamento" ? "" : "md:grid-cols-4"}`}
           >
             {/* Card Total Eventos - oculto quando o filtro é "Eventos em andamento" */}
             {filters.status !== "em_andamento" && (
               <Card className="bg-card/50 backdrop-blur border-border/50">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-lg bg-primary/10 shrink-0">
                       <Car className="h-5 w-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{filteredEventos.length.toLocaleString()}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xl sm:text-2xl font-bold truncate">{filteredEventos.length.toLocaleString()}</p>
                       <p className="text-xs text-muted-foreground">Total Eventos</p>
                     </div>
                   </div>
@@ -677,12 +677,12 @@ export default function SGAInsights() {
             {filters.status !== "em_andamento" && (
               <Card className="bg-card/50 backdrop-blur border-border/50">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-green-500/10">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-lg bg-green-500/10 shrink-0">
                       <TrendingUp className="h-5 w-5 text-green-500" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xl sm:text-2xl font-bold truncate">
                         {filteredEventos
                           .filter((e) => (e.situacao_evento || "").toUpperCase().includes("FINALIZADO"))
                           .length.toLocaleString()}
@@ -695,12 +695,12 @@ export default function SGAInsights() {
             )}
             <Card className="bg-card/50 backdrop-blur border-border/50">
               <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-yellow-500/10">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 rounded-lg bg-yellow-500/10 shrink-0">
                     <AlertTriangle className="h-5 w-5 text-yellow-500" />
                   </div>
-                  <div>
-                    <p className="text-2xl font-bold">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xl sm:text-2xl font-bold truncate">
                       {filteredEventos
                         .filter((e) => {
                           const s = (e.situacao_evento || "").toUpperCase();
@@ -715,12 +715,17 @@ export default function SGAInsights() {
             </Card>
             <Card className="bg-card/50 backdrop-blur border-border/50">
               <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-destructive/10">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 rounded-lg bg-destructive/10 shrink-0">
                     <AlertTriangle className="h-5 w-5 text-destructive" />
                   </div>
-                  <div>
-                    <p className="text-2xl font-bold">
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="text-lg sm:text-2xl font-bold truncate"
+                      title={new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+                        filteredEventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0),
+                      )}
+                    >
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
                         filteredEventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0),
                       )}
