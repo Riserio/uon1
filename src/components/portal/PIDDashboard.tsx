@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency, formatPercent, calcPercent } from "@/lib/formatters";
 import {
-  DollarSign
+  DollarSign,
   Car,
   AlertTriangle,
   CheckCircle2,
@@ -920,7 +920,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       ) : (
         <>
           {/* ============ KPIs (sempre visíveis) ============ */}
-          <div className="">
+          <div className="grid gap-2.5 sm:gap-3 grid-cols-2 md:grid-cols-4 2xl:grid-cols-8">
             <KpiCard
               icon={<Car className="h-5 w-5 text-blue-500" />}
               accent="blue"
