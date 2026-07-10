@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'ouvidoria';
 
@@ -31,13 +32,13 @@ const CarouselContext = createContext<CarouselContextType | null>(null);
 
 const STORAGE_KEY = 'portal-carousel-config';
 
-export function PortalCarouselProvider({ 
-  children, 
+export function PortalCarouselProvider({
+  children,
   corretoraId,
   corretoraSlug,
   availableModules,
-  currentModule 
-}: { 
+  currentModule
+}: {
   children: ReactNode;
   corretoraId: string;
   corretoraSlug?: string | null;
@@ -46,7 +47,8 @@ export function PortalCarouselProvider({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-  
+  const isMobile = useIsMobile();
+
   // Carregar config do localStorage
   const [config, setConfig] = useState<CarouselConfig>(() => {
     try {
@@ -105,7 +107,7 @@ export function PortalCarouselProvider({
   const navigateWithTransition = useCallback((targetModule: PortalModule, direction: 'left' | 'right') => {
     setTransitionDirection(direction);
     setIsTransitioning(true);
-    
+
     // Pequeno delay para a animação de saída
     setTimeout(() => {
       navigate(getModuleUrl(targetModule));
@@ -118,7 +120,7 @@ export function PortalCarouselProvider({
 
   const goToNext = useCallback(() => {
     if (activeModules.length <= 1) return;
-    
+
     const currentIndex = activeModules.indexOf(currentModule);
     const nextIndex = currentIndex >= activeModules.length - 1 ? 0 : currentIndex + 1;
     navigateWithTransition(activeModules[nextIndex], 'right');
@@ -126,7 +128,7 @@ export function PortalCarouselProvider({
 
   const goToPrevious = useCallback(() => {
     if (activeModules.length <= 1) return;
-    
+
     const currentIndex = activeModules.indexOf(currentModule);
     const prevIndex = currentIndex <= 0 ? activeModules.length - 1 : currentIndex - 1;
     navigateWithTransition(activeModules[prevIndex], 'left');
@@ -134,24 +136,27 @@ export function PortalCarouselProvider({
 
   const goToModule = useCallback((module: PortalModule) => {
     if (module === currentModule) return;
-    
+
     const currentIndex = activeModules.indexOf(currentModule);
     const targetIndex = activeModules.indexOf(module);
     const direction = targetIndex > currentIndex ? 'right' : 'left';
-    
+
     navigateWithTransition(module, direction);
   }, [activeModules, currentModule, navigateWithTransition]);
 
-  // Auto-rotação
+  // Auto-rotação — nunca no mobile: lá a navegação é manual pela barra
+  // flutuante (Instagram-style), não existe mais "modo apresentação"
+  // (mesmo que uma config antiga tenha ficado salva no localStorage de um
+  // acesso anterior pelo desktop).
   useEffect(() => {
-    if (!config.enabled || activeModules.length <= 1) return;
+    if (!config.enabled || activeModules.length <= 1 || isMobile) return;
 
     const timer = setInterval(() => {
       goToNext();
     }, config.interval * 1000);
 
     return () => clearInterval(timer);
-  }, [config.enabled, config.interval, activeModules.length, goToNext]);
+  }, [config.enabled, config.interval, activeModules.length, goToNext, isMobile]);
 
   const setEnabled = (enabled: boolean) => {
     setConfig(prev => ({ ...prev, enabled }));
