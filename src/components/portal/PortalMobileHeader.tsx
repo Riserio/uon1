@@ -12,6 +12,9 @@ type Corretora = {
 // prioridade de logos usada na sidebar desktop: expanded > url > collapsed).
 // Fica entre a barra do navegador (que não dá pra controlar fora do modo
 // PWA instalado) e o conteúdo, dando identidade visual à associação.
+//
+// Altura reduzida (2.75rem, padrão de toolbar fina tipo iOS) — estava em
+// 3.5rem e ficou "gordinha" tomando espaço demais da tela no mobile.
 export default function PortalMobileHeader({ corretora }: { corretora: Corretora }) {
   const isMobile = useIsMobile();
   if (!isMobile) return null;
@@ -26,14 +29,14 @@ export default function PortalMobileHeader({ corretora }: { corretora: Corretora
       // ser desenhada pelo app, então o fundo aqui precisa ser opaco, senão
       // fica um "vazado" mostrando o que está atrás.
       className="fixed top-0 inset-x-0 z-[90] flex items-center justify-center bg-card border-b border-border/50"
-      style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(3.5rem + env(safe-area-inset-top))" }}
+      style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(2.75rem + env(safe-area-inset-top))" }}
     >
       {logo ? (
-        <img src={logo} alt={corretora.nome} className="h-8 max-w-[55%] object-contain" />
+        <img src={logo} alt={corretora.nome} className="h-6 max-w-[50%] object-contain" />
       ) : (
         <div className="flex items-center gap-2 text-foreground">
-          <Building2 className="h-5 w-5 text-primary" />
-          <span className="text-sm font-semibold truncate max-w-[70vw]">{corretora.nome}</span>
+          <Building2 className="h-4 w-4 text-primary" />
+          <span className="text-xs font-semibold truncate max-w-[70vw]">{corretora.nome}</span>
         </div>
       )}
     </header>

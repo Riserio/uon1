@@ -371,12 +371,16 @@ export default function PortalSidebar(props: Props) {
   // Sync main content margin/padding: desktop reserva espaço à esquerda pra
   // sidebar; mobile reserva espaço em cima (header fixo com a logo) e
   // embaixo (barra flutuante) pra nada ficar coberto.
+  //
+  // paddingTop precisa bater exatamente com a altura do PortalMobileHeader
+  // (2.75rem + safe-area) — reduzida de 3.5rem porque a barra estava
+  // "gordinha" tomando espaço demais da tela.
   useEffect(() => {
     const el = document.getElementById("portal-main-content");
     if (!el) return;
     if (isMobile) {
       el.style.marginLeft = "0";
-      el.style.paddingTop = "calc(3.5rem + env(safe-area-inset-top))";
+      el.style.paddingTop = "calc(2.75rem + env(safe-area-inset-top))";
       el.style.paddingBottom = "5.75rem";
     } else {
       el.style.marginLeft = expanded ? "15.5rem" : "4rem";
