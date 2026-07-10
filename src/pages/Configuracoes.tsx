@@ -17,6 +17,7 @@ import Usuarios from "@/pages/Usuarios";
 import { BrandingCompartilhamento } from "@/components/configuracoes/BrandingCompartilhamento";
 import { GestaoModulosConfig } from "@/components/configuracoes/GestaoModulosConfig";
 import { SegurancaAcessoConfig } from "@/components/configuracoes/SegurancaAcessoConfig";
+import { generatePwaIconsFromFile } from "@/lib/pwaIconGenerator";
 
 interface ConfigColors {
   primary: string;
@@ -35,6 +36,13 @@ interface ConfigColors {
 interface ImageUploadState {
   logo: string;
   login: string;
+}
+
+interface AppIconUrls {
+  icon192?: string;
+  icon512?: string;
+  icon512Maskable?: string;
+  apple?: string;
 }
 
 const defaultColors: ConfigColors = {
@@ -82,11 +90,14 @@ export default function Configuracoes() {
   const { user } = useAuth();
   const [tempColors, setTempColors] = useState<ConfigColors>(config.colors);
   const [imageUrls, setImageUrls] = useState<ImageUploadState>({ logo: config.logo_url || "", login: "" });
+  const [appIconUrls, setAppIconUrls] = useState<AppIconUrls>({});
+  const [appIconLoading, setAppIconLoading] = useState(false);
   const [activeSection, setActiveSection] = useState("aparencia");
 
   useEffect(() => {
     setTempColors(config.colors);
     loadImages();
+    loadAppIcon();
   }, [config]);
 
   const loadImages = async () => {
@@ -101,6 +112,75 @@ export default function Configuracoes() {
         setImageUrls((prev) => ({ ...prev, login: configData.login_image_url }));
       }
     } catch (error) { console.error("Error loading images:", error); }
+  };
+
+  // Ícone do app (tela inicial ao instalar/adicionar à tela inicial) é
+  // global pra toda a plataforma — fica em platform_settings, uma tabela
+  // com leitura pública (RLS) já que precisa ser lida mesmo por quem
+  // ainda não fez login (a instalação do PWA pode acontecer na tela de
+  // login do Portal do Parceiro).
+  const loadAppIcon = async () => {
+    try {
+      const { data } = await (supabase as any)
+        .from("platform_settings")
+        .select("app_icon_192_url, app_icon_512_url, app_icon_512_maskable_url, app_icon_apple_url")
+        .eq("id", "global")
+        .maybeSingle();
+      if (data) {
+        setAppIconUrls({
+          icon192: data.app_icon_192_url || undefined,
+          icon512: data.app_icon_512_url || undefined,
+          icon512Maskable: data.app_icon_512_maskable_url || undefined,
+          apple: data.app_icon_apple_url || undefined,
+        });
+      }
+    } catch (error) { console.error("Error loading app icon:", error); }
+  };
+
+  const handleAppIconUpload = async (file: File) => {
+    if (!user) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("Arquivo muito grande. Máximo 5MB."); return; }
+    setAppIconLoading(true);
+    try {
+      const { icon192, icon512, icon512Maskable, appleTouchIcon } = await generatePwaIconsFromFile(file);
+      const ts = Date.now();
+      const variants: [string, Blob][] = [
+        [`app-icon/icon-192-${ts}.png`, icon192],
+        [`app-icon/icon-512-${ts}.png`, icon512],
+        [`app-icon/icon-512-maskable-${ts}.png`, icon512Maskable],
+        [`app-icon/apple-touch-icon-${ts}.png`, appleTouchIcon],
+      ];
+      const urls: string[] = [];
+      for (const [path, blob] of variants) {
+        const { error: uploadError } = await supabase.storage
+          .from("app-config")
+          .upload(path, blob, { upsert: true, contentType: "image/png" });
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from("app-config").getPublicUrl(path);
+        urls.push(publicUrl);
+      }
+      const [url192, url512, url512Maskable, urlApple] = urls;
+      const { error: upsertError } = await (supabase as any).from("platform_settings").upsert(
+        {
+          id: "global",
+          app_icon_192_url: url192,
+          app_icon_512_url: url512,
+          app_icon_512_maskable_url: url512Maskable,
+          app_icon_apple_url: urlApple,
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+      if (upsertError) throw upsertError;
+      setAppIconUrls({ icon192: url192, icon512: url512, icon512Maskable: url512Maskable, apple: urlApple });
+      toast.success("Ícone do app atualizado! Novas instalações já usam o ícone novo.");
+    } catch (error) {
+      console.error("Error updating app icon:", error);
+      toast.error("Erro ao atualizar ícone do app.");
+    } finally {
+      setAppIconLoading(false);
+    }
   };
 
   const handleImageUpload = async (file: File, type: "logo" | "login") => {
@@ -273,6 +353,47 @@ export default function Configuracoes() {
                   </Label>
                   <Input id="logo-upload" type="file" accept="image/*" className="hidden"
                     onChange={(e) => { const file = e.target.files?.[0]; if (file) handleImageUpload(file, "logo"); }} />
+                </div>
+
+                {/* Ícone do App (tela inicial) */}
+                <div className="rounded-2xl border border-border/50 bg-card p-5 sm:p-6 space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                      <Smartphone className="h-5 w-5 text-primary" />
+                      Ícone do App
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Usado quando o usuário adiciona o app à tela inicial do celular (Portal do Parceiro).
+                      Não altera o ícone da aba do navegador.
+                    </p>
+                  </div>
+                  {(appIconUrls.icon512 || appIconUrls.apple) && (
+                    <div className="flex justify-center gap-4 p-6 bg-muted/20 rounded-xl border border-dashed border-border/50">
+                      {appIconUrls.icon512 && (
+                        <img src={appIconUrls.icon512} alt="Ícone do app" className="h-16 w-16 rounded-2xl object-contain" />
+                      )}
+                      {appIconUrls.apple && (
+                        <img src={appIconUrls.apple} alt="Ícone do app (iOS)" className="h-16 w-16 rounded-2xl object-contain border border-border/30" />
+                      )}
+                    </div>
+                  )}
+                  {canManageUsers ? (
+                    <>
+                      <Label htmlFor="app-icon-upload" className="cursor-pointer block">
+                        <div className="border-2 border-dashed border-border/50 rounded-xl p-6 hover:border-primary/50 transition-colors text-center group">
+                          <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground group-hover:text-primary transition-colors" />
+                          <p className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                            {appIconLoading ? "Gerando tamanhos e enviando..." : "Clique para enviar o ícone do app"}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">Recomendado: imagem quadrada, PNG, até 5MB</p>
+                        </div>
+                      </Label>
+                      <Input id="app-icon-upload" type="file" accept="image/*" className="hidden" disabled={appIconLoading}
+                        onChange={(e) => { const file = e.target.files?.[0]; if (file) handleAppIconUpload(file); e.target.value = ""; }} />
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Apenas administradores podem alterar o ícone do app.</p>
+                  )}
                 </div>
 
                 {/* Login Image */}
