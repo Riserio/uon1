@@ -56,8 +56,8 @@ export default function PortalMobileNav({
   return (
     <>
       <nav
-        className="fixed bottom-3 left-3 right-3 z-[100] rounded-2xl bg-card/95 backdrop-blur-md border border-border shadow-2xl px-1 flex items-center justify-around"
-        style={{ paddingTop: "0.375rem", paddingBottom: "max(0.375rem, env(safe-area-inset-bottom))" }}
+        className="fixed bottom-3 left-3 right-3 z-[100] rounded-full bg-card/95 backdrop-blur-md border border-border shadow-2xl px-1.5 flex items-center justify-around"
+        style={{ paddingTop: "0.4rem", paddingBottom: "max(0.4rem, env(safe-area-inset-bottom))" }}
       >
         {favoritos.map((mod) => {
           const cfg = MODULE_CONFIG[mod];
@@ -68,7 +68,7 @@ export default function PortalMobileNav({
               key={mod}
               onClick={() => handleNav(mod)}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-xl transition-colors",
+                "flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-full transition-colors",
                 isActive ? "text-primary" : "text-muted-foreground"
               )}
             >
@@ -82,7 +82,7 @@ export default function PortalMobileNav({
 
         <button
           onClick={() => setSettingsOpen(true)}
-          className="flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-xl text-muted-foreground"
+          className="flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-full text-muted-foreground"
         >
           <Settings className="h-5 w-5" />
           <span className="text-[9px] font-medium leading-none">Ajustes</span>

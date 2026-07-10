@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Building2, LogOut } from "lucide-react";
 import PortalSidebar from "./PortalSidebar";
+import PortalMobileHeader from "./PortalMobileHeader";
 import PortalMobileNav from "./PortalMobileNav";
 import PortalPageWrapper from "./PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
@@ -141,6 +142,8 @@ export default function PortalLayout() {
       currentModule={currentModule}
     >
       <div className="portal-theme min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
+        <PortalMobileHeader corretora={corretora} />
+
         <PortalSidebar
           corretora={corretora}
           currentModule={currentModule}

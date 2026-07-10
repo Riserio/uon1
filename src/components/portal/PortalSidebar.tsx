@@ -369,16 +369,18 @@ export default function PortalSidebar(props: Props) {
   }, [expanded]);
 
   // Sync main content margin/padding: desktop reserva espaço à esquerda pra
-  // sidebar; mobile reserva espaço embaixo pra barra flutuante não cobrir
-  // o final do conteúdo.
+  // sidebar; mobile reserva espaço em cima (header fixo com a logo) e
+  // embaixo (barra flutuante) pra nada ficar coberto.
   useEffect(() => {
     const el = document.getElementById("portal-main-content");
     if (!el) return;
     if (isMobile) {
       el.style.marginLeft = "0";
+      el.style.paddingTop = "calc(3.5rem + env(safe-area-inset-top))";
       el.style.paddingBottom = "5.75rem";
     } else {
       el.style.marginLeft = expanded ? "15.5rem" : "4rem";
+      el.style.paddingTop = "0";
       el.style.paddingBottom = "0";
     }
   }, [expanded, isMobile]);
