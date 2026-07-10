@@ -45,7 +45,8 @@ jobs:
             scheduler-cobranca-hinova \
                         gerar-resumo-cobranca \
                                     gerar-resumo-geral \
-            verify-metodo-seguranca; do
+            verify-metodo-seguranca \
+            pwa-manifest; do
             echo "== deploy $fn =="
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" || echo "FALHOU: $fn"
           done
