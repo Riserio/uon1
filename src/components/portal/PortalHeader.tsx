@@ -66,8 +66,13 @@ export default function PortalHeader({
   const prefetchModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' = 
     (currentModule === 'acompanhamento-eventos' || currentModule === 'ouvidoria') ? 'indicadores' : (currentModule || 'indicadores');
 
-  // Pré-carregar dados dos outros módulos em segundo plano
-  usePortalDataPrefetch(corretora.id, prefetchModule, availableModules);
+  // Pré-carregar dados dos outros módulos em segundo plano. 'cobranca' é
+  // excluída aqui: a tela de Cobrança usa RPCs server-side (rápidas o
+  // suficiente) e não consome mais o cache de pré-carregamento — deixá-la
+  // na lista só gerava uma chamada "vazia" (log de início/fim sem buscar
+  // nada) toda vez que o parceiro navegava por outro módulo.
+  const prefetchAvailableModules = availableModules.filter(m => m !== 'cobranca');
+  usePortalDataPrefetch(corretora.id, prefetchModule, prefetchAvailableModules);
 
   return (
     <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
