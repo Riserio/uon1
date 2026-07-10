@@ -22,18 +22,18 @@ function isUuidString(value: unknown): value is string {
 // Parse de data no formato DD/MM/YYYY ou YYYY-MM-DD
 function parseDate(value: unknown): string | null {
   if (!value) return null;
-  
+
   const strValue = String(value).trim();
-  
+
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(strValue)) {
     const [day, month, year] = strValue.split('/');
     return `${year}-${month}-${day}`;
   }
-  
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(strValue)) {
     return strValue;
   }
-  
+
   if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(strValue)) {
     const parts = strValue.split('/');
     const day = parts[0].padStart(2, '0');
@@ -44,7 +44,7 @@ function parseDate(value: unknown): string | null {
     }
     return `${year}-${month}-${day}`;
   }
-  
+
   return null;
 }
 
@@ -52,24 +52,24 @@ function parseDate(value: unknown): string | null {
 function parseMoneyValue(value: unknown): number {
   if (!value) return 0;
   if (typeof value === 'number') return value;
-  
+
   let strValue = String(value).trim();
   strValue = strValue.replace(/R\$\s*/gi, '').trim();
-  
+
   if (!/[.,]/.test(strValue)) {
     const parsed = parseFloat(strValue);
     return isNaN(parsed) ? 0 : parsed;
   }
-  
+
   const lastComma = strValue.lastIndexOf(',');
   const lastDot = strValue.lastIndexOf('.');
-  
+
   if (lastComma > lastDot) {
     strValue = strValue.replace(/\./g, '').replace(',', '.');
   } else if (lastDot > lastComma) {
     strValue = strValue.replace(/,/g, '');
   }
-  
+
   const parsed = parseFloat(strValue);
   return isNaN(parsed) ? 0 : parsed;
 }
@@ -137,7 +137,7 @@ const COLUMN_MAP: { [key: string]: string } = {
 
 // Comparacao robusta: ignora acentos (o SGA envia cabecalhos com acentuacao
 // inconsistente, ex.: "Classificação Veiculo Lancamento").
-const stripAccents = (s: string): string => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const stripAccents = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
 const COLUMN_MAP_NORM: { [key: string]: string } = Object.fromEntries(
   Object.entries(COLUMN_MAP).map(([k, v]) => [stripAccents(k), v]),
 );
@@ -166,8 +166,8 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
-    const { 
-      corretora_id, 
+    const {
+      corretora_id,
       dados,
       nome_arquivo,
       total_registros,
@@ -195,7 +195,7 @@ serve(async (req) => {
     // ============================================
     if (action === 'start' && corretora_id) {
       console.log("MGF: Iniciando execução para corretora:", corretora_id);
-      
+
       const { data: config } = await supabase
         .from("mgf_automacao_config")
         .select("id")
@@ -290,7 +290,7 @@ serve(async (req) => {
           });
         }
       }
-      
+
       const { data: config } = await supabase
         .from("mgf_automacao_config")
         .select("id")
@@ -322,7 +322,7 @@ serve(async (req) => {
 
         // Limite máximo de retries para evitar loop infinito
         const MAX_RETRIES = 5;
-        
+
         if (targetId) {
           // Buscar retry_count atual
           const { data: currentExec } = await supabase
@@ -330,19 +330,19 @@ serve(async (req) => {
             .select("retry_count")
             .eq("id", targetId)
             .single();
-          
+
           const newRetryCount = (currentExec?.retry_count || 0) + 1;
-          
+
           // Só agenda retry se não ultrapassou o limite
-          const proximaTentativa = newRetryCount < MAX_RETRIES 
+          const proximaTentativa = newRetryCount < MAX_RETRIES
             ? new Date(Date.now() + 20 * 60 * 1000).toISOString()
             : null;
-          
+
           await supabase
             .from("mgf_automacao_execucoes")
             .update({
               status: "erro",
-              erro: newRetryCount >= MAX_RETRIES 
+              erro: newRetryCount >= MAX_RETRIES
                 ? `${error_message || "Erro desconhecido"} (limite de ${MAX_RETRIES} tentativas atingido)`
                 : (error_message || "Erro desconhecido"),
               finalizado_at: new Date().toISOString(),
@@ -350,7 +350,7 @@ serve(async (req) => {
               proxima_tentativa_at: proximaTentativa,
             })
             .eq("id", targetId);
-            
+
           if (proximaTentativa) {
             console.log(`[Webhook MGF] Retry agendado para ${proximaTentativa} (tentativa ${newRetryCount}/${MAX_RETRIES})`);
           } else {
@@ -449,6 +449,39 @@ serve(async (req) => {
         .update({ ativo: false })
         .eq("corretora_id", corretora_id)
         .eq("ativo", true);
+
+      // Economia: purga o detalhe (linha a linha) das importações inativas
+      // mais antigas, mantendo só a que acabou de ser desativada + 1 anterior
+      // como buffer de segurança. Um índice único parcial
+      // (uq_mgf_importacoes_ativo) garante no banco que nunca mais existam 2
+      // importações ativas ao mesmo tempo para a mesma corretora (o que já
+      // aconteceu aqui por corrida entre execuções/retries concorrentes) —
+      // isso é só a limpeza de espaço, não bloqueia a importação em si.
+      try {
+        const { data: inativasAntigas } = await supabase
+          .from("mgf_importacoes")
+          .select("id")
+          .eq("corretora_id", corretora_id)
+          .eq("ativo", false)
+          .order("created_at", { ascending: false })
+          .range(2, 999);
+        if (inativasAntigas && inativasAntigas.length > 0) {
+          const idsParaLimpar = inativasAntigas.map((i) => i.id);
+          const { error: purgeError } = await supabase
+            .from("mgf_dados")
+            .delete()
+            .in("importacao_id", idsParaLimpar);
+          if (purgeError) {
+            console.error("[Webhook MGF] Erro ao purgar dados de importações antigas:", purgeError);
+          } else {
+            console.log(
+              `[Webhook MGF] Economia: purgados dados de ${idsParaLimpar.length} importações antigas (corretora ${corretora_id})`,
+            );
+          }
+        }
+      } catch (cleanupErr) {
+        console.error("[Webhook MGF] Erro (não bloqueante) na limpeza de importações antigas:", cleanupErr);
+      }
     }
 
     // Criar ou buscar importação
@@ -492,7 +525,7 @@ serve(async (req) => {
       'total à pagar', 'total a pagar', 'total pago', 'total pago impostos',
       'soma total lançamentos', 'soma total lancamentos',
     ];
-    
+
     const dadosFiltrados = dados.filter((row: Record<string, unknown>) => {
       // Verificar se algum campo contém texto de linha de resumo
       for (const value of Object.values(row)) {
@@ -513,7 +546,7 @@ serve(async (req) => {
 
     if (dadosFiltrados.length === 0) {
       console.log(`[MGF Webhook] AVISO: Todos os ${dados.length} registros eram linhas de resumo - relatório vazio!`);
-      
+
       // Atualizar execução com erro
       if (execucaoIdCandidate) {
         await supabase
@@ -544,8 +577,8 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ 
-          success: false, 
+        JSON.stringify({
+          success: false,
           message: `Relatório vazio: ${dados.length} linhas eram apenas resumos/totais`,
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -645,7 +678,7 @@ serve(async (req) => {
           .eq("config_id", execConfig.config_id)
           .in("status", ["erro", "parado", "cancelled"])
           .neq("id", execucaoIdCandidate);
-        
+
         console.log("[MGF Webhook] Execuções com erro/parado anteriores removidas");
       }
 
@@ -662,7 +695,7 @@ serve(async (req) => {
 
         if (waConfig?.envio_automatico_mgf) {
           console.log("[Webhook MGF] Envio automático de WhatsApp ativado, disparando...");
-          
+
           const fluxoId = (waConfig as any).fluxo_mgf_id;
           const phoneNumbers = (waConfig.telefone_whatsapp || "").split(",").map((p: string) => p.trim()).filter(Boolean);
           const metaToken = Deno.env.get("META_WHATSAPP_TOKEN");
@@ -746,8 +779,8 @@ serve(async (req) => {
     console.log(`MGF Webhook: ${records.length} registros importados`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: `${records.length} registros processados`,
         importacao_id: importacaoId,
       }),
