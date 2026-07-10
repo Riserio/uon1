@@ -34,4 +34,19 @@ window.addEventListener("unhandledrejection", (e: any) =>
 
 installRealtimeVisibilityPause();
 
+// Registra o service worker (sw.js, pass-through sem cache — ver
+// comentários no próprio arquivo) pra fazer o PWA ser reconhecido como
+// "instalável de verdade" pelos navegadores, em vez de só um atalho.
+// Registrado depois do load pra não competir por banda com o carregamento
+// inicial da página, e só em contextos seguros (https/localhost) onde a
+// API existe.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // Falha silenciosa: o app funciona normalmente sem SW, só perde o
+      // sinal extra de "instalável" em alguns navegadores.
+    });
+  });
+}
+
 createRoot(document.getElementById("root")!).render(<App />);
