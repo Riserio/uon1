@@ -47,15 +47,15 @@ function BarWidget({ data, total, colorFn, isCurrency }: { data: { name: string;
         const pct = isCurrency ? (item.value / maxVal) * 100 : (total > 0 ? (item.value / total) * 100 : 0);
         const color = item.fill ?? (colorFn ? colorFn(i) : COLORS[i % COLORS.length]);
         return (
-          <div key={item.name} className="flex items-center gap-2 min-w-0">
-            <span className="text-[11px] text-muted-foreground truncate w-20 sm:w-28 shrink-0" title={item.name}>{item.name}</span>
+          <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[10px] sm:text-[11px] text-muted-foreground truncate w-14 sm:w-28 shrink-0" title={item.name}>{item.name}</span>
             <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden min-w-0">
               <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: color }} />
             </div>
-            <span className="text-[11px] font-bold tabular-nums w-14 sm:w-16 text-right shrink-0 truncate">
+            <span className="text-[10px] sm:text-[11px] font-bold tabular-nums w-11 sm:w-16 text-right shrink-0 truncate">
               {isCurrency ? formatCompactCurrency(item.value) : item.value.toLocaleString("pt-BR")}
             </span>
-            {!isCurrency && <span className="text-[10px] text-muted-foreground tabular-nums w-9 sm:w-10 text-right shrink-0">{pct.toFixed(0)}%</span>}
+            {!isCurrency && <span className="text-[9px] sm:text-[10px] text-muted-foreground tabular-nums w-7 sm:w-10 text-right shrink-0">{pct.toFixed(0)}%</span>}
           </div>
         );
       })}
@@ -259,7 +259,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
   return (
     <div className="space-y-3 max-w-full overflow-x-hidden">
       {/* KPI Cards */}
-      <div className="grid gap-2.5 sm:gap-3 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-2.5 sm:gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         {[
           { label: "Custo Total", value: formatCompactCurrency(stats.totalCusto), icon: DollarSign, cls: "text-primary bg-primary/5 border-primary/20" },
           { label: "Total Reparo", value: formatCompactCurrency(stats.totalReparo), icon: Car, cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
