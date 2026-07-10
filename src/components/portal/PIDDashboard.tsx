@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency, formatPercent, calcPercent } from "@/lib/formatters";
 import {
-  DollarSign,
+  DollarSign
   Car,
   AlertTriangle,
   CheckCircle2,
@@ -462,7 +462,7 @@ const KpiCard = ({ icon, label, value, fullValue, accent, badge, variation, valu
       </div>
       <div className="mt-2 min-w-0">
         <div
-          className={`text-xl xl:text-2xl font-bold tracking-tight truncate ${valueClassName || ""}`}
+          className={`text-lg sm:text-xl xl:text-2xl font-bold tracking-tight truncate ${valueClassName || ""}`}
           title={fullValue || value}
         >
           {value}
@@ -920,7 +920,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       ) : (
         <>
           {/* ============ KPIs (sempre visíveis) ============ */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 2xl:grid-cols-8">
+          <div className="">
             <KpiCard
               icon={<Car className="h-5 w-5 text-blue-500" />}
               accent="blue"
@@ -1054,7 +1054,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
           {/* ============ Abas por tema ============ */}
           <Tabs defaultValue="visao-geral" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 md:w-auto">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 md:w-auto rounded-full bg-muted/50 p-1">
               <TabsTrigger value="visao-geral" className="gap-1.5">
                 <LayoutDashboard className="h-4 w-4" />
                 Visão Geral
