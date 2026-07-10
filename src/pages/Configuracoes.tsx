@@ -17,7 +17,7 @@ import Usuarios from "@/pages/Usuarios";
 import { BrandingCompartilhamento } from "@/components/configuracoes/BrandingCompartilhamento";
 import { GestaoModulosConfig } from "@/components/configuracoes/GestaoModulosConfig";
 import { SegurancaAcessoConfig } from "@/components/configuracoes/SegurancaAcessoConfig";
-import { generatePwaIconsFromFile } from "@/lib/pwaIconGenerator";
+import { generatePwaIconsFromFile, RECOMMENDED_ICON_SIZE_LABEL } from "@/lib/pwaIconGenerator";
 
 interface ConfigColors {
   primary: string;
@@ -370,10 +370,10 @@ export default function Configuracoes() {
                   {(appIconUrls.icon512 || appIconUrls.apple) && (
                     <div className="flex justify-center gap-4 p-6 bg-muted/20 rounded-xl border border-dashed border-border/50">
                       {appIconUrls.icon512 && (
-                        <img src={appIconUrls.icon512} alt="Ícone do app" className="h-16 w-16 rounded-2xl object-contain" />
+                        <img src={appIconUrls.icon512} alt="Ícone do app" className="h-16 w-16 rounded-2xl object-cover" />
                       )}
                       {appIconUrls.apple && (
-                        <img src={appIconUrls.apple} alt="Ícone do app (iOS)" className="h-16 w-16 rounded-2xl object-contain border border-border/30" />
+                        <img src={appIconUrls.apple} alt="Ícone do app (iOS)" className="h-16 w-16 rounded-2xl object-cover border border-border/30" />
                       )}
                     </div>
                   )}
@@ -385,7 +385,13 @@ export default function Configuracoes() {
                           <p className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
                             {appIconLoading ? "Gerando tamanhos e enviando..." : "Clique para enviar o ícone do app"}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-1">Recomendado: imagem quadrada, PNG, até 5MB</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Tamanho recomendado: {RECOMMENDED_ICON_SIZE_LABEL} · PNG ou JPG, até 5MB
+                          </p>
+                          <p className="text-[11px] text-muted-foreground/80 mt-1">
+                            A imagem preenche 100% do ícone (sem bordas). Se não for quadrada, as bordas mais
+                            longas são cortadas automaticamente — envie já quadrada para controlar o enquadramento.
+                          </p>
                         </div>
                       </Label>
                       <Input id="app-icon-upload" type="file" accept="image/*" className="hidden" disabled={appIconLoading}
