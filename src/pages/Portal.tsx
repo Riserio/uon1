@@ -69,7 +69,7 @@ export default function Portal() {
 
   useEffect(() => {
     if (portalLayout) return; // Skip - using layout context
-    
+
     async function loadCorretoraData() {
       if (authLoading) return;
       if (!user) { navigate("/auth", { replace: true }); return; }
@@ -229,7 +229,7 @@ export default function Portal() {
                 Você está vinculado a múltiplas associações. Escolha qual deseja acessar.
               </p>
             </div>
-            
+
             <div className="space-y-2">
               {corretorasDisponiveis.map((item) => (
                 <button
@@ -302,14 +302,14 @@ export default function Portal() {
   // When inside PortalLayout, just render content (no header/wrapper)
   if (portalLayout) {
     return (
-      <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
-            <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
+      <div className="container mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-full overflow-x-hidden">
+        <Tabs defaultValue="dashboard" className="space-y-4 sm:space-y-6">
+          <div className="w-full overflow-x-auto pb-2 -mx-1 px-1 flex justify-center">
+            <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/50 rounded-full min-w-max md:min-w-0 shadow-sm mx-auto">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
-                  <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50 whitespace-nowrap">
+                  <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-full text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50 whitespace-nowrap">
                     <Icon className="h-4 w-4" />
                     <span className="hidden sm:inline">{tab.label}</span>
                   </TabsTrigger>
@@ -344,14 +344,14 @@ export default function Portal() {
           showCarouselControls={true}
         />
         <PortalPageWrapper>
-          <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-            <Tabs defaultValue="dashboard" className="space-y-6">
-              <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
-                <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
+          <div className="container mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-full overflow-x-hidden">
+            <Tabs defaultValue="dashboard" className="space-y-4 sm:space-y-6">
+              <div className="w-full overflow-x-auto pb-2 -mx-1 px-1 flex justify-center">
+                <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/50 rounded-full min-w-max md:min-w-0 shadow-sm mx-auto">
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
-                      <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50 whitespace-nowrap">
+                      <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-full text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50 whitespace-nowrap">
                         <Icon className="h-4 w-4" />
                         <span className="hidden sm:inline">{tab.label}</span>
                       </TabsTrigger>
