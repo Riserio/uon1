@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Settings, Star, ArrowLeftRight, LogOut, Download, CheckCircle2, Share, SquarePlus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODULE_CONFIG, PortalModule } from "@/lib/portalModules";
@@ -72,16 +71,34 @@ export default function PortalMobileSettingsSheet({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[85vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="p-5 pb-3">
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="bottom"
+        className="flex flex-col p-0 gap-0 rounded-t-2xl border-t max-h-[88vh] focus:outline-none [&>button]:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        {/* Alça visual de arrastar — deixa claro que é um painel deslizável,
+            estilo folha/bottom-sheet nativa, em vez de um modal "preso". */}
+        <div className="flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div className="h-1.5 w-10 rounded-full bg-muted-foreground/25" />
+        </div>
+
+        <SheetHeader className="px-5 pb-3 flex-shrink-0">
+          <SheetTitle className="flex items-center gap-2 text-left">
             <Settings className="h-5 w-5 text-primary" />
             Configurações
-          </DialogTitle>
-        </DialogHeader>
+          </SheetTitle>
+        </SheetHeader>
 
-        <ScrollArea className="flex-1 px-5">
+        {/* Scroll nativo (overflow-y-auto + momentum do iOS) em vez do
+            Radix ScrollArea: no bottom sheet mobile o ScrollArea tinha
+            conflito de gesto com o próprio arrasto do sheet e não rolava
+            de forma confiável. Overflow nativo do navegador é mais robusto
+            aqui. */}
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           <div className="space-y-6 pb-6">
             {/* Favoritos */}
             <div className="space-y-2">
@@ -208,8 +225,8 @@ export default function PortalMobileSettingsSheet({
               </button>
             </div>
           </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -20,7 +20,12 @@ export default function PortalMobileHeader({ corretora }: { corretora: Corretora
 
   return (
     <header
-      className="fixed top-0 inset-x-0 z-[90] flex items-center justify-center bg-card/95 backdrop-blur-md border-b border-border/50"
+      // bg-card sólido (sem transparência) pra preencher de verdade a faixa
+      // do relógio/status bar do celular — com viewport-fit=cover +
+      // status-bar-style black-translucent no index.html, essa área passa a
+      // ser desenhada pelo app, então o fundo aqui precisa ser opaco, senão
+      // fica um "vazado" mostrando o que está atrás.
+      className="fixed top-0 inset-x-0 z-[90] flex items-center justify-center bg-card border-b border-border/50"
       style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(3.5rem + env(safe-area-inset-top))" }}
     >
       {logo ? (
