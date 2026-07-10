@@ -3,12 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Building2, LogOut } from "lucide-react";
 import PortalSidebar from "./PortalSidebar";
+import PortalMobileNav from "./PortalMobileNav";
 import PortalPageWrapper from "./PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
-
-type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'ouvidoria';
+import { PortalModule } from "@/lib/portalModules";
 
 const moduleMap: Record<string, PortalModule> = {
   '/portal': 'indicadores',
@@ -144,6 +144,15 @@ export default function PortalLayout() {
         <PortalSidebar
           corretora={corretora}
           currentModule={currentModule}
+          showChangeButton={corretorasDisponiveis.length > 1}
+          onChangeCorretora={handleChangeCorretora}
+          onLogout={handleLogout}
+        />
+
+        <PortalMobileNav
+          corretora={corretora}
+          currentModule={currentModule}
+          availableModules={availableModules}
           showChangeButton={corretorasDisponiveis.length > 1}
           onChangeCorretora={handleChangeCorretora}
           onLogout={handleLogout}

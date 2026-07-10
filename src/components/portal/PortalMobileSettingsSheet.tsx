@@ -1,0 +1,174 @@
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Settings, Star, ArrowLeftRight, LogOut, Download, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { MODULE_CONFIG, PortalModule } from "@/lib/portalModules";
+import { usePwaInstall } from "@/hooks/usePwaInstall";
+import { toast } from "sonner";
+
+type Props = {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  availableModules: PortalModule[];
+  favoritos: PortalModule[];
+  toggleFavorito: (mod: PortalModule) => void;
+  maxFavoritos: number;
+  showChangeButton?: boolean;
+  onChangeCorretora?: () => void;
+  onLogout: () => void;
+  onNavigateModule: (mod: PortalModule) => void;
+};
+
+// Tela de Configurações do mobile, aberta pelo 5º ícone da barra flutuante.
+// Reúne: seleção de favoritos (máx. 4, com atalho pra abrir o módulo),
+// instalação como PWA, trocar associação e sair — antes espalhado entre o
+// drawer genérico e o diálogo de configurações do carrossel (removidos do
+// mobile).
+export default function PortalMobileSettingsSheet({
+  open,
+  onOpenChange,
+  availableModules,
+  favoritos,
+  toggleFavorito,
+  maxFavoritos,
+  showChangeButton,
+  onChangeCorretora,
+  onLogout,
+  onNavigateModule,
+}: Props) {
+  const { canInstall, isIos, isStandalone, promptInstall } = usePwaInstall();
+
+  const handleToggleFavorito = (mod: PortalModule) => {
+    if (!favoritos.includes(mod) && favoritos.length >= maxFavoritos) {
+      toast.error(`Você já tem ${maxFavoritos} favoritos. Remova um antes de adicionar outro.`);
+      return;
+    }
+    toggleFavorito(mod);
+  };
+
+  const handleInstall = async () => {
+    if (isStandalone) {
+      toast.info("O app já está instalado neste dispositivo.");
+      return;
+    }
+    if (canInstall) {
+      const accepted = await promptInstall();
+      if (accepted) toast.success("App instalado!");
+      return;
+    }
+    if (isIos) {
+      toast.info('No Safari, toque em Compartilhar e depois em "Adicionar à Tela de Início".', {
+        duration: 8000,
+      });
+      return;
+    }
+    toast.info("Instalação não disponível neste navegador. Tente pelo Chrome ou Safari.");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[85vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="p-5 pb-3">
+          <DialogTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5 text-primary" />
+            Configurações
+          </DialogTitle>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1 px-5">
+          <div className="space-y-6 pb-6">
+            {/* Favoritos */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Favoritos da barra</p>
+                <span className="text-xs text-muted-foreground">
+                  {favoritos.length}/{maxFavoritos}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Toque na estrela pra escolher até {maxFavoritos} atalhos. Toque no módulo pra abrir.
+              </p>
+              <div className="space-y-1">
+                {availableModules.map((mod) => {
+                  const cfg = MODULE_CONFIG[mod];
+                  const Icon = cfg.icon;
+                  const isFav = favoritos.includes(mod);
+                  return (
+                    <div key={mod} className="flex items-center gap-1 rounded-lg hover:bg-muted/50 transition-colors">
+                      <button
+                        onClick={() => onNavigateModule(mod)}
+                        className="flex items-center gap-3 flex-1 px-2 py-2.5 text-sm text-left"
+                      >
+                        <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span>{cfg.label}</span>
+                      </button>
+                      <button
+                        onClick={() => handleToggleFavorito(mod)}
+                        className="p-2.5 mr-1"
+                        aria-label={isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                      >
+                        <Star
+                          className={cn(
+                            "h-4 w-4",
+                            isFav ? "fill-primary text-primary" : "text-muted-foreground/40"
+                          )}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="border-t border-border/50" />
+
+            {/* App */}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Aplicativo</p>
+              <button
+                onClick={handleInstall}
+                className="flex items-center gap-3 w-full px-2 py-2.5 rounded-lg text-sm hover:bg-muted/50 transition-colors"
+              >
+                {isStandalone ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                ) : (
+                  <Download className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                )}
+                <span>{isStandalone ? "App já instalado" : "Adicionar à tela inicial"}</span>
+              </button>
+            </div>
+
+            <div className="border-t border-border/50" />
+
+            {/* Conta */}
+            <div className="space-y-1 pb-1">
+              <p className="text-sm font-semibold mb-1">Conta</p>
+              {showChangeButton && onChangeCorretora && (
+                <button
+                  onClick={() => {
+                    onChangeCorretora();
+                    onOpenChange(false);
+                  }}
+                  className="flex items-center gap-3 w-full px-2 py-2.5 rounded-lg text-sm hover:bg-muted/50 transition-colors"
+                >
+                  <ArrowLeftRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span>Trocar associação</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  onLogout();
+                  onOpenChange(false);
+                }}
+                className="flex items-center gap-3 w-full px-2 py-2.5 rounded-lg text-sm text-orange-500 hover:bg-orange-500/10 transition-colors"
+              >
+                <LogOut className="h-4 w-4 flex-shrink-0" />
+                <span>Sair</span>
+              </button>
+            </div>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -1,28 +1,24 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  TrendingUp, Activity, DollarSign, CreditCard, Database, KanbanSquare, MessageSquare,
   LogOut, ArrowLeftRight, Settings, PanelLeftClose, PanelLeftOpen,
-  Menu, X, Building2, Play, Pause, ChevronLeft, ChevronRight, Monitor, Eye,
+  Building2, Play, Pause, ChevronLeft, ChevronRight, Monitor, Eye,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePortalCarouselOptional } from "@/contexts/PortalCarouselContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
+import { MODULE_CONFIG, PortalModule } from "@/lib/portalModules";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'ouvidoria';
 
 type Corretora = {
   id: string;
@@ -42,16 +38,10 @@ type Props = {
   onLogout: () => void;
 };
 
-const MODULE_CONFIG: Record<PortalModule, { label: string; icon: React.ElementType; path: string }> = {
-  indicadores: { label: "Indicadores", icon: TrendingUp, path: "/portal" },
-  eventos: { label: "Eventos", icon: Activity, path: "/portal/sga-insights" },
-  mgf: { label: "MGF", icon: DollarSign, path: "/portal/mgf-insights" },
-  cobranca: { label: "Cobrança", icon: CreditCard, path: "/portal/cobranca-insights" },
-  "estudo-base": { label: "Estudo de Base", icon: Database, path: "/portal/estudo-base-insights" },
-  "acompanhamento-eventos": { label: "Acompanhamento", icon: KanbanSquare, path: "/portal/acompanhamento-eventos" },
-  ouvidoria: { label: "Ouvidoria", icon: MessageSquare, path: "/portal/ouvidoria" },
-};
-
+// Diálogo de configurações do carrossel de apresentação — só usado no
+// desktop. No mobile, o carrossel/apresentação não existe mais: a
+// navegação é a barra flutuante (PortalMobileNav), com suas próprias
+// configurações (favoritos + PWA) em PortalMobileSettingsSheet.
 function PortalSettingsDialog({ open, onOpenChange, availableModules }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -351,23 +341,26 @@ function SidebarContent({
   );
 }
 
+// No mobile, a navegação passou a ser a barra flutuante (PortalMobileNav,
+// renderizada em PortalLayout) — este componente não desenha mais nada no
+// mobile (hamburger/drawer/carrossel antigos foram removidos), mas segue
+// montado pra manter o hook usePortalDataPrefetch (regras de hooks) e o
+// efeito que sincroniza o espaçamento do conteúdo principal.
 export default function PortalSidebar(props: Props) {
   const isMobile = useIsMobile();
   const [expanded, setExpanded] = useState(() => {
     const saved = localStorage.getItem("portal-sidebar-expanded");
     return saved === "true";
   });
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const location = useLocation();
 
   const availableModules = (Object.keys(MODULE_CONFIG) as PortalModule[]).filter(m =>
     props.corretora.modulos_bi.includes(m)
   );
 
   // Prefetch data for other modules
-  const prefetchModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' = 
-    (props.currentModule === 'acompanhamento-eventos' || props.currentModule === 'ouvidoria') 
+  const prefetchModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' =
+    (props.currentModule === 'acompanhamento-eventos' || props.currentModule === 'ouvidoria')
       ? 'indicadores' : props.currentModule;
   usePortalDataPrefetch(props.corretora.id, prefetchModule, availableModules);
 
@@ -375,52 +368,23 @@ export default function PortalSidebar(props: Props) {
     localStorage.setItem("portal-sidebar-expanded", String(expanded));
   }, [expanded]);
 
-  // Sync main content margin
+  // Sync main content margin/padding: desktop reserva espaço à esquerda pra
+  // sidebar; mobile reserva espaço embaixo pra barra flutuante não cobrir
+  // o final do conteúdo.
   useEffect(() => {
     const el = document.getElementById("portal-main-content");
     if (!el) return;
     if (isMobile) {
       el.style.marginLeft = "0";
+      el.style.paddingBottom = "5.75rem";
     } else {
       el.style.marginLeft = expanded ? "15.5rem" : "4rem";
+      el.style.paddingBottom = "0";
     }
   }, [expanded, isMobile]);
 
-  // Close mobile on navigate
-  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
-
   if (isMobile) {
-    return (
-      <>
-        <button
-          onClick={() => setMobileOpen(true)}
-          className="fixed top-3 right-3 z-[100] h-10 w-10 rounded-xl bg-card border border-border shadow-md flex items-center justify-center hover:bg-accent transition-colors"
-          aria-label="Abrir menu"
-        >
-          <Menu className="h-5 w-5 text-foreground" />
-        </button>
-
-        {mobileOpen && (
-          <div className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-        )}
-
-        <div className={cn(
-          "fixed inset-y-0 right-0 z-[120] w-72 bg-card border-l border-border shadow-2xl transition-transform duration-300 ease-out rounded-l-2xl",
-          mobileOpen ? "translate-x-0" : "translate-x-full"
-        )}>
-          <button
-            onClick={() => setMobileOpen(false)}
-            className="absolute top-3 left-3 h-8 w-8 rounded-lg flex items-center justify-center hover:bg-accent transition-colors"
-            aria-label="Fechar menu"
-          >
-            <X className="h-4 w-4 text-muted-foreground" />
-          </button>
-          <SidebarContent {...props} collapsed={false} onNavigate={() => setMobileOpen(false)} onOpenSettings={() => setSettingsOpen(true)} />
-        </div>
-
-        <PortalSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} availableModules={availableModules} />
-      </>
-    );
+    return null;
   }
 
   return (
