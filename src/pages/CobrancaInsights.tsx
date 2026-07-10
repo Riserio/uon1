@@ -37,13 +37,11 @@ import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 import PortalHeader from "@/components/portal/PortalHeader";
 import BIPageHeader from "@/components/bi/BIPageHeader";
-import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPrefetch";
-import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
+import { getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useBILayoutOptional } from "@/contexts/BILayoutContext";
 import { usePortalLayoutOptional } from "@/contexts/PortalLayoutContext";
-import { dedupSGAFiel } from "@/lib/cobrancaDedup";
 
 export interface CobrancaFilters {
   mesReferencia: string;
@@ -51,6 +49,13 @@ export interface CobrancaFilters {
   regional: string;
   cooperativa: string;
   diaVencimento: string;
+}
+
+interface FilterOptions {
+  regionais: string[];
+  cooperativas: string[];
+  diasVencimento: number[];
+  situacoes: string[];
 }
 
 export default function CobrancaInsights() {
@@ -61,16 +66,32 @@ export default function CobrancaInsights() {
   const biLayout = useBILayoutOptional();
   const portalLayout = usePortalLayoutOptional();
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [boletos, setBoletos] = useState<any[]>([]);
+  // NOTE (escalabilidade): esta página não carrega mais a lista crua de
+  // boletos no navegador (chegou a passar de 600 mil linhas para a
+  // VALECAR, causando "Erro ao carregar dados de Cobrança"). Toda a
+  // agregação do dashboard é feita no banco pela RPC
+  // `get_dashboard_cobranca_cached`; guardamos apenas o payload já
+  // agregado (`dashboardStats`) e os ids das importações ativas
+  // (`importacaoIds`), que a aba "Dados Completos" usa para paginar do
+  // lado do servidor.
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
+  const [importacaoIds, setImportacaoIds] = useState<string[]>([]);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    regionais: [],
+    cooperativas: [],
+    diasVencimento: [],
+    situacoes: [],
+  });
   const [loading, setLoading] = useState(true);
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const autoAdjustedMonthRef = useRef(false);
+  const prevAssociacaoRef = useRef<string>("");
   // Contador de requisições em voo: usado para descartar respostas
-  // "atrasadas" de uma associação anterior quando o usuário troca de
-  // associação rapidamente (evita misturar/sobrescrever dados novos com
-  // uma resposta antiga que só terminou de chegar depois).
+  // "atrasadas" de uma associação/filtro anterior quando o usuário troca
+  // de associação ou de filtro rapidamente (evita misturar/sobrescrever
+  // dados novos com uma resposta antiga que só terminou de chegar depois).
   const fetchIdRef = useRef(0);
 
   // Filtros globais - regra: sempre mostrar o MÊS ATUAL por padrão; se não
@@ -102,55 +123,6 @@ export default function CobrancaInsights() {
     null,
   );
   const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
-
-  // Extrair opções únicas para filtros
-  const filterOptions = useMemo(() => {
-    // Single-pass aggregation: 1 loop em vez de 5 (4x mais rápido em arrays grandes)
-    const regionaisSet = new Set<string>();
-    const cooperativasSet = new Set<string>();
-    const diasSet = new Set<number>();
-    const situacoesSet = new Set<string>();
-    for (const b of boletos) {
-      if (b.regional_boleto) regionaisSet.add(b.regional_boleto);
-      if (b.cooperativa) cooperativasSet.add(b.cooperativa);
-      if (b.dia_vencimento_veiculo != null) diasSet.add(b.dia_vencimento_veiculo);
-      if (b.situacao) situacoesSet.add(b.situacao);
-    }
-    return {
-      regionais: [...regionaisSet].sort(),
-      cooperativas: [...cooperativasSet].sort(),
-      diasVencimento: [...diasSet].sort((a, b) => a - b),
-      situacoes: [...situacoesSet].sort(),
-    };
-  }, [boletos]);
-
-  // Boletos filtrados (excluir cancelados por padrão)
-  const filteredBoletos = useMemo(() => {
-    let result = boletos.filter((b) => b.situacao?.toUpperCase() !== "CANCELADO");
-
-    if (filters.mesReferencia) {
-      result = result.filter((b) => {
-        const dataRef = b.data_vencimento_original || b.data_vencimento;
-        if (!dataRef) return false;
-        const mes = String(dataRef).substring(0, 7);
-        return mes === filters.mesReferencia;
-      });
-    }
-    if (filters.situacao !== "todos") {
-      result = result.filter((b) => b.situacao?.toUpperCase() === filters.situacao.toUpperCase());
-    }
-    if (filters.regional !== "todos") {
-      result = result.filter((b) => b.regional_boleto === filters.regional);
-    }
-    if (filters.cooperativa !== "todos") {
-      result = result.filter((b) => b.cooperativa === filters.cooperativa);
-    }
-    if (filters.diaVencimento !== "todos") {
-      result = result.filter((b) => String(b.dia_vencimento_veiculo) === filters.diaVencimento);
-    }
-
-    return result;
-  }, [boletos, filters]);
 
   // Sync from shared BILayout context when available (internal access)
   useEffect(() => {
@@ -242,37 +214,23 @@ export default function CobrancaInsights() {
     fetchAssociacoes();
   }, [searchParams, isPortalAccess, biLayout, portalLayout?.corretora?.id]);
 
-  const fetchBoletos = async (forceRefresh = false) => {
+  // Converte os filtros da UI ("todos" / string vazia) para o formato que
+  // as RPCs esperam (NULL = "sem filtro").
+  const toRpcFilterValue = (value: string) => (!value || value === "todos" ? null : value);
+
+  const fetchDashboardStats = async (forceRefresh = false) => {
     if (!selectedAssociacao) {
-      setBoletos([]);
+      setDashboardStats(null);
       setImportacaoAtiva(null);
+      setImportacaoIds([]);
       setLoading(false);
       return;
-    }
-
-    // Cache global: exibição instantânea
-    if (!forceRefresh) {
-      const globalCached = getBICachedData(selectedAssociacao, "cobranca");
-      if (globalCached && globalCached.data.length > 0) {
-        setBoletos(globalCached.data);
-        setImportacaoAtiva(globalCached.importacao);
-        setLoading(false);
-        return;
-      }
-      if (isPortalAccess) {
-        const cached = getPrefetchedData<any>(selectedAssociacao, "cobranca");
-        if (cached && cached.length > 0) {
-          setBoletos(cached);
-          setLoading(false);
-          return;
-        }
-      }
     }
 
     // Marca esta chamada como a "mais recente". Se, ao terminar, uma chamada
     // mais nova já tiver começado (troca rápida de associação/filtro), esta
     // resposta é descartada em vez de sobrescrever o estado com dados
-    // desatualizados ou de outra associação.
+    // desatualizados ou de outra associação/filtro.
     const myFetchId = ++fetchIdRef.current;
     const isStale = () => myFetchId !== fetchIdRef.current;
 
@@ -297,92 +255,34 @@ export default function CobrancaInsights() {
       if (importacoesAtivas && importacoesAtivas.length > 0) {
         // Para exibição (nome do arquivo, data etc.) usa a mais recente,
         // mas os boletos são somados de TODAS as importações ativas.
-        const importacaoIds = importacoesAtivas.map((i) => i.id);
-
-        const BATCH_SIZE = 1000;
-        const MAX_ROWS = 100000;
-        const CONCURRENCY = 8;
-
-        // Busca o total de boletos primeiro (head request, sem baixar dados)
-        // para poder disparar as páginas em ondas paralelas em vez de uma
-        // sequencial de cada vez. Corretoras com histórico + recente somados
-        // chegam a dezenas de milhares de boletos (ex.: ~97 mil), o que
-        // levava a ~97 requisições em série e deixava a tela de Cobrança
-        // visivelmente lenta para carregar.
-        //
-        // IMPORTANTE: esta consulta (head request) já teve erros engolidos
-        // silenciosamente aqui antes — uma falha transitória fazia `count`
-        // ficar undefined, `total` virar 0 e a tela mostrar "Nenhum Dado
-        // Disponível" mesmo com boletos existindo no banco. Agora um erro
-        // aqui interrompe o fluxo (vai para o catch) em vez de fingir que
-        // há 0 registros.
-        const { count, error: countError } = await supabase
-          .from("cobranca_boletos")
-          .select("*", { count: "exact", head: true })
-          .in("importacao_id", importacaoIds);
-
-        if (countError) throw countError;
-        if (isStale()) return;
-
-        const total = Math.min(count || 0, MAX_ROWS);
-        const numBatches = Math.ceil(total / BATCH_SIZE);
-
-        let allBoletos: any[] = [];
-        let batchErrorCount = 0;
-        for (let i = 0; i < numBatches; i += CONCURRENCY) {
-          // Aborta ondas restantes se uma troca de associação/filtro mais
-          // recente já começou — evita trabalho (e banda) desperdiçados.
-          if (isStale()) return;
-
-          const wave = Array.from({ length: Math.min(CONCURRENCY, numBatches - i) }, (_, j) => {
-            const offset = (i + j) * BATCH_SIZE;
-            return supabase
-              .from("cobranca_boletos")
-              .select("*")
-              .in("importacao_id", importacaoIds)
-              .range(offset, offset + BATCH_SIZE - 1);
-          });
-
-          const results = await Promise.all(wave);
-          for (const { data: batch, error: bError } of results) {
-            if (bError) {
-              console.error("Erro ao buscar boletos:", bError);
-              batchErrorCount++;
-              continue;
-            }
-            if (batch) allBoletos = allBoletos.concat(batch);
-          }
-        }
-
-        if (isStale()) return;
-
-        if (total > 0 && allBoletos.length === 0) {
-          // O banco reportou registros mas nenhum lote retornou dados: trata
-          // como falha (não como "sem dados") para não gravar um resultado
-          // vazio incorreto em cache por 10 minutos.
-          throw new Error(`Falha ao carregar boletos de cobrança: ${total} esperados, 0 recebidos`);
-        }
-
-        // Aplicar deduplicação fiel ao SGA: 1 boleto por pessoa+vencimento (maior valor)
-        // e remover boletos acumulados/refaturados (dia ≠ dia_vencimento_veiculo)
-        const boletosFiel = dedupSGAFiel(allBoletos);
-        console.log(`[Cobranca] Boletos brutos: ${allBoletos.length} → após dedup SGA: ${boletosFiel.length}`);
-        setBoletos(boletosFiel);
+        const ids = importacoesAtivas.map((i) => i.id);
+        setImportacaoIds(ids);
         setImportacaoAtiva(importacoesAtivas[0]);
 
-        // Só grava em cache se a leitura foi completa (sem erros de lote) —
-        // um resultado parcial não deve virar "verdade" cacheada por 10 min.
-        if (batchErrorCount === 0) {
-          setBICachedData(selectedAssociacao, "cobranca", boletosFiel, importacoesAtivas[0]);
-        }
-        if (isPortalAccess) savePrefetchedData(selectedAssociacao, "cobranca", boletosFiel);
+        // Toda a agregação (totais, rankings, séries por dia) acontece no
+        // banco. `get_dashboard_cobranca_cached` mantém um cache próprio
+        // (20 min) por combinação de importações + filtros — em cache
+        // "quente" a resposta é quase instantânea; em cache "frio", para
+        // uma associação grande como a VALECAR, pode levar ~30-45s (uma
+        // vez por janela de cache, não a cada troca de filtro repetida).
+        const { data, error } = await supabase.rpc("get_dashboard_cobranca_cached", {
+          p_importacao_ids: ids,
+          p_mes_referencia: toRpcFilterValue(filters.mesReferencia),
+          p_situacao: toRpcFilterValue(filters.situacao),
+          p_regional: toRpcFilterValue(filters.regional),
+          p_cooperativa: toRpcFilterValue(filters.cooperativa),
+          p_dia_vencimento: filters.diaVencimento !== "todos" ? Number(filters.diaVencimento) : null,
+          p_force_refresh: forceRefresh,
+        } as any);
 
-        if (batchErrorCount > 0) {
-          toast.warning("Alguns lotes de boletos falharam ao carregar. Os dados exibidos podem estar incompletos — tente Sincronizar novamente.");
-        }
+        if (error) throw error;
+        if (isStale()) return;
+
+        setDashboardStats(data);
       } else {
-        setBoletos([]);
+        setImportacaoIds([]);
         setImportacaoAtiva(null);
+        setDashboardStats(null);
       }
     } catch (error) {
       console.error("Erro:", error);
@@ -394,35 +294,78 @@ export default function CobrancaInsights() {
     }
   };
 
+  // Busca os totais quando a associação OU qualquer filtro global muda —
+  // diferente do design anterior (que buscava tudo uma vez e filtrava no
+  // navegador), agora o filtro precisa ir ao servidor a cada mudança.
   useEffect(() => {
-    if (selectedAssociacao) {
-      autoAdjustedMonthRef.current = false;
-      fetchBoletos();
-    } else {
-      setBoletos([]);
+    if (!selectedAssociacao) {
+      setDashboardStats(null);
       setImportacaoAtiva(null);
+      setImportacaoIds([]);
       setLoading(false);
+      prevAssociacaoRef.current = "";
+      return;
     }
-  }, [selectedAssociacao]);
 
-  // Auto-ajuste do mes de referencia: usa mes atual, mas cai para o mes anterior se nao houver boleto no mes atual (so ajusta 1x por associacao)
+    if (prevAssociacaoRef.current !== selectedAssociacao) {
+      autoAdjustedMonthRef.current = false;
+      prevAssociacaoRef.current = selectedAssociacao;
+    }
+
+    fetchDashboardStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedAssociacao,
+    filters.mesReferencia,
+    filters.situacao,
+    filters.regional,
+    filters.cooperativa,
+    filters.diaVencimento,
+  ]);
+
+  // Opções dos dropdowns de filtro: RPC leve e separada (não depende dos
+  // filtros atuais, só das importações ativas) — evita recarregar as
+  // opções a cada troca de filtro.
+  useEffect(() => {
+    if (!importacaoIds.length) {
+      setFilterOptions({ regionais: [], cooperativas: [], diasVencimento: [], situacoes: [] });
+      return;
+    }
+
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("get_dashboard_filter_options", {
+          p_importacao_ids: importacaoIds,
+        } as any);
+        if (error) throw error;
+        const opts = (data as any) || {};
+        setFilterOptions({
+          regionais: [...(opts.regionais || [])].sort(),
+          cooperativas: [...(opts.cooperativas || [])].sort(),
+          diasVencimento: [...(opts.diasVencimento || [])].sort((a: number, b: number) => a - b),
+          situacoes: [...(opts.situacoes || [])].sort(),
+        });
+      } catch (error) {
+        console.error("Erro ao carregar opções de filtro:", error);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importacaoIds.join(",")]);
+
+  // Auto-ajuste do mês de referência: usa mês atual, mas cai para o mês
+  // anterior se não houver boleto no mês atual com os filtros correntes
+  // (só ajusta 1x por associação).
   useEffect(() => {
     if (autoAdjustedMonthRef.current) return;
     if (loading) return;
-    if (boletos.length === 0) return;
+    if (!dashboardStats) return;
     if (filters.mesReferencia !== getMesAtual()) return;
 
-    const temBoletoNoMesAtual = boletos.some((b) => {
-      const dataRef = b.data_vencimento_original || b.data_vencimento;
-      if (!dataRef) return false;
-      return String(dataRef).substring(0, 7) === getMesAtual();
-    });
-
-    if (!temBoletoNoMesAtual) {
+    if (dashboardStats.totalBoletos === 0) {
       setFilters((f) => ({ ...f, mesReferencia: getMesAnterior() }));
     }
     autoAdjustedMonthRef.current = true;
-  }, [boletos, loading]);
+  }, [dashboardStats, loading]);
 
   // Realtime: atualizar dashboard quando nova importação for detectada ou automação finalizar
   useEffect(() => {
@@ -443,7 +386,10 @@ export default function CobrancaInsights() {
           // Se a nova importação já está ativa, atualizar imediatamente
           if ((payload.new as any)?.ativo === true) {
             toast.info("Nova importação detectada! Atualizando dashboard...");
-            fetchBoletos(true);
+            // force_refresh=true: ignora o cache de 20min da RPC, já que
+            // acabamos de importar dados novos e o cache antigo está
+            // desatualizado.
+            fetchDashboardStats(true);
           }
         },
       )
@@ -460,7 +406,7 @@ export default function CobrancaInsights() {
           // Se a importação foi ativada, atualizar
           if (payload.new && (payload.new as any).ativo === true) {
             toast.info("Importação atualizada! Atualizando dashboard...");
-            fetchBoletos(true);
+            fetchDashboardStats(true);
           }
         },
       )
@@ -479,7 +425,7 @@ export default function CobrancaInsights() {
             toast.success("Sincronização automática concluída! Atualizando dashboard...");
             // Pequeno delay para garantir que a importação foi ativada
             setTimeout(() => {
-              fetchBoletos(true);
+              fetchDashboardStats(true);
             }, 1000);
           }
         },
@@ -515,12 +461,12 @@ export default function CobrancaInsights() {
   useEffect(() => {
     if (biLayout && !isPortalAccess) {
       biLayout.setHeaderDynamic({
-        recordCount: filteredBoletos.length,
+        recordCount: dashboardStats?.totalBoletos ?? 0,
         hasActiveFilters: !!hasActiveFilters,
         fileName: importacaoAtiva?.nome_arquivo,
       });
     }
-  }, [filteredBoletos.length, hasActiveFilters, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
+  }, [dashboardStats?.totalBoletos, hasActiveFilters, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
 
   const tabs = isPortalAccess
     ? [
@@ -582,14 +528,14 @@ export default function CobrancaInsights() {
           currentModule="cobranca"
           showHistorico={canViewHistorico}
           onHistoricoClick={() => setHistoricoDialogOpen(true)}
-          recordCount={filteredBoletos.length}
+          recordCount={dashboardStats?.totalBoletos ?? 0}
           hasActiveFilters={!!hasActiveFilters}
           fileName={importacaoAtiva?.nome_arquivo}
         />
       )}
 
       {/* Filtros Globais */}
-      {boletos.length > 0 && (
+      {importacaoIds.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
           <Card className="border-emerald-500/20 bg-card/50 backdrop-blur">
             <CardContent className="p-0">
@@ -877,7 +823,7 @@ export default function CobrancaInsights() {
 
           <TabsContent value="dashboard">
             <CobrancaDashboard
-              boletos={filteredBoletos}
+              stats={dashboardStats}
               loading={loading}
               corretoraId={selectedAssociacao}
               mesReferencia={filters.mesReferencia}
@@ -886,12 +832,18 @@ export default function CobrancaInsights() {
           </TabsContent>
 
           <TabsContent value="tabela">
-            <CobrancaTabela boletos={filteredBoletos} loading={loading} corretoraId={selectedAssociacao} />
+            <CobrancaTabela
+              importacaoIds={importacaoIds}
+              globalFilters={filters}
+              filterOptions={filterOptions}
+              loading={loading}
+              corretoraId={selectedAssociacao}
+            />
           </TabsContent>
 
           {!isPortalAccess && (
             <TabsContent value="importar">
-              <CobrancaImportacao corretoraId={selectedAssociacao} onImportSuccess={fetchBoletos} />
+              <CobrancaImportacao corretoraId={selectedAssociacao} onImportSuccess={() => fetchDashboardStats(true)} />
             </TabsContent>
           )}
         </Tabs>
