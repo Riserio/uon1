@@ -2450,34 +2450,49 @@ export type Database = {
           corretora_id: string | null
           device_info: string | null
           email: string
+          exigir_ip: boolean
+          fingerprint: string | null
           id: string
+          ip_address: string | null
+          ip_aprovado: string | null
           profile_id: string | null
           requested_at: string
           resolved_at: string | null
           resolved_by: string | null
           status: string
+          ultimo_uso_em: string | null
         }
         Insert: {
           corretora_id?: string | null
           device_info?: string | null
           email: string
+          exigir_ip?: boolean
+          fingerprint?: string | null
           id?: string
+          ip_address?: string | null
+          ip_aprovado?: string | null
           profile_id?: string | null
           requested_at?: string
           resolved_at?: string | null
           resolved_by?: string | null
           status?: string
+          ultimo_uso_em?: string | null
         }
         Update: {
           corretora_id?: string | null
           device_info?: string | null
           email?: string
+          exigir_ip?: boolean
+          fingerprint?: string | null
           id?: string
+          ip_address?: string | null
+          ip_aprovado?: string | null
           profile_id?: string | null
           requested_at?: string
           resolved_at?: string | null
           resolved_by?: string | null
           status?: string
+          ultimo_uso_em?: string | null
         }
         Relationships: [
           {
@@ -9159,6 +9174,10 @@ export type Database = {
       importar_base_api: { Args: { p_corretora_id: string }; Returns: Json }
       importar_base_api_todas: { Args: never; Returns: Json }
       importar_cobranca_api: { Args: { p_corretora_id: string }; Returns: Json }
+      importar_cobranca_recente_api: {
+        Args: { p_corretora_id: string }
+        Returns: Json
+      }
       importar_eventos_api:
         | { Args: { p_corretora_id: string }; Returns: Json }
         | { Args: { p_corretora_id: string; p_full?: boolean }; Returns: Json }
