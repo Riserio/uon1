@@ -229,6 +229,18 @@ const lastPointLabel =
     );
   };
 
+/**
+ * Corta os meses iniciais em que a(s) série(s) exibida(s) ainda não tinham
+ * dado. Em "todo período" as linhas antigas do PID existem só com
+ * placas_ativas (reconstruídas pela data de contrato); sem o corte, gráficos
+ * como Faturamento, Churn ou Total de Associados mostravam anos de zeros à
+ * esquerda e o dado real virava um "spike" ilegível no fim do eixo.
+ */
+const trimLeadingEmpty = (data: any[], keys: string[]) => {
+  const first = data.findIndex((d) => keys.some((k) => Math.abs(Number(d?.[k] ?? 0)) > 0));
+  return first <= 0 ? data : data.slice(first);
+};
+
 interface SingleSeriesChartProps {
   data: any[];
   dataKey: string;
@@ -239,7 +251,8 @@ interface SingleSeriesChartProps {
 }
 
 /** Gráfico de uma série só: sem legenda (o título do card já identifica). */
-const SingleSeriesChart = ({ data, dataKey, name, color, kind, format = "number" }: SingleSeriesChartProps) => {
+const SingleSeriesChart = ({ data: rawData, dataKey, name, color, kind, format = "number" }: SingleSeriesChartProps) => {
+  const data = useMemo(() => trimLeadingEmpty(rawData, [dataKey]), [rawData, dataKey]);
   const common = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} vertical={false} />
@@ -313,7 +326,11 @@ interface MultiSeriesChartProps {
 }
 
 /** Gráfico com poucas séries (2 a 4), com legenda compacta. */
-const MultiSeriesChart = ({ data, series, kind, format = "number", showTotal = false }: MultiSeriesChartProps) => {
+const MultiSeriesChart = ({ data: rawData, series, kind, format = "number", showTotal = false }: MultiSeriesChartProps) => {
+  const data = useMemo(
+    () => trimLeadingEmpty(rawData, series.map((s) => s.dataKey)),
+    [rawData, series],
+  );
   const common = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} vertical={false} />
@@ -1398,7 +1415,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 hasData={permanenciaSeries.length > 0}
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={permanenciaSeries} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                  <ComposedChart data={trimLeadingEmpty(permanenciaSeries, ["entrada", "perdas"])} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} vertical={false} />
                     <XAxis dataKey="mes" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                     <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={44} />

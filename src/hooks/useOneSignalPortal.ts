@@ -63,9 +63,10 @@ export function useOneSignalPortal(tags: PortalTags | null) {
               serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
               serviceWorkerParam: { scope: "/onesignal/" },
               allowLocalhostAsSecureOrigin: true,
-              notifyButton: { enable: true },
+              // Sem notifyButton (sino flutuante) — o controle de ativar/
+              // desativar fica em Configurações (PortalMobileSettingsSheet).
             });
-            // Pede permissão de forma suave (slidedown nativo do OneSignal)
+            // 1º acesso: pergunta uma vez, de forma suave (slidedown nativo)
             OneSignal.Slidedown.promptPush();
           });
         }

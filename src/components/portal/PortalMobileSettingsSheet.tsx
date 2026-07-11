@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Settings, Star, ArrowLeftRight, LogOut, Download, CheckCircle2, Share, SquarePlus, X } from "lucide-react";
+import { Settings, Star, ArrowLeftRight, LogOut, Download, CheckCircle2, Share, SquarePlus, X, Bell, BellOff } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { MODULE_CONFIG, PortalModule } from "@/lib/portalModules";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
@@ -38,6 +39,60 @@ export default function PortalMobileSettingsSheet({
 }: Props) {
   const { canInstall, isIos, isStandalone, promptInstall } = usePwaInstall();
   const [showIosSteps, setShowIosSteps] = useState(false);
+
+  // ---- Notificações push (OneSignal) ----
+  // O sino flutuante do OneSignal foi desativado; o controle vive aqui.
+  const [pushDisponivel, setPushDisponivel] = useState(false);
+  const [pushAtivado, setPushAtivado] = useState(false);
+  const [pushBloqueado, setPushBloqueado] = useState(false);
+  const [pushOcupado, setPushOcupado] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    // deno-lint-ignore no-explicit-any
+    const osd = (window as any).OneSignalDeferred;
+    if (!osd) return;
+    // deno-lint-ignore no-explicit-any
+    osd.push(async (OneSignal: any) => {
+      try {
+        setPushDisponivel(true);
+        setPushAtivado(!!OneSignal.User?.PushSubscription?.optedIn);
+        setPushBloqueado(typeof Notification !== "undefined" && Notification.permission === "denied");
+      } catch { /* opcional */ }
+    });
+  }, [open]);
+
+  const handleTogglePush = async (ligar: boolean) => {
+    setPushOcupado(true);
+    // deno-lint-ignore no-explicit-any
+    const osd = (window as any).OneSignalDeferred;
+    // deno-lint-ignore no-explicit-any
+    osd?.push(async (OneSignal: any) => {
+      try {
+        if (ligar) {
+          if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+            await OneSignal.Notifications.requestPermission();
+          }
+          if (typeof Notification !== "undefined" && Notification.permission === "denied") {
+            setPushBloqueado(true);
+            toast.error("Notificações bloqueadas no navegador. Libere nas configurações do aparelho.");
+            return;
+          }
+          await OneSignal.User.PushSubscription.optIn();
+          setPushAtivado(true);
+          toast.success("Notificações ativadas");
+        } else {
+          await OneSignal.User.PushSubscription.optOut();
+          setPushAtivado(false);
+          toast.success("Notificações desativadas");
+        }
+      } catch {
+        toast.error("Não foi possível alterar as notificações");
+      } finally {
+        setPushOcupado(false);
+      }
+    });
+  };
 
   const handleToggleFavorito = (mod: PortalModule) => {
     if (!favoritos.includes(mod) && favoritos.length >= maxFavoritos) {
@@ -204,6 +259,40 @@ export default function PortalMobileSettingsSheet({
                 </div>
               )}
             </div>
+
+            {pushDisponivel && (
+              <>
+                <div className="border-t border-border/50" />
+
+                {/* Notificações */}
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Notificações</p>
+                  <div className="flex items-center justify-between px-2 py-2.5 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {pushAtivado ? (
+                        <Bell className="h-4 w-4 text-primary flex-shrink-0" />
+                      ) : (
+                        <BellOff className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      )}
+                      <div>
+                        <p className="text-sm">Notificações push</p>
+                        <p className="text-xs text-muted-foreground">
+                          {pushBloqueado
+                            ? "Bloqueadas no navegador — libere nas configurações do aparelho"
+                            : "Avisos e comunicados da associação"}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={pushAtivado}
+                      disabled={pushOcupado || pushBloqueado}
+                      onCheckedChange={handleTogglePush}
+                      aria-label="Ativar ou desativar notificações push"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="border-t border-border/50" />
 
