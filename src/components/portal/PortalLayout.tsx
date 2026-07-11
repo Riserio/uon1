@@ -9,6 +9,7 @@ import PortalPageWrapper from "./PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
+import { useOneSignalPortal } from "@/hooks/useOneSignalPortal";
 import { PortalModule } from "@/lib/portalModules";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -17,6 +18,7 @@ const moduleMap: Record<string, PortalModule> = {
   '/portal/sga-insights': 'eventos',
   '/portal/mgf-insights': 'mgf',
   '/portal/cobranca-insights': 'cobranca',
+  '/portal/estudo-base-insights': 'estudo-base',
   '/portal/acompanhamento-eventos': 'acompanhamento-eventos',
   '/portal/ouvidoria': 'ouvidoria',
 };
@@ -34,6 +36,9 @@ export default function PortalLayout() {
     handleChangeCorretora,
     handleLogout,
   } = usePortalLayout();
+
+  // Push (OneSignal): registra o dispositivo e as tags de segmentação
+  useOneSignalPortal(corretora ? { corretora_id: corretora.id, corretora_nome: corretora.nome } : null);
 
   if (loading) {
     return (
@@ -130,6 +135,7 @@ export default function PortalLayout() {
     ...(corretora.modulos_bi.includes('eventos') ? ['eventos'] as const : []),
     ...(corretora.modulos_bi.includes('mgf') ? ['mgf'] as const : []),
     ...(corretora.modulos_bi.includes('cobranca') ? ['cobranca'] as const : []),
+    ...(corretora.modulos_bi.includes('estudo-base') ? ['estudo-base'] as const : []),
     ...(corretora.modulos_bi.includes('acompanhamento-eventos') ? ['acompanhamento-eventos'] as const : []),
     ...(corretora.modulos_bi.includes('ouvidoria') ? ['ouvidoria'] as const : []),
   ];

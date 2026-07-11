@@ -145,6 +145,8 @@ export default function Portal() {
       navigate(`/portal/mgf-insights?associacao=${corretoraData.id}`, { replace: true });
     } else if (modulos.includes('cobranca')) {
       navigate(`/portal/cobranca-insights?associacao=${corretoraData.id}`, { replace: true });
+    } else if (modulos.includes('estudo-base')) {
+      navigate(`/portal/estudo-base-insights?associacao=${corretoraData.id}`, { replace: true });
     } else if (modulos.includes('acompanhamento-eventos')) {
       navigate(`/portal/acompanhamento-eventos?associacao=${corretoraData.id}`, { replace: true });
     } else if (modulos.includes('ouvidoria')) {
@@ -287,11 +289,12 @@ export default function Portal() {
   ];
 
   // Lista de módulos disponíveis para o carrossel
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca')[] = [
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base')[] = [
     ...(corretora.modulos_bi.includes('indicadores') ? ['indicadores'] as const : []),
     ...(corretora.modulos_bi.includes('eventos') ? ['eventos'] as const : []),
     ...(corretora.modulos_bi.includes('mgf') ? ['mgf'] as const : []),
     ...(corretora.modulos_bi.includes('cobranca') ? ['cobranca'] as const : []),
+    ...(corretora.modulos_bi.includes('estudo-base') ? ['estudo-base'] as const : []),
   ];
 
   // When inside PortalLayout, just render content (no header/wrapper)

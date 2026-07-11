@@ -358,7 +358,7 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 w-full max-w-full overflow-x-hidden min-w-0">
       {/* KPI Cards */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
         {[

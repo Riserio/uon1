@@ -29,8 +29,10 @@ import {
   Headset,
   Bot,
   Eye,
+  Bell,
 } from "lucide-react";
 import CentralAtendimento from "@/pages/CentralAtendimento";
+import PushCentral from "@/components/push/PushCentral";
 import WhatsAppFlows from "@/pages/WhatsAppFlows";
 import { useAuth } from "@/hooks/useAuth";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -669,11 +671,20 @@ export default function Emails() {
               <Mail className="h-4 w-4" />
               E-mail
             </TabsTrigger>
+            <TabsTrigger value="push" className="gap-2">
+              <Bell className="h-4 w-4" />
+              Push
+            </TabsTrigger>
           </TabsList>
 
           {/* =================== CENTRAL TAB =================== */}
           <TabsContent value="central">
             <CentralAtendimento embedded />
+          </TabsContent>
+
+          {/* =================== PUSH TAB =================== */}
+          <TabsContent value="push">
+            <PushCentral />
           </TabsContent>
 
           {/* =================== WHATSAPP TAB (unified) =================== */}

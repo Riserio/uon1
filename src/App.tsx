@@ -332,6 +332,7 @@ const App = () => {
                 <Route path="sga-insights" element={<SGAInsights />} />
                 <Route path="mgf-insights" element={<MGFInsights />} />
                 <Route path="cobranca-insights" element={<CobrancaInsights />} />
+                <Route path="estudo-base-insights" element={<EstudoBaseInsights />} />
                 <Route path="gestao-associacao" element={<PortalGestaoAssociacao />} />
                 <Route path="acompanhamento-eventos" element={<PortalAcompanhamentoEventos />} />
                 <Route path="ouvidoria" element={<PortalOuvidoria />} />

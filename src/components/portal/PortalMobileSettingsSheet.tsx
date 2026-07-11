@@ -84,10 +84,19 @@ export default function PortalMobileSettingsSheet({
         </div>
 
         <SheetHeader className="px-5 pb-3 flex-shrink-0">
-          <SheetTitle className="flex items-center gap-2 text-left">
-            <Settings className="h-5 w-5 text-primary" />
-            Configurações
-          </SheetTitle>
+          <div className="flex items-center justify-between">
+            <SheetTitle className="flex items-center gap-2 text-left">
+              <Settings className="h-5 w-5 text-primary" />
+              Configurações
+            </SheetTitle>
+            <button
+              onClick={() => onOpenChange(false)}
+              className="p-2 -mr-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              aria-label="Fechar configurações"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </SheetHeader>
 
         {/* Scroll nativo (overflow-y-auto + momentum do iOS) em vez do

@@ -7,8 +7,13 @@
   <meta name="description" content="Vangard - Gestora e Administradora">
     <meta name="author" content="Lovable" />
 
-    <link rel="manifest" href="https://mnoczwmqgignmylbvpgp.supabase.co/functions/v1/pwa-manifest">
+    <!-- Manifest MESMA ORIGEM: com manifest cross-origin (função Supabase), o
+         Chrome resolvia start_url/scope contra o domínio errado e instalava o
+         PWA como atalho de navegador (com barra de endereço). Servindo de
+         /manifest.json, o app instala em modo standalone de verdade. -->
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#F5821F">
+    <meta name="mobile-web-app-capable" content="yes">
     <!-- Favicon oficial do aplicativo (logo Vangard, a mesma usada no sistema) -->
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="/pwa/favicon-32.png">

@@ -511,11 +511,12 @@ export default function CobrancaInsights() {
   };
 
   // Montar lista de módulos disponíveis para o carrossel
-  const availableModules: ("indicadores" | "eventos" | "mgf" | "cobranca")[] = [
+  const availableModules: ("indicadores" | "eventos" | "mgf" | "cobranca" | "estudo-base")[] = [
     ...(modulosBi.includes("indicadores") ? (["indicadores"] as const) : []),
     ...(modulosBi.includes("eventos") ? (["eventos"] as const) : []),
     ...(modulosBi.includes("mgf") ? (["mgf"] as const) : []),
     ...(modulosBi.includes("cobranca") ? (["cobranca"] as const) : []),
+    ...(modulosBi.includes("estudo-base") ? (["estudo-base"] as const) : []),
   ];
 
   const portalContent = (
@@ -557,7 +558,7 @@ export default function CobrancaInsights() {
 
       {/* Filtros Globais */}
       {importacaoIds.length > 0 && (
-        <div className="container mx-auto px-4 pt-4">
+        <div className="container mx-auto px-3 sm:px-4 pt-4 max-w-full overflow-x-hidden">
           <Card className="border-emerald-500/20 bg-card/50 backdrop-blur">
             <CardContent className="p-0">
               {/* Header clicável */}
@@ -818,7 +819,7 @@ export default function CobrancaInsights() {
       )}
 
       {/* Tabs */}
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-3 sm:px-4 py-6 max-w-full overflow-x-hidden">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
             <TabsList className="inline-flex md:flex md:w-full max-w-xl mx-auto gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">

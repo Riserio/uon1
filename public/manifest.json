@@ -1,16 +1,20 @@
 {
+  "id": "/portal",
   "name": "Vangard - Portal do Parceiro",
   "short_name": "Vangard",
   "description": "Portal de indicadores e gestão da associação Vangard.",
   "start_url": "/portal",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#ffffff",
   "theme_color": "#F5821F",
   "orientation": "portrait-primary",
   "icons": [
+    { "src": "https://mnoczwmqgignmylbvpgp.supabase.co/storage/v1/object/public/app-config/app-icon/icon-192-1783688134869.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "https://mnoczwmqgignmylbvpgp.supabase.co/storage/v1/object/public/app-config/app-icon/icon-512-1783688134869.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "https://mnoczwmqgignmylbvpgp.supabase.co/storage/v1/object/public/app-config/app-icon/icon-512-maskable-1783688134869.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
     { "src": "/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }
