@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -39,8 +39,7 @@ import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 import PortalHeader from "@/components/portal/PortalHeader";
 import BIPageHeader from "@/components/bi/BIPageHeader";
-import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPrefetch";
-import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
+import { getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useBILayoutOptional } from "@/contexts/BILayoutContext";
@@ -55,6 +54,15 @@ export interface SGAFilters {
   status: string; // "em_andamento" | "todos"
 }
 
+interface SGAFilterOptions {
+  regionais: string[];
+  cooperativas: string[];
+  estados: string[];
+  motivos: string[];
+  situacoes: string[];
+  tiposVeiculo: string[];
+}
+
 // Filtros globais - padrão: eventos em andamento, sem filtro de data.
 // Carrega menos registros na tela e alivia a renderização.
 const getDefaultFilters = (): SGAFilters => ({
@@ -66,6 +74,15 @@ const getDefaultFilters = (): SGAFilters => ({
   status: "em_andamento",
 });
 
+const getDefaultFilterOptions = (): SGAFilterOptions => ({
+  regionais: [],
+  cooperativas: [],
+  estados: [],
+  motivos: [],
+  situacoes: [],
+  tiposVeiculo: [],
+});
+
 export default function SGAInsights() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -74,7 +91,17 @@ export default function SGAInsights() {
   const biLayout = useBILayoutOptional();
   const portalLayout = usePortalLayoutOptional();
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [eventos, setEventos] = useState<any[]>([]);
+  // NOTE (escalabilidade): esta página não carrega mais o array cru de
+  // eventos no navegador (a VALECAR sozinha já tem 131k+ eventos na
+  // importação ativa, ultrapassando o teto de 100k linhas que a busca
+  // paginada antiga usava — os dados estavam sendo truncados
+  // silenciosamente). Toda a agregação roda no banco via
+  // `get_dashboard_eventos_cached` / `get_mapa_eventos_cached`; guardamos
+  // apenas os payloads já agregados. A aba "Dados Completos" busca sua
+  // própria página de dados diretamente (ver SGATabela.tsx).
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
+  const [mapaData, setMapaData] = useState<any>(null);
+  const [filterOptions, setFilterOptions] = useState<SGAFilterOptions>(getDefaultFilterOptions());
   const [loading, setLoading] = useState(true);
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
@@ -82,6 +109,11 @@ export default function SGAInsights() {
   const [filters, setFilters] = useState<SGAFilters>(getDefaultFilters());
 
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Contador de requisições em voo: descarta respostas atrasadas de uma
+  // associação/filtro anterior quando o usuário troca rapidamente.
+  const fetchIdRef = useRef(0);
+  const prevAssociacaoRef = useRef<string>("");
 
   // Detectar se é acesso via portal (parceiro)
   const isPortalAccess = location.pathname.startsWith("/portal");
@@ -98,104 +130,6 @@ export default function SGAInsights() {
     null,
   );
   const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
-
-  // Extrair opções únicas para filtros
-  const filterOptions = useMemo(() => {
-    const regionais = [...new Set(eventos.map((e) => e.regional).filter(Boolean))].sort();
-    const cooperativas = [...new Set(eventos.map((e) => e.cooperativa).filter(Boolean))].sort();
-    const tiposVeiculo = [
-      ...new Set(
-        eventos.map((e) => {
-          const modelo = e.modelo_veiculo || "";
-          if (
-            modelo.toLowerCase().includes("moto") ||
-            modelo.toLowerCase().includes("honda") ||
-            modelo.toLowerCase().includes("yamaha")
-          )
-            return "Motocicleta";
-          if (
-            modelo.toLowerCase().includes("caminhao") ||
-            modelo.toLowerCase().includes("caminhão") ||
-            modelo.toLowerCase().includes("truck")
-          )
-            return "Caminhão";
-          return "Passeio";
-        }),
-      ),
-    ].sort();
-    return { regionais, cooperativas, tiposVeiculo };
-  }, [eventos]);
-
-  // Eventos filtrados
-  const filteredEventos = useMemo(() => {
-    let result = [...eventos];
-
-    // Status: "em_andamento" = situação preenchida e diferente de FINALIZADO
-    // (mesma regra do card "Em Andamento" dos Quick Stats)
-    if (filters.status === "em_andamento") {
-      result = result.filter((e) => {
-        const s = (e.situacao_evento || "").toUpperCase();
-        return s && !s.includes("FINALIZADO");
-      });
-    }
-
-    if (filters.dataInicio) {
-      result = result.filter((e) => {
-        const d = e.data_cadastro_evento || e.data_evento;
-        return d && d >= filters.dataInicio;
-      });
-    }
-    if (filters.dataFim) {
-      result = result.filter((e) => {
-        const d = e.data_cadastro_evento || e.data_evento;
-        return d && d <= filters.dataFim;
-      });
-    }
-    if (filters.regional !== "todos") {
-      result = result.filter((e) => e.regional === filters.regional);
-    }
-    if (filters.cooperativa !== "todos") {
-      result = result.filter((e) => e.cooperativa === filters.cooperativa);
-    }
-    if (filters.tipoVeiculo !== "todos") {
-      result = result.filter((e) => {
-        const modelo = e.modelo_veiculo || "";
-        if (filters.tipoVeiculo === "Motocicleta") {
-          return (
-            modelo.toLowerCase().includes("moto") ||
-            modelo.toLowerCase().includes("honda") ||
-            modelo.toLowerCase().includes("yamaha")
-          );
-        }
-        if (filters.tipoVeiculo === "Caminhão") {
-          return (
-            modelo.toLowerCase().includes("caminhao") ||
-            modelo.toLowerCase().includes("caminhão") ||
-            modelo.toLowerCase().includes("truck")
-          );
-        }
-        return (
-          !modelo.toLowerCase().includes("moto") &&
-          !modelo.toLowerCase().includes("caminhao") &&
-          !modelo.toLowerCase().includes("caminhão")
-        );
-      });
-    }
-
-    // Contagem de eventos: cada linha do relatório Hinova com PLACA preenchida
-    // é um evento distinto (inclusive quando o mesmo protocolo aparece como
-    // ASSOCIADO e TERCEIRO). Linhas de item/descrição do Hinova não trazem
-    // PLACA, então filtrar por placa != vazio já elimina esses "sub-rows"
-    // sem colapsar eventos legítimos.
-    const deduped: any[] = [];
-    for (const e of result) {
-      const placaVal = (e.placa || "").toString().trim().toLowerCase();
-      // Ignorar linhas sem placa (itens/descrições, resumo, cabeçalho)
-      if (!placaVal || placaVal === "placa") continue;
-      deduped.push(e);
-    }
-    return deduped;
-  }, [eventos, filters]);
 
   // Sync from shared BILayout context when available (internal access)
   useEffect(() => {
@@ -288,45 +222,32 @@ export default function SGAInsights() {
     fetchAssociacoes();
   }, [searchParams, isPortalAccess, portalLayout?.corretora?.id]);
 
-  const fetchEventos = async (forceRefresh = false) => {
+  // Converte os filtros da UI ("todos" / string vazia) para o formato que
+  // as RPCs esperam (NULL = "sem filtro").
+  const toRpcFilterValue = (value: string) => (!value || value === "todos" ? null : value);
+
+  const buildEventosRpcParams = (forceRefresh: boolean) => ({
+    p_corretora_id: selectedAssociacao,
+    p_status: filters.status,
+    p_data_inicio: filters.dataInicio || null,
+    p_data_fim: filters.dataFim || null,
+    p_regional: toRpcFilterValue(filters.regional),
+    p_cooperativa: toRpcFilterValue(filters.cooperativa),
+    p_tipo_veiculo: toRpcFilterValue(filters.tipoVeiculo),
+    p_force_refresh: forceRefresh,
+  });
+
+  const fetchDashboardData = async (forceRefresh = false) => {
     if (!selectedAssociacao) {
-      setEventos([]);
+      setDashboardStats(null);
+      setMapaData(null);
       setImportacaoAtiva(null);
       setLoading(false);
       return;
     }
 
-    // Cache global: exibição instantânea ao navegar entre módulos
-    if (!forceRefresh) {
-      const globalCached = getBICachedData(selectedAssociacao, "eventos");
-      if (globalCached && globalCached.data.length > 0) {
-        // Valida se a importação em cache ainda é a mais recente ativa
-        const { data: latest } = await supabase
-          .from("sga_importacoes")
-          .select("id")
-          .eq("ativo", true)
-          .eq("corretora_id", selectedAssociacao)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!latest || latest.id === globalCached.importacao?.id) {
-          setEventos(globalCached.data);
-          setImportacaoAtiva(globalCached.importacao);
-          setLoading(false);
-          return;
-        }
-        // Cache obsoleto: prossegue para refetch
-      }
-      // Portal prefetch cache: show immediately but fetch full data in background
-      if (isPortalAccess) {
-        const cached = getPrefetchedData<any>(selectedAssociacao, "eventos");
-        if (cached && cached.length > 0) {
-          setEventos(cached);
-          setLoading(false);
-          // Continue to fetch full data in background (prefetch only has 1000 records)
-        }
-      }
-    }
+    const myFetchId = ++fetchIdRef.current;
+    const isStale = () => myFetchId !== fetchIdRef.current;
 
     setLoading(true);
     try {
@@ -337,77 +258,108 @@ export default function SGAInsights() {
         .eq("corretora_id", selectedAssociacao)
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (impError && impError.code !== "PGRST116") {
+      if (impError) {
         console.error("Erro ao buscar importação:", impError);
       }
+      if (isStale()) return;
 
-      if (importacao) {
-        setImportacaoAtiva(importacao);
-
-        const BATCH_SIZE = 1000;
-        const MAX_ROWS = 100000;
-        const CONCURRENCY = 8;
-
-        // Busca o total de eventos primeiro (head request, sem baixar dados)
-        // para poder disparar as páginas em ondas paralelas em vez de uma
-        // sequencial de cada vez — corretoras com milhares de eventos
-        // levavam dezenas de requisições em série, deixando a tela lenta
-        // para carregar.
-        const { count } = await supabase
-          .from("sga_eventos")
-          .select("*", { count: "exact", head: true })
-          .eq("importacao_id", importacao.id);
-
-        const total = Math.min(count || 0, MAX_ROWS);
-        const numBatches = Math.ceil(total / BATCH_SIZE);
-
-        let allEventos: any[] = [];
-        for (let i = 0; i < numBatches; i += CONCURRENCY) {
-          const wave = Array.from({ length: Math.min(CONCURRENCY, numBatches - i) }, (_, j) => {
-            const offset = (i + j) * BATCH_SIZE;
-            return supabase
-              .from("sga_eventos")
-              .select("*")
-              .eq("importacao_id", importacao.id)
-              .range(offset, offset + BATCH_SIZE - 1);
-          });
-
-          const results = await Promise.all(wave);
-          for (const { data: batch, error: evError } of results) {
-            if (evError) {
-              console.error("Erro ao buscar eventos:", evError);
-              continue;
-            }
-            if (batch) allEventos = allEventos.concat(batch);
-          }
-        }
-
-        setEventos(allEventos);
-        setBICachedData(selectedAssociacao, "eventos", allEventos, importacao);
-        if (isPortalAccess) savePrefetchedData(selectedAssociacao, "eventos", allEventos);
-      } else {
-        setEventos([]);
+      if (!importacao) {
         setImportacaoAtiva(null);
+        setDashboardStats(null);
+        setMapaData(null);
+        return;
       }
+
+      setImportacaoAtiva(importacao);
+
+      const rpcParams = buildEventosRpcParams(forceRefresh);
+
+      // Dashboard e Mapa são buscados em paralelo — ambos têm cache próprio
+      // de 20min no banco (get_dashboard_eventos_cached /
+      // get_mapa_eventos_cached), então manter os dois payloads
+      // atualizados juntos é barato em cache "quente".
+      const [dashboardRes, mapaRes] = await Promise.all([
+        supabase.rpc("get_dashboard_eventos_cached", rpcParams as any),
+        supabase.rpc("get_mapa_eventos_cached", rpcParams as any),
+      ]);
+
+      if (isStale()) return;
+
+      if (dashboardRes.error) throw dashboardRes.error;
+      if (mapaRes.error) throw mapaRes.error;
+
+      setDashboardStats(dashboardRes.data);
+      setMapaData(mapaRes.data);
     } catch (error) {
       console.error("Erro:", error);
+      if (!isStale()) {
+        toast.error("Erro ao carregar dados de Eventos. Tente novamente em instantes.");
+      }
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   };
 
-  // Recarregar eventos quando associação mudar
+  // Recarregar dados quando associação OU qualquer filtro global mudar.
+  // Ao trocar de associação, força a atualização (ignora o cache de 20min
+  // da RPC) para não exibir dados desatualizados de outra corretora.
   useEffect(() => {
-    if (selectedAssociacao) {
-      fetchEventos();
-    } else {
-      setEventos([]);
+    if (!selectedAssociacao) {
+      setDashboardStats(null);
+      setMapaData(null);
       setImportacaoAtiva(null);
       setLoading(false);
+      prevAssociacaoRef.current = "";
+      return;
     }
-  }, [selectedAssociacao]);
+
+    const isAssociacaoChange = prevAssociacaoRef.current !== selectedAssociacao;
+    prevAssociacaoRef.current = selectedAssociacao;
+
+    fetchDashboardData(isAssociacaoChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedAssociacao,
+    filters.status,
+    filters.dataInicio,
+    filters.dataFim,
+    filters.regional,
+    filters.cooperativa,
+    filters.tipoVeiculo,
+  ]);
+
+  // Opções dos dropdowns de filtro (Regional / Cooperativa / Tipo Veículo):
+  // RPC leve, escopo = importação ativa + status, não depende dos demais
+  // filtros — evita recarregar as opções a cada troca de filtro.
+  useEffect(() => {
+    if (!selectedAssociacao) {
+      setFilterOptions(getDefaultFilterOptions());
+      return;
+    }
+
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("get_eventos_filter_options", {
+          p_corretora_id: selectedAssociacao,
+          p_status: filters.status,
+        } as any);
+        if (error) throw error;
+        const opts = (data as any) || {};
+        setFilterOptions({
+          regionais: [...(opts.regionais || [])].sort(),
+          cooperativas: [...(opts.cooperativas || [])].sort(),
+          estados: [...(opts.estados || [])].sort(),
+          motivos: [...(opts.motivos || [])].sort(),
+          situacoes: [...(opts.situacoes || [])].sort(),
+          tiposVeiculo: opts.tiposVeiculo || ["Passeio", "Motocicleta", "Caminhão", "Van/Utilitário"],
+        });
+      } catch (error) {
+        console.error("Erro ao carregar opções de filtro:", error);
+      }
+    })();
+  }, [selectedAssociacao, filters.status]);
 
   const selectedAssociacaoNome = associacoes.find((a) => a.id === selectedAssociacao)?.nome || "";
 
@@ -428,12 +380,12 @@ export default function SGAInsights() {
   useEffect(() => {
     if (biLayout && !isPortalAccess) {
       biLayout.setHeaderDynamic({
-        recordCount: filteredEventos.length,
+        recordCount: dashboardStats?.totalEventos ?? 0,
         hasActiveFilters: !!hasActiveFilters,
         fileName: importacaoAtiva?.nome_arquivo,
       });
     }
-  }, [filteredEventos.length, hasActiveFilters, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
+  }, [dashboardStats?.totalEventos, hasActiveFilters, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
 
   // Tabs - esconder importação para parceiros
   const tabs = isPortalAccess
@@ -499,14 +451,14 @@ export default function SGAInsights() {
           currentModule="eventos"
           showHistorico={canViewHistorico}
           onHistoricoClick={() => setHistoricoDialogOpen(true)}
-          recordCount={filteredEventos.length}
+          recordCount={dashboardStats?.totalEventos ?? 0}
           hasActiveFilters={!!hasActiveFilters}
           fileName={importacaoAtiva?.nome_arquivo}
         />
       )}
 
       {/* Filtros colapsáveis */}
-      {eventos.length > 0 && (
+      {importacaoAtiva && (
         <div className="container mx-auto px-4 pt-4">
           <Card className="bg-card/50 backdrop-blur border-border/50 overflow-hidden">
             {/* Filtros Header - sempre visível */}
@@ -638,9 +590,14 @@ export default function SGAInsights() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="todos">Todos Tipos</SelectItem>
-                        <SelectItem value="Passeio">Passeio</SelectItem>
-                        <SelectItem value="Motocicleta">Motocicleta</SelectItem>
-                        <SelectItem value="Caminhão">Caminhão</SelectItem>
+                        {(filterOptions.tiposVeiculo.length
+                          ? filterOptions.tiposVeiculo
+                          : ["Passeio", "Motocicleta", "Caminhão", "Van/Utilitário"]
+                        ).map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -652,7 +609,7 @@ export default function SGAInsights() {
       )}
 
       {/* Quick Stats */}
-      {filteredEventos.length > 0 && (
+      {dashboardStats && dashboardStats.totalEventos > 0 && (
         <div className="container mx-auto px-4 pt-4">
           <div
             className={`grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 ${filters.status === "em_andamento" ? "" : "md:grid-cols-4"}`}
@@ -666,7 +623,9 @@ export default function SGAInsights() {
                       <Car className="h-5 w-5 text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xl sm:text-2xl font-bold truncate">{filteredEventos.length.toLocaleString()}</p>
+                      <p className="text-xl sm:text-2xl font-bold truncate">
+                        {dashboardStats.totalEventos.toLocaleString()}
+                      </p>
                       <p className="text-xs text-muted-foreground">Total Eventos</p>
                     </div>
                   </div>
@@ -683,9 +642,7 @@ export default function SGAInsights() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xl sm:text-2xl font-bold truncate">
-                        {filteredEventos
-                          .filter((e) => (e.situacao_evento || "").toUpperCase().includes("FINALIZADO"))
-                          .length.toLocaleString()}
+                        {dashboardStats.totalFinalizados.toLocaleString()}
                       </p>
                       <p className="text-xs text-muted-foreground">Finalizados</p>
                     </div>
@@ -701,12 +658,7 @@ export default function SGAInsights() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xl sm:text-2xl font-bold truncate">
-                      {filteredEventos
-                        .filter((e) => {
-                          const s = (e.situacao_evento || "").toUpperCase();
-                          return s && !s.includes("FINALIZADO");
-                        })
-                        .length.toLocaleString()}
+                      {dashboardStats.totalEmAndamento.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground">Em Andamento</p>
                   </div>
@@ -723,11 +675,11 @@ export default function SGAInsights() {
                     <p
                       className="text-lg sm:text-2xl font-bold truncate"
                       title={new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                        filteredEventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0),
+                        dashboardStats.totalCusto || 0,
                       )}
                     >
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                        filteredEventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0),
+                        dashboardStats.totalCusto || 0,
                       )}
                     </p>
                     <p className="text-xs text-muted-foreground">Custo Total</p>
@@ -762,22 +714,41 @@ export default function SGAInsights() {
           </div>
 
           <TabsContent value="dashboard">
-            <SGADashboard eventos={filteredEventos} loading={loading} />
+            <SGADashboard
+              stats={dashboardStats}
+              loading={loading}
+              corretoraId={selectedAssociacao}
+              status={filters.status}
+              dataInicio={filters.dataInicio}
+              dataFim={filters.dataFim}
+              regional={filters.regional}
+              cooperativa={filters.cooperativa}
+              tipoVeiculo={filters.tipoVeiculo}
+            />
           </TabsContent>
 
           <TabsContent value="mapa">
-            <SGAMapa eventos={filteredEventos} loading={loading} />
+            <SGAMapa mapaData={mapaData} loading={loading} />
           </TabsContent>
 
           <TabsContent value="tabela">
-            <SGATabela eventos={filteredEventos} loading={loading} />
+            <SGATabela
+              corretoraId={selectedAssociacao}
+              status={filters.status}
+              dataInicio={filters.dataInicio}
+              dataFim={filters.dataFim}
+              regional={filters.regional}
+              cooperativa={filters.cooperativa}
+              tipoVeiculo={filters.tipoVeiculo}
+              loading={loading}
+            />
           </TabsContent>
 
           {!isPortalAccess && (
             <TabsContent value="importar">
               <SGAImportacao
                 onImportSuccess={() => {
-                  fetchEventos(true);
+                  fetchDashboardData(true);
                   setActiveTab("dashboard");
                 }}
                 corretoraId={selectedAssociacao}
