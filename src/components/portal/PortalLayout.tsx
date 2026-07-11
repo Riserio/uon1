@@ -10,6 +10,7 @@ import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
 import { PortalModule } from "@/lib/portalModules";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const moduleMap: Record<string, PortalModule> = {
   '/portal': 'indicadores',
@@ -23,6 +24,7 @@ const moduleMap: Record<string, PortalModule> = {
 
 export default function PortalLayout() {
   const location = useLocation();
+  const isMobile = useIsMobile();
   const {
     corretora,
     corretorasDisponiveis,
@@ -170,8 +172,12 @@ export default function PortalLayout() {
             desktop a navegação é a sidebar lateral, então não precisa. */}
         <div
           id="portal-main-content"
-          className="transition-all duration-300 ease-in-out pb-28 md:pb-0 md:pt-0"
-          style={{ paddingTop: "calc(2.75rem + env(safe-area-inset-top))" }}
+          className="transition-all duration-300 ease-in-out pb-28 md:pb-0"
+          style={
+            isMobile
+              ? { paddingTop: "calc(2.75rem + env(safe-area-inset-top))" }
+              : undefined
+          }
         >
           <PortalPageWrapper>
             <Outlet context={{ corretora, corretorasDisponiveis }} />
