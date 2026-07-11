@@ -47,3 +47,23 @@ AS $$
   SELECT jsonb_build_object('app_id', onesignal_app_id, 'safari_web_id', safari_web_id)
   FROM public.push_config WHERE id = 'global' AND ativo AND onesignal_app_id IS NOT NULL
 $$;
+
+-- Inclui 'superintendente' (papel mais alto em uso na operação) nas
+-- políticas — sem isso, salvar a configuração do Push falhava por RLS.
+DROP POLICY IF EXISTS push_config_admin_all ON public.push_config;
+CREATE POLICY push_config_admin_all ON public.push_config
+  FOR ALL USING (
+    has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'administrativo'::app_role) OR has_role(auth.uid(), 'superintendente'::app_role)
+  )
+  WITH CHECK (
+    has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'administrativo'::app_role) OR has_role(auth.uid(), 'superintendente'::app_role)
+  );
+
+DROP POLICY IF EXISTS push_envios_admin_all ON public.push_envios;
+CREATE POLICY push_envios_admin_all ON public.push_envios
+  FOR ALL USING (
+    has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'administrativo'::app_role) OR has_role(auth.uid(), 'superintendente'::app_role)
+  )
+  WITH CHECK (
+    has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'administrativo'::app_role) OR has_role(auth.uid(), 'superintendente'::app_role)
+  );
