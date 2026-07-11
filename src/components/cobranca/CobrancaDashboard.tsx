@@ -638,13 +638,13 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
             ) : (
               <div className="space-y-2 max-h-[220px] overflow-y-auto">
                 {stats.regionaisMenorInadimplencia.slice(0, 8).map((item: any, i: number) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
-                    <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
-                    <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[9px] font-bold text-muted-foreground w-3.5 shrink-0">{i + 1}</span>
+                    <span className="text-[10px] truncate flex-1 min-w-0" title={item.name}>{item.name}</span>
+                    <div className="w-10 sm:w-16 h-1.5 rounded-full bg-muted overflow-hidden shrink-0">
                       <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, item.percentual)}%` }} />
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-600 tabular-nums w-12 text-right">{item.percentual.toFixed(1)}%</span>
+                    <span className="text-[10px] font-bold text-emerald-600 tabular-nums w-10 shrink-0 text-right">{item.percentual.toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
@@ -666,14 +666,14 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
             ) : (
               <div className="space-y-2 max-h-[220px] overflow-y-auto">
                 {stats.regionaisMaiorInadimplencia.slice(0, 8).map((item: any, i: number) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
-                    <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">{item.abertos}/{item.total}</span>
-                    <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[9px] font-bold text-muted-foreground w-3.5 shrink-0">{i + 1}</span>
+                    <span className="text-[10px] truncate flex-1 min-w-0" title={item.name}>{item.name}</span>
+                    <span className="text-[9px] text-muted-foreground tabular-nums shrink-0 hidden sm:inline">{item.abertos}/{item.total}</span>
+                    <div className="w-10 sm:w-16 h-1.5 rounded-full bg-muted overflow-hidden shrink-0">
                       <div className="h-full rounded-full bg-red-500" style={{ width: `${Math.min(100, item.percentual)}%` }} />
                     </div>
-                    <span className="text-[11px] font-bold text-red-600 tabular-nums w-12 text-right">{item.percentual.toFixed(1)}%</span>
+                    <span className="text-[10px] font-bold text-red-600 tabular-nums w-10 shrink-0 text-right">{item.percentual.toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
@@ -695,13 +695,13 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
             ) : (
               <div className="space-y-2 max-h-[220px] overflow-y-auto">
                 {stats.cooperativasMenorInadimplencia.slice(0, 8).map((item: any, i: number) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
-                    <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
-                    <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[9px] font-bold text-muted-foreground w-3.5 shrink-0">{i + 1}</span>
+                    <span className="text-[10px] truncate flex-1 min-w-0" title={item.name}>{item.name}</span>
+                    <div className="w-10 sm:w-16 h-1.5 rounded-full bg-muted overflow-hidden shrink-0">
                       <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, item.percentual)}%` }} />
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-600 tabular-nums w-12 text-right">{item.percentual.toFixed(1)}%</span>
+                    <span className="text-[10px] font-bold text-emerald-600 tabular-nums w-10 shrink-0 text-right">{item.percentual.toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
@@ -723,14 +723,14 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
             ) : (
               <div className="space-y-2 max-h-[220px] overflow-y-auto">
                 {stats.cooperativasMaiorInadimplencia.slice(0, 8).map((item: any, i: number) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
-                    <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">{item.abertos}/{item.total}</span>
-                    <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[9px] font-bold text-muted-foreground w-3.5 shrink-0">{i + 1}</span>
+                    <span className="text-[10px] truncate flex-1 min-w-0" title={item.name}>{item.name}</span>
+                    <span className="text-[9px] text-muted-foreground tabular-nums shrink-0 hidden sm:inline">{item.abertos}/{item.total}</span>
+                    <div className="w-10 sm:w-16 h-1.5 rounded-full bg-muted overflow-hidden shrink-0">
                       <div className="h-full rounded-full bg-red-500" style={{ width: `${Math.min(100, item.percentual)}%` }} />
                     </div>
-                    <span className="text-[11px] font-bold text-red-600 tabular-nums w-12 text-right">{item.percentual.toFixed(1)}%</span>
+                    <span className="text-[10px] font-bold text-red-600 tabular-nums w-10 shrink-0 text-right">{item.percentual.toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
@@ -753,14 +753,14 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
                   const maxVal = data[0]?.valor || 1;
                   const pct = (item.valor / maxVal) * 100;
                   return (
-                    <div key={item.name} className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
-                      <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
-                      <span className="text-[10px] text-muted-foreground">{item.qtde} bol.</span>
-                      <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[9px] font-bold text-muted-foreground w-3.5 shrink-0">{i + 1}</span>
+                      <span className="text-[10px] truncate flex-1 min-w-0" title={item.name}>{item.name}</span>
+                      <span className="text-[9px] text-muted-foreground shrink-0 hidden sm:inline">{item.qtde} bol.</span>
+                      <div className="w-10 sm:w-16 h-1.5 rounded-full bg-muted overflow-hidden shrink-0">
                         <div className={`h-full rounded-full ${isGreen ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.max(pct, 2)}%` }} />
                       </div>
-                      <span className={`text-[11px] font-bold tabular-nums w-16 text-right ${isGreen ? 'text-emerald-600' : 'text-red-600'}`}>{formatCompactCurrency(item.valor)}</span>
+                      <span className={`text-[10px] font-bold tabular-nums w-14 shrink-0 text-right ${isGreen ? 'text-emerald-600' : 'text-red-600'}`}>{formatCompactCurrency(item.valor)}</span>
                     </div>
                   );
                 })}
@@ -783,14 +783,14 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
                   const maxVal = data[0]?.valor || 1;
                   const pct = (item.valor / maxVal) * 100;
                   return (
-                    <div key={item.name} className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
-                      <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
-                      <span className="text-[10px] text-muted-foreground">{item.qtde} bol.</span>
-                      <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[9px] font-bold text-muted-foreground w-3.5 shrink-0">{i + 1}</span>
+                      <span className="text-[10px] truncate flex-1 min-w-0" title={item.name}>{item.name}</span>
+                      <span className="text-[9px] text-muted-foreground shrink-0 hidden sm:inline">{item.qtde} bol.</span>
+                      <div className="w-10 sm:w-16 h-1.5 rounded-full bg-muted overflow-hidden shrink-0">
                         <div className={`h-full rounded-full ${isGreen ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.max(pct, 2)}%` }} />
                       </div>
-                      <span className={`text-[11px] font-bold tabular-nums w-16 text-right ${isGreen ? 'text-emerald-600' : 'text-red-600'}`}>{formatCompactCurrency(item.valor)}</span>
+                      <span className={`text-[10px] font-bold tabular-nums w-14 shrink-0 text-right ${isGreen ? 'text-emerald-600' : 'text-red-600'}`}>{formatCompactCurrency(item.valor)}</span>
                     </div>
                   );
                 })}

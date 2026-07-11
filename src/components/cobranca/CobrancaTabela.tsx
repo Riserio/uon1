@@ -11,6 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { Search, Download, AlertCircle, ChevronLeft, ChevronRight, SearchCheck, SlidersHorizontal, ChevronDown, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import * as XLSX from "xlsx";
@@ -54,6 +62,12 @@ const EXPORT_CAP = 50000;
 // lógica: nunca busca o dataset inteiro de uma vez.
 const REVISTORIA_CAP = 20000;
 
+// Situações consideradas "em aberto" — usadas pelo atalho "Selecionar
+// abertos" no filtro de situação. Comparação por prefixo (case-insensitive)
+// para cobrir variantes como "ABERTO" e "ABERTO MIGRADO" sem precisar de
+// uma lista fixa que quebre se surgir uma nova variante no futuro.
+const isSituacaoAberta = (s: string) => s.trim().toUpperCase().startsWith("ABERTO");
+
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 };
@@ -81,8 +95,10 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
   const [revistoriaOpen, setRevistoriaOpen] = useState(false);
   const [maisFiltrosAberto, setMaisFiltrosAberto] = useState(false);
 
-  // Filtro sempre visível (uso mais comum)
-  const [filtroSituacao, setFiltroSituacao] = useState("");
+  // Filtro sempre visível (uso mais comum) — agora com seleção múltipla,
+  // já que uma única situação (ex.: só "ABERTO") pode deixar de fora
+  // variantes como "ABERTO MIGRADO" e mostrar 0 registros indevidamente.
+  const [filtroSituacoes, setFiltroSituacoes] = useState<string[]>([]);
 
   // Filtros avançados (dentro do colapse "Mais filtros")
   const [filtroDataPagamentoDe, setFiltroDataPagamentoDe] = useState("");
@@ -133,23 +149,29 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
     return localValue || g || null;
   };
 
-  const effectiveSituacao = combineFilter(filtroSituacao, globalFilters.situacao);
   const effectiveRegional = combineFilter(filtroRegional, globalFilters.regional);
   const effectiveCooperativa = combineFilter(filtroCooperativa, globalFilters.cooperativa);
   const effectiveDiaVencimento = combineFilter(filtroDiaVencimento, globalFilters.diaVencimento);
 
-  // Situação forçada para "ABERTO" usada pela Revistoria — mas se o
-  // usuário já filtrou explicitamente por outra situação (ex.: BAIXADO),
-  // nenhum boleto pode satisfazer as duas ao mesmo tempo, então força 0
-  // resultados em vez de ignorar o filtro escolhido.
-  const revistoriaSituacao = effectiveSituacao === NONE_SENTINEL
-    ? NONE_SENTINEL
-    : (effectiveSituacao && effectiveSituacao.toUpperCase() !== "ABERTO" ? NONE_SENTINEL : "ABERTO");
+  // Situações efetivas: combina a seleção múltipla local com o filtro
+  // global de situação (vindo do painel de Filtros da página). Se houver
+  // filtro global e ele não estiver entre as situações selecionadas
+  // localmente, força resultado vazio — mesma regra usada pelos outros
+  // filtros combinados acima.
+  const globalSituacao = globalFilters.situacao && globalFilters.situacao !== "todos" ? globalFilters.situacao : null;
+  const effectiveSituacoes: string[] = useMemo(() => {
+    if (filtroSituacoes.length > 0) {
+      if (globalSituacao && !filtroSituacoes.some((s) => s.toUpperCase() === globalSituacao.toUpperCase())) {
+        return [NONE_SENTINEL];
+      }
+      return filtroSituacoes;
+    }
+    return globalSituacao ? [globalSituacao] : [];
+  }, [filtroSituacoes.join(","), globalSituacao]);
 
   const buildRpcParams = (limit: number, offset: number) => ({
     p_importacao_ids: importacaoIds,
     p_mes_referencia: globalFilters.mesReferencia || null,
-    p_situacao: effectiveSituacao,
     p_regional: effectiveRegional,
     p_cooperativa: effectiveCooperativa,
     p_dia_vencimento: effectiveDiaVencimento && effectiveDiaVencimento !== NONE_SENTINEL ? Number(effectiveDiaVencimento) : (effectiveDiaVencimento === NONE_SENTINEL ? -999999 : null),
@@ -166,7 +188,27 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
     p_offset: offset,
   });
 
-  // Busca a página atual sempre que filtros/busca/página mudam
+  const sortByVencimentoDesc = (a: any, b: any) => {
+    const da = a.data_vencimento ? new Date(a.data_vencimento).getTime() : 0;
+    const db = b.data_vencimento ? new Date(b.data_vencimento).getTime() : 0;
+    return db - da;
+  };
+
+  // Situação forçada para "ABERTO" usada pela Revistoria — mas se o
+  // usuário já filtrou explicitamente por outra(s) situação(ões) sem
+  // incluir "ABERTO", nenhum boleto pode satisfazer as duas condições ao
+  // mesmo tempo, então força 0 resultados em vez de ignorar o filtro
+  // escolhido.
+  const revistoriaSituacao = effectiveSituacoes.includes(NONE_SENTINEL)
+    ? NONE_SENTINEL
+    : (effectiveSituacoes.length > 0 && !effectiveSituacoes.some((s) => s.toUpperCase() === "ABERTO"))
+      ? NONE_SENTINEL
+      : "ABERTO";
+
+  // Busca a página atual sempre que filtros/busca/página mudam. A RPC só
+  // filtra por UMA situação por vez (p_situacao), então quando há mais de
+  // uma situação selecionada disparamos uma chamada por situação e
+  // mesclamos/ordenamos no cliente.
   useEffect(() => {
     if (!importacaoIds.length) {
       setRows([]);
@@ -180,11 +222,45 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
 
     (async () => {
       try {
-        const { data, error } = await supabase.rpc("listar_cobranca_boletos_dedup", buildRpcParams(ITEMS_PER_PAGE, (currentPage - 1) * ITEMS_PER_PAGE) as any);
+        if (effectiveSituacoes.includes(NONE_SENTINEL)) {
+          setRows([]);
+          setTotalCount(0);
+          return;
+        }
+
+        if (effectiveSituacoes.length <= 1) {
+          const { data, error } = await supabase.rpc("listar_cobranca_boletos_dedup", {
+            ...buildRpcParams(ITEMS_PER_PAGE, (currentPage - 1) * ITEMS_PER_PAGE),
+            p_situacao: effectiveSituacoes[0] ?? null,
+          } as any);
+          if (myFetchId !== fetchIdRef.current) return;
+          if (error) throw error;
+          setRows((data as any)?.rows || []);
+          setTotalCount((data as any)?.totalCount || 0);
+          return;
+        }
+
+        // Múltiplas situações: busca uma quantidade de linhas por situação
+        // suficiente para cobrir até a página atual já ordenada por data de
+        // vencimento, mescla tudo e pagina no cliente.
+        const candidateLimit = ITEMS_PER_PAGE * currentPage;
+        const results = await Promise.all(
+          effectiveSituacoes.map((sit) =>
+            supabase.rpc("listar_cobranca_boletos_dedup", { ...buildRpcParams(candidateLimit, 0), p_situacao: sit } as any),
+          ),
+        );
         if (myFetchId !== fetchIdRef.current) return;
-        if (error) throw error;
-        setRows((data as any)?.rows || []);
-        setTotalCount((data as any)?.totalCount || 0);
+        let merged: any[] = [];
+        let total = 0;
+        for (const r of results) {
+          if (r.error) throw r.error;
+          merged = merged.concat((r.data as any)?.rows || []);
+          total += (r.data as any)?.totalCount || 0;
+        }
+        merged.sort(sortByVencimentoDesc);
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        setRows(merged.slice(start, start + ITEMS_PER_PAGE));
+        setTotalCount(total);
       } catch (error) {
         console.error("Erro ao carregar tabela de cobrança:", error);
         if (myFetchId === fetchIdRef.current) {
@@ -197,7 +273,7 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     importacaoIds.join(","), globalFilters.mesReferencia, globalFilters.situacao, globalFilters.regional,
-    globalFilters.cooperativa, globalFilters.diaVencimento, debouncedSearch, filtroSituacao,
+    globalFilters.cooperativa, globalFilters.diaVencimento, debouncedSearch, filtroSituacoes.join(","),
     filtroDataPagamentoDe, filtroDataPagamentoAte, filtroDataVencimentoDe, filtroDataVencimentoAte,
     filtroDiaVencimento, filtroRegional, filtroCooperativa, filtroVoluntario, filtroPlacas, currentPage,
   ]);
@@ -206,7 +282,7 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
   useEffect(() => {
     setCurrentPage(1);
   }, [
-    debouncedSearch, filtroSituacao, filtroDataPagamentoDe, filtroDataPagamentoAte,
+    debouncedSearch, filtroSituacoes.join(","), filtroDataPagamentoDe, filtroDataPagamentoAte,
     filtroDataVencimentoDe, filtroDataVencimentoAte, filtroDiaVencimento, filtroRegional,
     filtroCooperativa, filtroVoluntario, filtroPlacas,
     globalFilters.mesReferencia, globalFilters.situacao, globalFilters.regional,
@@ -237,7 +313,7 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
   }, [
     importacaoIds.join(","), corretoraId, globalFilters.mesReferencia, globalFilters.situacao,
     globalFilters.regional, globalFilters.cooperativa, globalFilters.diaVencimento,
-    filtroSituacao, filtroRegional, filtroCooperativa, filtroDiaVencimento, filtroPlacas,
+    filtroSituacoes.join(","), filtroRegional, filtroCooperativa, filtroDiaVencimento, filtroPlacas,
     filtroDataPagamentoDe, filtroDataPagamentoAte, filtroDataVencimentoDe, filtroDataVencimentoAte, filtroVoluntario,
   ]);
 
@@ -270,10 +346,34 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
   const handleExport = async () => {
     setExporting(true);
     try {
-      const { data, error } = await supabase.rpc("listar_cobranca_boletos_dedup", buildRpcParams(EXPORT_CAP, 0) as any);
-      if (error) throw error;
-      const allRows = (data as any)?.rows || [];
-      const exportTotal = (data as any)?.totalCount || 0;
+      let allRows: any[] = [];
+      let exportTotal = 0;
+
+      if (effectiveSituacoes.includes(NONE_SENTINEL)) {
+        allRows = [];
+        exportTotal = 0;
+      } else if (effectiveSituacoes.length <= 1) {
+        const { data, error } = await supabase.rpc("listar_cobranca_boletos_dedup", {
+          ...buildRpcParams(EXPORT_CAP, 0),
+          p_situacao: effectiveSituacoes[0] ?? null,
+        } as any);
+        if (error) throw error;
+        allRows = (data as any)?.rows || [];
+        exportTotal = (data as any)?.totalCount || 0;
+      } else {
+        const perStatusCap = Math.ceil(EXPORT_CAP / effectiveSituacoes.length);
+        const results = await Promise.all(
+          effectiveSituacoes.map((sit) =>
+            supabase.rpc("listar_cobranca_boletos_dedup", { ...buildRpcParams(perStatusCap, 0), p_situacao: sit } as any),
+          ),
+        );
+        for (const r of results) {
+          if (r.error) throw r.error;
+          allRows = allRows.concat((r.data as any)?.rows || []);
+          exportTotal += (r.data as any)?.totalCount || 0;
+        }
+        allRows.sort(sortByVencimentoDesc);
+      }
 
       if (exportTotal > EXPORT_CAP) {
         toast.warning(
@@ -310,7 +410,7 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
 
   const clearFilters = () => {
     setSearch("");
-    setFiltroSituacao("");
+    setFiltroSituacoes([]);
     setFiltroDataPagamentoDe("");
     setFiltroDataPagamentoAte("");
     setFiltroDataVencimentoDe("");
@@ -323,13 +423,34 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
     setCurrentPage(1);
   };
 
+  const toggleSituacao = (op: string) => {
+    setFiltroSituacoes((prev) =>
+      prev.includes(op) ? prev.filter((s) => s !== op) : [...prev, op],
+    );
+  };
+
+  // Atalho: seleciona de uma vez todas as situações consideradas "em
+  // aberto" (ABERTO, ABERTO MIGRADO, etc.) — resolve o caso de filtrar só
+  // por "ABERTO" e não ver nada porque os registros estão como "ABERTO
+  // MIGRADO" (ou outra variante equivalente).
+  const selecionarAbertos = () => {
+    const abertos = opcoesSituacao.filter(isSituacaoAberta);
+    setFiltroSituacoes(abertos.length > 0 ? abertos : ["ABERTO"]);
+  };
+
+  const situacaoLabel = filtroSituacoes.length === 0
+    ? "Todas as situações"
+    : filtroSituacoes.length === 1
+      ? filtroSituacoes[0]
+      : `${filtroSituacoes.length} situações`;
+
   const filtrosAvancadosAtivos = [
     filtroDataPagamentoDe, filtroDataPagamentoAte,
     filtroDataVencimentoDe, filtroDataVencimentoAte,
     filtroDiaVencimento, filtroRegional, filtroCooperativa, filtroVoluntario, filtroPlacas,
   ].filter(Boolean).length;
 
-  const hasFilters = !!(search || filtroSituacao || filtrosAvancadosAtivos);
+  const hasFilters = !!(search || filtroSituacoes.length > 0 || filtrosAvancadosAtivos);
 
   // Determinar cor da linha baseado na situação
   const getRowClass = (situacao: string) => {
@@ -369,274 +490,290 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
 
   return (
     <>
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <CardTitle className="flex items-center gap-2">
-            Dados Completos ({totalCount.toLocaleString('pt-BR')} registros)
-            {tableLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-          </CardTitle>
-          <div className="flex items-center gap-2 flex-wrap">
-            {hasFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Limpar Filtros
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <CardTitle className="flex items-center gap-2">
+              Dados Completos ({totalCount.toLocaleString('pt-BR')} registros)
+              {tableLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            </CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
+              {hasFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  Limpar Filtros
+                </Button>
+              )}
+              {corretoraId && revistoriaCount > 0 && (
+                <Button variant="outline" size="sm" onClick={handleOpenRevistoria} className="gap-1.5">
+                  <SearchCheck className="h-4 w-4" />
+                  Revistoria ({revistoriaCount.toLocaleString('pt-BR')})
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
+                {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                Exportar
               </Button>
-            )}
-             {corretoraId && revistoriaCount > 0 && (
-               <Button variant="outline" size="sm" onClick={handleOpenRevistoria} className="gap-1.5">
-                 <SearchCheck className="h-4 w-4" />
-                 Revistoria ({revistoriaCount.toLocaleString('pt-BR')})
-               </Button>
-             )}
-            <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
-              {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-              Exportar
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Busca geral + situação (uso mais comum, sempre visíveis) */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, placa, voluntário, regional ou cooperativa..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Situação agora é multi-seleção: permite marcar mais de um
+                status ao mesmo tempo (ex.: ABERTO + ABERTO MIGRADO) em vez
+                de forçar escolher um único valor exato. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full sm:w-[200px] justify-between font-normal">
+                  <span className="truncate">{situacaoLabel}</span>
+                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-[220px]">
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); selecionarAbertos(); }}>
+                  Selecionar todos os "Abertos"
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setFiltroSituacoes([]); }}>
+                  Todas as situações
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {opcoesSituacao.map((op) => (
+                  <DropdownMenuCheckboxItem
+                    key={op}
+                    checked={filtroSituacoes.includes(op)}
+                    onSelect={(e) => e.preventDefault()}
+                    onCheckedChange={() => toggleSituacao(op)}
+                  >
+                    {op}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button
+              variant="outline"
+              size="default"
+              onClick={() => setMaisFiltrosAberto(v => !v)}
+              className="gap-1.5 shrink-0"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Mais filtros
+              {filtrosAvancadosAtivos > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filtrosAvancadosAtivos}</Badge>
+              )}
+              <ChevronDown className={`h-4 w-4 transition-transform ${maisFiltrosAberto ? "rotate-180" : ""}`} />
             </Button>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {/* Busca geral + situação (uso mais comum, sempre visíveis) */}
-        <div className="flex flex-col sm:flex-row gap-2 mb-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, placa, voluntário, regional ou cooperativa..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
-          </div>
 
-          <Select
-            value={filtroSituacao || TODOS}
-            onValueChange={(v) => setFiltroSituacao(v === TODOS ? "" : v)}
-          >
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="Situação" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todas as situações</SelectItem>
-              {opcoesSituacao.map(op => (
-                <SelectItem key={op} value={op}>{op}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Filtros avançados (colapsável) */}
+          {maisFiltrosAberto && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4 p-3 rounded-lg border bg-muted/30">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Data Pagamento — de</Label>
+                <Input
+                  type="date"
+                  value={filtroDataPagamentoDe}
+                  onChange={(e) => setFiltroDataPagamentoDe(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Data Pagamento — até</Label>
+                <Input
+                  type="date"
+                  value={filtroDataPagamentoAte}
+                  onChange={(e) => setFiltroDataPagamentoAte(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Data Vencimento — de</Label>
+                <Input
+                  type="date"
+                  value={filtroDataVencimentoDe}
+                  onChange={(e) => setFiltroDataVencimentoDe(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Data Vencimento — até</Label>
+                <Input
+                  type="date"
+                  value={filtroDataVencimentoAte}
+                  onChange={(e) => setFiltroDataVencimentoAte(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
 
-          <Button
-            variant="outline"
-            size="default"
-            onClick={() => setMaisFiltrosAberto(v => !v)}
-            className="gap-1.5 shrink-0"
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Mais filtros
-            {filtrosAvancadosAtivos > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filtrosAvancadosAtivos}</Badge>
-            )}
-            <ChevronDown className={`h-4 w-4 transition-transform ${maisFiltrosAberto ? "rotate-180" : ""}`} />
-          </Button>
-        </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Regional</Label>
+                <Select
+                  value={filtroRegional || TODOS}
+                  onValueChange={(v) => setFiltroRegional(v === TODOS ? "" : v)}
+                >
+                  <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Todas" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TODOS}>Todas</SelectItem>
+                    {opcoesRegional.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Cooperativa</Label>
+                <Select
+                  value={filtroCooperativa || TODOS}
+                  onValueChange={(v) => setFiltroCooperativa(v === TODOS ? "" : v)}
+                >
+                  <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Todas" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TODOS}>Todas</SelectItem>
+                    {opcoesCooperativa.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Dia Vencimento</Label>
+                <Input
+                  placeholder="Ex: 10"
+                  value={filtroDiaVencimento}
+                  onChange={(e) => setFiltroDiaVencimento(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Voluntário</Label>
+                <Input
+                  placeholder="Nome do voluntário"
+                  value={filtroVoluntario}
+                  onChange={(e) => setFiltroVoluntario(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Placa</Label>
+                <Input
+                  placeholder="Ex: ABC1234"
+                  value={filtroPlacas}
+                  onChange={(e) => setFiltroPlacas(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+          )}
 
-        {/* Filtros avançados (colapsável) */}
-        {maisFiltrosAberto && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4 p-3 rounded-lg border bg-muted/30">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Data Pagamento — de</Label>
-              <Input
-                type="date"
-                value={filtroDataPagamentoDe}
-                onChange={(e) => setFiltroDataPagamentoDe(e.target.value)}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Data Pagamento — até</Label>
-              <Input
-                type="date"
-                value={filtroDataPagamentoAte}
-                onChange={(e) => setFiltroDataPagamentoAte(e.target.value)}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Data Vencimento — de</Label>
-              <Input
-                type="date"
-                value={filtroDataVencimentoDe}
-                onChange={(e) => setFiltroDataVencimentoDe(e.target.value)}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Data Vencimento — até</Label>
-              <Input
-                type="date"
-                value={filtroDataVencimentoAte}
-                onChange={(e) => setFiltroDataVencimentoAte(e.target.value)}
-                className="h-9 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Regional</Label>
-              <Select
-                value={filtroRegional || TODOS}
-                onValueChange={(v) => setFiltroRegional(v === TODOS ? "" : v)}
-              >
-                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Todas" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={TODOS}>Todas</SelectItem>
-                  {opcoesRegional.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Cooperativa</Label>
-              <Select
-                value={filtroCooperativa || TODOS}
-                onValueChange={(v) => setFiltroCooperativa(v === TODOS ? "" : v)}
-              >
-                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Todas" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={TODOS}>Todas</SelectItem>
-                  {opcoesCooperativa.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Dia Vencimento</Label>
-              <Input
-                placeholder="Ex: 10"
-                value={filtroDiaVencimento}
-                onChange={(e) => setFiltroDiaVencimento(e.target.value)}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Voluntário</Label>
-              <Input
-                placeholder="Nome do voluntário"
-                value={filtroVoluntario}
-                onChange={(e) => setFiltroVoluntario(e.target.value)}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Placa</Label>
-              <Input
-                placeholder="Ex: ABC1234"
-                value={filtroPlacas}
-                onChange={(e) => setFiltroPlacas(e.target.value)}
-                className="h-9 text-xs"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Tabela */}
-        <div className="overflow-x-auto border rounded-lg">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-muted border-b">
-                <th className="p-2 text-left font-medium whitespace-nowrap">Data Pagamento</th>
-                <th className="p-2 text-left font-medium whitespace-nowrap">Venc. Original</th>
-                <th className="p-2 text-left font-medium whitespace-nowrap">Dia Venc.</th>
-                <th className="p-2 text-left font-medium whitespace-nowrap">Regional</th>
-                <th className="p-2 text-left font-medium whitespace-nowrap">Cooperativa</th>
-                <th className="p-2 text-left font-medium whitespace-nowrap">Voluntário</th>
-                <th className="p-2 text-left font-medium whitespace-nowrap">Nome</th>
-                <th className="p-2 text-left font-medium whitespace-nowrap">Placa</th>
-                <th className="p-2 text-right font-medium whitespace-nowrap">Valor</th>
-                <th className="p-2 text-left font-medium whitespace-nowrap">Data Vencimento</th>
-                <th className="p-2 text-center font-medium whitespace-nowrap">Dias Atraso</th>
-                <th className="p-2 text-center font-medium whitespace-nowrap">Situação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((b, i) => (
-                <tr key={b.id || i} className={`border-b hover:bg-muted/50 ${getRowClass(b.situacao)}`}>
-                  <td className="p-2">{formatDate(b.data_pagamento)}</td>
-                  <td className="p-2">{formatDate(b.data_vencimento_original)}</td>
-                  <td className="p-2">{b.dia_vencimento_veiculo || "-"}</td>
-                  <td className="p-2 max-w-[150px] truncate">{b.regional_boleto || "-"}</td>
-                  <td className="p-2 max-w-[150px] truncate">{b.cooperativa || "-"}</td>
-                  <td className="p-2 max-w-[120px] truncate">{b.voluntario || "-"}</td>
-                  <td className="p-2 max-w-[150px] truncate">{b.nome || "-"}</td>
-                  <td className="p-2 font-mono">{b.placas || "-"}</td>
-                  <td className="p-2 text-right text-blue-600 font-medium">{formatCurrency(b.valor)}</td>
-                  <td className="p-2">{formatDate(b.data_vencimento)}</td>
-                  <td className="p-2 text-center">
-                    {b.qtde_dias_atraso_vencimento_original > 0 ? (
-                      <span className="text-red-600 font-medium">{b.qtde_dias_atraso_vencimento_original}</span>
-                    ) : (
-                      b.qtde_dias_atraso_vencimento_original || "-"
-                    )}
-                  </td>
-                  <td className="p-2 text-center">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                      b.situacao?.toUpperCase() === "BAIXADO"
-                        ? "bg-green-100 text-green-700"
-                        : b.situacao?.toUpperCase() === "ABERTO"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-gray-100 text-gray-700"
-                    }`}>
-                      {b.situacao || "-"}
-                    </span>
-                  </td>
+          {/* Tabela */}
+          <div className="overflow-x-auto border rounded-lg">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-muted border-b">
+                  <th className="p-2 text-left font-medium whitespace-nowrap">Data Pagamento</th>
+                  <th className="p-2 text-left font-medium whitespace-nowrap">Venc. Original</th>
+                  <th className="p-2 text-left font-medium whitespace-nowrap">Dia Venc.</th>
+                  <th className="p-2 text-left font-medium whitespace-nowrap">Regional</th>
+                  <th className="p-2 text-left font-medium whitespace-nowrap">Cooperativa</th>
+                  <th className="p-2 text-left font-medium whitespace-nowrap">Voluntário</th>
+                  <th className="p-2 text-left font-medium whitespace-nowrap">Nome</th>
+                  <th className="p-2 text-left font-medium whitespace-nowrap">Placa</th>
+                  <th className="p-2 text-right font-medium whitespace-nowrap">Valor</th>
+                  <th className="p-2 text-left font-medium whitespace-nowrap">Data Vencimento</th>
+                  <th className="p-2 text-center font-medium whitespace-nowrap">Dias Atraso</th>
+                  <th className="p-2 text-center font-medium whitespace-nowrap">Situação</th>
                 </tr>
-              ))}
-              {!tableLoading && rows.length === 0 && (
-                <tr>
-                  <td colSpan={12} className="p-8 text-center text-muted-foreground">
-                    Nenhum registro encontrado com os filtros atuais.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Paginação */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <p className="text-sm text-muted-foreground">
-              Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} de {totalCount.toLocaleString('pt-BR')}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1 || tableLoading}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm">
-                Página {currentPage} de {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages || tableLoading}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+              </thead>
+              <tbody>
+                {rows.map((b, i) => (
+                  <tr key={b.id || i} className={`border-b hover:bg-muted/50 ${getRowClass(b.situacao)}`}>
+                    <td className="p-2">{formatDate(b.data_pagamento)}</td>
+                    <td className="p-2">{formatDate(b.data_vencimento_original)}</td>
+                    <td className="p-2">{b.dia_vencimento_veiculo || "-"}</td>
+                    <td className="p-2 max-w-[150px] truncate">{b.regional_boleto || "-"}</td>
+                    <td className="p-2 max-w-[150px] truncate">{b.cooperativa || "-"}</td>
+                    <td className="p-2 max-w-[120px] truncate">{b.voluntario || "-"}</td>
+                    <td className="p-2 max-w-[150px] truncate">{b.nome || "-"}</td>
+                    <td className="p-2 font-mono">{b.placas || "-"}</td>
+                    <td className="p-2 text-right text-blue-600 font-medium">{formatCurrency(b.valor)}</td>
+                    <td className="p-2">{formatDate(b.data_vencimento)}</td>
+                    <td className="p-2 text-center">
+                      {b.qtde_dias_atraso_vencimento_original > 0 ? (
+                        <span className="text-red-600 font-medium">{b.qtde_dias_atraso_vencimento_original}</span>
+                      ) : (
+                        b.qtde_dias_atraso_vencimento_original || "-"
+                      )}
+                    </td>
+                    <td className="p-2 text-center">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        b.situacao?.toUpperCase() === "BAIXADO"
+                          ? "bg-green-100 text-green-700"
+                          : b.situacao?.toUpperCase() === "ABERTO"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}>
+                        {b.situacao || "-"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {!tableLoading && rows.length === 0 && (
+                  <tr>
+                    <td colSpan={12} className="p-8 text-center text-muted-foreground">
+                      Nenhum registro encontrado com os filtros atuais.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
-      </CardContent>
-    </Card>
 
-    {corretoraId && (
-      <RevistoriaInadimplenciaDialog
-        open={revistoriaOpen}
-        onOpenChange={setRevistoriaOpen}
-        inadimplentes={revistoriaLoading ? [] : revistoriaRows}
-        corretoraId={corretoraId}
-      />
-    )}
+          {/* Paginação */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} de {totalCount.toLocaleString('pt-BR')}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1 || tableLoading}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages || tableLoading}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {corretoraId && (
+        <RevistoriaInadimplenciaDialog
+          open={revistoriaOpen}
+          onOpenChange={setRevistoriaOpen}
+          inadimplentes={revistoriaLoading ? [] : revistoriaRows}
+          corretoraId={corretoraId}
+        />
+      )}
     </>
   );
 }
