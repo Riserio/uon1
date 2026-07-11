@@ -1361,10 +1361,12 @@ export type Database = {
           data_pagamento: string | null
           data_vencimento: string | null
           data_vencimento_original: string | null
+          dedup_key: string | null
           dia_vencimento_veiculo: number | null
           id: string
           importacao_id: string
           nome: string | null
+          nome_norm: string | null
           placas: string | null
           qtde_dias_atraso_vencimento_original: number | null
           regional_boleto: string | null
@@ -1379,10 +1381,12 @@ export type Database = {
           data_pagamento?: string | null
           data_vencimento?: string | null
           data_vencimento_original?: string | null
+          dedup_key?: string | null
           dia_vencimento_veiculo?: number | null
           id?: string
           importacao_id: string
           nome?: string | null
+          nome_norm?: string | null
           placas?: string | null
           qtde_dias_atraso_vencimento_original?: number | null
           regional_boleto?: string | null
@@ -1397,10 +1401,12 @@ export type Database = {
           data_pagamento?: string | null
           data_vencimento?: string | null
           data_vencimento_original?: string | null
+          dedup_key?: string | null
           dia_vencimento_veiculo?: number | null
           id?: string
           importacao_id?: string
           nome?: string | null
+          nome_norm?: string | null
           placas?: string | null
           qtde_dias_atraso_vencimento_original?: number | null
           regional_boleto?: string | null
@@ -1417,6 +1423,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cobranca_dashboard_cache: {
+        Row: {
+          cache_key: string
+          computed_at: string
+          payload: Json
+        }
+        Insert: {
+          cache_key: string
+          computed_at?: string
+          payload: Json
+        }
+        Update: {
+          cache_key?: string
+          computed_at?: string
+          payload?: Json
+        }
+        Relationships: []
       }
       cobranca_importacoes: {
         Row: {
@@ -2952,6 +2976,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      estudo_base_dashboard_cache: {
+        Row: {
+          cache_key: string
+          computed_at: string
+          payload: Json
+        }
+        Insert: {
+          cache_key: string
+          computed_at?: string
+          payload: Json
+        }
+        Update: {
+          cache_key?: string
+          computed_at?: string
+          payload?: Json
+        }
+        Relationships: []
       }
       estudo_base_importacoes: {
         Row: {
@@ -4919,6 +4961,24 @@ export type Database = {
           },
         ]
       }
+      mgf_dashboard_cache: {
+        Row: {
+          cache_key: string
+          computed_at: string
+          payload: Json
+        }
+        Insert: {
+          cache_key: string
+          computed_at?: string
+          payload: Json
+        }
+        Update: {
+          cache_key?: string
+          computed_at?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       mgf_importacoes: {
         Row: {
           ativo: boolean | null
@@ -6085,6 +6145,36 @@ export type Database = {
           },
         ]
       }
+      platform_settings: {
+        Row: {
+          app_icon_192_url: string | null
+          app_icon_512_maskable_url: string | null
+          app_icon_512_url: string | null
+          app_icon_apple_url: string | null
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          app_icon_192_url?: string | null
+          app_icon_512_maskable_url?: string | null
+          app_icon_512_url?: string | null
+          app_icon_apple_url?: string | null
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          app_icon_192_url?: string | null
+          app_icon_512_maskable_url?: string | null
+          app_icon_512_url?: string | null
+          app_icon_apple_url?: string | null
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       ppr_programas: {
         Row: {
           corretora_id: string
@@ -6694,6 +6784,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sga_dashboard_cache: {
+        Row: {
+          cache_key: string
+          computed_at: string
+          payload: Json
+        }
+        Insert: {
+          cache_key: string
+          computed_at?: string
+          payload: Json
+        }
+        Update: {
+          cache_key?: string
+          computed_at?: string
+          payload?: Json
+        }
+        Relationships: []
       }
       sga_eventos: {
         Row: {
@@ -9064,6 +9172,102 @@ export type Database = {
         }
         Returns: boolean
       }
+      calcular_dashboard_cobranca: {
+        Args: {
+          p_cooperativa?: string
+          p_dia_vencimento?: number
+          p_importacao_ids: string[]
+          p_mes_referencia?: string
+          p_regional?: string
+          p_situacao?: string
+        }
+        Returns: Json
+      }
+      calcular_dashboard_estudo_base: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_faixa_max?: number
+          p_faixa_min?: number
+          p_montadora?: string
+          p_regional?: string
+          p_situacao?: string[]
+        }
+        Returns: Json
+      }
+      calcular_dashboard_eventos: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_regional?: string
+          p_status?: string
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
+      calcular_dashboard_mgf: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_forma_pagamento?: string
+          p_operacao?: string
+          p_regional?: string
+          p_situacao?: string
+          p_sub_operacao?: string
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
+      calcular_mapa_estudo_base: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_faixa_max?: number
+          p_faixa_min?: number
+          p_montadora?: string
+          p_regional?: string
+          p_situacao?: string[]
+        }
+        Returns: Json
+      }
+      calcular_mapa_eventos: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_regional?: string
+          p_status?: string
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
+      calcular_relatorio_eventos_mgf: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_forma_pagamento?: string
+          p_operacao?: string
+          p_page?: number
+          p_page_size?: number
+          p_regional?: string
+          p_search?: string
+          p_situacao?: string
+          p_sub_operacao?: string
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
       calcular_resumo_cobranca: {
         Args: { p_importacao_ids: string[]; p_mes_referencia?: string }
         Returns: Json
@@ -9148,6 +9352,110 @@ export type Database = {
       }
       generate_contrato_numero: { Args: never; Returns: string }
       generate_lancamento_numero: { Args: never; Returns: string }
+      get_dashboard_cobranca_cached: {
+        Args: {
+          p_cooperativa?: string
+          p_dia_vencimento?: number
+          p_force_refresh?: boolean
+          p_importacao_ids: string[]
+          p_max_age_minutes?: number
+          p_mes_referencia?: string
+          p_regional?: string
+          p_situacao?: string
+        }
+        Returns: Json
+      }
+      get_dashboard_estudo_base_cached: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_faixa_max?: number
+          p_faixa_min?: number
+          p_force_refresh?: boolean
+          p_montadora?: string
+          p_regional?: string
+          p_situacao?: string[]
+        }
+        Returns: Json
+      }
+      get_dashboard_eventos_cached: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_force_refresh?: boolean
+          p_max_age_minutes?: number
+          p_regional?: string
+          p_status?: string
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
+      get_dashboard_filter_options: {
+        Args: { p_importacao_ids: string[] }
+        Returns: Json
+      }
+      get_dashboard_mgf_cached: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_force_refresh?: boolean
+          p_forma_pagamento?: string
+          p_max_age_minutes?: number
+          p_operacao?: string
+          p_regional?: string
+          p_situacao?: string
+          p_sub_operacao?: string
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
+      get_estudo_base_filter_options: {
+        Args: { p_corretora_id: string }
+        Returns: Json
+      }
+      get_eventos_filter_options: {
+        Args: { p_corretora_id: string; p_status?: string }
+        Returns: Json
+      }
+      get_mapa_estudo_base_cached: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_faixa_max?: number
+          p_faixa_min?: number
+          p_force_refresh?: boolean
+          p_montadora?: string
+          p_regional?: string
+          p_situacao?: string[]
+        }
+        Returns: Json
+      }
+      get_mapa_eventos_cached: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_force_refresh?: boolean
+          p_max_age_minutes?: number
+          p_regional?: string
+          p_status?: string
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
+      get_mgf_filter_options: {
+        Args: { p_corretora_id: string }
+        Returns: Json
+      }
       get_public_ouvidoria_corretora: {
         Args: { p_slug_or_id: string }
         Returns: {
@@ -9184,6 +9492,131 @@ export type Database = {
       importar_mgf_api: { Args: { p_corretora_id: string }; Returns: Json }
       importar_tudo_api_todas: { Args: never; Returns: Json }
       jsonb_object_keys_count: { Args: { j: Json }; Returns: number }
+      listar_cobranca_boletos_dedup: {
+        Args: {
+          p_cooperativa?: string
+          p_data_pagamento_ate?: string
+          p_data_pagamento_de?: string
+          p_data_vencimento_ate?: string
+          p_data_vencimento_de?: string
+          p_dia_vencimento?: number
+          p_importacao_ids: string[]
+          p_limit?: number
+          p_mes_referencia?: string
+          p_offset?: number
+          p_placas?: string
+          p_regional?: string
+          p_search?: string
+          p_situacao?: string
+          p_sort_col?: string
+          p_sort_dir?: string
+          p_voluntario?: string
+        }
+        Returns: Json
+      }
+      listar_estudo_base_paginado: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_faixa_max?: number
+          p_faixa_min?: number
+          p_montadora?: string
+          p_page?: number
+          p_page_size?: number
+          p_regional?: string
+          p_search?: string
+          p_situacao?: string[]
+        }
+        Returns: Json
+      }
+      listar_eventos_paginado: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_filter_estado?: string
+          p_filter_motivo?: string
+          p_filter_situacao?: string
+          p_page?: number
+          p_page_size?: number
+          p_regional?: string
+          p_search?: string
+          p_sort_dir?: string
+          p_sort_field?: string
+          p_status?: string
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
+      listar_eventos_por_filtro: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_filter_type?: string
+          p_filter_value?: string
+          p_limit?: number
+          p_regional?: string
+          p_search?: string
+          p_status?: string
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
+      listar_mgf_paginado: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_forma_pagamento?: string
+          p_operacao?: string
+          p_page?: number
+          p_page_size?: number
+          p_periodo_custom_fim?: string
+          p_periodo_custom_inicio?: string
+          p_periodo_dias?: number
+          p_regional?: string
+          p_search?: string
+          p_situacao?: string
+          p_status_a_vencer?: boolean
+          p_status_inativo?: boolean
+          p_status_pago?: boolean
+          p_status_vencido?: boolean
+          p_sub_operacao?: string
+          p_tipo_veiculo?: string
+          t_centro_custo?: string
+          t_data_pagamento_fim?: string
+          t_data_pagamento_inicio?: string
+          t_fornecedor?: string
+          t_operacao?: string
+          t_placa_evento?: string
+          t_sub_operacao?: string
+        }
+        Returns: Json
+      }
+      listar_mgf_por_filtro: {
+        Args: {
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_filter_field?: string
+          p_filter_value?: string
+          p_forma_pagamento?: string
+          p_limit?: number
+          p_operacao?: string
+          p_regional?: string
+          p_situacao?: string
+          p_sub_operacao?: string
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
       marcar_git_fallback_desativado: { Args: never; Returns: undefined }
       reset_email_rate_limits: { Args: never; Returns: undefined }
       set_detran_mg_senha: {
