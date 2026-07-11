@@ -56,6 +56,15 @@ interface AssociacaoStatus {
   exec_modulo: string | null;
   exec_etapa: string | null;
   exec_progresso: number | null;
+  // Indicadores (aba "Indicadores" / Estudo de Base): NÃO vem da API da
+  // Hinova. É uma COMPILAÇÃO (agregação) da base de veículos já importada
+  // (estudo_base_registros) feita pela RPC `agregar_estudo_base` — a mesma
+  // função que o botão "Calcular da base" já usa em Portal > Estudo de Base.
+  // Aqui só refletimos a última compilação (pid_estudo_base.updated_at) e
+  // oferecemos um botão para forçar essa mesma compilação, sem alterar a
+  // lógica existente.
+  estudo_base_ativo: boolean;
+  estudo_base_ultima: string | null;
 }
 
 interface PortalUser {
@@ -175,10 +184,45 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
   const pontoCor =
     s === "erro" ? "bg-red-500" : s === "sincronizando" ? "bg-blue-500 animate-pulse" : s === "ok" ? "bg-emerald-500" : "bg-muted-foreground/30";
 
+  const [forcandoIndicadores, setForcandoIndicadores] = useState(false);
+
+  // Força a MESMA compilação que o botão "Calcular da base" já usa em
+  // Portal > Estudo de Base: RPC `agregar_estudo_base`, que recalcula os
+  // indicadores (pid_estudo_base) a partir da base de veículos já importada
+  // (estudo_base_registros). Não busca nada novo na Hinova nem muda a lógica
+  // de cálculo — só dispara a mesma compilação sob demanda, pro mês atual.
+  const handleForcarIndicadores = async () => {
+    setForcandoIndicadores(true);
+    try {
+      const { data, error } = await supabase.rpc("agregar_estudo_base", {
+        p_corretora_id: a.id,
+        p_data_referencia: null,
+      });
+      if (error) throw error;
+      const r = data as any;
+      if (r?.success === false) throw new Error(r.message || "Falha ao compilar indicadores");
+      toast.success(r?.total != null ? `Indicadores recompilados (${r.total} veículos)` : "Indicadores recompilados");
+    } catch (e) {
+      toast.error("Erro ao forçar compilação: " + (e instanceof Error ? e.message : "desconhecido"));
+    } finally {
+      setForcandoIndicadores(false);
+    }
+  };
+
   const modulos = [
     { label: "Cobrança", status: a.cobranca_status, ultima: a.cobranca_ultima, erro: a.cobranca_erro, ativo: a.ativo_cobranca, origem: a.cobranca_origem },
     { label: "Eventos", status: a.eventos_status, ultima: a.eventos_ultima, erro: a.eventos_erro, ativo: a.ativo_eventos, origem: a.eventos_origem },
     { label: "MGF", status: a.mgf_status, ultima: a.mgf_ultima, erro: a.mgf_erro, ativo: a.ativo_mgf, origem: a.mgf_origem },
+    {
+      label: "Indicadores",
+      status: a.estudo_base_ativo ? "sucesso" : "erro",
+      ultima: a.estudo_base_ultima,
+      erro: a.estudo_base_ativo
+        ? null
+        : "Nenhum indicador compilado ainda para esta associação. Use o botão \"Indicadores\" para compilar a partir da base de veículos já importada.",
+      ativo: true,
+      origem: null as string | null,
+    },
   ];
 
   return (
@@ -245,6 +289,17 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
             <Users className="h-3.5 w-3.5" />
             {a.total_usuarios > 0 ? `${a.usuarios_ativos}/${a.total_usuarios}` : "—"}
           </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+            title="Forçar recompilação dos Indicadores (Estudo de Base) agora"
+            disabled={forcandoIndicadores}
+            onClick={handleForcarIndicadores}
+          >
+            {forcandoIndicadores ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            Indicadores
+          </Button>
           <BISyncButton corretoraId={a.id} corretoraNome={a.nome} />
         </div>
       </div>
@@ -351,10 +406,27 @@ export default function BIAdminDashboard() {
         .from("corretora_usuarios")
         .select("id, email, ativo, corretora_id");
 
+      // Indicadores (aba Indicadores / Estudo de Base): é uma COMPILAÇÃO
+      // (agregação) sobre a base de veículos já importada — não vem da API da
+      // Hinova. `pid_estudo_base.updated_at` reflete a última vez que essa
+      // compilação rodou (mesma tabela que a RPC agregar_estudo_base grava,
+      // usada pelo botão "Calcular da base" em Portal > Estudo de Base).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: pidEstudoBase } = await (supabase as any)
+        .from("pid_estudo_base")
+        .select("corretora_id, updated_at")
+        .order("updated_at", { ascending: false });
+
       const credMap = new Map(credenciais?.map((c) => [c.corretora_id, c]) || []);
       const cobMap = new Map(cobConfigs.data?.map((c) => [c.corretora_id, c]) || []);
       const sgaMap = new Map(sgaConfigs.data?.map((c) => [c.corretora_id, c]) || []);
       const mgfMap = new Map(mgfConfigs.data?.map((c) => [c.corretora_id, c]) || []);
+      // Mantém só a linha mais recente por associação (a query já vem ordenada desc).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const estudoBaseMap = new Map<string, any>();
+      (pidEstudoBase || []).forEach((e: any) => {
+        if (!estudoBaseMap.has(e.corretora_id)) estudoBaseMap.set(e.corretora_id, e);
+      });
 
       // Sucessos de HOJE e execuções em andamento (status correto + progresso)
       const inicioDia = new Date(); inicioDia.setHours(0, 0, 0, 0);
@@ -389,6 +461,8 @@ export default function BIAdminDashboard() {
           const sga = sgaMap.get(c.id);
           const mgf = mgfMap.get(c.id);
           const users = userCountMap.get(c.id) || { total: 0, ativos: 0 };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const estudoBaseInfo = estudoBaseMap.get(c.id) as any;
           return {
             id: c.id, nome: c.nome, slug: c.slug,
             cobranca_status: okCob.has(c.id) ? "sucesso" : cob?.ultimo_status || null, cobranca_ultima: cob?.ultima_execucao || null, cobranca_erro: okCob.has(c.id) ? null : cob?.ultimo_erro || null,
@@ -399,6 +473,7 @@ export default function BIAdminDashboard() {
             cobranca_origem: cob?.ultima_origem || null, eventos_origem: sga?.ultima_origem || null, mgf_origem: mgf?.ultima_origem || null,
             total_usuarios: users.total, usuarios_ativos: users.ativos,
             em_execucao: runMap.has(c.id), exec_modulo: runMap.get(c.id)?.modulo ?? null, exec_etapa: runMap.get(c.id)?.etapa ?? null, exec_progresso: runMap.get(c.id)?.progresso ?? null,
+            estudo_base_ativo: !!estudoBaseInfo, estudo_base_ultima: estudoBaseInfo?.updated_at || null,
           };
         }),
       );
@@ -438,6 +513,37 @@ export default function BIAdminDashboard() {
       toast.error("Erro ao sincronizar: " + (e instanceof Error ? e.message : "desconhecido"));
     } finally {
       setSyncingAll(false);
+    }
+  };
+
+  const [syncingIndicadores, setSyncingIndicadores] = useState(false);
+
+  // Força a MESMA compilação (RPC agregar_estudo_base) para todas as
+  // associações de uma vez — não busca nada novo na Hinova, só recompila os
+  // indicadores a partir da base de veículos já importada de cada uma.
+  const sincronizarIndicadoresTodas = async () => {
+    setSyncingIndicadores(true);
+    try {
+      const results = await Promise.allSettled(
+        associacoes.map((a) =>
+          supabase.rpc("agregar_estudo_base", { p_corretora_id: a.id, p_data_referencia: null }),
+        ),
+      );
+      let ok = 0;
+      let erros = 0;
+      results.forEach((r) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (r.status === "fulfilled" && !r.value.error && (r.value.data as any)?.success !== false) ok++;
+        else erros++;
+      });
+      if (ok > 0) toast.success(`Indicadores recompilados: ${ok}/${associacoes.length} associações`);
+      else toast.error("Nenhuma associação foi recompilada");
+      if (erros > 0) toast.warning(`${erros} associação(ões) sem base para compilar ou com erro`);
+      setTimeout(loadData, 1500);
+    } catch (e) {
+      toast.error("Erro ao recompilar indicadores: " + (e instanceof Error ? e.message : "desconhecido"));
+    } finally {
+      setSyncingIndicadores(false);
     }
   };
 
@@ -507,6 +613,17 @@ export default function BIAdminDashboard() {
           <Button size="sm" className="gap-1.5 rounded-xl" disabled={syncingAll} onClick={sincronizarTodas}>
             {syncingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
             Sincronizar Todas
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 rounded-xl"
+            disabled={syncingIndicadores}
+            onClick={sincronizarIndicadoresTodas}
+            title="Recompila os Indicadores (Estudo de Base) de todas as associações a partir da base de veículos já importada"
+          >
+            {syncingIndicadores ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Sincronizar Indicadores
           </Button>
         </div>
       </div>
