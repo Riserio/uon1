@@ -5,7 +5,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import PIDDashboard from "@/components/portal/PIDDashboard";
 import PIDOperacional from "@/components/portal/PIDOperacional";
-import PIDEstudoBase from "@/components/portal/PIDEstudoBase";
 import PIDHistorico from "@/components/portal/PIDHistorico";
 import PortalSinistros from "@/components/portal/PortalSinistros";
 import { GestaoAssociacaoKanban } from "@/components/gestao-associacao/GestaoAssociacaoKanban";
@@ -146,8 +145,6 @@ export default function Portal() {
       navigate(`/portal/mgf-insights?associacao=${corretoraData.id}`, { replace: true });
     } else if (modulos.includes('cobranca')) {
       navigate(`/portal/cobranca-insights?associacao=${corretoraData.id}`, { replace: true });
-    } else if (modulos.includes('estudo-base')) {
-      navigate(`/portal/estudo-base-insights?associacao=${corretoraData.id}`, { replace: true });
     } else if (modulos.includes('acompanhamento-eventos')) {
       navigate(`/portal/acompanhamento-eventos?associacao=${corretoraData.id}`, { replace: true });
     } else if (modulos.includes('ouvidoria')) {
@@ -284,19 +281,17 @@ export default function Portal() {
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "operacional", label: "Operacional", icon: Activity },
-    { id: "estudo-base", label: "Estudo de Base", icon: Car },
     { id: "historico", label: "Histórico", icon: Calendar },
     { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
     { id: "comite", label: "Comitê", icon: MessageSquare },
   ];
 
   // Lista de módulos disponíveis para o carrossel
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base')[] = [
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca')[] = [
     ...(corretora.modulos_bi.includes('indicadores') ? ['indicadores'] as const : []),
     ...(corretora.modulos_bi.includes('eventos') ? ['eventos'] as const : []),
     ...(corretora.modulos_bi.includes('mgf') ? ['mgf'] as const : []),
     ...(corretora.modulos_bi.includes('cobranca') ? ['cobranca'] as const : []),
-    ...(corretora.modulos_bi.includes('estudo-base') ? ['estudo-base'] as const : []),
   ];
 
   // When inside PortalLayout, just render content (no header/wrapper)
@@ -319,7 +314,6 @@ export default function Portal() {
           </div>
           <TabsContent value="dashboard" className="space-y-4 mt-0"><PIDDashboard corretoraId={corretora.id} /></TabsContent>
           <TabsContent value="operacional" className="space-y-4 mt-0"><PIDOperacional corretoraId={corretora.id} /></TabsContent>
-          <TabsContent value="estudo-base" className="space-y-4 mt-0"><PIDEstudoBase corretoraId={corretora.id} /></TabsContent>
           <TabsContent value="historico" className="space-y-4 mt-0"><PIDHistorico corretoraId={corretora.id} /></TabsContent>
           <TabsContent value="sinistros" className="space-y-4 mt-0"><PortalSinistros corretoraId={corretora.id} /></TabsContent>
           <TabsContent value="comite" className="space-y-4 mt-0"><PortalComite corretoraId={corretora.id} /></TabsContent>
@@ -361,8 +355,7 @@ export default function Portal() {
               </div>
               <TabsContent value="dashboard" className="space-y-4 mt-0"><PIDDashboard corretoraId={corretora.id} /></TabsContent>
               <TabsContent value="operacional" className="space-y-4 mt-0"><PIDOperacional corretoraId={corretora.id} /></TabsContent>
-              <TabsContent value="estudo-base" className="space-y-4 mt-0"><PIDEstudoBase corretoraId={corretora.id} /></TabsContent>
-              <TabsContent value="historico" className="space-y-4 mt-0"><PIDHistorico corretoraId={corretora.id} /></TabsContent>
+                  <TabsContent value="historico" className="space-y-4 mt-0"><PIDHistorico corretoraId={corretora.id} /></TabsContent>
               <TabsContent value="sinistros" className="space-y-4 mt-0"><PortalSinistros corretoraId={corretora.id} /></TabsContent>
               <TabsContent value="comite" className="space-y-4 mt-0"><PortalComite corretoraId={corretora.id} /></TabsContent>
             </Tabs>

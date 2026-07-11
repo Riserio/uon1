@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePortalCarouselOptional } from "@/contexts/PortalCarouselContext";
 
-type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'ouvidoria';
+type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'acompanhamento-eventos' | 'ouvidoria';
 
 type Props = {
   corretoraId: string;
@@ -24,7 +24,6 @@ const MODULE_LABELS: Record<PortalModule, string> = {
   eventos: 'Eventos',
   mgf: 'MGF',
   cobranca: 'Cobrança',
-  'estudo-base': 'Estudo de Base',
   'acompanhamento-eventos': 'Acompanhamento',
   ouvidoria: 'Ouvidoria',
 };

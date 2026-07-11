@@ -341,8 +341,33 @@ serve(async (req) => {
         return null;
       };
 
-      // Busca associados para preencher CIDADE/ESTADO (o veículo não traz endereço)
-      const assocMap = new Map<string, { cidade: string | null; estado: string | null }>();
+      // Busca associados para preencher CIDADE/ESTADO e dados demográficos
+      // (SEXO, ESTADO CIVIL e IDADE — o veículo não traz esses dados)
+      const idadeFromNascimento = (v: unknown): number | null => {
+        if (!v || typeof v !== "string") return null;
+        let dt: Date | null = null;
+        const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        const br = v.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (iso && iso[1] !== "9999" && iso[1] !== "0000") {
+          dt = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+        } else if (br) {
+          dt = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+        }
+        if (!dt || Number.isNaN(dt.getTime())) return null;
+        const idade = Math.floor((Date.now() - dt.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+        return idade > 0 && idade < 130 ? idade : null;
+      };
+      const normalizaSexo = (v: unknown): string | null => {
+        const s = String(v ?? "").trim().toUpperCase();
+        if (!s) return null;
+        if (s.startsWith("M")) return "MASCULINO";
+        if (s.startsWith("F")) return "FEMININO";
+        return s;
+      };
+      const assocMap = new Map<
+        string,
+        { cidade: string | null; estado: string | null; sexo: string | null; estado_civil: string | null; idade: number | null }
+      >();
       try {
         const ar = await fetch(`${base}/listar/associado`, { method: "POST", headers: H, body: JSON.stringify({}) });
         const aj = await ar.json().catch(() => null);
@@ -351,10 +376,16 @@ serve(async (req) => {
         for (const a of aarr as any[]) {
           const cod = String(a.codigo_associado ?? a.codigo ?? "");
           if (cod)
-            assocMap.set(cod, { cidade: a.cidade ?? a.cidade_associado ?? null, estado: a.estado ?? a.uf ?? null });
+            assocMap.set(cod, {
+              cidade: a.cidade ?? a.cidade_associado ?? null,
+              estado: a.estado ?? a.uf ?? null,
+              sexo: normalizaSexo(a.sexo ?? a.sexo_associado),
+              estado_civil: (a.estado_civil ?? a.estado_civil_associado ?? null) as string | null,
+              idade: int(a.idade) ?? idadeFromNascimento(a.data_nascimento ?? a.nascimento ?? a.data_nascimento_associado),
+            });
         }
       } catch (_e) {
-        /* segue sem cidade/estado */
+        /* segue sem cidade/estado/demografia */
       }
 
       // Mapear -> Cadastro (lista bruta)
@@ -405,6 +436,14 @@ serve(async (req) => {
           cidade_veiculo: (g(v, "cidade", "cidade_veiculo") as string | null) || assocE?.cidade || null,
           estado: (g(v, "estado", "uf") as string | null) || assocE?.estado || null,
           voluntario: g(v, "voluntario") as string | null,
+          // Demografia do associado (Sexo / Estado Civil / Faixa Etária no BI)
+          sexo: normalizaSexo(g(v, "sexo", "sexo_associado")) || assocE?.sexo || null,
+          estado_civil: (g(v, "estado_civil", "estado_civil_associado") as string | null) || assocE?.estado_civil || null,
+          idade_associado:
+            int(g(v, "idade_associado", "idade")) ??
+            idadeFromNascimento(g(v, "data_nascimento", "nascimento") as string | null) ??
+            assocE?.idade ??
+            null,
         };
       });
 

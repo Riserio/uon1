@@ -37,8 +37,8 @@ export default function PortalHeader({
   const carousel = usePortalCarouselOptional();
   const navigate = useNavigate();
   
-  // Identificador para URLs (slug ou id)
-  const assocKey = corretora.slug || corretora.id;
+  // Identificador para URLs — sempre o id (trabalhamos SEM slug)
+  const assocKey = corretora.id;
   
   // Verificar permissões de módulos
   const hasModulo = (modulo: string) => corretora.modulos_bi.includes(modulo);
@@ -46,15 +46,14 @@ export default function PortalHeader({
   const hasEventos = hasModulo('eventos');
   const hasMGF = hasModulo('mgf');
   const hasCobranca = hasModulo('cobranca');
-  const hasEstudoBase = hasModulo('estudo-base');
 
   // Lista de módulos disponíveis para o carrossel
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'ouvidoria')[] = [
+  // ("estudo-base" removido do Portal do Parceiro — mantido apenas no BI interno)
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'acompanhamento-eventos' | 'ouvidoria')[] = [
     ...(hasIndicadores ? ['indicadores'] as const : []),
     ...(hasEventos ? ['eventos'] as const : []),
     ...(hasMGF ? ['mgf'] as const : []),
     ...(hasCobranca ? ['cobranca'] as const : []),
-    ...(hasEstudoBase ? ['estudo-base'] as const : []),
     ...(hasAcompanhamento ? ['acompanhamento-eventos'] as const : []),
     ...(hasOuvidoria ? ['ouvidoria'] as const : []),
   ];
@@ -63,8 +62,8 @@ export default function PortalHeader({
   const modulosDisponiveis = availableModules.length;
 
   // For prefetch, use only prefetch-compatible module
-  const prefetchModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' = 
-    (currentModule === 'acompanhamento-eventos' || currentModule === 'ouvidoria') ? 'indicadores' : (currentModule || 'indicadores');
+  const prefetchModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' =
+    (currentModule === 'acompanhamento-eventos' || currentModule === 'ouvidoria' || currentModule === 'estudo-base') ? 'indicadores' : (currentModule || 'indicadores');
 
   // Pré-carregar dados dos outros módulos em segundo plano. 'cobranca' é
   // excluída aqui: a tela de Cobrança usa RPCs server-side (rápidas o
@@ -104,10 +103,10 @@ export default function PortalHeader({
               {/* Controles do carrossel - oculto no mobile */}
               {showCarouselControls && modulosDisponiveis > 1 && currentModule && (
                 <div className="hidden md:flex">
-                  <PortalCarouselControls 
+                  <PortalCarouselControls
                     corretoraId={corretora.id}
                     availableModules={availableModules}
-                    currentModule={currentModule || 'indicadores'}
+                    currentModule={!currentModule || currentModule === 'estudo-base' ? 'indicadores' : currentModule}
                   />
                 </div>
               )}
@@ -225,28 +224,6 @@ export default function PortalHeader({
                 >
                   <DollarSign className="h-4 w-4" />
                   <span>Cobrança</span>
-                </Button>
-              )}
-              {hasEstudoBase && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (carousel) {
-                      carousel.goToModule('estudo-base');
-                    } else {
-                      navigate(`/portal/estudo-base-insights?associacao=${assocKey}`);
-                    }
-                  }}
-                  disabled={carousel?.config.enabled}
-                  className={`gap-2 shrink-0 transition-all duration-300 ${
-                    currentModule === 'estudo-base' 
-                      ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
-                      : 'hover:bg-muted'
-                  } ${carousel?.config.enabled ? 'opacity-70 cursor-not-allowed' : ''}`}
-                >
-                  <Car className="h-4 w-4" />
-                  <span>Estudo de Base</span>
                 </Button>
               )}
               {hasAcompanhamento && (

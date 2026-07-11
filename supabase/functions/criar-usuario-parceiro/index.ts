@@ -203,9 +203,8 @@ serve(async (req) => {
         .single();
 
       if (template) {
-        const portalUrl = corretora?.slug
-          ? `https://uon1.lovable.app/portal/${corretora.slug}/login`
-          : "https://uon1.lovable.app";
+        // Trabalhamos SEM slug — o link é sempre o principal (vangard.uon1.com.br).
+        const portalUrl = "https://vangard.uon1.com.br/portal";
 
         // Substituir variáveis do template
         const replaceVars = (text: string) =>

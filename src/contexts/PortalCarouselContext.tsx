@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { useNavigate, useLocation } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'ouvidoria';
+type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'acompanhamento-eventos' | 'ouvidoria';
 
 type CarouselConfig = {
   enabled: boolean;
@@ -25,7 +25,7 @@ type CarouselContextType = {
 const defaultConfig: CarouselConfig = {
   enabled: false,
   interval: 30,
-  visibleModules: ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base', 'acompanhamento-eventos'],
+  visibleModules: ['indicadores', 'eventos', 'mgf', 'cobranca', 'acompanhamento-eventos'],
 };
 
 const CarouselContext = createContext<CarouselContextType | null>(null);
@@ -85,7 +85,7 @@ export function PortalCarouselProvider({
   const activeModules = config.visibleModules.filter(m => availableModules.includes(m));
 
   const getModuleUrl = useCallback((module: PortalModule) => {
-    const key = corretoraSlug || corretoraId;
+    const key = corretoraId; // sempre o id (trabalhamos SEM slug)
     switch (module) {
       case 'indicadores':
         return `/portal?associacao=${key}`;
@@ -95,8 +95,6 @@ export function PortalCarouselProvider({
         return `/portal/mgf-insights?associacao=${key}`;
       case 'cobranca':
         return `/portal/cobranca-insights?associacao=${key}`;
-      case 'estudo-base':
-        return `/portal/estudo-base-insights?associacao=${key}`;
       case 'acompanhamento-eventos':
         return `/portal/acompanhamento-eventos?associacao=${key}`;
       case 'ouvidoria':

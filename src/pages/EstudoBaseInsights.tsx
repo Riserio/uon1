@@ -266,12 +266,11 @@ export default function EstudoBaseInsights() {
     navigate("/portal", { replace: true });
   };
 
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base')[] = [
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca')[] = [
     ...(modulosBi.includes('indicadores') ? ['indicadores'] as const : []),
     ...(modulosBi.includes('eventos') ? ['eventos'] as const : []),
     ...(modulosBi.includes('mgf') ? ['mgf'] as const : []),
     ...(modulosBi.includes('cobranca') ? ['cobranca'] as const : []),
-    ...(modulosBi.includes('estudo-base') ? ['estudo-base'] as const : []),
   ];
 
   const mainContent = (
@@ -466,7 +465,7 @@ export default function EstudoBaseInsights() {
       <PortalCarouselProvider
         corretoraId={selectedAssociacao}
         availableModules={availableModules}
-        currentModule="estudo-base"
+        currentModule="indicadores"
       >
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
           <PortalPageWrapper>

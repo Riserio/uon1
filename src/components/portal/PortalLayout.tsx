@@ -17,7 +17,6 @@ const moduleMap: Record<string, PortalModule> = {
   '/portal/sga-insights': 'eventos',
   '/portal/mgf-insights': 'mgf',
   '/portal/cobranca-insights': 'cobranca',
-  '/portal/estudo-base-insights': 'estudo-base',
   '/portal/acompanhamento-eventos': 'acompanhamento-eventos',
   '/portal/ouvidoria': 'ouvidoria',
 };
@@ -131,7 +130,6 @@ export default function PortalLayout() {
     ...(corretora.modulos_bi.includes('eventos') ? ['eventos'] as const : []),
     ...(corretora.modulos_bi.includes('mgf') ? ['mgf'] as const : []),
     ...(corretora.modulos_bi.includes('cobranca') ? ['cobranca'] as const : []),
-    ...(corretora.modulos_bi.includes('estudo-base') ? ['estudo-base'] as const : []),
     ...(corretora.modulos_bi.includes('acompanhamento-eventos') ? ['acompanhamento-eventos'] as const : []),
     ...(corretora.modulos_bi.includes('ouvidoria') ? ['ouvidoria'] as const : []),
   ];

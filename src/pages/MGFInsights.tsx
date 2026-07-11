@@ -424,12 +424,11 @@ export default function MGFInsights() {
   };
 
   // Montar lista de módulos disponíveis para o carrossel
-  const availableModules: ("indicadores" | "eventos" | "mgf" | "cobranca" | "estudo-base")[] = [
+  const availableModules: ("indicadores" | "eventos" | "mgf" | "cobranca")[] = [
     ...(modulosBi.includes("indicadores") ? (["indicadores"] as const) : []),
     ...(modulosBi.includes("eventos") ? (["eventos"] as const) : []),
     ...(modulosBi.includes("mgf") ? (["mgf"] as const) : []),
     ...(modulosBi.includes("cobranca") ? (["cobranca"] as const) : []),
-    ...(modulosBi.includes("estudo-base") ? (["estudo-base"] as const) : []),
   ];
 
   // Filtros globais já normalizados para RPC (null quando "all"/vazio),

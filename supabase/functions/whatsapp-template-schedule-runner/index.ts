@@ -235,20 +235,6 @@ function sanitizeParam(v: any): string {
   );
 }
 
-// Gera um slug URL-safe a partir de um texto qualquer (ex.: o nome da corretora).
-// Usado como FALLBACK do sufixo do botão dinâmico quando a corretora não tem
-// `slug` cadastrado — assim o parâmetro do botão NUNCA vai vazio, o que
-// dispararia o erro #132012 ("Parameter format does not match format...").
-function slugify(s?: string): string {
-  return (s || "")
-    .normalize("NFD")
-    .replace(/[^\x00-\x7F]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 function buildParameters(schedule: any, dados: Record<string, any>): { type: "text"; text: string }[] {
   const order: string[] =
     Array.isArray(schedule.variable_map?.order) && schedule.variable_map.order.length > 0
@@ -336,24 +322,13 @@ async function sendTemplate(
       // Botão "Abrir Painel" (URL dinâmica) — o sufixo enviado aqui substitui
       // o {{1}} no final da URL base configurada no template.
       //
-      // IMPORTANTE: como o botão é DINÂMICO, a Meta EXIGE um parâmetro não-vazio.
-      // Um sufixo vazio (corretora sem `slug`) dispara o erro #132012
-      // ("Parameter format does not match format in the created template").
-      // Por isso caímos para um slug derivado do nome da corretora e, em último
-      // caso, para "portal", garantindo que o parâmetro NUNCA vá vazio.
+      // IMPORTANTE: trabalhamos SEM slug de corretora — o link é sempre o
+      // principal (https://vangard.uon1.com.br). Como o botão é DINÂMICO, a
+      // Meta EXIGE um parâmetro não-vazio (vazio dispara o erro #132012), por
+      // isso enviamos sempre o sufixo fixo "portal" (vangard.uon1.com.br/portal),
+      // nunca o slug da corretora.
       if (expected.hasUrlButton) {
-        const base = (corretoraSlug && corretoraSlug.trim()) || slugify(headerText) || "portal";
-        // Meta rejeita parâmetros de botão URL dinâmico com caracteres
-        // problemáticos (espaços, quebras, muitas vezes também '/'). Como o
-        // {{1}} normalmente representa apenas o segmento final da URL base
-        // (ex.: https://uon1.com.br/{{1}}), enviamos APENAS o slug — sem
-        // "/dashboard" — para evitar o erro #132012.
-        const suffix = slugify(base) || "portal";
-        if (!corretoraSlug || !corretoraSlug.trim()) {
-          console.warn(
-            `[whatsapp-template-schedule-runner] Corretora sem slug — usando fallback "${suffix}" no botão. Cadastre o slug real para o link abrir corretamente.`,
-          );
-        }
+        const suffix = "portal";
         components.push({
           type: "button",
           sub_type: "url",

@@ -26,12 +26,10 @@ import {
   Building2,
   Activity,
   ChevronDown,
-  Globe,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
-import SGAConsultaHinova from "@/components/sga/SGAConsultaHinova";
 import SGAImportacao from "@/components/sga/SGAImportacao";
 import SGAMapa from "@/components/sga/SGAMapa";
 import SGATabela from "@/components/sga/SGATabela";
@@ -399,7 +397,6 @@ export default function SGAInsights() {
         { id: "mapa", label: "Mapa Geográfico", icon: Map },
         { id: "tabela", label: "Dados Completos", icon: Database },
         { id: "importar", label: "Importar Dados", icon: Upload },
-        { id: "consulta-sga", label: "Consulta SGA", icon: Globe },
       ];
 
   const handlePortalLogout = async () => {
@@ -412,12 +409,11 @@ export default function SGAInsights() {
   };
 
   // Montar lista de módulos disponíveis para o carrossel
-  const availableModules: ("indicadores" | "eventos" | "mgf" | "cobranca" | "estudo-base")[] = [
+  const availableModules: ("indicadores" | "eventos" | "mgf" | "cobranca")[] = [
     ...(modulosBi.includes("indicadores") ? (["indicadores"] as const) : []),
     ...(modulosBi.includes("eventos") ? (["eventos"] as const) : []),
     ...(modulosBi.includes("mgf") ? (["mgf"] as const) : []),
     ...(modulosBi.includes("cobranca") ? (["cobranca"] as const) : []),
-    ...(modulosBi.includes("estudo-base") ? (["estudo-base"] as const) : []),
   ];
 
   const portalContent = (
@@ -757,11 +753,6 @@ export default function SGAInsights() {
             </TabsContent>
           )}
 
-          {!isPortalAccess && (
-            <TabsContent value="consulta-sga">
-              <SGAConsultaHinova corretoraId={selectedAssociacao} corretoraNome={selectedAssociacaoNome} />
-            </TabsContent>
-          )}
         </Tabs>
       </div>
 

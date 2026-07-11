@@ -239,8 +239,8 @@ serve(async (req) => {
     }
 
     // ----- Rodapé: wordmark + link à esquerda, botão "Abrir Painel" à direita -----
-    const slug = corretora?.slug;
-    const painelUrl = slug ? `${PAINEL_BASE}/${slug}/dashboard` : null;
+    // Trabalhamos SEM slug — o link é sempre o principal (vangard.uon1.com.br).
+    const painelUrl = `${PAINEL_BASE}/portal`;
 
     const footerY = 118;
     page.drawRectangle({
