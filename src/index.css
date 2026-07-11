@@ -169,3 +169,17 @@ All colors MUST be HSL.
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+
+/* Push OneSignal (slidedown de permissão de notificação): visual arredondado
+   no padrão do sistema (mesmo --radius usado nos cards, e --radius - 2px
+   nos botões, igual ao componente Button). */
+#onesignal-slidedown-container #onesignal-slidedown-dialog {
+  border-radius: var(--radius) !important;
+  overflow: hidden;
+}
+
+#onesignal-slidedown-container #onesignal-slidedown-dialog .slidedown-button.primary,
+#onesignal-slidedown-container #onesignal-slidedown-dialog .slidedown-button.secondary {
+  border-radius: calc(var(--radius) - 2px) !important;
+}
