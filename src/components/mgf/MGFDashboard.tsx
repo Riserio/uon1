@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -21,10 +22,20 @@ import {
 } from "lucide-react";
 
 interface MGFDashboardProps {
-  dados: any[];
+  stats: any | null;
   colunas: string[];
   loading: boolean;
   associacaoNome: string;
+  corretoraId: string;
+  operacao: string | null;
+  subOperacao: string | null;
+  situacao: string | null;
+  cooperativa: string | null;
+  regional: string | null;
+  formaPagamento: string | null;
+  tipoVeiculo: string | null;
+  dataInicio: string | null;
+  dataFim: string | null;
 }
 
 const COLORS = ["#f97316", "#fb923c", "#fdba74", "#0ea5e9", "#06b6d4", "#14b8a6", "#22c55e", "#84cc16", "#eab308", "#ef4444"];
@@ -130,7 +141,10 @@ function RadialProgress({ value, label, color }: { value: number; label: string;
   );
 }
 
-export default function MGFDashboard({ dados, colunas, loading, associacaoNome }: MGFDashboardProps) {
+export default function MGFDashboard({
+  stats, colunas, loading, associacaoNome, corretoraId,
+  operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim,
+}: MGFDashboardProps) {
   const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('mes');
   const evolucaoScrollRef = useRef<HTMLDivElement>(null);
   const [showScroll, setShowScroll] = useState({ left: false, right: false });
@@ -145,157 +159,24 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     evolucaoScrollRef.current?.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
   };
 
-  const stats = useMemo(() => {
-    if (!dados.length) return null;
+  // Os dados já vêm agregados e prontos da RPC get_dashboard_mgf_cached — só
+  // formatamos mesLabel/diaLabel no cliente (mesma lógica de antes, aplicada
+  // sobre os arrays já prontos em vez de recalculá-los a partir do array bruto).
+  const timelineData = useMemo(() => {
+    if (!stats?.timelineData) return [];
+    return stats.timelineData.map((d: any) => ({
+      ...d,
+      mesLabel: new Date(d.mes + "-01").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+    }));
+  }, [stats?.timelineData]);
 
-    const isPago = (d: any) => {
-      const sit = d.situacao_pagamento?.toLowerCase() || '';
-      return sit.includes('pago') || sit.includes('paga') || !!d.data_pagamento;
-    };
-
-    // Lançamentos que NÃO são obrigações reais (cancelados/excluídos/estornados).
-    // Não devem contar como pago / a pagar / a vencer / vencido.
-    const isInativo = (d: any) => {
-      const sit = d.situacao_pagamento?.toLowerCase() || '';
-      return sit.includes('cancel') || sit.includes('exclu') || sit.includes('estorn');
-    };
-
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    hoje.setHours(0, 0, 0, 0);
-
-    const totalRegistros = dados.length;
-    const valorTotal = dados.reduce((acc, d) => acc + (d.valor || 0), 0);
-    const pagos = dados.filter(d => !isInativo(d) && isPago(d));
-    const valorPago = pagos.reduce((acc, d) => acc + (d.valor_pagamento || d.valor || 0), 0);
-    const qtdPagos = pagos.length;
-    const aPagar = dados.filter(d => !isInativo(d) && !isPago(d));
-    const valorAPagar = aPagar.reduce((acc, d) => acc + (d.valor || 0), 0);
-    const qtdAPagar = aPagar.length;
-    const vencidos = dados.filter(d => {
-      if (isInativo(d)) return false;
-      if (isPago(d)) return false;
-      if (!d.data_vencimento) return false;
-      return new Date(d.data_vencimento) < hoje;
-    });
-    const valorVencido = vencidos.reduce((acc, d) => acc + (d.valor || 0), 0);
-    const qtdVencidos = vencidos.length;
-    const totalMulta = dados.reduce((acc, d) => acc + (d.multa || 0), 0);
-    const totalJuros = dados.reduce((acc, d) => acc + (d.juros || 0), 0);
-    const ticketMedio = valorTotal / totalRegistros;
-    const fornecedoresUnicos = new Set(dados.filter(d => d.fornecedor || d.nome_fantasia_fornecedor).map(d => d.fornecedor || d.nome_fantasia_fornecedor)).size;
-    const taxaPagamento = valorTotal > 0 ? (valorPago / valorTotal) * 100 : 0;
-
-    // Contagem (apenas quantidade) dos lançamentos fora do cálculo financeiro.
-    const sitLower = (d: any) => d.situacao_pagamento?.toLowerCase() || '';
-    const qtdCanceladas = dados.filter(d => sitLower(d).includes('cancel')).length;
-    const qtdExcluidas = dados.filter(d => sitLower(d).includes('exclu')).length;
-    const qtdEstornadas = dados.filter(d => sitLower(d).includes('estorn')).length;
-
-    const filterAVencer = (fim: number) => {
-      const f = new Date(hoje); f.setDate(f.getDate() + fim);
-      return dados.filter(d => {
-        if (isPago(d)) return false;
-        if (isInativo(d)) return false;
-        if (!d.data_vencimento) return false;
-        const venc = new Date(d.data_vencimento);
-        return venc >= hoje && venc <= f;
-      });
-    };
-    const aVencer7 = filterAVencer(7);
-    const aVencer15 = filterAVencer(15);
-    const aVencer30 = filterAVencer(30);
-    const aVencer60 = filterAVencer(60);
-    const aVencer90 = filterAVencer(90);
-
-    const buildRanking = (field: string, valueField?: string, limit = 10) => {
-      const map: Record<string, { count: number; valor: number }> = {};
-      dados.forEach(d => {
-        const k = d[field] || "Não informado";
-        if (k === "Não informado") return;
-        map[k] = map[k] || { count: 0, valor: 0 };
-        map[k].count += 1;
-        map[k].valor += d[valueField || 'valor'] || 0;
-      });
-      return Object.entries(map).map(([name, v]) => ({ name, value: v.valor, count: v.count })).sort((a, b) => b.value - a.value).slice(0, limit);
-    };
-
-    const buildCountRanking = (field: string, limit = 10) => {
-      const map: Record<string, number> = {};
-      dados.forEach(d => {
-        const k = d[field] || "Não informado";
-        if (k !== "Não informado") map[k] = (map[k] || 0) + 1;
-      });
-      return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, limit);
-    };
-
-    const porMes = dados.reduce((acc: any, d) => {
-      const dataRef = d.data_vencimento || d.data_evento || d.data_nota_fiscal;
-      if (dataRef) {
-        const date = new Date(dataRef);
-        if (!isNaN(date.getTime())) {
-          const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-          acc[key] = acc[key] || { count: 0, valor: 0, pago: 0 };
-          acc[key].count += 1;
-          acc[key].valor += d.valor || 0;
-          if (isPago(d)) {
-            acc[key].pago += d.valor_pagamento || d.valor || 0;
-          }
-        }
-      }
-      return acc;
-    }, {});
-    const timelineData = Object.entries(porMes)
-      .map(([mes, d]: [string, any]) => ({
-        mes, mesLabel: new Date(mes + "-01").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
-        count: d.count, valor: d.valor, pago: d.pago,
-      })).sort((a, b) => a.mes.localeCompare(b.mes));
-
-    const porDia = dados.reduce((acc: any, d) => {
-      const dataRef = d.data_vencimento || d.data_evento || d.data_nota_fiscal;
-      if (dataRef) {
-        const date = new Date(dataRef);
-        if (!isNaN(date.getTime())) {
-          const key = date.toISOString().split('T')[0];
-          acc[key] = acc[key] || { count: 0, valor: 0, pago: 0 };
-          acc[key].count += 1;
-          acc[key].valor += d.valor || 0;
-          if (isPago(d)) {
-            acc[key].pago += d.valor_pagamento || d.valor || 0;
-          }
-        }
-      }
-      return acc;
-    }, {});
-    const timelineDiaData = Object.entries(porDia)
-      .map(([dia, d]: [string, any]) => ({
-        dia, diaLabel: new Date(dia + 'T12:00:00').toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' }),
-        count: d.count, valor: d.valor, pago: d.pago,
-      })).sort((a, b) => a.dia.localeCompare(b.dia));
-
-    return {
-      totalRegistros, valorTotal, valorPago, qtdPagos, valorAPagar, qtdAPagar,
-      valorVencido, qtdVencidos, totalMulta, totalJuros, ticketMedio, fornecedoresUnicos, taxaPagamento,
-      qtdAVencer7: aVencer7.length, valorAVencer7: aVencer7.reduce((acc, d) => acc + (d.valor || 0), 0),
-      qtdAVencer15: aVencer15.length, valorAVencer15: aVencer15.reduce((acc, d) => acc + (d.valor || 0), 0),
-      qtdAVencer30: aVencer30.length, valorAVencer30: aVencer30.reduce((acc, d) => acc + (d.valor || 0), 0),
-      qtdAVencer60: aVencer60.length, valorAVencer60: aVencer60.reduce((acc, d) => acc + (d.valor || 0), 0),
-      qtdAVencer90: aVencer90.length, valorAVencer90: aVencer90.reduce((acc, d) => acc + (d.valor || 0), 0),
-      qtdCanceladas, qtdExcluidas, qtdEstornadas,
-      operacaoData: buildRanking("operacao"),
-      subOperacaoData: buildRanking("sub_operacao"),
-      situacaoData: buildRanking("situacao_pagamento"),
-      fornecedorData: buildRanking("fornecedor"),
-      cooperativaData: buildRanking("cooperativa"),
-      formaPagamentoData: buildRanking("forma_pagamento"),
-      regionalData: buildRanking("regional"),
-      tipoVeiculoData: buildRanking("tipo_veiculo"),
-      centroCustoData: buildRanking("centro_custo"),
-      motivoEventoData: buildRanking("motivo_evento"),
-      associadoData: buildRanking("associado"),
-      timelineData, timelineDiaData,
-    };
-  }, [dados]);
+  const timelineDiaData = useMemo(() => {
+    if (!stats?.timelineDiaData) return [];
+    return stats.timelineDiaData.map((d: any) => ({
+      ...d,
+      diaLabel: new Date(d.dia + 'T12:00:00').toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' }),
+    }));
+  }, [stats?.timelineDiaData]);
 
   useEffect(() => {
     const el = evolucaoScrollRef.current;
@@ -303,17 +184,17 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     const now = new Date();
     const currentMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const currentDia = now.toISOString().split('T')[0];
-    if (evolucaoView === 'mes' && stats.timelineData.length > 0) {
-      let idx = stats.timelineData.findIndex(d => d.mes === currentMes);
-      if (idx === -1) idx = stats.timelineData.length - 1;
+    if (evolucaoView === 'mes' && timelineData.length > 0) {
+      let idx = timelineData.findIndex((d: any) => d.mes === currentMes);
+      if (idx === -1) idx = timelineData.length - 1;
       el.scrollTo({ left: Math.max(0, idx * 70 - el.clientWidth / 2 + 35), behavior: 'auto' });
-    } else if (evolucaoView === 'dia' && stats.timelineDiaData.length > 0) {
-      let idx = stats.timelineDiaData.findIndex(d => d.dia === currentDia);
-      if (idx === -1) idx = stats.timelineDiaData.length - 1;
+    } else if (evolucaoView === 'dia' && timelineDiaData.length > 0) {
+      let idx = timelineDiaData.findIndex((d: any) => d.dia === currentDia);
+      if (idx === -1) idx = timelineDiaData.length - 1;
       el.scrollTo({ left: Math.max(0, idx * 45 - el.clientWidth / 2 + 22), behavior: 'auto' });
     }
     setTimeout(updateScrollIndicators, 100);
-  }, [stats?.timelineData, stats?.timelineDiaData, evolucaoView]);
+  }, [timelineData, timelineDiaData, evolucaoView, stats]);
 
   if (loading) {
     return (
@@ -323,7 +204,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     );
   }
 
-  if (!dados.length) {
+  if (!stats || !stats.totalRegistros) {
     return (
       <Card className="rounded-2xl border-dashed">
         <CardContent className="flex flex-col items-center justify-center py-12">
@@ -334,8 +215,6 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       </Card>
     );
   }
-
-  if (!stats) return null;
 
   return (
     <div className="space-y-3">
@@ -403,7 +282,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       )}
 
       {/* Evolução Temporal */}
-      {stats.timelineData.length > 0 && (
+      {timelineData.length > 0 && (
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-2 pt-4 px-5">
             <div className="flex items-center justify-between">
@@ -433,9 +312,9 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
                 </button>
               )}
               <div className="overflow-x-auto scrollbar-hide" ref={evolucaoScrollRef} onScroll={updateScrollIndicators}>
-                <div style={{ minWidth: evolucaoView === 'mes' ? Math.max(700, stats.timelineData.length * 70) + 'px' : Math.max(700, stats.timelineDiaData.length * 45) + 'px' }}>
+                <div style={{ minWidth: evolucaoView === 'mes' ? Math.max(700, timelineData.length * 70) + 'px' : Math.max(700, timelineDiaData.length * 45) + 'px' }}>
                   <ResponsiveContainer width="100%" height={220}>
-                    <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
+                    <AreaChart data={evolucaoView === 'mes' ? timelineData : timelineDiaData} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
                       <defs>
                         <linearGradient id="mgfGradTotal" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#f97316" stopOpacity={0.25} />
@@ -471,7 +350,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             <CardContent className="px-4 pb-4">
               {stats.operacaoData.length <= 6
                 ? <MiniDonut data={stats.operacaoData} isCurrency />
-                : <BarWidget data={stats.operacaoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+                : <BarWidget data={stats.operacaoData.map((d: any, i: number) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
               }
             </CardContent>
           </Card>
@@ -482,7 +361,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por SubOperação</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.subOperacaoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency maxItems={12} />
+              <BarWidget data={stats.subOperacaoData.map((d: any, i: number) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency maxItems={12} />
             </CardContent>
           </Card>
         )}
@@ -524,7 +403,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Regional</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.regionalData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Regional: ${name}`, field: 'regional', value: name })} />
+              <BarWidget data={stats.regionalData.map((d: any, i: number) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Regional: ${name}`, field: 'regional', value: name })} />
             </CardContent>
           </Card>
         )}
@@ -534,7 +413,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><Building2 className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Fornecedor</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.fornecedorData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Fornecedor: ${name}`, field: 'fornecedor', value: name })} />
+              <BarWidget data={stats.fornecedorData.map((d: any, i: number) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Fornecedor: ${name}`, field: 'fornecedor', value: name })} />
             </CardContent>
           </Card>
         )}
@@ -545,7 +424,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><Users className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Cooperativa</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.cooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Cooperativa: ${name}`, field: 'cooperativa', value: name })} />
+              <BarWidget data={stats.cooperativaData.map((d: any, i: number) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Cooperativa: ${name}`, field: 'cooperativa', value: name })} />
             </CardContent>
           </Card>
         )}
@@ -555,7 +434,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Motivo Evento</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.motivoEventoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Motivo: ${name}`, field: 'motivo_evento', value: name })} />
+              <BarWidget data={stats.motivoEventoData.map((d: any, i: number) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Motivo: ${name}`, field: 'motivo_evento', value: name })} />
             </CardContent>
           </Card>
         )}
@@ -565,7 +444,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><BarChart3 className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Centro de Custo</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.centroCustoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Centro de Custo: ${name}`, field: 'centro_custo', value: name })} />
+              <BarWidget data={stats.centroCustoData.map((d: any, i: number) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Centro de Custo: ${name}`, field: 'centro_custo', value: name })} />
             </CardContent>
           </Card>
         )}
@@ -578,7 +457,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             <div className="flex items-center gap-2"><Users className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Top Associados</CardTitle></div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <BarWidget data={stats.associadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Associado: ${name}`, field: 'associado', value: name })} />
+            <BarWidget data={stats.associadoData.map((d: any, i: number) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Associado: ${name}`, field: 'associado', value: name })} />
           </CardContent>
         </Card>
       )}
@@ -587,19 +466,96 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         open={!!drilldown}
         onClose={() => setDrilldown(null)}
         title={drilldown?.title || ''}
-        dados={drilldown ? dados.filter(d => d[drilldown.field] === drilldown.value) : []}
+        field={drilldown?.field || null}
+        value={drilldown?.value || null}
+        corretoraId={corretoraId}
+        operacao={operacao}
+        subOperacao={subOperacao}
+        situacao={situacao}
+        cooperativa={cooperativa}
+        regional={regional}
+        formaPagamento={formaPagamento}
+        tipoVeiculo={tipoVeiculo}
+        dataInicio={dataInicio}
+        dataFim={dataFim}
       />
     </div>
   );
 }
 
-function DrilldownDialog({ open, onClose, title, dados }: {
+interface DrilldownDialogProps {
   open: boolean;
   onClose: () => void;
   title: string;
-  dados: any[];
-}) {
-  const totalValor = dados.reduce((acc, d) => acc + (d.valor || 0), 0);
+  field: string | null;
+  value: string | null;
+  corretoraId: string;
+  operacao: string | null;
+  subOperacao: string | null;
+  situacao: string | null;
+  cooperativa: string | null;
+  regional: string | null;
+  formaPagamento: string | null;
+  tipoVeiculo: string | null;
+  dataInicio: string | null;
+  dataFim: string | null;
+}
+
+// Busca as linhas do drilldown via RPC (até 200 linhas + total real) em vez
+// de filtrar um array já carregado em memória — o clique num item do
+// ranking dispara a busca no banco, escopada pelos mesmos filtros globais
+// da página.
+function DrilldownDialog({
+  open, onClose, title, field, value, corretoraId,
+  operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim,
+}: DrilldownDialogProps) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalValor, setTotalValor] = useState(0);
+  const [loadingDrill, setLoadingDrill] = useState(false);
+
+  useEffect(() => {
+    if (!open || !field || !value || !corretoraId) return;
+    let active = true;
+    setLoadingDrill(true);
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("listar_mgf_por_filtro", {
+          p_corretora_id: corretoraId,
+          p_operacao: operacao,
+          p_sub_operacao: subOperacao,
+          p_situacao: situacao,
+          p_cooperativa: cooperativa,
+          p_regional: regional,
+          p_forma_pagamento: formaPagamento,
+          p_tipo_veiculo: tipoVeiculo,
+          p_data_inicio: dataInicio,
+          p_data_fim: dataFim,
+          p_filter_field: field,
+          p_filter_value: value,
+          p_limit: 200,
+        } as any);
+        if (!active) return;
+        if (error) throw error;
+        const result = (data as any) || {};
+        setRows(result.rows || []);
+        setTotalCount(result.totalCount || 0);
+        setTotalValor(result.totalValor || 0);
+      } catch (error) {
+        console.error("Erro ao buscar detalhamento (drilldown) MGF:", error);
+        if (active) {
+          setRows([]);
+          setTotalCount(0);
+          setTotalValor(0);
+        }
+      } finally {
+        if (active) setLoadingDrill(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [open, field, value, corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -610,40 +566,46 @@ function DrilldownDialog({ open, onClose, title, dados }: {
             {title}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            {dados.length} registro(s) — Total: {formatFullCurrency(totalValor)}
+            {totalCount.toLocaleString('pt-BR')} registro(s) — Total: {formatFullCurrency(totalValor)}
           </p>
         </DialogHeader>
         <ScrollArea className="max-h-[60vh]">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">Descrição</TableHead>
-                <TableHead className="text-xs">Operação</TableHead>
-                <TableHead className="text-xs">Fornecedor</TableHead>
-                <TableHead className="text-xs text-right">Valor</TableHead>
-                <TableHead className="text-xs">Vencimento</TableHead>
-                <TableHead className="text-xs">Situação</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {dados.slice(0, 200).map((d, i) => (
-                <TableRow key={i}>
-                  <TableCell className="text-xs max-w-[200px] truncate" title={d.descricao}>{d.descricao || '-'}</TableCell>
-                  <TableCell className="text-xs">{d.operacao || '-'}</TableCell>
-                  <TableCell className="text-xs max-w-[150px] truncate" title={d.fornecedor}>{d.fornecedor || '-'}</TableCell>
-                  <TableCell className="text-xs text-right font-medium">
-                    {d.valor != null ? formatFullCurrency(d.valor) : '-'}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {d.data_vencimento ? new Date(d.data_vencimento).toLocaleDateString('pt-BR') : '-'}
-                  </TableCell>
-                  <TableCell className="text-xs">{d.situacao_pagamento || '-'}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {dados.length > 200 && (
-            <p className="text-xs text-muted-foreground text-center py-2">Exibindo 200 de {dados.length} registros</p>
+          {loadingDrill ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Carregando...</div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Descrição</TableHead>
+                    <TableHead className="text-xs">Operação</TableHead>
+                    <TableHead className="text-xs">Fornecedor</TableHead>
+                    <TableHead className="text-xs text-right">Valor</TableHead>
+                    <TableHead className="text-xs">Vencimento</TableHead>
+                    <TableHead className="text-xs">Situação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((d, i) => (
+                    <TableRow key={d.id || i}>
+                      <TableCell className="text-xs max-w-[200px] truncate" title={d.descricao}>{d.descricao || '-'}</TableCell>
+                      <TableCell className="text-xs">{d.operacao || '-'}</TableCell>
+                      <TableCell className="text-xs max-w-[150px] truncate" title={d.fornecedor}>{d.fornecedor || '-'}</TableCell>
+                      <TableCell className="text-xs text-right font-medium">
+                        {d.valor != null ? formatFullCurrency(d.valor) : '-'}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {d.data_vencimento ? new Date(d.data_vencimento).toLocaleDateString('pt-BR') : '-'}
+                      </TableCell>
+                      <TableCell className="text-xs">{d.situacao_pagamento || '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {totalCount > rows.length && (
+                <p className="text-xs text-muted-foreground text-center py-2">Exibindo {rows.length} de {totalCount} registros</p>
+              )}
+            </>
           )}
         </ScrollArea>
       </DialogContent>

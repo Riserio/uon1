@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Database, Search, Download, ChevronLeft, ChevronRight, Filter, X, Calendar, Check } from "lucide-react";
+import { Database, Search, Download, ChevronLeft, ChevronRight, Filter, X, Calendar, Check, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -14,11 +14,30 @@ import { ptBR } from "date-fns/locale";
 import { DateRange } from "react-day-picker";
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
+// NOTE (escalabilidade): esta tabela não recebe mais o array cru de
+// lançamentos MGF (algumas corretoras já passavam do teto de 100k linhas
+// que a busca antiga usava — os dados estavam sendo truncados
+// silenciosamente). Ela busca sua própria página via `listar_mgf_paginado`
+// (filtros globais + filtros detalhados + status + período + busca +
+// paginação, tudo no servidor), refazendo a busca a cada mudança de
+// filtro/status/período/busca/página. A busca por texto e o campo "Placa
+// Evento" são debounced em 300ms.
 interface MGFTabelaProps {
-  dados: any[];
-  colunas: string[];
+  corretoraId: string;
+  operacao: string | null;
+  subOperacao: string | null;
+  situacao: string | null;
+  cooperativa: string | null;
+  regional: string | null;
+  formaPagamento: string | null;
+  tipoVeiculo: string | null;
+  dataInicio: string | null;
+  dataFim: string | null;
   loading: boolean;
+  refreshToken?: number;
 }
 
 type StatusKey = "a_vencer" | "vencido" | "pago" | "inativo";
@@ -34,6 +53,8 @@ interface TabelaFilters {
 }
 
 const PAGE_SIZE = 50;
+// Cap de exportação: nunca busca o dataset filtrado inteiro de uma vez.
+const EXPORT_PAGE_SIZE = 20000;
 const PERIODOS: number[] = [7, 15, 30, 60, 90];
 
 const STATUS_OPTS: { key: StatusKey; label: string; onCls: string }[] = [
@@ -103,30 +124,6 @@ const ALL_COLUMNS = [
   { key: "placa_terceiro_evento", label: "Placa Terceiro (Evento)" },
 ];
 
-// É um lançamento pago?
-const isPagoRow = (d: any) => {
-  const sit = d.situacao_pagamento?.toLowerCase() || "";
-  return sit.includes("pago") || sit.includes("paga") || !!d.data_pagamento;
-};
-
-// Lançamentos que NÃO são obrigações reais (cancelados/excluídos/estornados).
-// Mesma regra usada no MGFDashboard — não devem contar como pago / a pagar /
-// a vencer / vencido, para não distorcer os números.
-const isInativoRow = (d: any) => {
-  const sit = d.situacao_pagamento?.toLowerCase() || "";
-  return sit.includes("cancel") || sit.includes("exclu") || sit.includes("estorn");
-};
-
-// Classifica o lançamento em relação a hoje: pago / vencido / a_vencer / inativo.
-const rowVencStatus = (d: any, hoje: Date): StatusKey | null => {
-  if (isInativoRow(d)) return "inativo";
-  if (isPagoRow(d)) return "pago";
-  if (!d.data_vencimento) return null;
-  const venc = new Date(d.data_vencimento);
-  if (isNaN(venc.getTime())) return null;
-  return venc < hoje ? "vencido" : "a_vencer";
-};
-
 // Função para determinar status de vencimento (usado na cor da célula/linha)
 const getVencimentoStatus = (dataVencimento: string | null, situacao: string | null, dataPagamento: string | null) => {
   const sitLower = situacao?.toLowerCase() || "";
@@ -157,9 +154,16 @@ const getSituacaoColor = (situacao: string | null) => {
   return "bg-blue-500/20 text-blue-700 border-blue-500/30";
 };
 
-export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
+const toRpc = (v: string) => (v && v !== "all" ? v : null);
+const dateToRpc = (d?: Date) => (d ? format(d, "yyyy-MM-dd") : null);
+
+export default function MGFTabela({
+  corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo,
+  dataInicio, dataFim, loading, refreshToken,
+}: MGFTabelaProps) {
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   // Filtros rápidos: período de vencimento + status (padrão: 7 dias / a vencer + vencido)
   const [periodo, setPeriodo] = useState<Periodo>(7);
@@ -180,135 +184,136 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
     centroCusto: "all",
     dataPagamento: undefined,
   });
+  const [debouncedPlacaEvento, setDebouncedPlacaEvento] = useState("");
 
-  // Extrair opções únicas para filtros
-  const filterOptions = useMemo(() => {
-    const fornecedores = new Set<string>();
-    const operacoes = new Set<string>();
-    const subOperacoes = new Set<string>();
-    const centrosCusto = new Set<string>();
+  // Opções dos dropdowns de filtro detalhados — agregadas no banco.
+  const [filterOptions, setFilterOptions] = useState<{
+    fornecedores: string[];
+    operacoes: string[];
+    subOperacoes: string[];
+    centrosCusto: string[];
+  }>({ fornecedores: [], operacoes: [], subOperacoes: [], centrosCusto: [] });
 
-    dados.forEach((d) => {
-      if (d.fornecedor) fornecedores.add(d.fornecedor);
-      if (d.operacao) operacoes.add(d.operacao);
-      if (d.sub_operacao) subOperacoes.add(d.sub_operacao);
-      if (d.centro_custo) centrosCusto.add(d.centro_custo);
-    });
+  const [rows, setRows] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [tableLoading, setTableLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
-    return {
-      fornecedores: Array.from(fornecedores).sort(),
-      operacoes: Array.from(operacoes).sort(),
-      subOperacoes: Array.from(subOperacoes).sort(),
-      centrosCusto: Array.from(centrosCusto).sort(),
-    };
-  }, [dados]);
+  const fetchIdRef = useRef(0);
 
-  // Filtrar dados
-  const filteredDados = useMemo(() => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+  // Debounce da busca geral (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-    let result = dados;
+  // Debounce do campo "Placa Evento" (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedPlacaEvento(filters.placaEvento), 300);
+    return () => clearTimeout(timer);
+  }, [filters.placaEvento]);
 
-    // Busca geral
-    if (search.trim()) {
-      const searchLower = search.toLowerCase();
-      result = result.filter((d) => {
-        return VISIBLE_COLUMNS.some((col) => {
-          const val = d[col.key];
-          return val && String(val).toLowerCase().includes(searchLower);
+  // Opções dos filtros detalhados (Fornecedor/Operação/SubOperação/Centro de
+  // Custo) — RPC leve, depende só da corretora.
+  useEffect(() => {
+    if (!corretoraId) {
+      setFilterOptions({ fornecedores: [], operacoes: [], subOperacoes: [], centrosCusto: [] });
+      return;
+    }
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("get_mgf_filter_options", {
+          p_corretora_id: corretoraId,
+        } as any);
+        if (error) throw error;
+        const opts = (data as any) || {};
+        setFilterOptions({
+          fornecedores: [...(opts.fornecedores || [])].sort(),
+          operacoes: [...(opts.operacoes || [])].sort(),
+          subOperacoes: [...(opts.subOperacoes || [])].sort(),
+          centrosCusto: [...(opts.centrosCusto || [])].sort(),
         });
-      });
-    }
-
-    // Filtro Placa Evento
-    if (filters.placaEvento.trim()) {
-      const placaLower = filters.placaEvento.toLowerCase();
-      result = result.filter((d) => d.veiculo_evento && String(d.veiculo_evento).toLowerCase().includes(placaLower));
-    }
-
-    // Filtro Fornecedor
-    if (filters.fornecedor !== "all") {
-      result = result.filter((d) => d.fornecedor === filters.fornecedor);
-    }
-
-    // Filtro Operação
-    if (filters.operacao !== "all") {
-      result = result.filter((d) => d.operacao === filters.operacao);
-    }
-
-    // Filtro SubOperação
-    if (filters.subOperacao !== "all") {
-      result = result.filter((d) => d.sub_operacao === filters.subOperacao);
-    }
-
-    // Filtro Centro de Custo
-    if (filters.centroCusto !== "all") {
-      result = result.filter((d) => d.centro_custo === filters.centroCusto);
-    }
-
-    // Filtro Data Pagamento
-    if (filters.dataPagamento?.from) {
-      result = result.filter((d) => {
-        if (!d.data_pagamento) return false;
-        const date = new Date(d.data_pagamento);
-        if (filters.dataPagamento?.from && date < filters.dataPagamento.from) return false;
-        if (filters.dataPagamento?.to && date > filters.dataPagamento.to) return false;
-        return true;
-      });
-    }
-
-    // Filtro de STATUS (a vencer / vencido / pago / inativo)
-    const anyStatus = status.a_vencer || status.vencido || status.pago || status.inativo;
-    if (anyStatus) {
-      result = result.filter((d) => {
-        const st = rowVencStatus(d, hoje);
-        if (!st) return false;
-        return status[st];
-      });
-    }
-
-    // Filtro de PERÍODO (janela sobre a data de vencimento) — deixa a tela leve,
-    // exibindo só os lançamentos dentro do período selecionado.
-    if (periodo === "custom") {
-      if (customVenc?.from) {
-        result = result.filter((d) => {
-          if (!d.data_vencimento) return false;
-          const date = new Date(d.data_vencimento);
-          if (isNaN(date.getTime())) return false;
-          if (customVenc.from && date < customVenc.from) return false;
-          if (customVenc.to) {
-            const to = new Date(customVenc.to);
-            to.setHours(23, 59, 59, 999);
-            if (date > to) return false;
-          }
-          return true;
-        });
+      } catch (error) {
+        console.error("Erro ao carregar opções de filtro da tabela MGF:", error);
       }
-    } else {
-      const n = periodo;
-      const start = new Date(hoje);
-      start.setDate(start.getDate() - n);
-      const end = new Date(hoje);
-      end.setDate(end.getDate() + n);
-      end.setHours(23, 59, 59, 999);
-      result = result.filter((d) => {
-        if (!d.data_vencimento) return false;
-        const date = new Date(d.data_vencimento);
-        if (isNaN(date.getTime())) return false;
-        return date >= start && date <= end;
-      });
+    })();
+  }, [corretoraId]);
+
+  const buildRpcParams = (pageNum: number, pageSize: number) => ({
+    p_corretora_id: corretoraId,
+    p_operacao: operacao,
+    p_sub_operacao: subOperacao,
+    p_situacao: situacao,
+    p_cooperativa: cooperativa,
+    p_regional: regional,
+    p_forma_pagamento: formaPagamento,
+    p_tipo_veiculo: tipoVeiculo,
+    p_data_inicio: dataInicio,
+    p_data_fim: dataFim,
+    t_placa_evento: debouncedPlacaEvento.trim() || null,
+    t_fornecedor: toRpc(filters.fornecedor),
+    t_operacao: toRpc(filters.operacao),
+    t_sub_operacao: toRpc(filters.subOperacao),
+    t_centro_custo: toRpc(filters.centroCusto),
+    t_data_pagamento_inicio: dateToRpc(filters.dataPagamento?.from),
+    t_data_pagamento_fim: dateToRpc(filters.dataPagamento?.to),
+    p_status_a_vencer: status.a_vencer,
+    p_status_vencido: status.vencido,
+    p_status_pago: status.pago,
+    p_status_inativo: status.inativo,
+    p_periodo_dias: typeof periodo === "number" ? periodo : 7,
+    p_periodo_custom_inicio: periodo === "custom" ? dateToRpc(customVenc?.from) : null,
+    p_periodo_custom_fim: periodo === "custom" ? dateToRpc(customVenc?.to) : null,
+    p_search: debouncedSearch.trim() || null,
+    p_page: pageNum,
+    p_page_size: pageSize,
+  });
+
+  // Busca a página atual sempre que qualquer filtro/status/período/busca/página muda
+  useEffect(() => {
+    if (!corretoraId) {
+      setRows([]);
+      setTotalCount(0);
+      setTableLoading(false);
+      return;
     }
 
-    // Ordenar por data de vencimento (mais próximos primeiro)
-    result = [...result].sort((a, b) => {
-      const da = a.data_vencimento ? new Date(a.data_vencimento).getTime() : Infinity;
-      const db = b.data_vencimento ? new Date(b.data_vencimento).getTime() : Infinity;
-      return da - db;
-    });
+    const myFetchId = ++fetchIdRef.current;
+    setTableLoading(true);
 
-    return result;
-  }, [dados, search, filters, periodo, customVenc, status]);
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("listar_mgf_paginado", buildRpcParams(page, PAGE_SIZE) as any);
+        if (myFetchId !== fetchIdRef.current) return;
+        if (error) throw error;
+        const result = (data as any) || {};
+        setRows(result.rows || []);
+        setTotalCount(result.totalCount || 0);
+      } catch (error) {
+        console.error("Erro ao carregar tabela MGF:", error);
+        if (myFetchId === fetchIdRef.current) {
+          toast.error("Erro ao carregar os dados da tabela. Tente novamente.");
+        }
+      } finally {
+        if (myFetchId === fetchIdRef.current) setTableLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim,
+    debouncedPlacaEvento, filters.fornecedor, filters.operacao, filters.subOperacao, filters.centroCusto, filters.dataPagamento,
+    status, periodo, customVenc, debouncedSearch, page, refreshToken,
+  ]);
+
+  // Reset de página quando qualquer filtro/status/período/busca muda (não quando só a página muda)
+  useEffect(() => {
+    setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim,
+    debouncedPlacaEvento, filters.fornecedor, filters.operacao, filters.subOperacao, filters.centroCusto, filters.dataPagamento,
+    status, periodo, customVenc, debouncedSearch, refreshToken,
+  ]);
 
   // Contar filtros detalhados ativos
   const activeFiltersCount = useMemo(() => {
@@ -334,38 +339,57 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
     setPeriodo(7);
     setCustomVenc(undefined);
     setStatus({ a_vencer: true, vencido: true, pago: false, inativo: false });
-    setPage(0);
+    setPage(1);
   };
 
   const toggleStatus = (key: StatusKey) => {
     setStatus((prev) => ({ ...prev, [key]: !prev[key] }));
-    setPage(0);
   };
 
   const selectPeriodo = (n: number) => {
     setPeriodo(n as Periodo);
     setCustomVenc(undefined);
-    setPage(0);
   };
 
-  // Paginação
-  const totalPages = Math.ceil(filteredDados.length / PAGE_SIZE);
-  const paginatedDados = filteredDados.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  // Exportar para Excel
-  const handleExport = () => {
-    const exportData = filteredDados.map((d) => {
-      const row: any = {};
-      ALL_COLUMNS.forEach((col) => {
-        row[col.label] = d[col.key] ?? "";
+  // Exportar para Excel — busca os mesmos filtros ativos no momento do
+  // clique, num único lote grande (até EXPORT_PAGE_SIZE), em vez de exportar
+  // um array já carregado em memória.
+  const handleExport = async () => {
+    if (!corretoraId) return;
+    setExporting(true);
+    try {
+      const { data, error } = await supabase.rpc("listar_mgf_paginado", buildRpcParams(1, EXPORT_PAGE_SIZE) as any);
+      if (error) throw error;
+      const result = (data as any) || {};
+      const exportRows = result.rows || [];
+      const exportTotal = result.totalCount || 0;
+
+      if (exportTotal > EXPORT_PAGE_SIZE) {
+        toast.warning(
+          `Exportação limitada aos primeiros ${EXPORT_PAGE_SIZE.toLocaleString('pt-BR')} de ${exportTotal.toLocaleString('pt-BR')} registros filtrados. Refine os filtros para exportar um subconjunto menor.`
+        );
+      }
+
+      const exportData = exportRows.map((d: any) => {
+        const row: any = {};
+        ALL_COLUMNS.forEach((col) => {
+          row[col.label] = d[col.key] ?? "";
+        });
+        return row;
       });
-      return row;
-    });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Dados MGF");
-    XLSX.writeFile(wb, "mgf_dados_exportados.xlsx");
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Dados MGF");
+      XLSX.writeFile(wb, "mgf_dados_exportados.xlsx");
+    } catch (error) {
+      console.error("Erro ao exportar dados MGF:", error);
+      toast.error("Erro ao exportar os dados. Tente novamente.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const formatCellValue = (value: any, key: string, row: any) => {
@@ -447,7 +471,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
     );
   }
 
-  if (!dados.length) {
+  if (!corretoraId) {
     return (
       <Card className="border-dashed">
         <CardContent className="flex flex-col items-center justify-center py-12">
@@ -466,7 +490,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <CardTitle className="flex items-center gap-2">
               <Database className="h-5 w-5 text-orange-500" />
-              Dados Completos ({filteredDados.length.toLocaleString()} registros)
+              Dados Completos ({totalCount.toLocaleString()} registros)
             </CardTitle>
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -474,15 +498,12 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
                 <Input
                   placeholder="Buscar..."
                   value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(0);
-                  }}
+                  onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 w-48"
                 />
               </div>
-              <Button variant="outline" size="icon" onClick={handleExport} title="Exportar Excel">
-                <Download className="h-4 w-4" />
+              <Button variant="outline" size="icon" onClick={handleExport} disabled={exporting} title="Exportar Excel">
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -530,7 +551,6 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
                     onSelect={(range) => {
                       setCustomVenc(range);
                       setPeriodo("custom");
-                      setPage(0);
                     }}
                     numberOfMonths={2}
                     locale={ptBR}
@@ -590,10 +610,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
                   <Input
                     placeholder="Placa Evento"
                     value={filters.placaEvento}
-                    onChange={(e) => {
-                      setFilters((f) => ({ ...f, placaEvento: e.target.value }));
-                      setPage(0);
-                    }}
+                    onChange={(e) => setFilters((f) => ({ ...f, placaEvento: e.target.value }))}
                     className="h-9 text-xs pl-7"
                   />
                 </div>
@@ -601,10 +618,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
                 {/* Fornecedor */}
                 <Select
                   value={filters.fornecedor}
-                  onValueChange={(v) => {
-                    setFilters((f) => ({ ...f, fornecedor: v }));
-                    setPage(0);
-                  }}
+                  onValueChange={(v) => setFilters((f) => ({ ...f, fornecedor: v }))}
                 >
                   <SelectTrigger className="h-9 text-xs">
                     <SelectValue placeholder="Fornecedor" />
@@ -622,10 +636,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
                 {/* Operação */}
                 <Select
                   value={filters.operacao}
-                  onValueChange={(v) => {
-                    setFilters((f) => ({ ...f, operacao: v }));
-                    setPage(0);
-                  }}
+                  onValueChange={(v) => setFilters((f) => ({ ...f, operacao: v }))}
                 >
                   <SelectTrigger className="h-9 text-xs">
                     <SelectValue placeholder="Operação" />
@@ -643,10 +654,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
                 {/* SubOperação */}
                 <Select
                   value={filters.subOperacao}
-                  onValueChange={(v) => {
-                    setFilters((f) => ({ ...f, subOperacao: v }));
-                    setPage(0);
-                  }}
+                  onValueChange={(v) => setFilters((f) => ({ ...f, subOperacao: v }))}
                 >
                   <SelectTrigger className="h-9 text-xs">
                     <SelectValue placeholder="SubOperação" />
@@ -664,10 +672,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
                 {/* Centro de Custo */}
                 <Select
                   value={filters.centroCusto}
-                  onValueChange={(v) => {
-                    setFilters((f) => ({ ...f, centroCusto: v }));
-                    setPage(0);
-                  }}
+                  onValueChange={(v) => setFilters((f) => ({ ...f, centroCusto: v }))}
                 >
                   <SelectTrigger className="h-9 text-xs">
                     <SelectValue placeholder="Centro de Custo" />
@@ -703,10 +708,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
                       mode="range"
                       defaultMonth={filters.dataPagamento?.from}
                       selected={filters.dataPagamento}
-                      onSelect={(range) => {
-                        setFilters((f) => ({ ...f, dataPagamento: range }));
-                        setPage(0);
-                      }}
+                      onSelect={(range) => setFilters((f) => ({ ...f, dataPagamento: range }))}
                       numberOfMonths={2}
                       locale={ptBR}
                     />
@@ -731,14 +733,22 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedDados.length === 0 ? (
+                {tableLoading ? (
+                  [...Array(8)].map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell colSpan={VISIBLE_COLUMNS.length}>
+                        <Skeleton className="h-6 w-full" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : rows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={VISIBLE_COLUMNS.length} className="text-center text-sm text-muted-foreground py-8">
                       Nenhum lançamento no período/status selecionado. Ajuste os filtros acima.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedDados.map((d, i) => (
+                  rows.map((d, i) => (
                     <TableRow key={d.id || i} className={getRowClassName(d)}>
                       {VISIBLE_COLUMNS.map((col) => (
                         <TableCell key={col.key} className="whitespace-nowrap text-xs">
@@ -757,32 +767,37 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4">
             <p className="text-sm text-muted-foreground">
-              Mostrando {page * PAGE_SIZE + 1} - {Math.min((page + 1) * PAGE_SIZE, filteredDados.length)} de{" "}
-              {filteredDados.length.toLocaleString()} registros
+              Mostrando {(page - 1) * PAGE_SIZE + 1} - {Math.min(page * PAGE_SIZE, totalCount)} de{" "}
+              {totalCount.toLocaleString()} registros
             </p>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage(0)} disabled={page === 0}>
+              <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={page === 1 || tableLoading}>
                 Primeira
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || tableLoading}
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-sm px-2">
-                Página {page + 1} de {totalPages}
+                Página {page} de {totalPages}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || tableLoading}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage(totalPages - 1)}
-                disabled={page >= totalPages - 1}
+                onClick={() => setPage(totalPages)}
+                disabled={page >= totalPages || tableLoading}
               >
                 Última
               </Button>
