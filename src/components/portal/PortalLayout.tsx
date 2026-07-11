@@ -10,6 +10,7 @@ import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
 import { PortalModule } from "@/lib/portalModules";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const moduleMap: Record<string, PortalModule> = {
   '/portal': 'indicadores',
@@ -23,6 +24,7 @@ const moduleMap: Record<string, PortalModule> = {
 
 export default function PortalLayout() {
   const location = useLocation();
+  const isMobile = useIsMobile();
   const {
     corretora,
     corretorasDisponiveis,
@@ -161,11 +163,22 @@ export default function PortalLayout() {
           onLogout={handleLogout}
         />
 
-        {/* pb-28 no mobile dá espaço suficiente para o último card do
-            conteúdo não ficar colado/sobreposto pela barra flutuante
-            (PortalMobileNav, fixed no rodapé). No desktop a navegação é a
-            sidebar lateral, então não precisa desse respiro extra. */}
-        <div id="portal-main-content" className="transition-all duration-300 ease-in-out pb-28 md:pb-0">
+        {/* Mobile: precisamos reservar tanto o topo (PortalMobileHeader
+            fixed, ~2.75rem + safe-area) quanto o rodapé (PortalMobileNav
+            flutuante). Sem o padding-top, o topo das páginas
+            (filtros/cards) ficava atrás da barra do topo e cada módulo
+            "cortava" de um jeito diferente — visualmente só o MGF
+            parecia certo por coincidência de espaçamento interno. No
+            desktop a navegação é a sidebar lateral, então não precisa. */}
+        <div
+          id="portal-main-content"
+          className="transition-all duration-300 ease-in-out pb-28 md:pb-0"
+          style={
+            isMobile
+              ? { paddingTop: "calc(2.75rem + env(safe-area-inset-top))" }
+              : undefined
+          }
+        >
           <PortalPageWrapper>
             <Outlet context={{ corretora, corretorasDisponiveis }} />
           </PortalPageWrapper>

@@ -266,7 +266,13 @@ export default function CobrancaInsights() {
         // "quente" a resposta é quase instantânea; em cache "frio", para
         // uma associação grande como a VALECAR, pode levar ~30-45s (uma
         // vez por janela de cache, não a cada troca de filtro repetida).
-        const { data, error } = await supabase.rpc("get_dashboard_cobranca_cached", {
+        // Retry automático: em cache "frio" (VALECAR, ~30-45s) a chamada
+        // costuma estourar o statement_timeout / gateway na primeira
+        // tentativa e o usuário tinha que atualizar 2-3 vezes até o cache
+        // esquentar. Aqui tentamos até 3x com pequenos delays antes de
+        // mostrar erro — nas tentativas seguintes o cache já está sendo
+        // preenchido e a resposta volta rápido.
+        const params = {
           p_importacao_ids: ids,
           p_mes_referencia: toRpcFilterValue(filters.mesReferencia),
           p_situacao: toRpcFilterValue(filters.situacao),
@@ -274,10 +280,25 @@ export default function CobrancaInsights() {
           p_cooperativa: toRpcFilterValue(filters.cooperativa),
           p_dia_vencimento: filters.diaVencimento !== "todos" ? Number(filters.diaVencimento) : null,
           p_force_refresh: forceRefresh,
-        } as any);
-
-        if (error) throw error;
-        if (isStale()) return;
+        };
+        let data: any = null;
+        let lastError: any = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          if (attempt > 0) {
+            await new Promise((r) => setTimeout(r, 1500 * attempt));
+            if (isStale()) return;
+          }
+          const res = await supabase.rpc("get_dashboard_cobranca_cached", params as any);
+          if (isStale()) return;
+          if (!res.error) {
+            data = res.data;
+            lastError = null;
+            break;
+          }
+          lastError = res.error;
+          console.warn(`[Cobrança] tentativa ${attempt + 1} falhou:`, res.error?.message || res.error);
+        }
+        if (lastError) throw lastError;
 
         setDashboardStats(data);
       } else {
