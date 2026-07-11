@@ -55,22 +55,18 @@ export default function PortalMobileNav({
 
   return (
     <>
-      {/* Largura padrão do sistema: barra ocupa praticamente a tela toda
-          (igual ao tab bar nativo), com os botões distribuídos igualmente
-          (flex-1 + justify-between) em vez de agrupados no centro com
-          largura fixa por botão — isso fazia a pill ficar bem mais estreita
-          que o padrão esperado. */}
+      {/* w-auto + centralizado (em vez de left-3/right-3 esticando ponta a
+          ponta): com poucos favoritos a pill ficava larga demais, com
+          botões espalhados e vãos enormes entre eles — "desconfigurada".
+          Agora cada botão tem largura fixa (w-14) e a nav só ocupa o
+          espaço que o número real de botões precisa, com um teto de
+          largura pra nunca estourar a tela. */}
       {/* pointer-events-none no container só serve pra caso alguma página
           coloque um overlay full-screen — os botões dentro do <nav> reativam
           eventos com pointer-events-auto. isolate cria stacking context próprio
           pra que nenhuma section com z-index dentro das páginas fique acima. */}
-      {/* Fundo 100% opaco (sem transparência): com bg-card/95 + blur, o
-          conteúdo da página passando atrás durante o scroll ficava visível
-          por trás da pill, dando a impressão de "duas barras coladas" /
-          altura dobrada. Sólido evita esse efeito em qualquer posição de
-          scroll. */}
       <nav
-        className="fixed bottom-3 inset-x-3 z-[100] isolate rounded-full bg-card border border-border shadow-2xl px-3 flex items-center justify-between gap-1 pointer-events-auto"
+        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card/95 backdrop-blur-md border border-border shadow-2xl px-2 flex items-center justify-center gap-0.5 w-fit max-w-[calc(100vw-1.5rem)] pointer-events-auto"
         style={{ paddingTop: "0.4rem", paddingBottom: "max(0.4rem, env(safe-area-inset-bottom))" }}
       >
         {favoritos.map((mod) => {
@@ -82,12 +78,12 @@ export default function PortalMobileNav({
               key={mod}
               onClick={() => handleNav(mod)}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-0.5 min-w-0 py-1.5 rounded-full transition-colors",
+                "flex flex-col items-center justify-center gap-0.5 w-14 shrink-0 py-1.5 rounded-full transition-colors",
                 isActive ? "text-orange-500" : "text-muted-foreground"
               )}
             >
               <Icon className={cn("h-5 w-5 transition-transform", isActive && "scale-110")} />
-              <span className="text-[9px] font-medium leading-none truncate max-w-full">
+              <span className="text-[9px] font-medium leading-none truncate max-w-[52px]">
                 {cfg.shortLabel}
               </span>
             </button>
@@ -96,7 +92,7 @@ export default function PortalMobileNav({
 
         <button
           onClick={() => setSettingsOpen(true)}
-          className="flex flex-1 flex-col items-center justify-center gap-0.5 min-w-0 py-1.5 rounded-full text-muted-foreground"
+          className="flex flex-col items-center justify-center gap-0.5 w-14 shrink-0 py-1.5 rounded-full text-muted-foreground"
         >
           <Settings className="h-5 w-5" />
           <span className="text-[9px] font-medium leading-none">Ajustes</span>
