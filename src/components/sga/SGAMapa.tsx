@@ -14,8 +14,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
+// NOTE (escalabilidade): este componente não recebe mais o array cru de
+// eventos (a VALECAR sozinha já tem 131k+ eventos na importação ativa,
+// muito acima do que fazia sentido agregar no navegador). Os dados já vêm
+// agregados pela RPC `get_mapa_eventos_cached` (ver SGAInsights.tsx). A
+// RPC não retorna lat/lng nem maxCount/maxCityCount — isso continua
+// calculado no cliente com as mesmas funções de sempre (getCityCoords,
+// STATE_COORDS, BRAZILIAN_CITIES, abaixo, inalteradas).
 interface SGAMapaProps {
-  eventos: any[];
+  mapaData: any | null;
   loading: boolean;
 }
 
@@ -69,7 +76,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "VARGEM GRANDE PAULISTA": [-47.0278, -23.5997], "EMBU GUACU": [-46.8117, -23.8311], "SAO ROQUE": [-47.1356, -23.5289],
   "IBIUNA": [-47.2228, -23.6564], "PIEDADE": [-47.4275, -23.7136], "PORTO FELIZ": [-47.5239, -23.2156],
   "SALTO": [-47.2869, -23.2008], "CERQUILHO": [-47.7436, -23.1650], "BOITUVA": [-47.6722, -23.2833],
-  
+
   // ========== RIO DE JANEIRO ==========
   "RIO DE JANEIRO": [-43.1729, -22.9068], "NITEROI": [-43.1044, -22.8833], "DUQUE DE CAXIAS": [-43.3117, -22.7847],
   "NOVA IGUACU": [-43.4511, -22.7592], "SAO GONCALO": [-43.0533, -22.8269], "BELFORD ROXO": [-43.3992, -22.7642],
@@ -85,7 +92,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "JAPERI": [-43.6533, -22.6431], "GUAPIMIRIM": [-42.9817, -22.5369], "CACHOEIRAS DE MACACU": [-42.6528, -22.4628],
   "RIO BONITO": [-42.6258, -22.7111], "SILVA JARDIM": [-42.3928, -22.6506], "CASIMIRO DE ABREU": [-42.2039, -22.4797],
   "RIO DAS OSTRAS": [-41.9431, -22.5269], "ARMACAO DOS BUZIOS": [-41.8819, -22.7469],
-  
+
   // ========== MINAS GERAIS ==========
   "BELO HORIZONTE": [-43.9378, -19.9167], "UBERLANDIA": [-48.2772, -18.9186], "CONTAGEM": [-44.0539, -19.9319],
   "JUIZ DE FORA": [-43.3503, -21.7642], "BETIM": [-44.1983, -19.9678], "MONTES CLAROS": [-43.8617, -16.7350],
@@ -106,7 +113,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "SANTOS DUMONT": [-43.5472, -21.4600], "LEOPOLDINA": [-42.6428, -21.5322], "PEDRO LEOPOLDO": [-44.0425, -19.6178],
   "MATOZINHOS": [-44.0867, -19.5536], "UBAPORANGA": [-42.1081, -19.6372], "PIRAPORA": [-44.9428, -17.3447],
   "JANUARIA": [-44.3614, -15.4878], "JANAUBA": [-43.3086, -15.8036], "SALINAS": [-42.2967, -16.1756],
-  
+
   // ========== BAHIA ==========
   "SALVADOR": [-38.5014, -12.9714], "FEIRA DE SANTANA": [-38.9667, -12.2667], "VITORIA DA CONQUISTA": [-40.8389, -14.8617],
   "CAMACARI": [-38.3253, -12.6997], "ITABUNA": [-39.2803, -14.7856], "JUAZEIRO": [-40.5008, -9.4164],
@@ -119,7 +126,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "CRUZ DAS ALMAS": [-39.1011, -12.6722], "ITAPETINGA": [-40.2483, -15.2489], "SANTO AMARO": [-38.7119, -12.5478],
   "DIAS DAVILA": [-38.2936, -12.6147], "BRUMADO": [-41.6653, -14.2036], "BOM JESUS DA LAPA": [-43.4178, -13.2553],
   "LUIS EDUARDO MAGALHAES": [-45.7858, -12.0947], "SAO FRANCISCO DO CONDE": [-38.6286, -12.6297],
-  
+
   // ========== PARANÁ ==========
   "CURITIBA": [-49.2731, -25.4297], "LONDRINA": [-51.1628, -23.3103], "MARINGA": [-51.9386, -23.4253],
   "PONTA GROSSA": [-50.1617, -25.0947], "CASCAVEL PR": [-53.4550, -24.9556], "SAO JOSE DOS PINHAIS": [-49.2069, -25.5314],
@@ -134,7 +141,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "UNIAO DA VITORIA": [-51.0869, -26.2308], "TELEMACO BORBA": [-50.6144, -24.3244], "IBIPORA": [-51.0483, -23.2686],
   "LAPA": [-49.7156, -25.7697], "MARECHAL CANDIDO RONDON": [-54.0578, -24.5558], "MEDIANEIRA": [-54.0944, -25.2956],
   "PALMAS PR": [-51.9906, -26.4842], "CORNELIO PROCOPIO": [-50.6475, -23.1808], "ASSIS CHATEAUBRIAND": [-53.5217, -24.4172],
-  
+
   // ========== RIO GRANDE DO SUL ==========
   "PORTO ALEGRE": [-51.2303, -30.0331], "CAXIAS DO SUL": [-51.1794, -29.1678], "CANOAS": [-51.1839, -29.9178],
   "PELOTAS": [-52.3411, -31.7654], "SANTA MARIA RS": [-53.8069, -29.6842], "GRAVATAI": [-50.9917, -29.9442],
@@ -152,7 +159,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "ESTANCIA VELHA": [-51.1803, -29.6556], "CANELA": [-50.8136, -29.3656], "GRAMADO": [-50.8742, -29.3769],
   "CAPAO DA CANOA": [-50.0092, -29.7456], "TORRES": [-49.7269, -29.3356], "TRAMANDAI": [-50.1319, -29.9844],
   "OSORIO": [-50.2689, -29.8869], "SANTO ANGELO": [-54.2628, -28.2992], "SAO LUIZ GONZAGA": [-54.9611, -28.4081],
-  
+
   // ========== SANTA CATARINA ==========
   "FLORIANOPOLIS": [-48.5486, -27.5944], "JOINVILLE": [-48.8461, -26.3031], "BLUMENAU": [-49.0661, -26.9194],
   "CHAPECO": [-52.6156, -27.0964], "ITAJAI": [-48.6617, -26.9078], "CRICIUMA": [-49.3697, -28.6775],
@@ -166,7 +173,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "SAO MIGUEL DO OESTE": [-53.5181, -26.7253], "VIDEIRA": [-51.1528, -27.0081], "IMBITUBA": [-48.6703, -28.2406],
   "LAGUNA": [-48.7800, -28.4828], "TIMBO": [-49.2736, -26.8236], "POMERODE": [-49.1764, -26.7408],
   "RIO NEGRINHO": [-49.5178, -26.2586], "PENHA": [-48.6453, -26.7692], "PORTO BELO": [-48.5531, -27.1556],
-  
+
   // ========== GOIÁS ==========
   "GOIANIA": [-49.2539, -16.6869], "APARECIDA DE GOIANIA": [-49.2469, -16.8228], "ANAPOLIS": [-48.9528, -16.3281],
   "RIO VERDE": [-50.9281, -17.7928], "LUZIANIA": [-47.9500, -16.2525], "AGUAS LINDAS DE GOIAS": [-48.2772, -15.7678],
@@ -176,7 +183,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "CALDAS NOVAS": [-48.6256, -17.7417], "GOIANESIA": [-49.1192, -15.3111], "MINEIROS": [-52.5536, -17.5686],
   "SANTO ANTONIO DO DESCOBERTO": [-48.2597, -15.9417], "GOIANIRA": [-49.4264, -16.4958], "INHUMAS": [-49.4986, -16.3617],
   "CIDADE OCIDENTAL": [-47.9236, -16.0781], "JARAGUA": [-49.3344, -15.7561], "PORANGATU": [-49.1492, -13.4408],
-  
+
   // ========== PERNAMBUCO ==========
   "RECIFE": [-34.8811, -8.0539], "JABOATAO DOS GUARARAPES": [-35.0153, -8.1128], "OLINDA": [-34.8553, -8.0089],
   "CARUARU": [-35.9761, -8.2850], "PETROLINA": [-40.5008, -9.3886], "PAULISTA": [-34.8728, -7.9406],
@@ -185,7 +192,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "ABREU E LIMA": [-34.8989, -7.9103], "IPOJUCA": [-35.0589, -8.3994], "SERRA TALHADA": [-38.2956, -7.9856],
   "SANTA CRUZ DO CAPIBARIBE": [-36.2050, -7.9572], "ARARIPINA": [-40.4986, -7.5764], "GRAVATA": [-35.5644, -8.2006],
   "CARPINA": [-35.2511, -7.8456], "GOIANA": [-34.9967, -7.5606], "BEZERROS": [-35.7539, -8.2356],
-  
+
   // ========== CEARÁ ==========
   "FORTALEZA": [-38.5267, -3.7172], "CAUCAIA": [-38.6531, -3.7361], "JUAZEIRO DO NORTE": [-39.3153, -7.2131],
   "MARACANAU": [-38.6256, -3.8756], "SOBRAL": [-40.3481, -3.6894], "CRATO": [-39.4103, -7.2350],
@@ -195,7 +202,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "TIANGUA": [-40.9919, -3.7319], "EUSEBIO": [-38.4558, -3.8903], "ARACATI": [-37.7694, -4.5625],
   "PACAJUS": [-38.4619, -4.1728], "MORADA NOVA": [-38.3725, -5.1064], "CRATEÚS": [-40.6778, -5.1781],
   "LIMOEIRO DO NORTE": [-38.0986, -5.1458], "SAO GONCALO DO AMARANTE CE": [-38.9678, -3.6058], "HORIZONTE": [-38.4958, -4.0992],
-  
+
   // ========== PARÁ ==========
   "BELEM": [-48.4897, -1.4558], "ANANINDEUA": [-48.3722, -1.3656], "SANTAREM": [-54.7081, -2.4386],
   "MARABA": [-49.1178, -5.3686], "CASTANHAL": [-47.9261, -1.2939], "PARAUAPEBAS": [-49.9036, -6.0672],
@@ -205,20 +212,20 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "SAO FELIX DO XINGU": [-51.9950, -6.6458], "REDENÇÃO": [-50.0319, -8.0286], "CAPANEMA": [-47.1817, -1.1958],
   "PARAGOMINAS": [-47.3528, -2.9631], "BREVES": [-50.4800, -1.6822], "TOME ACU": [-48.1522, -2.4186],
   "SALINOPOLIS": [-47.3561, -0.6142], "SANTANA DO ARAGUAIA": [-50.3500, -9.3300], "ORIXIMINA": [-55.8658, -1.7658],
-  
+
   // ========== AMAZONAS ==========
   "MANAUS": [-60.0250, -3.1019], "PARINTINS": [-56.7353, -2.6286], "ITACOATIARA": [-58.4442, -3.1386],
   "MANACAPURU": [-60.6208, -3.2992], "COARI": [-63.1408, -4.0858], "TEFÉ": [-64.7108, -3.3531],
   "TABATINGA": [-69.9378, -4.2528], "MAUÉS": [-57.7186, -3.3828], "MANICORE": [-61.3000, -5.8100],
   "HUMAITA": [-63.0308, -7.5064], "IRANDUBA": [-60.1861, -3.2858], "SAO GABRIEL DA CACHOEIRA": [-67.0889, -0.1300],
-  
+
   // ========== MARANHÃO ==========
   "SAO LUIS": [-44.2825, -2.5297], "IMPERATRIZ": [-47.4919, -5.5189], "SAO JOSE DE RIBAMAR": [-44.0522, -2.5508],
   "TIMON": [-42.8369, -5.0939], "CAXIAS": [-43.3539, -4.8589], "CODÓ": [-43.8853, -4.4550],
   "PAÇO DO LUMIAR": [-44.1025, -2.5197], "ACAILANDIA": [-47.0506, -4.9458], "BACABAL": [-44.7786, -4.2256],
   "BALSAS": [-46.0344, -7.5328], "SANTA INÊS": [-45.3803, -3.6636], "CHAPADINHA": [-43.3517, -3.7417],
   "PINHEIRO": [-45.0822, -2.5206], "ITAPECURU MIRIM": [-44.3511, -3.3933], "BURITICUPU": [-46.4350, -4.3392],
-  
+
   // ========== MATO GROSSO ==========
   "CUIABA": [-56.0978, -15.6014], "VARZEA GRANDE": [-56.1328, -15.6458], "RONDONOPOLIS": [-54.6356, -16.4697],
   "SINOP": [-55.5036, -11.8644], "TANGARA DA SERRA": [-57.4989, -14.6228], "CACERES": [-57.6836, -16.0736],
@@ -226,7 +233,7 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "BARRA DO GARCAS": [-52.2564, -15.8897], "ALTA FLORESTA": [-56.0861, -9.8756], "PONTES E LACERDA": [-59.3467, -15.2256],
   "JUARA": [-57.5250, -11.2550], "JUINA": [-58.7408, -11.3783], "COLIDER": [-55.4550, -10.8133],
   "CAMPO NOVO DO PARECIS": [-57.8919, -13.6611], "NOVA MUTUM": [-56.0806, -13.8342],
-  
+
   // ========== MATO GROSSO DO SUL ==========
   "CAMPO GRANDE": [-54.6464, -20.4428], "DOURADOS": [-54.8056, -22.2211], "TRES LAGOAS": [-51.6786, -20.7511],
   "CORUMBÁ": [-57.6533, -19.0089], "PONTA PORÃ": [-55.7256, -22.5358], "NAVIRAÍ": [-54.1992, -23.0653],
@@ -235,41 +242,41 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "COXIM": [-54.7603, -18.5064], "JARDIM": [-56.1381, -21.4803], "SAO GABRIEL DO OESTE": [-54.5678, -19.3994],
   "RIO BRILHANTE": [-54.5458, -21.8022], "CASSILANDIA": [-51.7350, -19.1144], "CHAPADAO DO SUL": [-52.6250, -18.7917],
   "MIRANDA": [-56.3778, -20.2403], "BONITO": [-56.4847, -21.1264], "COSTA RICA": [-53.1281, -18.5436],
-  
+
   // ========== PIAUÍ ==========
   "TERESINA": [-42.8019, -5.0920], "PARNAIBA": [-41.7769, -2.9047], "PICOS": [-41.4672, -7.0769],
   "FLORIANO": [-43.0228, -6.7672], "PIRIPIRI": [-41.7769, -4.2733], "CAMPO MAIOR": [-42.1678, -4.8269],
   "BARRAS": [-42.2947, -4.2442], "ALTOS": [-42.4622, -5.0389], "PEDRO II": [-41.4589, -4.4239],
   "OEIRAS": [-42.1308, -7.0256], "SAO RAIMUNDO NONATO": [-42.6989, -9.0153], "UNIÃO": [-42.8614, -4.5878],
   "ESPERANTINA": [-42.2344, -3.9006], "JOSÉ DE FREITAS": [-42.5747, -4.7564], "BOM JESUS": [-44.3558, -9.0747],
-  
+
   // ========== RIO GRANDE DO NORTE ==========
   "NATAL": [-35.2094, -5.7950], "MOSSORO": [-37.3442, -5.1875], "PARNAMIRIM": [-35.2628, -5.9158],
   "SAO GONCALO DO AMARANTE RN": [-35.3278, -5.7931], "MACAIBA": [-35.3556, -5.8536], "CEARA MIRIM": [-35.4253, -5.6350],
   "CAICO": [-37.0978, -6.4586], "ASSU": [-36.9106, -5.5775], "CURRAIS NOVOS": [-36.5139, -6.2586],
   "SANTA CRUZ": [-35.4314, -6.2286], "JOAO CAMARA": [-35.8175, -5.5389], "NOVA CRUZ": [-35.4306, -6.4778],
   "SAO JOSE DE MIPIBU": [-35.2411, -6.0739], "EXTREMOZ": [-35.3058, -5.7058], "MACAU": [-36.6336, -5.1125],
-  
+
   // ========== PARAÍBA ==========
   "JOAO PESSOA": [-34.8631, -7.1153], "CAMPINA GRANDE": [-35.8811, -7.2306], "SANTA RITA": [-34.9781, -7.1136],
   "PATOS": [-37.2750, -7.0244], "BAYEUX": [-34.9317, -7.1256], "SOUSA": [-38.2328, -6.7578],
   "CABEDELO": [-34.8339, -6.9811], "CAJAZEIRAS": [-38.5558, -6.8903], "GUARABIRA": [-35.4861, -6.8511],
   "MAMANGUAPE": [-35.1256, -6.8383], "ESPERANCA": [-35.8597, -7.0278], "MONTEIRO": [-37.1247, -7.8892],
   "POMBAL": [-37.8008, -6.7697], "QUEIMADAS": [-35.9014, -7.3589], "SAO BENTO": [-37.4533, -6.4850],
-  
+
   // ========== SERGIPE ==========
   "ARACAJU": [-37.0714, -10.9472], "NOSSA SENHORA DO SOCORRO": [-37.1253, -10.8553], "LAGARTO": [-37.6522, -10.9158],
   "ITABAIANA": [-37.4253, -10.6844], "SAO CRISTOVÃO": [-37.2069, -11.0144], "ESTANCIA": [-37.4383, -11.2678],
   "TOBIAS BARRETO": [-37.9992, -11.1853], "ITABAIANINHA": [-37.7897, -11.2742], "SIMAO DIAS": [-37.8078, -10.7392],
   "NOSSA SENHORA DA GLORIA": [-37.4200, -10.2183], "PROPRIA": [-36.8406, -10.2139], "CAPELA": [-37.0536, -10.5058],
-  
+
   // ========== ALAGOAS ==========
   "MACEIO": [-35.7353, -9.6658], "ARAPIRACA": [-36.6611, -9.7525], "RIO LARGO": [-35.8439, -9.4781],
   "PALMEIRA DOS INDIOS": [-36.6278, -9.4061], "UNIÃO DOS PALMARES": [-36.0322, -9.1631], "PENEDO": [-36.5858, -10.2900],
   "SAO MIGUEL DOS CAMPOS": [-36.0942, -9.7819], "CORURIPE": [-36.1761, -10.1261], "DELMIRO GOUVEIA": [-37.9983, -9.3858],
   "CAMPO ALEGRE": [-36.3522, -9.7819], "MURICI": [-35.9436, -9.3097], "SATUBA": [-35.8203, -9.5656],
   "MARECHAL DEODORO": [-35.8928, -9.7097], "PILAR": [-35.9567, -9.5978], "TEOTÔNIO VILELA": [-36.3506, -9.9036],
-  
+
   // ========== ESPÍRITO SANTO ==========
   "VITORIA": [-40.3378, -20.2976], "VILA VELHA": [-40.2897, -20.3297], "SERRA": [-40.3078, -20.1283],
   "CARIACICA": [-40.4197, -20.2636], "LINHARES": [-40.0722, -19.3911], "CACHOEIRO DE ITAPEMIRIM": [-41.1128, -20.8489],
@@ -277,36 +284,36 @@ const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
   "ARACRUZ": [-40.2733, -19.8203], "VIANA": [-40.4958, -20.3903], "NOVA VENECIA": [-40.4006, -18.7131],
   "BARRA DE SAO FRANCISCO": [-40.8936, -18.7547], "CASTELO": [-41.1833, -20.6047], "MARATAÍZES": [-40.8378, -21.0433],
   "DOMINGOS MARTINS": [-40.6597, -20.3636], "FUNDAO": [-40.4069, -19.9325], "IBIRACU": [-40.3686, -19.8342],
-  
+
   // ========== TOCANTINS ==========
   "PALMAS TO": [-48.3336, -10.2128], "ARAGUAINA": [-48.2072, -7.1911], "GURUPI": [-49.0686, -11.7289],
   "PORTO NACIONAL": [-48.4175, -10.7083], "PARAISO DO TOCANTINS": [-48.8822, -10.1758], "COLINAS DO TOCANTINS": [-48.4758, -8.0581],
   "GUARAI": [-48.5106, -8.8342], "TOCANTINOPOLIS": [-47.4219, -6.3325], "DIANOPOLIS": [-46.8189, -11.6258],
   "MIRACEMA DO TOCANTINS": [-48.3922, -9.5636], "AUGUSTINOPOLIS": [-47.8867, -5.4686], "FORMOSO DO ARAGUAIA": [-49.5283, -11.7975],
-  
+
   // ========== RONDÔNIA ==========
   "PORTO VELHO": [-63.9039, -8.7619], "JI PARANA": [-61.9517, -10.8853], "ARIQUEMES": [-63.0408, -9.9133],
   "VILHENA": [-60.1458, -12.7406], "CACOAL": [-61.4478, -11.4386], "JARU": [-62.4667, -10.4386],
   "ROLIM DE MOURA": [-61.7781, -11.7275], "GUAJARA MIRIM": [-65.3489, -10.7917], "OURO PRETO DO OESTE": [-62.2508, -10.7256],
   "PIMENTA BUENO": [-61.1939, -11.6731], "BURITIS": [-63.8300, -10.2125], "MACHADINHO DO OESTE": [-62.0150, -9.4433],
-  
+
   // ========== ACRE ==========
   "RIO BRANCO": [-67.8100, -9.9747], "CRUZEIRO DO SUL": [-72.6756, -7.6306], "SENA MADUREIRA": [-68.6608, -9.0658],
   "TARAUACA": [-70.7678, -8.1603], "FEIJO": [-70.3519, -8.1644], "BRASILEIA": [-68.7486, -11.0131],
   "EPITACIOLANDIA": [-68.4378, -11.0169], "SENADOR GUIOMARD": [-67.7361, -10.1506], "PLACIDO DE CASTRO": [-67.1847, -10.3350],
   "XAPURI": [-68.5003, -10.6519], "MANCIO LIMA": [-72.9014, -7.6139], "RODRIGUES ALVES": [-72.6458, -7.4644],
-  
+
   // ========== AMAPÁ ==========
   "MACAPA": [-51.0669, 0.0356], "SANTANA": [-51.1753, -0.0583], "LARANJAL DO JARI": [-52.4539, -0.8044],
   "OIAPOQUE": [-51.8350, 3.8406], "PORTO GRANDE": [-51.4183, 0.7125], "MAZAGAO": [-51.2889, -0.1156],
   "TARTARUGALZINHO": [-51.5122, 1.5047], "PEDRA BRANCA DO AMAPARI": [-51.9475, 0.7767], "VITORIA DO JARI": [-52.4244, -0.9278],
-  
+
   // ========== RORAIMA ==========
   "BOA VISTA": [-60.6719, 2.8197], "RORAINOPOLIS": [-60.4378, 0.9381], "CARACARAI": [-61.1272, 1.8119],
   "ALTO ALEGRE": [-61.2994, 2.9931], "MUCAJAI": [-60.9086, 2.4397], "CANTA": [-60.6047, 2.6083],
   "PACARAIMA": [-61.1472, 4.4800], "AMAJARI": [-61.3678, 3.6456], "BONFIM": [-59.8328, 3.3614],
   "NORMANDIA": [-59.6236, 3.8800], "UIRAMUTA": [-60.1833, 4.6031], "IRACEMA": [-61.0431, 2.1831],
-  
+
   // ========== DISTRITO FEDERAL ==========
   "BRASILIA": [-47.9297, -15.7797], "CEILANDIA": [-48.1086, -15.8211], "TAGUATINGA": [-48.0561, -15.8389],
   "SAMAMBAIA": [-48.0994, -15.8781], "PLANALTINA DF": [-47.6144, -15.6203], "AGUAS CLARAS": [-48.0281, -15.8386],
@@ -331,12 +338,20 @@ const getMarkerColor = (count: number, max: number) => {
   return "hsl(270, 70%, 40%)";
 };
 
-// Normalizar nome para busca
+// Normalizar nome para busca (remove acentos via NFD + descarte dos
+// combining marks por code point, em vez de um range unicode escrito
+// diretamente no regex, para não depender de caracteres de acentuação
+// literais no código-fonte)
 const normalizeText = (name: string): string => {
   return name
     .toUpperCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .split('')
+    .filter((ch) => {
+      const code = ch.codePointAt(0) || 0;
+      return code < 0x0300 || code > 0x036f;
+    })
+    .join('')
     .replace(/[^A-Z0-9 ]/g, '')
     .trim();
 };
@@ -344,17 +359,17 @@ const normalizeText = (name: string): string => {
 // Buscar coordenadas da cidade
 const getCityCoords = (cityName: string, state: string): [number, number] | null => {
   const normalized = normalizeText(cityName);
-  
+
   if (BRAZILIAN_CITIES[normalized]) {
     return BRAZILIAN_CITIES[normalized];
   }
-  
+
   for (const [knownCity, coords] of Object.entries(BRAZILIAN_CITIES)) {
     if (normalized.includes(knownCity) || knownCity.includes(normalized)) {
       return coords;
     }
   }
-  
+
   const stateCoords = STATE_COORDS[state];
   if (stateCoords) {
     const hash = normalized.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
@@ -362,18 +377,18 @@ const getCityCoords = (cityName: string, state: string): [number, number] | null
     const offsetLat = (((hash >> 8) % 100) / 100 - 0.5) * 1.5;
     return [stateCoords[0] + offsetLng, stateCoords[1] + offsetLat];
   }
-  
+
   return null;
 };
 
 // URL do GeoJSON do IBGE para estados brasileiros
 const IBGE_STATES_GEOJSON = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson";
 
-export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
+export default function SGAMapa({ mapaData, loading }: SGAMapaProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
-  
+
   const [searchCity, setSearchCity] = useState("");
   const [selectedEstado, setSelectedEstado] = useState<string>("todos");
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
@@ -382,177 +397,101 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showClusters, setShowClusters] = useState(true);
 
-  // Agregar eventos por cidade (usando evento_cidade, com fallback para cooperativa)
+  // Reconstrói a mesma forma de `locationData` que o componente sempre
+  // usou, mas a partir do payload já agregado pela RPC
+  // `get_mapa_eventos_cached` (ver SGAInsights.tsx), em vez de fazer
+  // eventos.forEach(...) sobre o array cru. byCityGlobal, regionaisArray,
+  // tipoEventoArray, motivoEventoArray e situacaoArray já vêm prontos —
+  // só resolvemos coords (getCityCoords/STATE_COORDS, inalterados) e
+  // reagrupamos byCityGlobal em byState[estado].cities para a view
+  // "estados" continuar funcionando exatamente como antes.
   const locationData = useMemo(() => {
-    const byState: { [key: string]: { count: number; custo: number; countSemCidade: number; custoSemCidade: number; cooperativasSemCidade: Set<string>; cities: { [key: string]: { count: number; custo: number; cooperativa?: string } } } } = {};
-    const byRegional: { [key: string]: { count: number; custo: number; estados: Set<string>; cidades: Set<string> } } = {};
-    const byTipoEvento: { [key: string]: { count: number; custo: number } } = {};
-    const byMotivoEvento: { [key: string]: { count: number; custo: number } } = {};
-    const bySituacao: { [key: string]: number } = {};
-    
-    eventos.forEach(e => {
-      const estado = e.evento_estado?.toUpperCase() || "";
-      // Usa evento_cidade - campo direto da planilha
-      const cidade = (e.evento_cidade?.toUpperCase() || "").trim();
-      const cooperativa = e.cooperativa || "";
-      const regional = e.regional || "";
-      const tipoEvento = e.tipo_evento || "Não informado";
-      const motivoEvento = e.motivo_evento || "Não informado";
-      const situacao = e.situacao_evento || "Não informado";
-      
-      // Agregar por tipo de evento
-      if (!byTipoEvento[tipoEvento]) {
-        byTipoEvento[tipoEvento] = { count: 0, custo: 0 };
-      }
-      byTipoEvento[tipoEvento].count += 1;
-      byTipoEvento[tipoEvento].custo += e.custo_evento || 0;
+    if (!mapaData) {
+      return {
+        byState: {} as { [key: string]: { count: number; custo: number; cities: { [key: string]: { count: number; custo: number; cooperativa?: string } } } },
+        byCityGlobal: [] as any[],
+        regionaisArray: [] as any[],
+        tipoEventoArray: [] as any[],
+        motivoEventoArray: [] as any[],
+        situacaoArray: [] as any[],
+        topCidadesCusto: [] as any[],
+        maxCount: 1,
+        maxCityCount: 1,
+        totalEventos: 0,
+      };
+    }
 
-      // Agregar por motivo do evento
-      if (!byMotivoEvento[motivoEvento]) {
-        byMotivoEvento[motivoEvento] = { count: 0, custo: 0 };
-      }
-      byMotivoEvento[motivoEvento].count += 1;
-      byMotivoEvento[motivoEvento].custo += e.custo_evento || 0;
+    // Resolve coordenadas para cada entrada de byCityGlobal — entradas
+    // "isStateLevel" (agregado "sem cidade" por estado) usam o centroide
+    // do estado, como já faziam antes; cidades reais usam getCityCoords.
+    const byCityGlobal = (mapaData.byCityGlobal || []).map((c: any) => ({
+      ...c,
+      coords: c.isStateLevel ? (STATE_COORDS[c.state] || null) : getCityCoords(c.city, c.state),
+    }));
 
-      // Agregar por situação
-      bySituacao[situacao] = (bySituacao[situacao] || 0) + 1;
-      
-      if (estado && estado.length === 2 && STATE_COORDS[estado]) {
-        if (!byState[estado]) {
-          byState[estado] = { count: 0, custo: 0, countSemCidade: 0, custoSemCidade: 0, cooperativasSemCidade: new Set(), cities: {} };
-        }
-        byState[estado].count += 1;
-        byState[estado].custo += e.custo_evento || 0;
-        
-        // Verifica se tem cidade válida
-        const temCidadeValida = cidade && cidade !== "N/I" && cidade !== "NAO INFORMADO" && cidade.length > 0;
-        
-        if (temCidadeValida) {
-          if (!byState[estado].cities[cidade]) {
-            byState[estado].cities[cidade] = { count: 0, custo: 0, cooperativa };
-          }
-          byState[estado].cities[cidade].count += 1;
-          byState[estado].cities[cidade].custo += e.custo_evento || 0;
-        } else {
-          // Eventos sem cidade - agrupa por estado
-          byState[estado].countSemCidade += 1;
-          byState[estado].custoSemCidade += e.custo_evento || 0;
-          if (cooperativa) {
-            byState[estado].cooperativasSemCidade.add(cooperativa);
-          }
-        }
-
-        // Agregar por regional
-        if (regional && regional !== "N/I" && regional !== "NAO INFORMADO") {
-          if (!byRegional[regional]) {
-            byRegional[regional] = { count: 0, custo: 0, estados: new Set(), cidades: new Set() };
-          }
-          byRegional[regional].count += 1;
-          byRegional[regional].custo += e.custo_evento || 0;
-          byRegional[regional].estados.add(estado);
-          if (temCidadeValida) byRegional[regional].cidades.add(cidade);
-        }
+    // Reconstrói byState (objeto indexado por UF, com .cities dentro) a
+    // partir de mapaData.byState (array [{estado,count,custo}]) +
+    // byCityGlobal, para a view "estados"/"cidades" continuar iterando do
+    // mesmo jeito que antes.
+    const byState: { [key: string]: { count: number; custo: number; cities: { [key: string]: { count: number; custo: number; cooperativa?: string } } } } = {};
+    (mapaData.byState || []).forEach((s: any) => {
+      byState[s.estado] = { count: s.count, custo: s.custo, cities: {} };
+    });
+    byCityGlobal.forEach((c: any) => {
+      if (!byState[c.state]) byState[c.state] = { count: 0, custo: 0, cities: {} };
+      if (!c.isStateLevel) {
+        byState[c.state].cities[c.city] = { count: c.count, custo: c.custo, cooperativa: c.cooperativa };
       }
     });
 
-    // Criar lista de cidades com coordenadas
-    const byCityGlobal: { state: string; city: string; count: number; custo: number; coords: [number, number] | null; cooperativa?: string; isStateLevel?: boolean }[] = [];
-    
-    Object.entries(byState).forEach(([state, data]) => {
-      // Adiciona cidades específicas
-      Object.entries(data.cities).forEach(([city, cityData]) => {
-        const coords = getCityCoords(city, state);
-        byCityGlobal.push({
-          state,
-          city,
-          count: cityData.count,
-          custo: cityData.custo,
-          coords,
-          cooperativa: cityData.cooperativa
-        });
-      });
-      
-      // Adiciona eventos sem cidade como entrada a nível de estado
-      if (data.countSemCidade > 0) {
-        const cooperativas = Array.from(data.cooperativasSemCidade);
-        const label = cooperativas.length > 0 
-          ? `${state} (${cooperativas.slice(0, 2).join(", ")}${cooperativas.length > 2 ? "..." : ""})`
-          : `${state} (Sem cidade)`;
-        
-        byCityGlobal.push({
-          state,
-          city: label,
-          count: data.countSemCidade,
-          custo: data.custoSemCidade,
-          coords: STATE_COORDS[state] || null,
-          cooperativa: cooperativas.join(", "),
-          isStateLevel: true
-        });
-      }
-    });
-
-    // Converter regionais para array
-    const regionaisArray = Object.entries(byRegional)
-      .map(([nome, data]) => ({
-        nome,
-        count: data.count,
-        custo: data.custo,
-        estados: Array.from(data.estados),
-        cidades: Array.from(data.cidades)
-      }))
-      .sort((a, b) => b.custo - a.custo);
-
-    // Converter tipo de evento para array
-    const tipoEventoArray = Object.entries(byTipoEvento)
-      .map(([tipo, data]) => ({ tipo, ...data }))
-      .sort((a, b) => b.custo - a.custo);
-
-    // Converter motivo de evento para array
-    const motivoEventoArray = Object.entries(byMotivoEvento)
-      .map(([motivo, data]) => ({ motivo, ...data }))
-      .sort((a, b) => b.custo - a.custo);
-
-    // Converter situação para array
-    const situacaoArray = Object.entries(bySituacao)
-      .map(([situacao, count]) => ({ situacao, count }))
-      .sort((a, b) => b.count - a.count);
+    const regionaisArray = mapaData.regionaisArray || [];
+    const tipoEventoArray = mapaData.tipoEventoArray || [];
+    const motivoEventoArray = mapaData.motivoEventoArray || [];
+    const situacaoArray = mapaData.situacaoArray || [];
 
     // Top cidades por custo
-    const topCidadesCusto = [...byCityGlobal].sort((a, b) => b.custo - a.custo).slice(0, 10);
+    const topCidadesCusto = [...byCityGlobal].sort((a: any, b: any) => b.custo - a.custo).slice(0, 10);
 
-    const maxCount = Math.max(...Object.values(byState).map(s => s.count), 1);
-    const maxCityCount = Math.max(...byCityGlobal.map(c => c.count), 1);
+    const maxCount = Math.max(...Object.values(byState).map((s: any) => s.count), 1);
+    const maxCityCount = Math.max(...byCityGlobal.map((c: any) => c.count), 1);
 
-    return { 
-      byState, 
-      byCityGlobal, 
-      regionaisArray, 
+    // Total de eventos (mesmos filtros globais aplicados na RPC): soma de
+    // situacaoArray, que cobre 100% dos eventos filtrados (mesma base que
+    // `eventos.length` cobria antes) — usado só para os percentuais
+    // exibidos (popup do marcador, lista de cidades, lista de situação).
+    const totalEventos = situacaoArray.reduce((acc: number, s: any) => acc + (s.count || 0), 0);
+
+    return {
+      byState,
+      byCityGlobal,
+      regionaisArray,
       tipoEventoArray,
       motivoEventoArray,
       situacaoArray,
       topCidadesCusto,
-      maxCount, 
-      maxCityCount 
+      maxCount,
+      maxCityCount,
+      totalEventos,
     };
-  }, [eventos]);
+  }, [mapaData]);
 
   // Cidades filtradas pelo estado selecionado
   const filteredCities = useMemo(() => {
     let cities = locationData.byCityGlobal;
-    
+
     if (selectedEstado !== "todos") {
       cities = cities.filter(c => c.state === selectedEstado);
     }
-    
+
     if (searchCity) {
       const search = normalizeText(searchCity);
-      cities = cities.filter(c => 
-        normalizeText(c.city).includes(search) || 
+      cities = cities.filter(c =>
+        normalizeText(c.city).includes(search) ||
         c.state.includes(search) ||
         (c.cooperativa && normalizeText(c.cooperativa).includes(search))
       );
     }
-    
+
     return cities.sort((a, b) => b.count - a.count);
   }, [locationData.byCityGlobal, selectedEstado, searchCity]);
 
@@ -595,7 +534,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
     if (!mapContainer.current || map.current) return;
 
     mapboxgl.accessToken = 'pk.eyJ1IjoicmlzZXJpbyIsImEiOiJjbWlwYTNyMXkwOXgxM2VvdjZlOW94cjJnIn0.n1tbMo64JleTBaBszGpN7g';
-    
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
@@ -761,7 +700,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
       map.current.on('click', 'clusters', (e) => {
         const features = map.current?.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         if (!features?.length) return;
-        
+
         const clusterId = features[0].properties?.cluster_id;
         const source = map.current?.getSource('eventos-cluster') as mapboxgl.GeoJSONSource;
         source.getClusterExpansionZoom(clusterId, (err, zoom) => {
@@ -777,10 +716,10 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
       map.current.on('click', 'unclustered-point', (e) => {
         const features = e.features;
         if (!features?.length) return;
-        
+
         const props = features[0].properties;
         const coords = (features[0].geometry as any).coordinates.slice();
-        
+
         new mapboxgl.Popup({ offset: 25 })
           .setLngLat(coords)
           .setHTML(`
@@ -876,7 +815,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
                 </div>
               </div>
               <div style="font-size: 11px; color: #64748b; text-align: center;">
-                ${((city.count / eventos.length) * 100).toFixed(2)}% do total
+                ${((city.count / (locationData.totalEventos || 1)) * 100).toFixed(2)}% do total
               </div>
             </div>
           `)
@@ -929,7 +868,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
     );
   }
 
-  if (!eventos.length) {
+  if (!mapaData || locationData.totalEventos === 0) {
     return (
       <Card className="text-center py-12">
         <CardContent>
@@ -984,7 +923,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
                   ))}
               </SelectContent>
             </Select>
-            
+
             {/* Controles de visualização */}
             <div className="flex items-center gap-4 border-l pl-4">
               <div className="flex items-center gap-2">
@@ -1016,7 +955,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
                 </Label>
               </div>
             </div>
-            
+
             {selectedEstado !== "todos" && (
               <Button variant="outline" size="sm" onClick={zoomToBrazil}>
                 <Maximize className="h-4 w-4 mr-2" />
@@ -1052,7 +991,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
           <CardContent className="p-0">
             <div className="relative">
               <div ref={mapContainer} className="h-[500px] rounded-b-lg" />
-              
+
               {/* Legenda */}
               <div className="absolute bottom-4 left-4 bg-card/95 backdrop-blur-sm rounded-lg p-3 text-xs border shadow-lg">
                 <p className="font-semibold mb-2 text-foreground">Intensidade</p>
@@ -1102,11 +1041,11 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
                       key={estado.estado}
                       onClick={() => zoomToState(estado.estado)}
                       className={`flex items-center gap-3 p-3 rounded-lg transition-all cursor-pointer border
-                        ${selectedEstado === estado.estado 
-                          ? 'bg-primary/10 border-primary shadow-md' 
+                        ${selectedEstado === estado.estado
+                          ? 'bg-primary/10 border-primary shadow-md'
                           : 'bg-muted/30 border-transparent hover:bg-muted/50 hover:border-primary/30'}`}
                     >
-                      <div 
+                      <div
                         className="flex items-center justify-center w-9 h-9 rounded-full font-bold text-sm text-white shadow"
                         style={{ backgroundColor: getMarkerColor(estado.count, locationData.maxCount) }}
                       >
@@ -1150,13 +1089,13 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
                           key={`${city.state}-${city.city}`}
                           onClick={() => zoomToCity(city)}
                           className={`p-3 rounded-lg transition-all cursor-pointer border
-                            ${isSelected 
-                              ? 'bg-primary/10 border-primary shadow-md' 
+                            ${isSelected
+                              ? 'bg-primary/10 border-primary shadow-md'
                               : 'bg-muted/30 border-transparent hover:bg-muted/50 hover:border-primary/30'}`}
                         >
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div 
+                              <div
                                 className="flex items-center justify-center w-6 h-6 rounded-full font-bold text-xs text-white shrink-0"
                                 style={{ backgroundColor: getMarkerColor(city.count, locationData.maxCityCount) }}
                               >
@@ -1168,20 +1107,20 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
                             </div>
                             <Navigation className="h-4 w-4 text-muted-foreground shrink-0" />
                           </div>
-                          
+
                           {city.cooperativa && (
                             <p className="text-xs text-muted-foreground mb-2 truncate pl-8" title={city.cooperativa}>
                               Cooperativa: {city.cooperativa}
                             </p>
                           )}
-                          
+
                           <div className="flex items-center justify-between pl-8">
                             <div className="flex items-center gap-2">
                               <Badge variant="outline" className="text-xs">
                                 {city.count.toLocaleString('pt-BR')} eventos
                               </Badge>
                               <span className="text-xs text-muted-foreground">
-                                ({((city.count / eventos.length) * 100).toFixed(1)}%)
+                                ({((city.count / (locationData.totalEventos || 1)) * 100).toFixed(1)}%)
                               </span>
                             </div>
                             <span className="text-sm font-semibold text-primary">
@@ -1218,7 +1157,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
                       <div className="p-4 rounded-lg border bg-card hover:shadow-md hover:border-primary/30 transition-all cursor-pointer">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2">
-                            <div 
+                            <div
                               className="flex items-center justify-center w-7 h-7 rounded-full font-bold text-xs text-white"
                               style={{ backgroundColor: getMarkerColor(regional.custo, Math.max(...locationData.regionaisArray.map(r => r.custo))) }}
                             >
@@ -1287,13 +1226,13 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {locationData.topCidadesCusto.map((city, index) => (
-              <div 
+              <div
                 key={`${city.state}-${city.city}`}
                 className="p-4 rounded-lg border bg-card hover:shadow-md hover:border-primary/30 transition-all cursor-pointer"
                 onClick={() => zoomToCity(city)}
               >
                 <div className="flex items-center gap-2 mb-3">
-                  <div 
+                  <div
                     className="flex items-center justify-center w-7 h-7 rounded-full font-bold text-xs text-white"
                     style={{ backgroundColor: getMarkerColor(city.custo, locationData.topCidadesCusto[0]?.custo || 1) }}
                   >
@@ -1337,7 +1276,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
               {locationData.tipoEventoArray.slice(0, 5).map((item, index) => (
                 <div key={item.tipo} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
                   <div className="flex items-center gap-2">
-                    <div 
+                    <div
                       className="w-2 h-2 rounded-full"
                       style={{ backgroundColor: getMarkerColor(item.count, locationData.tipoEventoArray[0]?.count || 1) }}
                     />
@@ -1366,7 +1305,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
               {locationData.motivoEventoArray.slice(0, 5).map((item, index) => (
                 <div key={item.motivo} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div 
+                    <div
                       className="w-2 h-2 rounded-full shrink-0"
                       style={{ backgroundColor: getMarkerColor(item.count, locationData.motivoEventoArray[0]?.count || 1) }}
                     />
@@ -1395,8 +1334,8 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
               {locationData.situacaoArray.slice(0, 5).map((item) => (
                 <div key={item.situacao} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Badge 
-                      variant="outline" 
+                    <Badge
+                      variant="outline"
                       className={`text-xs shrink-0 ${
                         item.situacao === 'FINALIZADO' ? 'bg-green-100 text-green-800 border-green-300' :
                         item.situacao === 'CANCELADO' ? 'bg-red-100 text-red-800 border-red-300' :
@@ -1409,7 +1348,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
                   <div className="text-right shrink-0 ml-2">
                     <p className="text-sm font-bold">{item.count.toLocaleString('pt-BR')}</p>
                     <p className="text-xs text-muted-foreground">
-                      ({((item.count / eventos.length) * 100).toFixed(1)}%)
+                      ({((item.count / (locationData.totalEventos || 1)) * 100).toFixed(1)}%)
                     </p>
                   </div>
                 </div>

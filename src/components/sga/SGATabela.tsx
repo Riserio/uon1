@@ -1,22 +1,43 @@
-import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useRef } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  Database, Search, Filter, Download, ChevronLeft, ChevronRight, 
-  AlertCircle, X, SortAsc, SortDesc 
+import {
+  Database, Search, Filter, Download, ChevronLeft, ChevronRight,
+  AlertCircle, X, SortAsc, SortDesc, Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
+// NOTE (escalabilidade): esta tabela não recebe mais o array cru de
+// eventos (a VALECAR sozinha já tem 131k+ eventos na importação ativa,
+// muito acima do teto de 100k linhas que a busca antiga usava — os dados
+// já estavam sendo truncados silenciosamente). Ela busca sua própria
+// página via `listar_eventos_paginado` (filtros + ordenação + paginação
+// no servidor), refazendo a busca a cada mudança de filtro/busca/página/
+// ordenação. A busca por texto é debounced em 300ms.
 interface SGATabelaProps {
-  eventos: any[];
+  corretoraId: string;
+  status: string;
+  dataInicio: string;
+  dataFim: string;
+  regional: string;
+  cooperativa: string;
+  tipoVeiculo: string;
   loading: boolean;
 }
+
+const PAGE_SIZE = 20;
+// Cap de exportação: nunca exporta o dataset filtrado inteiro de uma vez
+// (poderia passar de 100 mil linhas em associações grandes como a
+// VALECAR). Reaproveita a mesma RPC paginada com um limite alto.
+const EXPORT_CAP = 50000;
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -30,6 +51,8 @@ const formatDate = (date: string | null) => {
     return date;
   }
 };
+
+const toRpcFilterValue = (value: string) => (!value || value === "todos" ? null : value);
 
 const SITUACAO_COLORS: { [key: string]: string } = {
   "FINALIZADO": "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30",
@@ -63,79 +86,132 @@ const getStatusColor = (status: string | null) => {
   return "bg-violet-500/20 text-violet-700 dark:text-violet-400 border-violet-500/30";
 };
 
-export default function SGATabela({ eventos, loading }: SGATabelaProps) {
+export default function SGATabela({
+  corretoraId,
+  status,
+  dataInicio,
+  dataFim,
+  regional,
+  cooperativa,
+  tipoVeiculo,
+  loading,
+}: SGATabelaProps) {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("todos");
   const [filterMotivo, setFilterMotivo] = useState<string>("todos");
   const [filterSituacao, setFilterSituacao] = useState<string>("todos");
   const [sortField, setSortField] = useState<string>("data_evento");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
-  const pageSize = 20;
 
-  // Extrair opções únicas para filtros
-  const filterOptions = useMemo(() => {
-    const estados = [...new Set(eventos.map(e => e.evento_estado).filter(Boolean))].sort();
-    const motivos = [...new Set(eventos.map(e => e.motivo_evento).filter(Boolean))].sort();
-    const situacoes = [...new Set(eventos.map(e => e.situacao_evento).filter(Boolean))].sort();
-    return { estados, motivos, situacoes };
-  }, [eventos]);
+  const [filterOptions, setFilterOptions] = useState<{ estados: string[]; motivos: string[]; situacoes: string[] }>({
+    estados: [],
+    motivos: [],
+    situacoes: [],
+  });
 
-  // Filtrar e ordenar
-  const filteredEventos = useMemo(() => {
-    let result = [...eventos];
+  const [rows, setRows] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [tableLoading, setTableLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
-    // Busca global
-    if (search) {
-      const searchLower = search.toLowerCase();
-      result = result.filter(e =>
-        (e.placa || "").toLowerCase().includes(searchLower) ||
-        (e.modelo_veiculo || "").toLowerCase().includes(searchLower) ||
-        (e.regional || "").toLowerCase().includes(searchLower) ||
-        (e.cooperativa || "").toLowerCase().includes(searchLower) ||
-        (e.voluntario || "").toLowerCase().includes(searchLower)
-      );
+  const fetchIdRef = useRef(0);
+
+  // Debounce da busca (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Opções dos dropdowns locais (Estado / Motivo / Situação): RPC leve,
+  // escopo = importação ativa + status, não depende dos demais filtros.
+  useEffect(() => {
+    if (!corretoraId) {
+      setFilterOptions({ estados: [], motivos: [], situacoes: [] });
+      return;
     }
-
-    // Filtros
-    if (filterEstado !== "todos") {
-      result = result.filter(e => e.evento_estado === filterEstado);
-    }
-    if (filterMotivo !== "todos") {
-      result = result.filter(e => e.motivo_evento === filterMotivo);
-    }
-    if (filterSituacao !== "todos") {
-      result = result.filter(e => e.situacao_evento === filterSituacao);
-    }
-
-    // Ordenação
-    result.sort((a, b) => {
-      let aVal = a[sortField];
-      let bVal = b[sortField];
-
-      // Tratar datas
-      if (sortField.startsWith("data_")) {
-        aVal = aVal ? new Date(aVal).getTime() : 0;
-        bVal = bVal ? new Date(bVal).getTime() : 0;
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("get_eventos_filter_options", {
+          p_corretora_id: corretoraId,
+          p_status: status,
+        } as any);
+        if (error) throw error;
+        const opts = (data as any) || {};
+        setFilterOptions({
+          estados: [...(opts.estados || [])].sort(),
+          motivos: [...(opts.motivos || [])].sort(),
+          situacoes: [...(opts.situacoes || [])].sort(),
+        });
+      } catch (error) {
+        console.error("Erro ao carregar opções de filtro da tabela:", error);
       }
-      // Tratar valores numéricos
-      else if (["valor_reparo", "custo_evento", "participacao", "valor_protegido_veiculo"].includes(sortField)) {
-        aVal = Number(aVal) || 0;
-        bVal = Number(bVal) || 0;
+    })();
+  }, [corretoraId, status]);
+
+  const buildRpcParams = (pageNum: number, pageSize: number) => ({
+    p_corretora_id: corretoraId,
+    p_status: status,
+    p_data_inicio: dataInicio || null,
+    p_data_fim: dataFim || null,
+    p_regional: toRpcFilterValue(regional),
+    p_cooperativa: toRpcFilterValue(cooperativa),
+    p_tipo_veiculo: toRpcFilterValue(tipoVeiculo),
+    p_search: debouncedSearch || null,
+    p_filter_estado: toRpcFilterValue(filterEstado),
+    p_filter_motivo: toRpcFilterValue(filterMotivo),
+    p_filter_situacao: toRpcFilterValue(filterSituacao),
+    p_sort_field: sortField,
+    p_sort_dir: sortDir,
+    p_page: pageNum,
+    p_page_size: pageSize,
+  });
+
+  // Busca a página atual sempre que qualquer filtro/busca/ordenação/página muda
+  useEffect(() => {
+    if (!corretoraId) {
+      setRows([]);
+      setTotalCount(0);
+      setTableLoading(false);
+      return;
+    }
+
+    const myFetchId = ++fetchIdRef.current;
+    setTableLoading(true);
+
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("listar_eventos_paginado", buildRpcParams(page, PAGE_SIZE) as any);
+        if (myFetchId !== fetchIdRef.current) return;
+        if (error) throw error;
+        const result = (data as any) || {};
+        setRows(result.rows || []);
+        setTotalCount(result.totalCount || 0);
+      } catch (error) {
+        console.error("Erro ao carregar tabela de eventos:", error);
+        if (myFetchId === fetchIdRef.current) {
+          toast.error("Erro ao carregar os dados da tabela. Tente novamente.");
+        }
+      } finally {
+        if (myFetchId === fetchIdRef.current) setTableLoading(false);
       }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    corretoraId, status, dataInicio, dataFim, regional, cooperativa, tipoVeiculo,
+    debouncedSearch, filterEstado, filterMotivo, filterSituacao, sortField, sortDir, page,
+  ]);
 
-      if (sortDir === "asc") {
-        return aVal > bVal ? 1 : -1;
-      }
-      return aVal < bVal ? 1 : -1;
-    });
+  // Reset de página quando qualquer filtro/busca/ordenação muda
+  useEffect(() => {
+    setPage(1);
+  }, [
+    corretoraId, status, dataInicio, dataFim, regional, cooperativa, tipoVeiculo,
+    debouncedSearch, filterEstado, filterMotivo, filterSituacao, sortField, sortDir,
+  ]);
 
-    return result;
-  }, [eventos, search, filterEstado, filterMotivo, filterSituacao, sortField, sortDir]);
-
-  // Paginação
-  const totalPages = Math.ceil(filteredEventos.length / pageSize);
-  const paginatedEventos = filteredEventos.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -154,34 +230,54 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
     setPage(1);
   };
 
-  const exportCSV = () => {
-    const headers = [
-      "Estado", "Data Evento", "Motivo", "Tipo", "Situação", "Placa", 
-      "Modelo", "Regional", "Custo Evento", "Valor Reparo", "Participação"
-    ];
-    
-    const rows = filteredEventos.map(e => [
-      e.evento_estado,
-      formatDate(e.data_evento),
-      e.motivo_evento,
-      e.tipo_evento,
-      e.situacao_evento,
-      e.placa,
-      e.modelo_veiculo,
-      e.regional,
-      e.custo_evento,
-      e.valor_reparo,
-      e.participacao
-    ]);
+  const exportCSV = async () => {
+    setExporting(true);
+    try {
+      const { data, error } = await supabase.rpc("listar_eventos_paginado", buildRpcParams(1, EXPORT_CAP) as any);
+      if (error) throw error;
+      const result = (data as any) || {};
+      const exportRows = result.rows || [];
+      const exportTotal = result.totalCount || 0;
 
-    const csv = [headers.join(";"), ...rows.map(r => r.join(";"))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `sga_eventos_${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+      if (exportTotal > EXPORT_CAP) {
+        toast.warning(
+          `Exportação limitada aos primeiros ${EXPORT_CAP.toLocaleString('pt-BR')} de ${exportTotal.toLocaleString('pt-BR')} registros filtrados. Refine os filtros para exportar um subconjunto menor.`
+        );
+      }
+
+      const headers = [
+        "Estado", "Data Evento", "Motivo", "Tipo", "Situação", "Placa",
+        "Modelo", "Regional", "Custo Evento", "Valor Reparo", "Participação"
+      ];
+
+      const csvRows = exportRows.map((e: any) => [
+        e.evento_estado,
+        formatDate(e.data_evento),
+        e.motivo_evento,
+        e.tipo_evento,
+        e.situacao_evento,
+        e.placa,
+        e.modelo_veiculo,
+        e.regional,
+        e.custo_evento,
+        e.valor_reparo,
+        e.participacao
+      ]);
+
+      const csv = [headers.join(";"), ...csvRows.map((r: any[]) => r.join(";"))].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sga_eventos_${format(new Date(), "yyyy-MM-dd")}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Erro ao exportar:", error);
+      toast.error("Erro ao exportar dados.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (loading) {
@@ -195,7 +291,7 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
     );
   }
 
-  if (!eventos.length) {
+  if (!corretoraId) {
     return (
       <Card className="text-center py-12">
         <CardContent>
@@ -223,13 +319,13 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
                 <Input
                   placeholder="Buscar placa, modelo, regional..."
                   value={search}
-                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  onChange={(e) => setSearch(e.target.value)}
                   className="pl-10"
                 />
               </div>
             </div>
-            
-            <Select value={filterEstado} onValueChange={(v) => { setFilterEstado(v); setPage(1); }}>
+
+            <Select value={filterEstado} onValueChange={(v) => setFilterEstado(v)}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
@@ -241,7 +337,7 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
               </SelectContent>
             </Select>
 
-            <Select value={filterMotivo} onValueChange={(v) => { setFilterMotivo(v); setPage(1); }}>
+            <Select value={filterMotivo} onValueChange={(v) => setFilterMotivo(v)}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Motivo" />
               </SelectTrigger>
@@ -253,7 +349,7 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
               </SelectContent>
             </Select>
 
-            <Select value={filterSituacao} onValueChange={(v) => { setFilterSituacao(v); setPage(1); }}>
+            <Select value={filterSituacao} onValueChange={(v) => setFilterSituacao(v)}>
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Situação" />
               </SelectTrigger>
@@ -271,8 +367,8 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
               </Button>
             )}
 
-            <Button variant="outline" onClick={exportCSV}>
-              <Download className="h-4 w-4 mr-2" />
+            <Button variant="outline" onClick={exportCSV} disabled={exporting}>
+              {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
               Exportar CSV
             </Button>
           </div>
@@ -280,7 +376,7 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
           {hasActiveFilters && (
             <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
               <Filter className="h-4 w-4" />
-              <span>{filteredEventos.length} de {eventos.length} registros</span>
+              <span>{totalCount.toLocaleString('pt-BR')} registros filtrados</span>
             </div>
           )}
         </CardContent>
@@ -293,7 +389,7 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead 
+                  <TableHead
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleSort("evento_estado")}
                   >
@@ -302,7 +398,7 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
                       {sortField === "evento_estado" && (sortDir === "asc" ? <SortAsc className="h-3 w-3" /> : <SortDesc className="h-3 w-3" />)}
                     </div>
                   </TableHead>
-                  <TableHead 
+                  <TableHead
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleSort("data_evento")}
                   >
@@ -317,7 +413,7 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
                   <TableHead>Placa</TableHead>
                   <TableHead className="max-w-[200px]">Modelo</TableHead>
                   <TableHead className="max-w-[150px]">Regional</TableHead>
-                  <TableHead 
+                  <TableHead
                     className="text-right cursor-pointer hover:bg-muted/50"
                     onClick={() => handleSort("custo_evento")}
                   >
@@ -326,7 +422,7 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
                       {sortField === "custo_evento" && (sortDir === "asc" ? <SortAsc className="h-3 w-3" /> : <SortDesc className="h-3 w-3" />)}
                     </div>
                   </TableHead>
-                  <TableHead 
+                  <TableHead
                     className="text-right cursor-pointer hover:bg-muted/50"
                     onClick={() => handleSort("valor_reparo")}
                   >
@@ -338,36 +434,52 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedEventos.map((evento) => (
-                  <TableRow key={evento.id}>
-                    <TableCell className="font-medium">{evento.evento_estado || "-"}</TableCell>
-                    <TableCell>{formatDate(evento.data_evento)}</TableCell>
-                    <TableCell>{evento.motivo_evento || "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {evento.tipo_evento || "-"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(evento.situacao_evento)}>
-                        {evento.situacao_evento || "-"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{evento.placa || "-"}</TableCell>
-                    <TableCell className="max-w-[200px] truncate" title={evento.modelo_veiculo}>
-                      {evento.modelo_veiculo || "-"}
-                    </TableCell>
-                    <TableCell className="max-w-[150px] truncate" title={evento.regional}>
-                      {evento.regional || "-"}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(evento.custo_evento)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(evento.valor_reparo)}
+                {tableLoading ? (
+                  [...Array(8)].map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell colSpan={10}>
+                        <Skeleton className="h-6 w-full" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                      Nenhum registro encontrado com os filtros atuais.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  rows.map((evento) => (
+                    <TableRow key={evento.id}>
+                      <TableCell className="font-medium">{evento.evento_estado || "-"}</TableCell>
+                      <TableCell>{formatDate(evento.data_evento)}</TableCell>
+                      <TableCell>{evento.motivo_evento || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {evento.tipo_evento || "-"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(evento.situacao_evento)}>
+                          {evento.situacao_evento || "-"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{evento.placa || "-"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate" title={evento.modelo_veiculo}>
+                        {evento.modelo_veiculo || "-"}
+                      </TableCell>
+                      <TableCell className="max-w-[150px] truncate" title={evento.regional}>
+                        {evento.regional || "-"}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(evento.custo_evento)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(evento.valor_reparo)}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -376,14 +488,14 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
           {totalPages > 1 && (
             <div className="flex items-center justify-between p-4 border-t">
               <p className="text-sm text-muted-foreground">
-                Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, filteredEventos.length)} de {filteredEventos.length}
+                Mostrando {((page - 1) * PAGE_SIZE) + 1} a {Math.min(page * PAGE_SIZE, totalCount)} de {totalCount.toLocaleString('pt-BR')}
               </p>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
+                  disabled={page === 1 || tableLoading}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -394,7 +506,7 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
+                  disabled={page === totalPages || tableLoading}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>

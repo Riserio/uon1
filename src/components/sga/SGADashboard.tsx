@@ -6,9 +6,46 @@ import { Button } from "@/components/ui/button";
 import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import SGAEventosDetailDialog from "./SGAEventosDetailDialog";
 
+// NOTE (escalabilidade): este componente não recebe mais o array cru de
+// eventos (a VALECAR sozinha já tem 131k+ eventos na importação ativa,
+// muito acima do que fazia sentido agregar no navegador). Toda a
+// agregação vem pronta em `stats`, calculada no banco pela RPC
+// `get_dashboard_eventos_cached` (ver SGAInsights.tsx). O drill-down (ao
+// clicar num segmento de gráfico) também não recebe mais `eventos` — o
+// dialog busca os dados via `listar_eventos_por_filtro` usando os mesmos
+// filtros globais recebidos aqui.
+interface SGADashboardStats {
+  totalEventos: number;
+  totalFinalizados: number;
+  totalEmAndamento: number;
+  totalCusto: number;
+  totalReparo: number;
+  mediaParticipacao: number;
+  totalEstadosDistintos: number;
+  estadoData: { name: string; value: number }[];
+  cidadeData: { name: string; value: number }[];
+  motivoData: { name: string; value: number }[];
+  situacaoData: { name: string; value: number }[];
+  regionalData: { name: string; value: number }[];
+  tipoData: { name: string; value: number }[];
+  cooperativaData: { name: string; value: number }[];
+  custosCooperativaData: { name: string; value: number }[];
+  tipoVeiculoData: { name: string; value: number }[];
+  envolvimentoData: { name: string; value: number }[];
+  timelineData: { mes: string; eventos: number; custo: number }[];
+  timelineDiaData: { dia: string; eventos: number; custo: number }[];
+}
+
 interface SGADashboardProps {
-  eventos: any[];
+  stats: SGADashboardStats | null;
   loading: boolean;
+  corretoraId: string;
+  status: string;
+  dataInicio: string;
+  dataFim: string;
+  regional: string;
+  cooperativa: string;
+  tipoVeiculo: string;
 }
 
 interface DetailDialogState {
@@ -28,17 +65,8 @@ const formatCompactCurrency = (value: number) =>
 
 const ttStyle = { borderRadius: 10, fontSize: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" };
 
-const getTipoVeiculo = (modelo: string): string => {
-  if (!modelo) return "Não Informado";
-  const m = modelo.toLowerCase();
-  if (m.includes("moto") || m.includes("honda") || m.includes("yamaha") || m.includes("suzuki") || m.includes("kawasaki")) return "Motocicleta";
-  if (m.includes("caminhao") || m.includes("caminhão") || m.includes("truck") || m.includes("scania") || m.includes("volvo")) return "Caminhão";
-  if (m.includes("van") || m.includes("furgao") || m.includes("sprinter")) return "Van/Utilitário";
-  return "Passeio";
-};
-
 // Compact horizontal bar widget
-function BarWidget({ data, total, colorFn, isCurrency }: { data: { name: string; value: number; fill?: string }[]; total: number; colorFn?: (i: number) => string; isCurrency?: boolean }) {
+function BarWidget({ data, total, colorFn, isCurrency, onClick }: { data: { name: string; value: number; fill?: string }[]; total: number; colorFn?: (i: number) => string; isCurrency?: boolean; onClick?: (name: string) => void }) {
   if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
   const maxVal = data[0]?.value || 1;
   return (
@@ -47,7 +75,11 @@ function BarWidget({ data, total, colorFn, isCurrency }: { data: { name: string;
         const pct = isCurrency ? (item.value / maxVal) * 100 : (total > 0 ? (item.value / total) * 100 : 0);
         const color = item.fill ?? (colorFn ? colorFn(i) : COLORS[i % COLORS.length]);
         return (
-          <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+          <div
+            key={item.name}
+            className={`flex items-center gap-1.5 min-w-0 ${onClick ? "cursor-pointer hover:opacity-70" : ""}`}
+            onClick={onClick ? () => onClick(item.name) : undefined}
+          >
             <span className="text-[10px] sm:text-[11px] text-muted-foreground truncate w-14 sm:w-28 shrink-0" title={item.name}>{item.name}</span>
             <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden min-w-0">
               <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: color }} />
@@ -64,7 +96,7 @@ function BarWidget({ data, total, colorFn, isCurrency }: { data: { name: string;
 }
 
 // Mini Donut Chart for small categorical data
-function MiniDonut({ data, total }: { data: { name: string; value: number }[]; total: number }) {
+function MiniDonut({ data, total, onClick }: { data: { name: string; value: number }[]; total: number; onClick?: (name: string) => void }) {
   if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
   const top6 = data.slice(0, 6);
   return (
@@ -72,7 +104,17 @@ function MiniDonut({ data, total }: { data: { name: string; value: number }[]; t
       <div className="shrink-0">
         <ResponsiveContainer width={120} height={120}>
           <PieChart>
-            <Pie data={top6} dataKey="value" innerRadius={32} outerRadius={54} paddingAngle={2} startAngle={90} endAngle={-270}>
+            <Pie
+              data={top6}
+              dataKey="value"
+              innerRadius={32}
+              outerRadius={54}
+              paddingAngle={2}
+              startAngle={90}
+              endAngle={-270}
+              onClick={onClick ? (entry: any) => onClick(entry.name) : undefined}
+              cursor={onClick ? "pointer" : undefined}
+            >
               {top6.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />)}
             </Pie>
             <Tooltip contentStyle={ttStyle} formatter={(v: any, n: string) => [v.toLocaleString('pt-BR'), n]} />
@@ -83,7 +125,11 @@ function MiniDonut({ data, total }: { data: { name: string; value: number }[]; t
         {top6.map((item, i) => {
           const pct = total > 0 ? (item.value / total) * 100 : 0;
           return (
-            <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+            <div
+              key={item.name}
+              className={`flex items-center gap-1.5 min-w-0 ${onClick ? "cursor-pointer hover:opacity-70" : ""}`}
+              onClick={onClick ? () => onClick(item.name) : undefined}
+            >
               <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
               <span className="text-[11px] text-muted-foreground truncate flex-1 min-w-0">{item.name}</span>
               <span className="text-[11px] font-bold tabular-nums shrink-0">{pct.toFixed(0)}%</span>
@@ -95,7 +141,17 @@ function MiniDonut({ data, total }: { data: { name: string; value: number }[]; t
   );
 }
 
-export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
+export default function SGADashboard({
+  stats,
+  loading,
+  corretoraId,
+  status,
+  dataInicio,
+  dataFim,
+  regional,
+  cooperativa,
+  tipoVeiculo,
+}: SGADashboardProps) {
   const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('mes');
   const evolucaoScrollRef = useRef<HTMLDivElement>(null);
   const [showScroll, setShowScroll] = useState({ left: false, right: false });
@@ -113,108 +169,25 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
     evolucaoScrollRef.current?.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
   };
 
-  const stats = useMemo(() => {
-    if (!eventos.length) return null;
+  // A RPC já traz mes/dia prontos; mesLabel/diaLabel são só formatação de
+  // exibição, calculada aqui exatamente como antes.
+  const timelineData = useMemo(
+    () =>
+      (stats?.timelineData || []).map((d) => ({
+        ...d,
+        mesLabel: new Date(d.mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      })),
+    [stats?.timelineData],
+  );
 
-    const reduce = (field: string) => eventos.reduce((acc: any, e) => {
-      const val = e[field] || "";
-      if (val && val !== "N/I" && val !== "NAO INFORMADO" && val !== "NÃO INFORMADO") {
-        acc[val] = (acc[val] || 0) + 1;
-      }
-      return acc;
-    }, {});
-
-    const toArr = (obj: any, limit = 10) =>
-      Object.entries(obj).map(([name, value]) => ({ name, value: value as number })).sort((a, b) => b.value - a.value).slice(0, limit);
-
-    // Estado: "evento_estado" (local do sinistro) só vem preenchido em ~43%
-    // dos registros na fonte SGA/Hinova. "associado_estado" (UF do
-    // associado) é muito mais completo (~91%). Para o gráfico refletir a
-    // cobertura real de estados, usamos evento_estado quando disponível e
-    // caímos para associado_estado como fallback — em vez de descartar
-    // silenciosamente a maioria dos eventos que não têm evento_estado.
-    const porEstado = eventos.reduce((acc: any, e) => {
-      const val = e.evento_estado || e.associado_estado || "";
-      if (val && val !== "N/I" && val !== "NAO INFORMADO" && val !== "NÃO INFORMADO") {
-        acc[val] = (acc[val] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    // Cidade: só existe "evento_cidade" (não há cidade do associado na base
-    // SGA); é preenchida em ~27% dos registros na fonte. Mesmo parcial, é
-    // informação relevante para alguns gráficos e por isso é exibida.
-    const porCidade = reduce("evento_cidade");
-    const porMotivo = reduce("motivo_evento");
-    const porSituacao = reduce("situacao_evento");
-    const porRegional = reduce("regional");
-    const porTipo = reduce("tipo_evento");
-    const porCooperativa = reduce("cooperativa");
-    const porEnvolvimento = reduce("envolvimento");
-
-    const custosPorCooperativa = eventos.reduce((acc: any, e) => {
-      const c = e.cooperativa;
-      if (c && c !== "N/I") acc[c] = (acc[c] || 0) + (e.custo_evento || 0);
-      return acc;
-    }, {});
-
-    const porTipoVeiculo = eventos.reduce((acc: any, e) => {
-      const tipo = getTipoVeiculo(e.modelo_veiculo);
-      acc[tipo] = (acc[tipo] || 0) + 1;
-      return acc;
-    }, {});
-
-    const porMes = eventos.reduce((acc: any, e) => {
-      const dref = e.data_cadastro_evento || e.data_evento;
-      if (dref) {
-        const date = new Date(dref);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        acc[key] = acc[key] || { eventos: 0, custo: 0 };
-        acc[key].eventos += 1;
-        acc[key].custo += e.custo_evento || 0;
-      }
-      return acc;
-    }, {});
-    const timelineData = Object.entries(porMes)
-      .map(([mes, d]: [string, any]) => ({
-        mes, mesLabel: new Date(mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-        eventos: d.eventos, custo: d.custo
-      })).sort((a, b) => a.mes.localeCompare(b.mes));
-
-    const porDia = eventos.reduce((acc: any, e) => {
-      const dref = e.data_cadastro_evento || e.data_evento;
-      if (dref) {
-        const key = new Date(dref).toISOString().split('T')[0];
-        acc[key] = acc[key] || { eventos: 0, custo: 0 };
-        acc[key].eventos += 1;
-        acc[key].custo += e.custo_evento || 0;
-      }
-      return acc;
-    }, {});
-    const timelineDiaData = Object.entries(porDia)
-      .map(([dia, d]: [string, any]) => ({
-        dia, diaLabel: new Date(dia + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-        eventos: d.eventos, custo: d.custo
-      })).sort((a, b) => a.dia.localeCompare(b.dia));
-
-    return {
-      estadoData: toArr(porEstado),
-      cidadeData: toArr(porCidade, 10),
-      motivoData: toArr(porMotivo, 15),
-      situacaoData: toArr(porSituacao, 15),
-      regionalData: toArr(porRegional),
-      tipoData: toArr(porTipo, 15),
-      cooperativaData: toArr(porCooperativa),
-      custosCooperativaData: Object.entries(custosPorCooperativa).map(([name, value]) => ({ name, value: value as number })).sort((a, b) => b.value - a.value).slice(0, 10),
-      tipoVeiculoData: toArr(porTipoVeiculo, 10),
-      envolvimentoData: toArr(porEnvolvimento, 10),
-      timelineData,
-      timelineDiaData,
-      totalCusto: eventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0),
-      totalReparo: eventos.reduce((acc, e) => acc + (e.valor_reparo || 0), 0),
-      mediaParticipacao: eventos.reduce((acc, e) => acc + (e.participacao || 0), 0) / eventos.length,
-      totalEstadosDistintos: Object.keys(porEstado).length,
-    };
-  }, [eventos]);
+  const timelineDiaData = useMemo(
+    () =>
+      (stats?.timelineDiaData || []).map((d) => ({
+        ...d,
+        diaLabel: new Date(d.dia + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      })),
+    [stats?.timelineDiaData],
+  );
 
   useEffect(() => {
     const el = evolucaoScrollRef.current;
@@ -222,17 +195,17 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
     const now = new Date();
     const currentMesAno = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const currentDia = now.toISOString().split('T')[0];
-    if (evolucaoView === 'mes' && stats.timelineData.length > 0) {
-      let idx = stats.timelineData.findIndex(d => d.mes === currentMesAno);
-      if (idx === -1) idx = stats.timelineData.length - 1;
+    if (evolucaoView === 'mes' && timelineData.length > 0) {
+      let idx = timelineData.findIndex(d => d.mes === currentMesAno);
+      if (idx === -1) idx = timelineData.length - 1;
       el.scrollTo({ left: Math.max(0, idx * 70 - el.clientWidth / 2 + 35), behavior: 'auto' });
-    } else if (evolucaoView === 'dia' && stats.timelineDiaData.length > 0) {
-      let idx = stats.timelineDiaData.findIndex(d => d.dia === currentDia);
-      if (idx === -1) idx = stats.timelineDiaData.length - 1;
+    } else if (evolucaoView === 'dia' && timelineDiaData.length > 0) {
+      let idx = timelineDiaData.findIndex(d => d.dia === currentDia);
+      if (idx === -1) idx = timelineDiaData.length - 1;
       el.scrollTo({ left: Math.max(0, idx * 45 - el.clientWidth / 2 + 22), behavior: 'auto' });
     }
     setTimeout(updateScrollIndicators, 100);
-  }, [stats?.timelineData, stats?.timelineDiaData, evolucaoView]);
+  }, [timelineData, timelineDiaData, evolucaoView, stats]);
 
   if (loading) {
     return (
@@ -242,7 +215,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
     );
   }
 
-  if (!eventos.length || !stats) {
+  if (!stats || !stats.totalEventos) {
     return (
       <Card className="rounded-2xl text-center py-12">
         <CardContent>
@@ -254,7 +227,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
     );
   }
 
-  const totalEventos = eventos.length;
+  const totalEventos = stats.totalEventos;
 
   return (
     <div className="space-y-3 max-w-full overflow-x-hidden">
@@ -307,9 +280,9 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
               </button>
             )}
             <div className="overflow-x-auto scrollbar-hide" ref={evolucaoScrollRef} onScroll={updateScrollIndicators}>
-              <div style={{ minWidth: evolucaoView === 'mes' ? Math.max(700, stats.timelineData.length * 70) + 'px' : Math.max(700, stats.timelineDiaData.length * 45) + 'px' }}>
+              <div style={{ minWidth: evolucaoView === 'mes' ? Math.max(700, timelineData.length * 70) + 'px' : Math.max(700, timelineDiaData.length * 45) + 'px' }}>
                 <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
+                  <AreaChart data={evolucaoView === 'mes' ? timelineData : timelineDiaData} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
                     <XAxis dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
                     <YAxis yAxisId="left" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
                     <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={formatCompactCurrency} axisLine={false} tickLine={false} width={52} />
@@ -330,13 +303,17 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Situação dos Eventos</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            <MiniDonut data={stats.situacaoData} total={totalEventos} />
+            <MiniDonut data={stats.situacaoData} total={totalEventos} onClick={(name) => openDetailDialog(`Situação: ${name}`, "situacao", name)} />
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Regional</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            <BarWidget data={stats.regionalData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+            <BarWidget
+              data={stats.regionalData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))}
+              total={totalEventos}
+              onClick={(name) => openDetailDialog(`Regional: ${name}`, "regional", name)}
+            />
           </CardContent>
         </Card>
       </div>
@@ -347,14 +324,18 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Motivo do Evento</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
             <div className="overflow-y-auto max-h-[280px] pr-0.5">
-              <BarWidget data={stats.motivoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+              <BarWidget
+                data={stats.motivoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))}
+                total={totalEventos}
+                onClick={(name) => openDetailDialog(`Motivo: ${name}`, "motivo", name)}
+              />
             </div>
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Tipo de Evento</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            <MiniDonut data={stats.tipoData} total={totalEventos} />
+            <MiniDonut data={stats.tipoData} total={totalEventos} onClick={(name) => openDetailDialog(`Tipo de Evento: ${name}`, "tipoEvento", name)} />
           </CardContent>
         </Card>
       </div>
@@ -364,7 +345,11 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Estado</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            <BarWidget data={stats.estadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+            <BarWidget
+              data={stats.estadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))}
+              total={totalEventos}
+              onClick={(name) => openDetailDialog(`Estado: ${name}`, "estado", name)}
+            />
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-border/40">
@@ -374,7 +359,11 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           <CardContent className="px-4 pb-4">
             {stats.cidadeData.length > 0 ? (
               <>
-                <BarWidget data={stats.cidadeData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+                <BarWidget
+                  data={stats.cidadeData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))}
+                  total={totalEventos}
+                  onClick={(name) => openDetailDialog(`Cidade: ${name}`, "cidade", name)}
+                />
                 <p className="text-[10px] text-muted-foreground text-center mt-2">
                   Cidade do evento disponível em parte dos registros importados do SGA.
                 </p>
@@ -391,7 +380,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Tipo de Veículo</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            <MiniDonut data={stats.tipoVeiculoData} total={totalEventos} />
+            <MiniDonut data={stats.tipoVeiculoData} total={totalEventos} onClick={(name) => openDetailDialog(`Tipo de Veículo: ${name}`, "tipoVeiculo", name)} />
           </CardContent>
         </Card>
         {/* Envolvimento (movido para cá para preencher a coluna, quando disponível) */}
@@ -399,7 +388,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Envolvimento</CardTitle></CardHeader>
             <CardContent className="px-4 pb-4">
-              <MiniDonut data={stats.envolvimentoData} total={totalEventos} />
+              <MiniDonut data={stats.envolvimentoData} total={totalEventos} onClick={(name) => openDetailDialog(`Envolvimento: ${name}`, "envolvimento", name)} />
             </CardContent>
           </Card>
         )}
@@ -411,7 +400,11 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Cooperativa</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
             <div className="overflow-y-auto max-h-[240px]">
-              <BarWidget data={stats.cooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+              <BarWidget
+                data={stats.cooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))}
+                total={totalEventos}
+                onClick={(name) => openDetailDialog(`Cooperativa: ${name}`, "cooperativa", name)}
+              />
             </div>
           </CardContent>
         </Card>
@@ -419,7 +412,12 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Custo por Cooperativa</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
             <div className="overflow-y-auto max-h-[240px]">
-              <BarWidget data={stats.custosCooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={stats.totalCusto} isCurrency />
+              <BarWidget
+                data={stats.custosCooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))}
+                total={stats.totalCusto}
+                isCurrency
+                onClick={(name) => openDetailDialog(`Cooperativa: ${name}`, "cooperativa", name)}
+              />
             </div>
           </CardContent>
         </Card>
@@ -429,9 +427,15 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         open={detailDialog.open}
         onOpenChange={(open) => setDetailDialog(d => ({ ...d, open }))}
         title={detailDialog.title}
-        eventos={eventos}
         filterType={detailDialog.filterType}
         filterValue={detailDialog.filterValue}
+        corretoraId={corretoraId}
+        status={status}
+        dataInicio={dataInicio}
+        dataFim={dataFim}
+        regional={regional}
+        cooperativa={cooperativa}
+        tipoVeiculo={tipoVeiculo}
       />
     </div>
   );

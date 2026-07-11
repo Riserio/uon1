@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,22 +8,40 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Car, DollarSign, Calendar, MapPin, Building2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
+// NOTE (escalabilidade): este dialog não recebe mais o array cru de
+// eventos (o Dashboard já não carrega isso no navegador). Ao abrir, busca
+// diretamente via `listar_eventos_por_filtro` — a lógica de qual campo
+// cada `filterType` compara já está implementada dentro da RPC (replica
+// o switch que existia neste componente). O resultado vem limitado a
+// `p_limit` linhas (500), mas `totalCount`/`totalCusto`/`totalReparo`
+// refletem TODAS as linhas que batem com o filtro.
 interface SGAEventosDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   filterType: string;
   filterValue: string;
-  eventos: any[];
+  corretoraId: string;
+  status: string;
+  dataInicio: string;
+  dataFim: string;
+  regional: string;
+  cooperativa: string;
+  tipoVeiculo: string;
 }
+
+const RESULT_LIMIT = 500;
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
-  }).format(value);
+  }).format(value || 0);
 };
 
 const formatDate = (dateStr: string) => {
@@ -32,140 +50,87 @@ const formatDate = (dateStr: string) => {
   return date.toLocaleDateString("pt-BR");
 };
 
+const toRpcFilterValue = (value: string) => (!value || value === "todos" ? null : value);
+
 export default function SGAEventosDetailDialog({
   open,
   onOpenChange,
   title,
   filterType,
   filterValue,
-  eventos,
+  corretoraId,
+  status,
+  dataInicio,
+  dataFim,
+  regional,
+  cooperativa,
+  tipoVeiculo,
 }: SGAEventosDetailDialogProps) {
   const [searchPlaca, setSearchPlaca] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [rows, setRows] = useState<any[]>([]);
+  const [totals, setTotals] = useState({ count: 0, custoTotal: 0, reparoTotal: 0 });
+  const [loading, setLoading] = useState(false);
+  const fetchIdRef = useRef(0);
 
-  // Filter eventos based on the filter type and value
-  const filteredEventos = useMemo(() => {
-    let filtered = eventos;
+  // Reseta a busca sempre que o dialog é reaberto para um novo filtro
+  useEffect(() => {
+    if (open) {
+      setSearchPlaca("");
+      setDebouncedSearch("");
+    }
+  }, [open, filterType, filterValue]);
 
-    // Apply the main filter based on chart click
-    switch (filterType) {
-      case "tipoVeiculo":
-        filtered = eventos.filter((e) => {
-          const modelo = (e.modelo_veiculo || "").toLowerCase();
-          if (filterValue === "Motocicleta") {
-            return (
-              modelo.includes("moto") ||
-              modelo.includes("honda") ||
-              modelo.includes("yamaha") ||
-              modelo.includes("suzuki") ||
-              modelo.includes("kawasaki")
-            );
-          }
-          if (filterValue === "Caminhão") {
-            return (
-              modelo.includes("caminhao") ||
-              modelo.includes("caminhão") ||
-              modelo.includes("truck") ||
-              modelo.includes("scania") ||
-              modelo.includes("volvo") ||
-              modelo.includes("mercedes")
-            );
-          }
-          if (filterValue === "Van/Utilitário") {
-            return (
-              modelo.includes("van") ||
-              modelo.includes("furgao") ||
-              modelo.includes("furgão") ||
-              modelo.includes("sprinter")
-            );
-          }
-          // Default: Passeio
-          return (
-            !modelo.includes("moto") &&
-            !modelo.includes("honda") &&
-            !modelo.includes("yamaha") &&
-            !modelo.includes("suzuki") &&
-            !modelo.includes("kawasaki") &&
-            !modelo.includes("caminhao") &&
-            !modelo.includes("caminhão") &&
-            !modelo.includes("truck") &&
-            !modelo.includes("scania") &&
-            !modelo.includes("volvo") &&
-            !modelo.includes("mercedes") &&
-            !modelo.includes("van") &&
-            !modelo.includes("furgao") &&
-            !modelo.includes("furgão") &&
-            !modelo.includes("sprinter")
-          );
-        });
-        break;
-      case "cooperativa":
-        filtered = eventos.filter((e) => e.cooperativa === filterValue);
-        break;
-      case "regional":
-        filtered = eventos.filter((e) => e.regional === filterValue);
-        break;
-      case "estado":
-        // "Eventos por Estado" agrupa por evento_estado com fallback para
-        // associado_estado (ver SGADashboard.tsx) — o filtro precisa usar a
-        // mesma lógica para o drilldown bater com o gráfico.
-        filtered = eventos.filter((e) => (e.evento_estado || e.associado_estado) === filterValue);
-        break;
-      case "cidade":
-        filtered = eventos.filter((e) => e.evento_cidade === filterValue);
-        break;
-      case "motivo":
-        filtered = eventos.filter((e) => e.motivo_evento === filterValue);
-        break;
-      case "situacao":
-        filtered = eventos.filter((e) => e.situacao_evento === filterValue);
-        break;
-      case "tipoEvento":
-        filtered = eventos.filter((e) => e.tipo_evento === filterValue);
-        break;
-      case "envolvimento":
-        filtered = eventos.filter((e) => e.envolvimento === filterValue);
-        break;
-      case "mes":
-        filtered = eventos.filter((e) => {
-          if (!e.data_evento) return false;
-          const date = new Date(e.data_evento);
-          const mesAno = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-          return mesAno === filterValue;
-        });
-        break;
-      case "dia":
-        filtered = eventos.filter((e) => {
-          if (!e.data_evento) return false;
-          const date = new Date(e.data_evento);
-          return date.toISOString().split("T")[0] === filterValue;
-        });
-        break;
+  // Debounce da busca por placa/modelo (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchPlaca), 300);
+    return () => clearTimeout(timer);
+  }, [searchPlaca]);
+
+  useEffect(() => {
+    if (!open || !corretoraId || !filterType) {
+      return;
     }
 
-    // Apply placa search filter
-    if (searchPlaca.trim()) {
-      const search = searchPlaca.toLowerCase().trim();
-      filtered = filtered.filter(
-        (e) =>
-          (e.placa && e.placa.toLowerCase().includes(search)) ||
-          (e.modelo_veiculo && e.modelo_veiculo.toLowerCase().includes(search))
-      );
-    }
+    const myFetchId = ++fetchIdRef.current;
+    setLoading(true);
 
-    return filtered;
-  }, [eventos, filterType, filterValue, searchPlaca]);
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("listar_eventos_por_filtro", {
+          p_corretora_id: corretoraId,
+          p_status: status,
+          p_data_inicio: dataInicio || null,
+          p_data_fim: dataFim || null,
+          p_regional: toRpcFilterValue(regional),
+          p_cooperativa: toRpcFilterValue(cooperativa),
+          p_tipo_veiculo: toRpcFilterValue(tipoVeiculo),
+          p_filter_type: filterType,
+          p_filter_value: filterValue,
+          p_search: debouncedSearch || null,
+          p_limit: RESULT_LIMIT,
+        } as any);
 
-  const totals = useMemo(() => {
-    const custoTotal = filteredEventos.reduce(
-      (acc, e) => acc + (e.custo_evento || 0),
-      0
-    );
-    const reparoTotal = filteredEventos.reduce(
-      (acc, e) => acc + (e.valor_reparo || 0),
-      0
-    );
-    return { custoTotal, reparoTotal, count: filteredEventos.length };
-  }, [filteredEventos]);
+        if (myFetchId !== fetchIdRef.current) return;
+        if (error) throw error;
+
+        const result = (data as any) || {};
+        setRows(result.rows || []);
+        setTotals({
+          count: result.totalCount || 0,
+          custoTotal: result.totalCusto || 0,
+          reparoTotal: result.totalReparo || 0,
+        });
+      } catch (error) {
+        console.error("Erro ao carregar detalhes do evento:", error);
+        if (myFetchId === fetchIdRef.current) {
+          toast.error("Erro ao carregar os veículos deste filtro. Tente novamente.");
+        }
+      } finally {
+        if (myFetchId === fetchIdRef.current) setLoading(false);
+      }
+    })();
+  }, [open, corretoraId, status, dataInicio, dataFim, regional, cooperativa, tipoVeiculo, filterType, filterValue, debouncedSearch]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -206,16 +171,28 @@ export default function SGAEventosDetailDialog({
             </div>
           </div>
 
+          {totals.count > rows.length && (
+            <p className="text-xs text-muted-foreground -mt-2 flex-shrink-0">
+              Mostrando os {rows.length.toLocaleString("pt-BR")} primeiros de {totals.count.toLocaleString("pt-BR")} veículos. Refine a busca para reduzir o resultado.
+            </p>
+          )}
+
           {/* Vehicle List */}
           <ScrollArea className="flex-1 min-h-0 h-full pr-4">
-            {filteredEventos.length === 0 ? (
+            {loading ? (
+              <div className="space-y-3">
+                {[...Array(4)].map((_, i) => (
+                  <Skeleton key={i} className="h-28 w-full rounded-lg" />
+                ))}
+              </div>
+            ) : rows.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Car className="h-12 w-12 mx-auto mb-4 opacity-30" />
                 <p>Nenhum veículo encontrado</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredEventos.map((evento, index) => {
+                {rows.map((evento, index) => {
                   const estadoExibicao = evento.evento_estado || evento.associado_estado;
                   return (
                   <div
