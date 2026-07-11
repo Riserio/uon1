@@ -172,6 +172,11 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     mgf: { lastExecution: null, lastStatus: null, lastError: null, isExecuting: false, activeExecution: null },
   });
   const [historyModule, setHistoryModule] = useState<ModuleType>("cobranca");
+  // Base de veículos (Indicadores/Estudo de Base): módulo à parte — importa
+  // Cadastro + Estudo de Base via API e alimenta as Placas Ativas do PID.
+  const [baseLastImport, setBaseLastImport] = useState<string | null>(null);
+  const [baseTotal, setBaseTotal] = useState<number | null>(null);
+  const [baseExecuting, setBaseExecuting] = useState(false);
   const [historyLogs, setHistoryLogs] = useState<ExecutionLog[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [tick, setTick] = useState(0);
@@ -601,6 +606,60 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
   };
 
+  const loadBaseStatus = async () => {
+    const { data } = await supabase
+      .from("estudo_base_importacoes")
+      .select("created_at, total_registros")
+      .eq("corretora_id", corretoraId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setBaseLastImport(data?.created_at || null);
+    setBaseTotal(data?.total_registros ?? null);
+  };
+
+  useEffect(() => {
+    if (open) loadBaseStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, corretoraId]);
+
+  // Importa a BASE (Cadastro + Estudo de Base) via API — chamada direta à
+  // importar-api-hinova (mesma usada pelo scheduler diário da base).
+  const handleExecuteBase = async (silencioso = false) => {
+    if (!creds.usar_api || !creds.api_token) {
+      if (!silencioso) toast.error("A base é importada via API — configure o token da API na aba Configuração.");
+      return;
+    }
+    setBaseExecuting(true);
+    if (!silencioso) toast.info("Importando base de veículos... pode levar alguns minutos.", { duration: 8000 });
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const session = (await supabase.auth.getSession()).data.session;
+      const response = await fetch(`${supabaseUrl}/functions/v1/importar-api-hinova`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || supabaseKey}`,
+          apikey: supabaseKey,
+        },
+        body: JSON.stringify({ corretora_id: corretoraId, modulo: "base" }),
+      });
+      const j = await response.json().catch(() => null);
+      if (response.ok && j?.success !== false) {
+        toast.success(`Base atualizada${j?.total ? `: ${j.total} veículos` : ""}!`);
+      } else {
+        toast.error(j?.message || "Erro ao importar a base");
+      }
+    } catch {
+      // A função pode exceder o tempo da conexão e continuar no servidor
+      toast.info("Importação da base em andamento no servidor — confira em alguns minutos.");
+    } finally {
+      setBaseExecuting(false);
+      loadBaseStatus();
+    }
+  };
+
   const handleExecuteAll = async () => {
     setExecutingModule("all");
     const modules: ModuleType[] = ["cobranca", "eventos", "mgf"];
@@ -638,6 +697,8 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     if (errors > 0) toast.error(`${errors} erro(s)`);
     loadModuleStatuses();
     setExecutingModule(null);
+    // Base (Indicadores) roda junto, em segundo plano — demora alguns minutos
+    void handleExecuteBase(true);
   };
 
   const loadHistory = async (mod: ModuleType) => {
@@ -1030,6 +1091,49 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                     </div>
                   );
                 })
+              )}
+
+              {/* Indicadores (Base de veículos) — importa Cadastro + Estudo de
+                  Base via API e alimenta Placas Ativas do PID. Também roda no
+                  automático diário (scheduler-base-hinova) e no Executar Todos. */}
+              {(creds.hinova_user || creds.api_token) && (
+                <div className="rounded-2xl border bg-card overflow-hidden transition-all hover:shadow-sm">
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <Wifi className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">Indicadores (Base)</span>
+                        {baseExecuting ? (
+                          <span className="text-[9px] px-1.5 py-0 rounded-full font-medium bg-primary/10 text-primary">
+                            importando...
+                          </span>
+                        ) : (
+                          <span className="text-[9px] px-1.5 py-0 rounded-full font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                            via API
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {baseLastImport
+                          ? `Última: ${format(new Date(baseLastImport), "dd/MM HH:mm", { locale: ptBR })}${baseTotal ? ` · ${baseTotal.toLocaleString("pt-BR")} veículos` : ""}`
+                          : "Nunca importada"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleExecuteBase()}
+                        disabled={baseExecuting || executingModule !== null}
+                        className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary"
+                      >
+                        {baseExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
