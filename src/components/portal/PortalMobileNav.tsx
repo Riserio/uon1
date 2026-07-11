@@ -61,8 +61,12 @@ export default function PortalMobileNav({
           Agora cada botão tem largura fixa (w-14) e a nav só ocupa o
           espaço que o número real de botões precisa, com um teto de
           largura pra nunca estourar a tela. */}
+      {/* pointer-events-none no container só serve pra caso alguma página
+          coloque um overlay full-screen — os botões dentro do <nav> reativam
+          eventos com pointer-events-auto. isolate cria stacking context próprio
+          pra que nenhuma section com z-index dentro das páginas fique acima. */}
       <nav
-        className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[100] rounded-full bg-card/95 backdrop-blur-md border border-border shadow-2xl px-2 flex items-center justify-center gap-0.5 w-auto max-w-[calc(100vw-1.5rem)]"
+        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card/95 backdrop-blur-md border border-border shadow-2xl px-2 flex items-center justify-center gap-0.5 w-fit max-w-[calc(100vw-1.5rem)] pointer-events-auto"
         style={{ paddingTop: "0.4rem", paddingBottom: "max(0.4rem, env(safe-area-inset-bottom))" }}
       >
         {favoritos.map((mod) => {
