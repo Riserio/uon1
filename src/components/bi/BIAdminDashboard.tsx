@@ -56,6 +56,17 @@ interface AssociacaoStatus {
   exec_modulo: string | null;
   exec_etapa: string | null;
   exec_progresso: number | null;
+  // Indicadores (Estudo de Base): sincroniza via edge function
+  // `importar-api-hinova` (modulo: "base"), disparada diariamente por
+  // `scheduler-base-hinova` para associações com API ativa. Ela tenta uma
+  // lista de endpoints candidatos de listagem de veículos na Hinova; se
+  // nenhum responder, o próprio backend já retorna o erro "Nenhum endpoint
+  // de listagem de veículos respondeu. Confirme o endpoint com a Hinova."
+  // Aqui só refletimos a última importação registrada em
+  // estudo_base_importacoes (mesma tabela que essa função já grava),
+  // sem alterar nenhuma lógica de cálculo/importação existente.
+  estudo_base_ativo: boolean;
+  estudo_base_ultima: string | null;
 }
 
 interface PortalUser {
@@ -175,10 +186,47 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
   const pontoCor =
     s === "erro" ? "bg-red-500" : s === "sincronizando" ? "bg-blue-500 animate-pulse" : s === "ok" ? "bg-emerald-500" : "bg-muted-foreground/30";
 
+  const [forcandoIndicadores, setForcandoIndicadores] = useState(false);
+
+  // Força o mesmo caminho que o scheduler diário (scheduler-base-hinova) já usa:
+  // chama `importar-api-hinova` com modulo "base" para ESTA associação. Não
+  // duplica nem reimplementa a lógica de importação/agregação — só dispara a
+  // função existente sob demanda.
+  const handleForcarIndicadores = async () => {
+    setForcandoIndicadores(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("importar-api-hinova", {
+        body: { corretora_id: a.id, modulo: "base" },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success(`Indicadores sincronizados (${data.total ?? 0} veículos)`);
+      } else {
+        toast.error(data?.message || "Falha ao sincronizar indicadores");
+      }
+    } catch (e) {
+      toast.error("Erro ao forçar sincronismo: " + (e instanceof Error ? e.message : "desconhecido"));
+    } finally {
+      setForcandoIndicadores(false);
+    }
+  };
+
+  // "Indicadores" (Estudo de Base) é exclusivo via API — sem API não há
+  // como listar veículos na Hinova (mesma regra do scheduler-base-hinova).
   const modulos = [
     { label: "Cobrança", status: a.cobranca_status, ultima: a.cobranca_ultima, erro: a.cobranca_erro, ativo: a.ativo_cobranca, origem: a.cobranca_origem },
     { label: "Eventos", status: a.eventos_status, ultima: a.eventos_ultima, erro: a.eventos_erro, ativo: a.ativo_eventos, origem: a.eventos_origem },
     { label: "MGF", status: a.mgf_status, ultima: a.mgf_ultima, erro: a.mgf_erro, ativo: a.ativo_mgf, origem: a.mgf_origem },
+    {
+      label: "Indicadores",
+      status: a.estudo_base_ativo ? "sucesso" : "erro",
+      ultima: a.estudo_base_ultima,
+      erro: a.estudo_base_ativo
+        ? null
+        : "Sem importação de Estudo de Base registrada. Se o endpoint de listagem de veículos da Hinova ainda não respondeu, confirme o endpoint correto com o suporte Hinova.",
+      ativo: a.usar_api,
+      origem: null as string | null,
+    },
   ];
 
   return (
@@ -245,6 +293,19 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
             <Users className="h-3.5 w-3.5" />
             {a.total_usuarios > 0 ? `${a.usuarios_ativos}/${a.total_usuarios}` : "—"}
           </span>
+          {a.usar_api && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              title="Forçar sincronismo dos Indicadores (Estudo de Base) agora"
+              disabled={forcandoIndicadores}
+              onClick={handleForcarIndicadores}
+            >
+              {forcandoIndicadores ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              Indicadores
+            </Button>
+          )}
           <BISyncButton corretoraId={a.id} corretoraNome={a.nome} />
         </div>
       </div>
@@ -351,10 +412,22 @@ export default function BIAdminDashboard() {
         .from("corretora_usuarios")
         .select("id, email, ativo, corretora_id");
 
+      // Indicadores (Estudo de Base): já sincroniza automaticamente todo dia via
+      // scheduler-base-hinova → importar-api-hinova (modulo "base") para as
+      // associações com API ativa. Aqui só lemos a última importação registrada
+      // por essa função (mesma tabela, sem duplicar/alterar a lógica dela).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: estudoBase } = await (supabase as any)
+        .from("estudo_base_importacoes")
+        .select("corretora_id, created_at")
+        .eq("ativo", true);
+
       const credMap = new Map(credenciais?.map((c) => [c.corretora_id, c]) || []);
       const cobMap = new Map(cobConfigs.data?.map((c) => [c.corretora_id, c]) || []);
       const sgaMap = new Map(sgaConfigs.data?.map((c) => [c.corretora_id, c]) || []);
       const mgfMap = new Map(mgfConfigs.data?.map((c) => [c.corretora_id, c]) || []);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const estudoBaseMap = new Map((estudoBase || []).map((e: any) => [e.corretora_id, e]));
 
       // Sucessos de HOJE e execuções em andamento (status correto + progresso)
       const inicioDia = new Date(); inicioDia.setHours(0, 0, 0, 0);
@@ -389,6 +462,8 @@ export default function BIAdminDashboard() {
           const sga = sgaMap.get(c.id);
           const mgf = mgfMap.get(c.id);
           const users = userCountMap.get(c.id) || { total: 0, ativos: 0 };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const estudoBaseInfo = estudoBaseMap.get(c.id) as any;
           return {
             id: c.id, nome: c.nome, slug: c.slug,
             cobranca_status: okCob.has(c.id) ? "sucesso" : cob?.ultimo_status || null, cobranca_ultima: cob?.ultima_execucao || null, cobranca_erro: okCob.has(c.id) ? null : cob?.ultimo_erro || null,
@@ -399,6 +474,7 @@ export default function BIAdminDashboard() {
             cobranca_origem: cob?.ultima_origem || null, eventos_origem: sga?.ultima_origem || null, mgf_origem: mgf?.ultima_origem || null,
             total_usuarios: users.total, usuarios_ativos: users.ativos,
             em_execucao: runMap.has(c.id), exec_modulo: runMap.get(c.id)?.modulo ?? null, exec_etapa: runMap.get(c.id)?.etapa ?? null, exec_progresso: runMap.get(c.id)?.progresso ?? null,
+            estudo_base_ativo: !!estudoBaseInfo, estudo_base_ultima: estudoBaseInfo?.created_at || null,
           };
         }),
       );
@@ -438,6 +514,29 @@ export default function BIAdminDashboard() {
       toast.error("Erro ao sincronizar: " + (e instanceof Error ? e.message : "desconhecido"));
     } finally {
       setSyncingAll(false);
+    }
+  };
+
+  const [syncingIndicadores, setSyncingIndicadores] = useState(false);
+
+  // Dispara o MESMO scheduler que já roda diariamente para os Indicadores
+  // (scheduler-base-hinova → importar-api-hinova modulo "base"), para todas as
+  // associações com API ativa de uma vez. Não muda a lógica de importação.
+  const sincronizarIndicadoresTodas = async () => {
+    setSyncingIndicadores(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("scheduler-base-hinova", { body: {} });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success(`Indicadores: ${data.importadas ?? 0}/${data.associacoes ?? 0} associações sincronizadas`);
+      } else {
+        toast.error(data?.message || "Falha ao sincronizar indicadores");
+      }
+      setTimeout(loadData, 3000);
+    } catch (e) {
+      toast.error("Erro ao sincronizar indicadores: " + (e instanceof Error ? e.message : "desconhecido"));
+    } finally {
+      setSyncingIndicadores(false);
     }
   };
 
@@ -507,6 +606,17 @@ export default function BIAdminDashboard() {
           <Button size="sm" className="gap-1.5 rounded-xl" disabled={syncingAll} onClick={sincronizarTodas}>
             {syncingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
             Sincronizar Todas
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 rounded-xl"
+            disabled={syncingIndicadores}
+            onClick={sincronizarIndicadoresTodas}
+            title="Roda o mesmo scheduler diário dos Indicadores (Estudo de Base) agora, para todas as associações"
+          >
+            {syncingIndicadores ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Sincronizar Indicadores
           </Button>
         </div>
       </div>
