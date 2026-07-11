@@ -150,11 +150,39 @@ async function fazerLoginGovBr(page) {
   }
 
   if (!clicked) {
-    // Se não achamos um botão explícito, o serviço pode já redirecionar
-    // automaticamente para o SSO ao navegar direto - checamos a URL atual.
-    if (!/acesso\.gov\.br/i.test(page.url())) {
-      await safeScreenshot(page, 'debug_govbr_01_sem_botao_login.png');
-      throw new Error('Não foi possível localizar o link do formulário/login Gov.br na página do Detran-MG (layout pode ter mudado)');
+    await safeScreenshot(page, 'debug_govbr_01_sem_botao_login.png');
+    throw new Error('Não foi possível localizar o link do formulário/login Gov.br na página do Detran-MG (layout pode ter mudado)');
+  }
+
+  // NOVO (corrige "Campo de CPF não encontrado"): o Detran-MG passou a exibir
+  // uma página intermediária de confirmação ("ATENÇÃO! Faça login do Gov.br
+  // para acessar este serviço.") com um botão "Entrar" ANTES de redirecionar
+  // de fato para o SSO do Gov.br. O robô clicava em "formulário", caía nessa
+  // página intermediária (sem campo de CPF) e falhava ali, achando que já
+  // estava na tela de login do Gov.br. Se ainda não chegamos no acesso.gov.br
+  // depois do primeiro clique, procuramos e clicamos nesse botão "Entrar"
+  // intermediário para então sim ir para o SSO.
+  if (!/acesso\.gov\.br/i.test(page.url())) {
+    await safeScreenshot(page, 'debug_govbr_01b_pagina_intermediaria.png');
+    const entrarIntermediarioSelectors = [
+      'button:has-text("Entrar")',
+      'a:has-text("Entrar")',
+    ];
+    let avancouIntermediario = false;
+    for (const sel of entrarIntermediarioSelectors) {
+      const el = page.locator(sel).first();
+      if (await el.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await Promise.all([
+          page.waitForURL(/acesso\.gov\.br/i, { timeout: 20000 }).catch(() => null),
+          el.click(),
+        ]);
+        avancouIntermediario = true;
+        break;
+      }
+    }
+    if (!avancouIntermediario || !/acesso\.gov\.br/i.test(page.url())) {
+      await safeScreenshot(page, 'debug_govbr_01c_sem_redirecionar_sso.png');
+      throw new Error('Não foi possível avançar da página intermediária do Detran-MG para o login do Gov.br (layout pode ter mudado)');
     }
   }
 
@@ -162,7 +190,20 @@ async function fazerLoginGovBr(page) {
   await safeScreenshot(page, 'debug_govbr_02_tela_login.png');
 
   // Etapa 1: CPF
-  const cpfSelectors = ['#accountid', 'input[name="accountid"]', 'input[type="text"][name*="cpf" i]'];
+  // NOVO (corrige "Campo de CPF não encontrado"): o Gov.br renomeou o campo
+  // de id/name "accountid" (minúsculo) para "accountId" (camelCase) e o tipo
+  // do input passou de "text" para "tel". Seletores de ID e de atributo são
+  // case-sensitive, então os seletores antigos silenciosamente paravam de
+  // encontrar o campo. Priorizamos os seletores novos e mantemos os antigos
+  // como fallback, caso o Gov.br volte a mudar.
+  const cpfSelectors = [
+    '#accountId',
+    'input[name="accountId"]',
+    '#accountid',
+    'input[name="accountid"]',
+    'input[type="tel"][name*="account" i]',
+    'input[type="text"][name*="cpf" i]',
+  ];
   let cpfInput = null;
   for (const sel of cpfSelectors) {
     const el = page.locator(sel).first();
@@ -174,7 +215,9 @@ async function fazerLoginGovBr(page) {
   }
   await cpfInput.fill(CONFIG.GOV_BR_CPF);
 
-  const continuarSelectors = ['#send-username', 'button[type="submit"]', 'button:has-text("Continuar")'];
+  // NOVO: o botão "Continuar" também teve o id trocado de "send-username"
+  // para "enter-account-id".
+  const continuarSelectors = ['#enter-account-id', '#send-username', 'button[type="submit"]', 'button:has-text("Continuar")'];
   let avancouCpf = false;
   for (const sel of continuarSelectors) {
     const el = page.locator(sel).first();
