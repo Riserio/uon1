@@ -131,19 +131,33 @@ async function fazerLoginGovBr(page) {
     'a:has-text("formulário")',
     'a[href*="sso.acesso.gov.br"]',
     'a:has-text("Acessar o formulário")',
-    'a:has-text("Entrar com gov.br")',
+    'a:has-text("Entrar com gov.br"):not(.nav-link)',
     'button:has-text("Entrar com gov.br")',
-    'a:has-text("gov.br")',
   ];
 
+  // NOVO (corrige o robô operar na aba errada): o link "formulário" abre em
+  // uma NOVA ABA (target="_blank"). Se continuássemos usando a `page`
+  // original depois desse clique, ela nunca navega - o robô ficava "cego",
+  // continuando a procurar campos numa aba que nunca saiu da página
+  // institucional. Por isso capturamos o evento de popup (nova aba) do
+  // browser context junto com o clique; se abrir popup, toda a navegação
+  // seguinte (página intermediária, login Gov.br, formulário de consulta)
+  // acontece nessa nova aba, que passamos a retornar/usar a partir daqui.
+  let targetPage = page;
   let clicked = false;
   for (const sel of loginSelectors) {
     const el = page.locator(sel).first();
     if (await el.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await Promise.all([
-        page.waitForURL(/acesso\.gov\.br/i, { timeout: 20000 }).catch(() => null),
+      const [popup] = await Promise.all([
+        page.context().waitForEvent('page', { timeout: 8000 }).catch(() => null),
+        page.waitForURL(/acesso\.gov\.br/i, { timeout: 8000 }).catch(() => null),
         el.click(),
       ]);
+      if (popup) {
+        targetPage = popup;
+        await targetPage.waitForLoadState('domcontentloaded', { timeout: 20000 }).catch(() => null);
+        log(`Formulário abriu em uma nova aba: ${targetPage.url()}`);
+      }
       clicked = true;
       break;
     }
@@ -156,36 +170,45 @@ async function fazerLoginGovBr(page) {
 
   // NOVO (corrige "Campo de CPF não encontrado"): o Detran-MG passou a exibir
   // uma página intermediária de confirmação ("ATENÇÃO! Faça login do Gov.br
-  // para acessar este serviço.") com um botão "Entrar" ANTES de redirecionar
-  // de fato para o SSO do Gov.br. O robô clicava em "formulário", caía nessa
-  // página intermediária (sem campo de CPF) e falhava ali, achando que já
-  // estava na tela de login do Gov.br. Se ainda não chegamos no acesso.gov.br
-  // depois do primeiro clique, procuramos e clicamos nesse botão "Entrar"
-  // intermediário para então sim ir para o SSO.
-  if (!/acesso\.gov\.br/i.test(page.url())) {
-    await safeScreenshot(page, 'debug_govbr_01b_pagina_intermediaria.png');
+  // para acessar este serviço.") com um botão "Entrar" (id="botao-entrar")
+  // ANTES de redirecionar de fato para o SSO do Gov.br. Se ainda não chegamos
+  // no acesso.gov.br depois do primeiro clique, procuramos e clicamos nesse
+  // botão. IMPORTANTE: o seletor precisa ser específico (#botao-entrar) - um
+  // seletor genérico como 'a:has-text("Entrar")' também acaba encontrando o
+  // link "ENTRAR COM GOV.BR" do cabeçalho do site (classe "nav-link"), que
+  // leva a um login genérico sem relação com o formulário de consulta, e o
+  // robô ficava preso ali aguardando uma navegação que nunca vinha.
+  if (!/acesso\.gov\.br/i.test(targetPage.url())) {
+    await safeScreenshot(targetPage, 'debug_govbr_01b_pagina_intermediaria.png');
     const entrarIntermediarioSelectors = [
-      'button:has-text("Entrar")',
-      'a:has-text("Entrar")',
+      '#botao-entrar',
+      'main button:has-text("Entrar")',
+      'main a:has-text("Entrar")',
+      'a:has-text("Entrar"):not(.nav-link)',
+      'button:has-text("Entrar"):not(.nav-link)',
     ];
     let avancouIntermediario = false;
     for (const sel of entrarIntermediarioSelectors) {
-      const el = page.locator(sel).first();
+      const el = targetPage.locator(sel).first();
       if (await el.isVisible({ timeout: 5000 }).catch(() => false)) {
         await Promise.all([
-          page.waitForURL(/acesso\.gov\.br/i, { timeout: 20000 }).catch(() => null),
+          targetPage.waitForURL(/acesso\.gov\.br/i, { timeout: 20000 }).catch(() => null),
           el.click(),
         ]);
         avancouIntermediario = true;
         break;
       }
     }
-    if (!avancouIntermediario || !/acesso\.gov\.br/i.test(page.url())) {
-      await safeScreenshot(page, 'debug_govbr_01c_sem_redirecionar_sso.png');
+    if (!avancouIntermediario || !/acesso\.gov\.br/i.test(targetPage.url())) {
+      await safeScreenshot(targetPage, 'debug_govbr_01c_sem_redirecionar_sso.png');
       throw new Error('Não foi possível avançar da página intermediária do Detran-MG para o login do Gov.br (layout pode ter mudado)');
     }
   }
 
+  // A partir daqui, `page` passa a apontar para a aba correta (a nova aba,
+  // se abriu popup; senão, a mesma aba original) - todo o resto da função
+  // (e o retorno para quem chamou) usa essa página.
+  page = targetPage;
   log(`Na página do Gov.br SSO: ${page.url()}`);
   await safeScreenshot(page, 'debug_govbr_02_tela_login.png');
 
@@ -279,6 +302,11 @@ async function fazerLoginGovBr(page) {
 
   log(`Login Gov.br concluído, de volta em: ${page.url()}`);
   await safeScreenshot(page, 'debug_govbr_09_pos_login.png');
+
+  // Retorna a página correta (pode ser uma aba diferente da recebida como
+  // argumento, se o login abriu em popup) para quem chamou continuar o
+  // preenchimento do formulário de consulta na aba certa.
+  return page;
 }
 
 async function preencherFormularioConsulta(page) {
@@ -372,13 +400,19 @@ async function main() {
   const context = await browser.newContext({ locale: 'pt-BR' });
   const page = await context.newPage();
 
+  // NOVO: o login Gov.br pode abrir numa aba nova (popup) - `currentPage`
+  // acompanha qual aba está realmente em uso a cada momento, para que o
+  // screenshot de erro (no catch) sempre capture a aba certa, mesmo que o
+  // erro aconteça depois da troca de aba dentro de fazerLoginGovBr.
+  let currentPage = page;
+
   try {
     log(`Abrindo página do Detran-MG para consulta da placa ${CONFIG.PLACA}...`);
     await page.goto(DETRAN_MG_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    await fazerLoginGovBr(page);
-    await preencherFormularioConsulta(page);
-    const resultado = await extrairResultado(page);
+    currentPage = await fazerLoginGovBr(page);
+    await preencherFormularioConsulta(currentPage);
+    const resultado = await extrairResultado(currentPage);
 
     log('Consulta concluída com sucesso');
     await notifyWebhook({ action: 'success', resultado });
@@ -387,7 +421,7 @@ async function main() {
     process.exit(0);
   } catch (err) {
     console.error('[Detran-MG] ERRO:', err.message);
-    await safeScreenshot(page, 'erro_detran_mg.png');
+    await safeScreenshot(currentPage, 'erro_detran_mg.png');
     await notifyWebhook({ action: 'error', error_message: err.message });
     await browser.close();
     process.exit(1);
