@@ -184,20 +184,19 @@ export default function PushCentral() {
     }
     setEnviando(true);
     try {
-      const { data, error } = await supabase.functions.invoke("enviar-push-onesignal", {
-        body: {
-          titulo: titulo.trim(),
-          mensagem: mensagem.trim(),
-          url: url.trim() || undefined,
-          imagem_url: imagemUrl.trim() || undefined,
-          send_after: agendarPara ? new Date(agendarPara).toISOString() : undefined,
-          segmento,
-          corretora_ids: segmento === "associacao" ? corretoraIds : undefined,
-          estados: segmento === "localizacao" && estado ? [estado] : undefined,
-          cidades: segmento === "localizacao" && cidade ? [cidade] : undefined,
-          tipos: segmento === "tipo" ? tipos : undefined,
-        },
-      });
+      // RPC no Postgres (extensions.http) — dispensa deploy de edge function
+      const { data, error } = await supabase.rpc("enviar_push_onesignal" as never, {
+        p_titulo: titulo.trim(),
+        p_mensagem: mensagem.trim(),
+        p_url: url.trim() || null,
+        p_imagem_url: imagemUrl.trim() || null,
+        p_send_after: agendarPara ? new Date(agendarPara).toISOString() : null,
+        p_segmento: segmento,
+        p_corretora_ids: segmento === "associacao" ? corretoraIds : null,
+        p_estados: segmento === "localizacao" && estado ? [estado] : null,
+        p_cidades: segmento === "localizacao" && cidade ? [cidade] : null,
+        p_tipos: segmento === "tipo" ? tipos : null,
+      } as never);
       if (error) throw error;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = data as any;
