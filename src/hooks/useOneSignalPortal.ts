@@ -65,6 +65,28 @@ export function useOneSignalPortal(tags: PortalTags | null) {
               allowLocalhostAsSecureOrigin: true,
               // Sem notifyButton (sino flutuante) — o controle de ativar/
               // desativar fica em Configurações (PortalMobileSettingsSheet).
+              // Texto e visual do slidedown (soft-ask) com a marca Vangard —
+              // o card em si é estilizado em src/index.css.
+              promptOptions: {
+                slidedown: {
+                  prompts: [
+                    {
+                      type: "push",
+                      autoPrompt: true,
+                      text: {
+                        actionMessage:
+                          "Ative as notificações da Vangard e receba avisos importantes em tempo real.",
+                        acceptButton: "Ativar",
+                        cancelButton: "Agora não",
+                      },
+                      delay: {
+                        pageViews: 1,
+                        timeDelay: 0,
+                      },
+                    },
+                  ],
+                },
+              },
             });
             // 1º acesso: pergunta uma vez, de forma suave (slidedown nativo)
             OneSignal.Slidedown.promptPush();
