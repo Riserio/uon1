@@ -1,63 +1,36 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Vangard</title>
   <meta name="description" content="Vangard - Gestora e Administradora">
-    <meta name="author" content="Lovable" />
+  <meta name="author" content="Lovable" />
 
-    <!-- Manifest MESMA ORIGEM: com manifest cross-origin (função Supabase), o
-         Chrome resolvia start_url/scope contra o domínio errado e instalava o
-         PWA como atalho de navegador (com barra de endereço). Servindo de
-         /manifest.json, o app instala em modo standalone de verdade. -->
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#F5821F">
-    <meta name="mobile-web-app-capable" content="yes">
-    <!-- Favicon oficial do aplicativo (logo Vangard, a mesma usada no sistema) -->
-    <link rel="icon" href="/favicon.ico" sizes="any">
-    <link rel="icon" type="image/png" sizes="32x32" href="/pwa/favicon-32.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/pwa/icon-192.png">
-    <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Vangard">
+  <!-- Manifest MESMA ORIGEM: com manifest cross-origin (função Supabase), o
+       Chrome resolvia start_url/scope contra o domínio errado e instalava o
+       PWA como atalho de navegador (com barra de endereço). Servindo de
+       /manifest.json, o app instala em modo standalone de verdade. -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#F5821F">
+  <meta name="mobile-web-app-capable" content="yes">
+  <!-- Favicon: aponta direto para o ícone oficial da Vangard já aprovado e
+       hospedado no Storage (o mesmo usado no manifest do PWA/app instalado)
+       — evita duplicar o arquivo local, que tinha ficado desatualizado
+       (versão antiga/rascunho do ícone). -->
+  <link rel="icon" href="https://mnoczwmqgignmylbvpgp.supabase.co/storage/v1/object/public/app-config/app-icon/icon-512-1783688134869.png" sizes="any">
+  <link rel="icon" type="image/png" sizes="192x192" href="https://mnoczwmqgignmylbvpgp.supabase.co/storage/v1/object/public/app-config/app-icon/icon-192-1783688134869.png">
+  <link rel="apple-touch-icon" href="https://mnoczwmqgignmylbvpgp.supabase.co/storage/v1/object/public/app-config/app-icon/icon-192-1783688134869.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Vangard">
 
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/Ut7dKngTiUdBppcoDFKzt5Dljc23/social-images/social-1782696091916-vangard-logo.webp">
 
-
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/Ut7dKngTiUdBppcoDFKzt5Dljc23/social-images/social-1782696091916-vangard-logo.webp">
-
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
-    <meta name="twitter:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/Ut7dKngTiUdBppcoDFKzt5Dljc23/social-images/social-1782696091916-vangard-logo.webp">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@Lovable" />
+  <meta name="twitter:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/Ut7dKngTiUdBppcoDFKzt5Dljc23/social-images/social-1782696091916-vangard-logo.webp">
 
   <meta property="og:title" content="Vangard">
   <meta name="twitter:title" content="Vangard">
@@ -65,8 +38,8 @@
   <meta name="twitter:description" content="Vangard - Gestora e Administradora">
 </head>
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
 </html>
