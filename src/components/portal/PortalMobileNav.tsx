@@ -79,7 +79,7 @@ export default function PortalMobileNav({
               onClick={() => handleNav(mod)}
               className={cn(
                 "flex flex-col items-center justify-center gap-0.5 w-14 shrink-0 py-1.5 rounded-full transition-colors",
-                isActive ? "text-primary" : "text-muted-foreground"
+                isActive ? "text-orange-500" : "text-muted-foreground"
               )}
             >
               <Icon className={cn("h-5 w-5 transition-transform", isActive && "scale-110")} />
