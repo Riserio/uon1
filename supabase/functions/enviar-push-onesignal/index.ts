@@ -20,6 +20,8 @@ type Body = {
   titulo: string;
   mensagem: string;
   url?: string;
+  imagem_url?: string;
+  send_after?: string; // ISO datetime — agendamento
   segmento: "geral" | "associacao" | "localizacao" | "tipo";
   corretora_ids?: string[];
   estados?: string[];
@@ -69,6 +71,19 @@ serve(async (req) => {
       contents: { en: body.mensagem, pt: body.mensagem },
     };
     if (body.url?.trim()) payload.url = body.url.trim();
+    if (body.imagem_url?.trim()) {
+      const img = body.imagem_url.trim();
+      payload.chrome_web_image = img;  // web push (Chrome/Android)
+      payload.big_picture = img;       // Android nativo
+      payload.huawei_big_picture = img;
+      payload.ios_attachments = { imagem: img }; // iOS
+    }
+    if (body.send_after?.trim()) {
+      const dt = new Date(body.send_after);
+      if (!Number.isNaN(dt.getTime()) && dt.getTime() > Date.now()) {
+        payload.send_after = dt.toISOString();
+      }
+    }
 
     const orTags = (key: string, values: string[]) => {
       // deno-lint-ignore no-explicit-any
@@ -124,6 +139,8 @@ serve(async (req) => {
       titulo: body.titulo,
       mensagem: body.mensagem,
       url: body.url || null,
+      imagem_url: body.imagem_url || null,
+      send_after: payload.send_after || null,
       segmento: body.segmento,
       filtros: {
         corretora_ids: body.corretora_ids || [],
@@ -133,7 +150,7 @@ serve(async (req) => {
       },
       onesignal_id: json?.id || null,
       destinatarios: json?.recipients ?? null,
-      status: ok ? "enviado" : "erro",
+      status: ok ? (payload.send_after ? "agendado" : "enviado") : "erro",
       erro,
       created_by: userId,
     });

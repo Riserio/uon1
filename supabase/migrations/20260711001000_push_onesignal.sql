@@ -67,3 +67,27 @@ CREATE POLICY push_envios_admin_all ON public.push_envios
   WITH CHECK (
     has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'administrativo'::app_role) OR has_role(auth.uid(), 'superintendente'::app_role)
   );
+
+-- Recursos adicionais: imagem, agendamento e gabaritos
+ALTER TABLE public.push_envios ADD COLUMN IF NOT EXISTS imagem_url text;
+ALTER TABLE public.push_envios ADD COLUMN IF NOT EXISTS send_after timestamptz;
+
+CREATE TABLE IF NOT EXISTS public.push_templates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome text NOT NULL,
+  titulo text NOT NULL,
+  mensagem text NOT NULL,
+  url text,
+  imagem_url text,
+  created_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.push_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS push_templates_admin_all ON public.push_templates;
+CREATE POLICY push_templates_admin_all ON public.push_templates
+  FOR ALL USING (
+    has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'administrativo'::app_role) OR has_role(auth.uid(), 'superintendente'::app_role)
+  )
+  WITH CHECK (
+    has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'administrativo'::app_role) OR has_role(auth.uid(), 'superintendente'::app_role)
+  );

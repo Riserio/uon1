@@ -122,3 +122,6 @@ verify_jwt = false
 
 [functions.pwa-manifest]
 verify_jwt = false
+
+[functions.enviar-push-onesignal]
+verify_jwt = false

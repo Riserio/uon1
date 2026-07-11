@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bell, Send, Settings, History, Users, MapPin, Building2, Loader2, CheckCircle2, XCircle, Globe } from "lucide-react";
+import { Bell, Send, Settings, History, Users, MapPin, Building2, Loader2, CheckCircle2, XCircle, Globe, Image as ImageIcon, Clock, BookmarkPlus, LayoutTemplate, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -18,6 +18,11 @@ type Corretora = { id: string; nome: string; estado: string | null; cidade: stri
 type Envio = {
   id: string; titulo: string; mensagem: string; segmento: string;
   destinatarios: number | null; status: string; erro: string | null; created_at: string;
+  send_after?: string | null;
+};
+type Template = {
+  id: string; nome: string; titulo: string; mensagem: string;
+  url: string | null; imagem_url: string | null;
 };
 
 const SEGMENTO_LABEL: Record<string, string> = {
@@ -39,6 +44,8 @@ export default function PushCentral() {
   const [titulo, setTitulo] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [url, setUrl] = useState("");
+  const [imagemUrl, setImagemUrl] = useState("");
+  const [agendarPara, setAgendarPara] = useState("");
   const [segmento, setSegmento] = useState<"geral" | "associacao" | "localizacao" | "tipo">("geral");
   const [corretoraIds, setCorretoraIds] = useState<string[]>([]);
   const [estado, setEstado] = useState("");
@@ -49,6 +56,9 @@ export default function PushCentral() {
   // ----- Dados auxiliares -----
   const [corretoras, setCorretoras] = useState<Corretora[]>([]);
   const [envios, setEnvios] = useState<Envio[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [nomeTemplate, setNomeTemplate] = useState("");
+  const [salvandoTemplate, setSalvandoTemplate] = useState(false);
 
   const estados = useMemo(
     () => [...new Set(corretoras.map((c) => (c.estado || "").toUpperCase()).filter(Boolean))].sort(),
@@ -68,10 +78,18 @@ export default function PushCentral() {
   const loadEnvios = async () => {
     const { data } = await supabase
       .from("push_envios" as never)
-      .select("id, titulo, mensagem, segmento, destinatarios, status, erro, created_at")
+      .select("id, titulo, mensagem, segmento, destinatarios, status, erro, created_at, send_after")
       .order("created_at", { ascending: false })
       .limit(20);
     setEnvios((data as unknown as Envio[]) || []);
+  };
+
+  const loadTemplates = async () => {
+    const { data } = await supabase
+      .from("push_templates" as never)
+      .select("id, nome, titulo, mensagem, url, imagem_url")
+      .order("nome");
+    setTemplates((data as unknown as Template[]) || []);
   };
 
   useEffect(() => {
@@ -90,8 +108,51 @@ export default function PushCentral() {
       setCorretoras((corrs as Corretora[]) || []);
       setConfigLoaded(true);
       loadEnvios();
+      loadTemplates();
     })();
   }, []);
+
+  const aplicarTemplate = (t: Template) => {
+    setTitulo(t.titulo);
+    setMensagem(t.mensagem);
+    setUrl(t.url || "");
+    setImagemUrl(t.imagem_url || "");
+    toast.success(`Gabarito "${t.nome}" aplicado`);
+  };
+
+  const salvarTemplate = async () => {
+    if (!titulo.trim() || !mensagem.trim()) {
+      toast.error("Preencha título e mensagem antes de salvar o gabarito");
+      return;
+    }
+    if (!nomeTemplate.trim()) {
+      toast.error("Dê um nome ao gabarito");
+      return;
+    }
+    setSalvandoTemplate(true);
+    try {
+      const { error } = await supabase.from("push_templates" as never).insert({
+        nome: nomeTemplate.trim(),
+        titulo: titulo.trim(),
+        mensagem: mensagem.trim(),
+        url: url.trim() || null,
+        imagem_url: imagemUrl.trim() || null,
+      } as never);
+      if (error) throw error;
+      toast.success("Gabarito salvo");
+      setNomeTemplate("");
+      loadTemplates();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar gabarito");
+    } finally {
+      setSalvandoTemplate(false);
+    }
+  };
+
+  const excluirTemplate = async (id: string) => {
+    await supabase.from("push_templates" as never).delete().eq("id", id);
+    loadTemplates();
+  };
 
   const salvarConfig = async () => {
     setSavingConfig(true);
@@ -128,6 +189,8 @@ export default function PushCentral() {
           titulo: titulo.trim(),
           mensagem: mensagem.trim(),
           url: url.trim() || undefined,
+          imagem_url: imagemUrl.trim() || undefined,
+          send_after: agendarPara ? new Date(agendarPara).toISOString() : undefined,
           segmento,
           corretora_ids: segmento === "associacao" ? corretoraIds : undefined,
           estados: segmento === "localizacao" && estado ? [estado] : undefined,
@@ -140,11 +203,13 @@ export default function PushCentral() {
       const res = data as any;
       if (!res?.success) throw new Error(res?.error || "Falha no envio");
       toast.success(
-        res.destinatarios != null
-          ? `Push enviado para ${res.destinatarios} dispositivo(s)`
-          : "Push enviado",
+        agendarPara
+          ? "Push agendado com sucesso"
+          : res.destinatarios != null
+            ? `Push enviado para ${res.destinatarios} dispositivo(s)`
+            : "Push enviado",
       );
-      setTitulo(""); setMensagem(""); setUrl("");
+      setTitulo(""); setMensagem(""); setUrl(""); setImagemUrl(""); setAgendarPara("");
       loadEnvios();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Erro ao enviar push");
@@ -201,10 +266,24 @@ export default function PushCentral() {
       {/* Composer */}
       <Card className="rounded-2xl border-border/40">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Bell className="h-4 w-4 text-primary" />
-            Novo envio
-          </CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Bell className="h-4 w-4 text-primary" />
+              Novo envio
+            </CardTitle>
+            {templates.length > 0 && (
+              <Select onValueChange={(id) => { const t = templates.find((x) => x.id === id); if (t) aplicarTemplate(t); }}>
+                <SelectTrigger className="w-full sm:w-56 h-8 text-xs">
+                  <span className="flex items-center gap-1.5"><LayoutTemplate className="h-3.5 w-3.5" /><SelectValue placeholder="Usar gabarito..." /></span>
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2">
@@ -220,6 +299,21 @@ export default function PushCentral() {
           <div className="space-y-1.5">
             <Label htmlFor="push-msg">Mensagem</Label>
             <Textarea id="push-msg" value={mensagem} onChange={(e) => setMensagem(e.target.value)} maxLength={300} rows={3} placeholder="Texto da notificação..." />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="push-img" className="flex items-center gap-1.5"><ImageIcon className="h-3.5 w-3.5" />Imagem (URL, opcional)</Label>
+              <Input id="push-img" value={imagemUrl} onChange={(e) => setImagemUrl(e.target.value)} placeholder="https://.../banner.png" />
+              {imagemUrl.trim() && (
+                <img src={imagemUrl.trim()} alt="Prévia da imagem" className="mt-1 h-20 rounded-lg border border-border/50 object-cover" onError={(ev) => ((ev.target as HTMLImageElement).style.display = 'none')} />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="push-agendar" className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />Programar envio (opcional)</Label>
+              <Input id="push-agendar" type="datetime-local" value={agendarPara} onChange={(e) => setAgendarPara(e.target.value)} min={new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16)} />
+              <p className="text-[11px] text-muted-foreground">Vazio = envia agora. Com data/hora, o OneSignal dispara no horário programado.</p>
+            </div>
           </div>
 
           {/* Segmentação */}
@@ -304,14 +398,39 @@ export default function PushCentral() {
             </div>
           )}
 
-          <div className="flex justify-end">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between border-t border-border/40 pt-3">
+            <div className="flex items-center gap-2">
+              <Input
+                value={nomeTemplate}
+                onChange={(e) => setNomeTemplate(e.target.value)}
+                placeholder="Nome do gabarito..."
+                className="h-8 w-44 text-xs"
+              />
+              <Button variant="outline" size="sm" onClick={salvarTemplate} disabled={salvandoTemplate} className="gap-1.5">
+                {salvandoTemplate ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookmarkPlus className="h-3.5 w-3.5" />}
+                Salvar gabarito
+              </Button>
+            </div>
             <Button onClick={enviar} disabled={enviando || !configOk} className="gap-2">
-              {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Enviar push
+              {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : agendarPara ? <Clock className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+              {agendarPara ? "Agendar push" : "Enviar push"}
             </Button>
           </div>
           {!configOk && configLoaded && (
             <p className="text-xs text-muted-foreground text-right">Configure e ative o OneSignal acima para habilitar o envio.</p>
+          )}
+
+          {templates.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {templates.map((t) => (
+                <span key={t.id} className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/40 px-2.5 py-1 text-[11px]">
+                  <button onClick={() => aplicarTemplate(t)} className="hover:text-primary">{t.nome}</button>
+                  <button onClick={() => excluirTemplate(t.id)} aria-label={`Excluir gabarito ${t.nome}`} className="text-muted-foreground/50 hover:text-red-500">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -333,7 +452,9 @@ export default function PushCentral() {
                 <div key={e.id} className="flex items-start gap-3 rounded-xl border border-border/40 p-3">
                   {e.status === "enviado"
                     ? <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-                    : <XCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />}
+                    : e.status === "agendado"
+                      ? <Clock className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                      : <XCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{e.titulo}</p>
                     <p className="text-xs text-muted-foreground truncate">{e.mensagem}</p>
@@ -344,6 +465,7 @@ export default function PushCentral() {
                     <p className="text-[10px] text-muted-foreground">
                       {format(new Date(e.created_at), "dd/MM/yyyy HH:mm")}
                       {e.destinatarios != null && ` · ${e.destinatarios} disp.`}
+                      {e.send_after && ` · agendado p/ ${format(new Date(e.send_after), "dd/MM HH:mm")}`}
                     </p>
                   </div>
                 </div>
