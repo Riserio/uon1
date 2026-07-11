@@ -30,7 +30,10 @@ export function useOneSignalPortal(tags: PortalTags | null) {
 
     (async () => {
       try {
-        const { data: appId } = await supabase.rpc("get_push_app_id" as never);
+        const { data: cfg } = await supabase.rpc("get_push_web_config" as never);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const webCfg = cfg as any;
+        const appId = webCfg?.app_id as string | undefined;
         if (cancelled || !appId) return;
 
         // Localização da associação (para segmentação por estado/cidade)
@@ -54,9 +57,13 @@ export function useOneSignalPortal(tags: PortalTags | null) {
           window.OneSignalDeferred.push(async (OneSignal: any) => {
             await OneSignal.init({
               appId: String(appId),
+              ...(webCfg?.safari_web_id ? { safari_web_id: String(webCfg.safari_web_id) } : {}),
+              // Worker em /onesignal/ com escopo próprio pra NÃO substituir o
+              // /sw.js do PWA (dois SWs não podem dividir o mesmo escopo).
               serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
               serviceWorkerParam: { scope: "/onesignal/" },
               allowLocalhostAsSecureOrigin: true,
+              notifyButton: { enable: true },
             });
             // Pede permissão de forma suave (slidedown nativo do OneSignal)
             OneSignal.Slidedown.promptPush();

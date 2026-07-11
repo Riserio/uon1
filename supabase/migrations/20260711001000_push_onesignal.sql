@@ -37,3 +37,13 @@ CREATE POLICY push_envios_admin_all ON public.push_envios
 CREATE OR REPLACE FUNCTION public.get_push_app_id()
 RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public'
 AS $$ SELECT onesignal_app_id FROM public.push_config WHERE id = 'global' AND ativo $$;
+
+-- Safari Web ID (necessário para push no Safari/iOS)
+ALTER TABLE public.push_config ADD COLUMN IF NOT EXISTS safari_web_id text;
+
+CREATE OR REPLACE FUNCTION public.get_push_web_config()
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public'
+AS $$
+  SELECT jsonb_build_object('app_id', onesignal_app_id, 'safari_web_id', safari_web_id)
+  FROM public.push_config WHERE id = 'global' AND ativo AND onesignal_app_id IS NOT NULL
+$$;
