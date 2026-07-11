@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -41,8 +41,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import PortalHeader from "@/components/portal/PortalHeader";
 import BIPageHeader from "@/components/bi/BIPageHeader";
-import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPrefetch";
-import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
+import { getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useBILayoutOptional } from "@/contexts/BILayoutContext";
@@ -59,6 +58,35 @@ export interface MGFFilters {
   dateRange: DateRange | undefined;
 }
 
+interface MGFFilterOptions {
+  operacoes: string[];
+  subOperacoes: string[];
+  situacoes: string[];
+  cooperativas: string[];
+  regionais: string[];
+  formasPagamento: string[];
+  tiposVeiculo: string[];
+  fornecedores: string[];
+  centrosCusto: string[];
+}
+
+const EMPTY_FILTER_OPTIONS: MGFFilterOptions = {
+  operacoes: [],
+  subOperacoes: [],
+  situacoes: [],
+  cooperativas: [],
+  regionais: [],
+  formasPagamento: [],
+  tiposVeiculo: [],
+  fornecedores: [],
+  centrosCusto: [],
+};
+
+// Converte um valor de dropdown ("all" = sem filtro) para o formato aceito
+// pelas RPCs (string ou null).
+const toRpcValue = (v: string) => (v && v !== "all" ? v : null);
+const dateToRpcValue = (d?: Date) => (d ? format(d, "yyyy-MM-dd") : null);
+
 export default function MGFInsights() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -70,12 +98,16 @@ export default function MGFInsights() {
   // Detectar se é acesso via portal (parceiro)
   const isPortalAccess = location.pathname.startsWith("/portal");
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [dados, setDados] = useState<any[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [colunas, setColunas] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterOptions, setFilterOptions] = useState<MGFFilterOptions>(EMPTY_FILTER_OPTIONS);
+  // Incrementado após uma importação bem sucedida, para forçar os
+  // componentes filhos (Tabela/Rateio Eventos) a refazer suas buscas via RPC.
+  const [refreshToken, setRefreshToken] = useState(0);
 
   // Associações e permissões
   const [associacoes, setAssociacoes] = useState<any[]>([]);
@@ -193,206 +225,139 @@ export default function MGFInsights() {
     fetchAssociacoes();
   }, [searchParams, isPortalAccess, biLayout, portalLayout?.corretora?.id]);
 
-  const fetchDados = async (forceRefresh = false) => {
+  // Metadados da importação ativa (nome do arquivo, colunas detectadas).
+  // IMPORTANTE: pode existir mais de uma importação "ativa" simultânea para
+  // a mesma corretora — ex.: um upload manual de Excel (snapshot histórico
+  // já liquidado) e uma importação incremental via API (dados recentes, em
+  // aberto). Aqui só buscamos metadado (não os dados em si, que agora vêm
+  // agregados do banco via RPC); a soma de total_registros continua sendo
+  // feita no cliente por ser só um número informativo no header.
+  const fetchImportacaoMeta = useCallback(async () => {
     if (!selectedAssociacao) {
-      setDados([]);
       setImportacaoAtiva(null);
       setColunas([]);
-      setLoading(false);
       return;
     }
-
-    // Cache global: exibição instantânea
-    if (!forceRefresh) {
-      const globalCached = getBICachedData(selectedAssociacao, "mgf");
-      if (globalCached && globalCached.data.length > 0) {
-        setDados(globalCached.data);
-        setImportacaoAtiva(globalCached.importacao);
-        if (globalCached.importacao?.colunas_detectadas) {
-          setColunas(
-            Array.isArray(globalCached.importacao.colunas_detectadas)
-              ? (globalCached.importacao.colunas_detectadas as string[])
-              : [],
-          );
-        }
-        setLoading(false);
-        return;
-      }
-      if (isPortalAccess) {
-        const cached = getPrefetchedData<any>(selectedAssociacao, "mgf");
-        if (cached && cached.length > 0) {
-          setDados(cached);
-          setLoading(false);
-          // Continue to fetch full data in background (prefetch only has 1000 records)
-        }
-      }
-    }
-
-    setLoading(true);
     try {
-      // IMPORTANTE: pode existir mais de uma importação "ativa" simultânea
-      // para a mesma corretora — ex.: um upload manual de Excel (snapshot
-      // histórico/já liquidado) e uma importação incremental via API
-      // (dados recentes, ainda em aberto). Ambas são complementares e
-      // precisam ser somadas; buscar só a mais recente ("limit(1).single()")
-      // escondia dados reais de "A Pagar"/"Vencido"/"Multa+Juros" sempre
-      // que a importação mais recente fosse um snapshot 100% já pago.
-      const { data: importacoes, error: impError } = await supabase
+      const { data: importacoes, error } = await supabase
         .from("mgf_importacoes")
         .select("id, nome_arquivo, colunas_detectadas, total_registros, created_at")
         .eq("ativo", true)
         .eq("corretora_id", selectedAssociacao)
         .order("created_at", { ascending: false });
 
-      if (impError) {
-        console.error("Erro ao buscar importação:", impError);
-      }
+      if (error) throw error;
 
       if (importacoes && importacoes.length > 0) {
         const importacaoMaisRecente = importacoes[0];
-        const importacaoParaExibicao = {
+        setImportacaoAtiva({
           ...importacaoMaisRecente,
           total_registros: importacoes.reduce((acc, i) => acc + (i.total_registros || 0), 0),
-        };
-        setImportacaoAtiva(importacaoParaExibicao);
+        });
         setColunas(
           Array.isArray(importacaoMaisRecente.colunas_detectadas)
             ? (importacaoMaisRecente.colunas_detectadas as string[])
             : [],
         );
-
-        const BATCH_SIZE = 1000;
-        const SELECT_COLS =
-          "id, operacao, sub_operacao, descricao, fornecedor, centro_custo, valor, valor_pagamento, data_vencimento, data_vencimento_original, situacao_pagamento, data_pagamento, controle_interno, veiculo_evento, cooperativa, regional, regional_evento, forma_pagamento, tipo_veiculo, categoria_veiculo, multa, juros, nota_fiscal, valor_total_lancamento, data_nota_fiscal, quantidade_parcela, veiculo_lancamento, classificacao_veiculo, associado, cnpj_fornecedor, cpf_cnpj_cliente, nome_fantasia_fornecedor, voluntario, mes_referente, impostos, protocolo_evento, motivo_evento, terceiro_evento, data_evento, placa_terceiro_evento";
-
-        let allDados: any[] = [];
-
-        for (const imp of importacoes) {
-          let hasMore = true;
-          let offset = 0;
-
-          while (hasMore) {
-            const { data: batch, error: dataError } = await supabase
-              .from("mgf_dados")
-              .select(SELECT_COLS)
-              .eq("importacao_id", imp.id)
-              .range(offset, offset + BATCH_SIZE - 1);
-
-            if (dataError) {
-              console.error("Erro ao buscar dados:", dataError);
-              break;
-            }
-
-            if (batch && batch.length > 0) {
-              allDados = [...allDados, ...batch];
-              offset += BATCH_SIZE;
-              hasMore = batch.length === BATCH_SIZE;
-            } else {
-              hasMore = false;
-            }
-
-            if (allDados.length >= 100000) {
-              hasMore = false;
-            }
-          }
-
-          if (allDados.length >= 100000) break;
-        }
-
-        setDados(allDados);
-        setBICachedData(selectedAssociacao, "mgf", allDados, importacaoParaExibicao);
-        if (isPortalAccess) savePrefetchedData(selectedAssociacao, "mgf", allDados);
       } else {
-        setDados([]);
         setImportacaoAtiva(null);
         setColunas([]);
       }
     } catch (error) {
-      console.error("Erro:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (selectedAssociacao) {
-      fetchDados();
-    } else {
-      setDados([]);
-      setImportacaoAtiva(null);
-      setLoading(false);
+      console.error("Erro ao buscar importação MGF:", error);
     }
   }, [selectedAssociacao]);
 
-  // Extrair opções únicas para filtros
-  const filterOptions = useMemo(() => {
-    const operacoes = new Set<string>();
-    const subOperacoes = new Set<string>();
-    const situacoes = new Set<string>();
-    const cooperativas = new Set<string>();
-    const regionais = new Set<string>();
-    const formasPagamento = new Set<string>();
-    const tiposVeiculo = new Set<string>();
-
-    dados.forEach((d) => {
-      if (d.operacao) operacoes.add(d.operacao);
-      if (d.sub_operacao) subOperacoes.add(d.sub_operacao);
-      if (d.situacao_pagamento) situacoes.add(d.situacao_pagamento);
-      if (d.cooperativa) cooperativas.add(d.cooperativa);
-      if (d.regional || d.regional_evento) regionais.add(d.regional || d.regional_evento);
-      if (d.forma_pagamento) formasPagamento.add(d.forma_pagamento);
-      if (d.tipo_veiculo || d.categoria_veiculo) tiposVeiculo.add(d.tipo_veiculo || d.categoria_veiculo);
-    });
-
-    return {
-      operacoes: Array.from(operacoes).sort(),
-      subOperacoes: Array.from(subOperacoes).sort(),
-      situacoes: Array.from(situacoes).sort(),
-      cooperativas: Array.from(cooperativas).sort(),
-      regionais: Array.from(regionais).sort(),
-      formasPagamento: Array.from(formasPagamento).sort(),
-      tiposVeiculo: Array.from(tiposVeiculo).sort(),
-    };
-  }, [dados]);
-
-  // Aplicar filtros
-  const filteredDados = useMemo(() => {
-    let result = dados;
-
-    if (filters.operacao !== "all") {
-      result = result.filter((d) => d.operacao === filters.operacao);
+  // Opções dos dropdowns de filtro — agregadas no banco (get_mgf_filter_options),
+  // em vez de derivadas do array completo de dados no cliente.
+  const fetchFilterOptions = useCallback(async () => {
+    if (!selectedAssociacao) {
+      setFilterOptions(EMPTY_FILTER_OPTIONS);
+      return;
     }
-    if (filters.subOperacao !== "all") {
-      result = result.filter((d) => d.sub_operacao === filters.subOperacao);
-    }
-    if (filters.situacao !== "all") {
-      result = result.filter((d) => d.situacao_pagamento === filters.situacao);
-    }
-    if (filters.cooperativa !== "all") {
-      result = result.filter((d) => d.cooperativa === filters.cooperativa);
-    }
-    if (filters.regional !== "all") {
-      result = result.filter((d) => (d.regional || d.regional_evento) === filters.regional);
-    }
-    if (filters.formaPagamento !== "all") {
-      result = result.filter((d) => d.forma_pagamento === filters.formaPagamento);
-    }
-    if (filters.tipoVeiculo !== "all") {
-      result = result.filter((d) => (d.tipo_veiculo || d.categoria_veiculo) === filters.tipoVeiculo);
-    }
-    if (filters.dateRange?.from) {
-      result = result.filter((d) => {
-        const dataRef = d.data_vencimento || d.data_evento || d.data_nota_fiscal;
-        if (!dataRef) return false;
-        const date = new Date(dataRef);
-        if (filters.dateRange?.from && date < filters.dateRange.from) return false;
-        if (filters.dateRange?.to && date > filters.dateRange.to) return false;
-        return true;
+    try {
+      const { data, error } = await supabase.rpc("get_mgf_filter_options", {
+        p_corretora_id: selectedAssociacao,
+      } as any);
+      if (error) throw error;
+      const opts = (data as any) || {};
+      setFilterOptions({
+        operacoes: [...(opts.operacoes || [])].sort(),
+        subOperacoes: [...(opts.subOperacoes || [])].sort(),
+        situacoes: [...(opts.situacoes || [])].sort(),
+        cooperativas: [...(opts.cooperativas || [])].sort(),
+        regionais: [...(opts.regionais || [])].sort(),
+        formasPagamento: [...(opts.formasPagamento || [])].sort(),
+        tiposVeiculo: [...(opts.tiposVeiculo || [])].sort(),
+        fornecedores: [...(opts.fornecedores || [])].sort(),
+        centrosCusto: [...(opts.centrosCusto || [])].sort(),
       });
+    } catch (error) {
+      console.error("Erro ao buscar opções de filtro MGF:", error);
     }
+  }, [selectedAssociacao]);
 
-    return result;
-  }, [dados, filters]);
+  // Dashboard agregado no banco (RPC cacheada por até 20min). Substitui a
+  // antiga busca paginada de até 100.000 linhas + agregação em JS.
+  const fetchDashboard = useCallback(
+    async (forceRefresh = false) => {
+      if (!selectedAssociacao) {
+        setDashboardStats(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.rpc("get_dashboard_mgf_cached", {
+          p_corretora_id: selectedAssociacao,
+          p_operacao: toRpcValue(filters.operacao),
+          p_sub_operacao: toRpcValue(filters.subOperacao),
+          p_situacao: toRpcValue(filters.situacao),
+          p_cooperativa: toRpcValue(filters.cooperativa),
+          p_regional: toRpcValue(filters.regional),
+          p_forma_pagamento: toRpcValue(filters.formaPagamento),
+          p_tipo_veiculo: toRpcValue(filters.tipoVeiculo),
+          p_data_inicio: dateToRpcValue(filters.dateRange?.from),
+          p_data_fim: dateToRpcValue(filters.dateRange?.to),
+          p_force_refresh: forceRefresh,
+        } as any);
+
+        if (error) throw error;
+        setDashboardStats(data);
+      } catch (error) {
+        console.error("Erro ao buscar dashboard MGF:", error);
+        toast.error("Erro ao carregar os dados do dashboard MGF");
+        setDashboardStats(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedAssociacao, filters],
+  );
+
+  // Metadados + opções de filtro: dependem só da associação selecionada.
+  useEffect(() => {
+    if (selectedAssociacao) {
+      fetchImportacaoMeta();
+      fetchFilterOptions();
+    } else {
+      setImportacaoAtiva(null);
+      setColunas([]);
+      setFilterOptions(EMPTY_FILTER_OPTIONS);
+    }
+  }, [selectedAssociacao, fetchImportacaoMeta, fetchFilterOptions]);
+
+  // Dashboard: depende da associação selecionada E dos filtros globais.
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
+
+  const handleImportSuccess = async () => {
+    await Promise.all([fetchImportacaoMeta(), fetchFilterOptions()]);
+    await fetchDashboard(true);
+    setRefreshToken((t) => t + 1);
+  };
 
   // Contar filtros ativos
   const activeFiltersCount = useMemo(() => {
@@ -423,15 +388,17 @@ export default function MGFInsights() {
 
   const selectedAssociacaoNome = associacoes.find((a) => a.id === selectedAssociacao)?.nome || "";
 
+  const recordCount = dashboardStats?.totalRegistros ?? 0;
+
   // Update shared header dynamic props
   useEffect(() => {
     if (biLayout && !isPortalAccess) {
       biLayout.setHeaderDynamic({
-        recordCount: filteredDados.length,
+        recordCount,
         fileName: importacaoAtiva?.nome_arquivo,
       });
     }
-  }, [filteredDados.length, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
+  }, [recordCount, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
 
   // Tabs - esconder importação para parceiros
   const tabs = isPortalAccess
@@ -465,6 +432,18 @@ export default function MGFInsights() {
     ...(modulosBi.includes("estudo-base") ? (["estudo-base"] as const) : []),
   ];
 
+  // Filtros globais já normalizados para RPC (null quando "all"/vazio),
+  // repassados para os componentes filhos.
+  const rpcOperacao = toRpcValue(filters.operacao);
+  const rpcSubOperacao = toRpcValue(filters.subOperacao);
+  const rpcSituacao = toRpcValue(filters.situacao);
+  const rpcCooperativa = toRpcValue(filters.cooperativa);
+  const rpcRegional = toRpcValue(filters.regional);
+  const rpcFormaPagamento = toRpcValue(filters.formaPagamento);
+  const rpcTipoVeiculo = toRpcValue(filters.tipoVeiculo);
+  const rpcDataInicio = dateToRpcValue(filters.dateRange?.from);
+  const rpcDataFim = dateToRpcValue(filters.dateRange?.to);
+
   const portalContent = (
     <>
       {/* Portal Header - only when NOT inside PortalLayout */}
@@ -496,13 +475,13 @@ export default function MGFInsights() {
           currentModule="mgf"
           showHistorico={canViewHistorico}
           onHistoricoClick={() => setHistoricoDialogOpen(true)}
-          recordCount={filteredDados.length}
+          recordCount={recordCount}
           fileName={importacaoAtiva?.nome_arquivo}
         />
       )}
 
       {/* Filtros Globais (estilo SGA) */}
-      {dados.length > 0 && (
+      {!!importacaoAtiva && (
         <div className="container mx-auto px-4 pt-4">
           <Card className="border-orange-500/20 bg-card/50 backdrop-blur">
             <CardContent className="p-0">
@@ -733,24 +712,60 @@ export default function MGFInsights() {
 
           <TabsContent value="dashboard">
             <MGFDashboard
-              dados={filteredDados}
+              stats={dashboardStats}
               colunas={colunas}
               loading={loading}
               associacaoNome={selectedAssociacaoNome}
+              corretoraId={selectedAssociacao}
+              operacao={rpcOperacao}
+              subOperacao={rpcSubOperacao}
+              situacao={rpcSituacao}
+              cooperativa={rpcCooperativa}
+              regional={rpcRegional}
+              formaPagamento={rpcFormaPagamento}
+              tipoVeiculo={rpcTipoVeiculo}
+              dataInicio={rpcDataInicio}
+              dataFim={rpcDataFim}
             />
           </TabsContent>
 
           <TabsContent value="eventos">
-            <MGFRelatorioEventos dados={filteredDados} loading={loading} />
+            <MGFRelatorioEventos
+              corretoraId={selectedAssociacao}
+              operacao={rpcOperacao}
+              subOperacao={rpcSubOperacao}
+              situacao={rpcSituacao}
+              cooperativa={rpcCooperativa}
+              regional={rpcRegional}
+              formaPagamento={rpcFormaPagamento}
+              tipoVeiculo={rpcTipoVeiculo}
+              dataInicio={rpcDataInicio}
+              dataFim={rpcDataFim}
+              loading={loading}
+              refreshToken={refreshToken}
+            />
           </TabsContent>
 
           <TabsContent value="tabela">
-            <MGFTabela dados={filteredDados} colunas={colunas} loading={loading} />
+            <MGFTabela
+              corretoraId={selectedAssociacao}
+              operacao={rpcOperacao}
+              subOperacao={rpcSubOperacao}
+              situacao={rpcSituacao}
+              cooperativa={rpcCooperativa}
+              regional={rpcRegional}
+              formaPagamento={rpcFormaPagamento}
+              tipoVeiculo={rpcTipoVeiculo}
+              dataInicio={rpcDataInicio}
+              dataFim={rpcDataFim}
+              loading={loading}
+              refreshToken={refreshToken}
+            />
           </TabsContent>
 
           <TabsContent value="importar">
             <MGFImportacao
-              onImportSuccess={fetchDados}
+              onImportSuccess={handleImportSuccess}
               corretoraId={selectedAssociacao}
               corretoraNome={selectedAssociacaoNome}
             />
