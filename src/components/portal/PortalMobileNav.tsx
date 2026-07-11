@@ -65,8 +65,14 @@ export default function PortalMobileNav({
           coloque um overlay full-screen — os botões dentro do <nav> reativam
           eventos com pointer-events-auto. isolate cria stacking context próprio
           pra que nenhuma section com z-index dentro das páginas fique acima. */}
+      {/* Fundo 100% opaco (sem transparência/blur): com bg-card/95 + blur, o
+          conteúdo da página (ex.: as abas Financeiro/Permanência) passando
+          atrás durante o scroll ficava visível por trás da pill, dando a
+          impressão de uma segunda barra colada/vazamento. Largura e
+          distribuição dos botões continuam exatamente como antes — só o
+          fundo deixou de ser transparente. */}
       <nav
-        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card/95 backdrop-blur-md border border-border shadow-2xl px-2 flex items-center justify-center gap-0.5 w-fit max-w-[calc(100vw-1.5rem)] pointer-events-auto"
+        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border shadow-2xl px-2 flex items-center justify-center gap-0.5 w-fit max-w-[calc(100vw-1.5rem)] pointer-events-auto"
         style={{ paddingTop: "0.4rem", paddingBottom: "max(0.4rem, env(safe-area-inset-bottom))" }}
       >
         {favoritos.map((mod) => {
