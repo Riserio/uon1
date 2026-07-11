@@ -56,13 +56,13 @@ interface AssociacaoStatus {
   exec_modulo: string | null;
   exec_etapa: string | null;
   exec_progresso: number | null;
-  // Indicadores (aba "Indicadores" / Estudo de Base): NÃO vem da API da
-  // Hinova. É uma COMPILAÇÃO (agregação) da base de veículos já importada
-  // (estudo_base_registros) feita pela RPC `agregar_estudo_base` — a mesma
-  // função que o botão "Calcular da base" já usa em Portal > Estudo de Base.
-  // Aqui só refletimos a última compilação (pid_estudo_base.updated_at) e
-  // oferecemos um botão para forçar essa mesma compilação, sem alterar a
-  // lógica existente.
+  // Indicadores (aba "Indicadores" / Estudo de Base): é uma COMPILAÇÃO
+  // (agregação) da base de veículos já importada (estudo_base_registros),
+  // feita pela RPC `agregar_estudo_base` — a mesma função que o botão
+  // "Calcular da base" já usa em Portal > Estudo de Base. Essa compilação já
+  // é forçada pelo botão "Sincronizar" (card "Indicadores (Base)" / Executar
+  // Todos) de cada associação; aqui só exibimos o status da última
+  // compilação (pid_estudo_base.updated_at), sem botão próprio.
   estudo_base_ativo: boolean;
   estudo_base_ultima: string | null;
 }
@@ -184,31 +184,6 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
   const pontoCor =
     s === "erro" ? "bg-red-500" : s === "sincronizando" ? "bg-blue-500 animate-pulse" : s === "ok" ? "bg-emerald-500" : "bg-muted-foreground/30";
 
-  const [forcandoIndicadores, setForcandoIndicadores] = useState(false);
-
-  // Força a MESMA compilação que o botão "Calcular da base" já usa em
-  // Portal > Estudo de Base: RPC `agregar_estudo_base`, que recalcula os
-  // indicadores (pid_estudo_base) a partir da base de veículos já importada
-  // (estudo_base_registros). Não busca nada novo na Hinova nem muda a lógica
-  // de cálculo — só dispara a mesma compilação sob demanda, pro mês atual.
-  const handleForcarIndicadores = async () => {
-    setForcandoIndicadores(true);
-    try {
-      const { data, error } = await supabase.rpc("agregar_estudo_base", {
-        p_corretora_id: a.id,
-        p_data_referencia: null,
-      });
-      if (error) throw error;
-      const r = data as any;
-      if (r?.success === false) throw new Error(r.message || "Falha ao compilar indicadores");
-      toast.success(r?.total != null ? `Indicadores recompilados (${r.total} veículos)` : "Indicadores recompilados");
-    } catch (e) {
-      toast.error("Erro ao forçar compilação: " + (e instanceof Error ? e.message : "desconhecido"));
-    } finally {
-      setForcandoIndicadores(false);
-    }
-  };
-
   const modulos = [
     { label: "Cobrança", status: a.cobranca_status, ultima: a.cobranca_ultima, erro: a.cobranca_erro, ativo: a.ativo_cobranca, origem: a.cobranca_origem },
     { label: "Eventos", status: a.eventos_status, ultima: a.eventos_ultima, erro: a.eventos_erro, ativo: a.ativo_eventos, origem: a.eventos_origem },
@@ -219,8 +194,11 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
       ultima: a.estudo_base_ultima,
       erro: a.estudo_base_ativo
         ? null
-        : "Nenhum indicador compilado ainda para esta associação. Use o botão \"Indicadores\" para compilar a partir da base de veículos já importada.",
-      ativo: true,
+        : "Nenhum indicador compilado ainda para esta associação. Clique em \"Sincronizar\" para atualizar.",
+      // Sem credenciais Hinova cadastradas não há nada pra compilar — mesmo
+      // critério usado pelos outros módulos (evita mostrar "Erro" quando na
+      // verdade a associação simplesmente ainda não foi configurada).
+      ativo: a.tem_credenciais,
       origem: null as string | null,
     },
   ];
@@ -289,17 +267,6 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
             <Users className="h-3.5 w-3.5" />
             {a.total_usuarios > 0 ? `${a.usuarios_ativos}/${a.total_usuarios}` : "—"}
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-            title="Forçar recompilação dos Indicadores (Estudo de Base) agora"
-            disabled={forcandoIndicadores}
-            onClick={handleForcarIndicadores}
-          >
-            {forcandoIndicadores ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            Indicadores
-          </Button>
           <BISyncButton corretoraId={a.id} corretoraNome={a.nome} />
         </div>
       </div>
@@ -516,37 +483,6 @@ export default function BIAdminDashboard() {
     }
   };
 
-  const [syncingIndicadores, setSyncingIndicadores] = useState(false);
-
-  // Força a MESMA compilação (RPC agregar_estudo_base) para todas as
-  // associações de uma vez — não busca nada novo na Hinova, só recompila os
-  // indicadores a partir da base de veículos já importada de cada uma.
-  const sincronizarIndicadoresTodas = async () => {
-    setSyncingIndicadores(true);
-    try {
-      const results = await Promise.allSettled(
-        associacoes.map((a) =>
-          supabase.rpc("agregar_estudo_base", { p_corretora_id: a.id, p_data_referencia: null }),
-        ),
-      );
-      let ok = 0;
-      let erros = 0;
-      results.forEach((r) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (r.status === "fulfilled" && !r.value.error && (r.value.data as any)?.success !== false) ok++;
-        else erros++;
-      });
-      if (ok > 0) toast.success(`Indicadores recompilados: ${ok}/${associacoes.length} associações`);
-      else toast.error("Nenhuma associação foi recompilada");
-      if (erros > 0) toast.warning(`${erros} associação(ões) sem base para compilar ou com erro`);
-      setTimeout(loadData, 1500);
-    } catch (e) {
-      toast.error("Erro ao recompilar indicadores: " + (e instanceof Error ? e.message : "desconhecido"));
-    } finally {
-      setSyncingIndicadores(false);
-    }
-  };
-
   const totalComErro = associacoes.filter((a) => saude(a) === "erro").length;
   const totalAtivos = associacoes.filter((a) => a.tem_credenciais).length;
 
@@ -613,17 +549,6 @@ export default function BIAdminDashboard() {
           <Button size="sm" className="gap-1.5 rounded-xl" disabled={syncingAll} onClick={sincronizarTodas}>
             {syncingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
             Sincronizar Todas
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 rounded-xl"
-            disabled={syncingIndicadores}
-            onClick={sincronizarIndicadoresTodas}
-            title="Recompila os Indicadores (Estudo de Base) de todas as associações a partir da base de veículos já importada"
-          >
-            {syncingIndicadores ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            Sincronizar Indicadores
           </Button>
         </div>
       </div>
