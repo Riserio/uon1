@@ -6,9 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useOneSignalInterno } from "@/hooks/useOneSignalInterno";
 import { usePontoAlertas } from "@/hooks/usePontoAlertas";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
-import { useDynamicAppIcon } from "@/hooks/useDynamicAppIcon";
 // sidebar is now self-contained in AppSidebar
 import { AppSidebar } from "@/components/AppSidebar";
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
@@ -149,6 +149,9 @@ function AppLayout() {
   usePushNotifications();
   usePontoAlertas();
   useVisitorTracking();
+  // Push (OneSignal): registra o dispositivo e as tags de segmentação
+  // (tipo: interno + cargo) para usuários fora do Portal do Parceiro
+  useOneSignalInterno();
 
   return (
     <div className="min-h-screen w-full">
@@ -223,14 +226,7 @@ if (typeof window !== 'undefined') {
 
 import { ErrorReportPrompt } from "@/components/report/ErrorReportPrompt";
 
-const App = () => {
-  // Aplica o ícone customizado (Configurações > Imagens > Ícone do App) no
-  // apple-touch-icon assim que o app carrega, em qualquer rota — não mexe
-  // no ícone da aba do navegador, só no ícone usado ao "Adicionar à Tela
-  // de Início" no iOS. O manifest (Android) já é dinâmico via edge function.
-  useDynamicAppIcon();
-
-  return (
+const App = () => (
   <BrowserRouter>
     <QueryClientProvider client={queryClient}>
       <PortalAuthProvider>
@@ -345,7 +341,6 @@ const App = () => {
       </PortalAuthProvider>
     </QueryClientProvider>
   </BrowserRouter>
-  );
-};
+);
 
 export default App;
