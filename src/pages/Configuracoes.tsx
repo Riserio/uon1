@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
-  Palette, Image as ImageIcon, Settings, Shield, Bell,
+  Palette, Image as ImageIcon, Settings, Shield, Bell, BellOff,
   Monitor, Moon, Sun, Upload, RotateCcw, Save, Eye,
   Globe, Lock, Mail, Smartphone, Users, Share2, Blocks
 } from "lucide-react";
@@ -93,6 +93,64 @@ export default function Configuracoes() {
   const [appIconUrls, setAppIconUrls] = useState<AppIconUrls>({});
   const [appIconLoading, setAppIconLoading] = useState(false);
   const [activeSection, setActiveSection] = useState("aparencia");
+
+  // ---- Notificações push (OneSignal) — usuários internos ----
+  // O useOneSignalInterno (rodando no AppLayout) já inicializa o SDK e tenta
+  // o pedido automático (slidedown) uma vez por navegador. Esse automático
+  // tem cooldown do próprio OneSignal e não reaparece a cada visita, então
+  // esse botão manual aqui existe pra sempre poder pedir/alternar a
+  // permissão sob demanda — mesmo padrão já usado no Portal do Parceiro
+  // (PortalMobileSettingsSheet.tsx).
+  const [pushDisponivel, setPushDisponivel] = useState(false);
+  const [pushAtivado, setPushAtivado] = useState(false);
+  const [pushBloqueado, setPushBloqueado] = useState(false);
+  const [pushOcupado, setPushOcupado] = useState(false);
+
+  useEffect(() => {
+    // deno-lint-ignore no-explicit-any
+    const osd = (window as any).OneSignalDeferred;
+    if (!osd) return;
+    // deno-lint-ignore no-explicit-any
+    osd.push(async (OneSignal: any) => {
+      try {
+        setPushDisponivel(true);
+        setPushAtivado(!!OneSignal.User?.PushSubscription?.optedIn);
+        setPushBloqueado(typeof Notification !== "undefined" && Notification.permission === "denied");
+      } catch { /* opcional */ }
+    });
+  }, [activeSection]);
+
+  const handleTogglePush = async (ligar: boolean) => {
+    setPushOcupado(true);
+    // deno-lint-ignore no-explicit-any
+    const osd = (window as any).OneSignalDeferred;
+    // deno-lint-ignore no-explicit-any
+    osd?.push(async (OneSignal: any) => {
+      try {
+        if (ligar) {
+          if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+            await OneSignal.Notifications.requestPermission();
+          }
+          if (typeof Notification !== "undefined" && Notification.permission === "denied") {
+            setPushBloqueado(true);
+            toast.error("Notificações bloqueadas no navegador. Libere nas configurações do aparelho.");
+            return;
+          }
+          await OneSignal.User.PushSubscription.optIn();
+          setPushAtivado(true);
+          toast.success("Notificações ativadas");
+        } else {
+          await OneSignal.User.PushSubscription.optOut();
+          setPushAtivado(false);
+          toast.success("Notificações desativadas");
+        }
+      } catch {
+        toast.error("Não foi possível alterar as notificações");
+      } finally {
+        setPushOcupado(false);
+      }
+    });
+  };
 
   useEffect(() => {
     setTempColors(config.colors);
@@ -488,10 +546,40 @@ export default function Configuracoes() {
                   <p className="text-sm text-muted-foreground mt-1">Gerencie alertas e avisos do sistema</p>
                 </div>
 
+                {/* Push (OneSignal) — controle real, não decorativo. As
+                    demais opções abaixo ainda são preferências ilustrativas
+                    (não persistem nem afetam nenhum envio de verdade). */}
+                {pushDisponivel && (
+                  <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 p-4 bg-muted/10">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                        {pushAtivado ? (
+                          <Bell className="h-4 w-4 text-primary" />
+                        ) : (
+                          <BellOff className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Notificações push (navegador)</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {pushBloqueado
+                            ? "Bloqueadas no navegador — libere nas configurações do aparelho/site"
+                            : "Avisos em tempo real neste navegador/dispositivo"}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={pushAtivado}
+                      disabled={pushOcupado || pushBloqueado}
+                      onCheckedChange={handleTogglePush}
+                      aria-label="Ativar ou desativar notificações push"
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   {[
                     { title: "Notificações por email", desc: "Receber alertas no email cadastrado", defaultOn: true },
-                    { title: "Notificações push", desc: "Alertas no navegador em tempo real", defaultOn: true },
                     { title: "Resumo diário", desc: "Enviar resumo de atividades ao final do dia", defaultOn: false },
                     { title: "Alertas de vencimento", desc: "Notificar sobre boletos e prazos próximos", defaultOn: true },
                     { title: "Novos atendimentos", desc: "Alerta ao receber novo atendimento", defaultOn: true },
