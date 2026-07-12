@@ -631,9 +631,11 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     setBaseExecuting(true);
     if (!silencioso) toast.info("Recalculando indicadores a partir da base local...", { duration: 8000 });
     try {
+      // Mês de referência: primeiro dia do mês atual (a coluna data_referencia é NOT NULL)
+      const ref = `${new Date().toISOString().slice(0, 7)}-01`;
       const { data: res, error } = await supabase.rpc("agregar_estudo_base", {
         p_corretora_id: corretoraId,
-        p_data_referencia: null,
+        p_data_referencia: ref,
       });
       if (error) throw error;
       const r = res as any;
