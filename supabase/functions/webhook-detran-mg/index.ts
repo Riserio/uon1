@@ -41,6 +41,7 @@ serve(async (req) => {
       error_message,
       github_run_id,
       github_run_url,
+      session_state, // NOVO: estado da sessão Gov.br (cookies/localStorage) para reaproveitar na próxima consulta
     } = body;
 
     if (!execucao_id) {
@@ -91,12 +92,26 @@ serve(async (req) => {
     });
 
     // Atualizar status da última consulta nas credenciais (visível na tela de config)
-    await supabase.from("detran_mg_credenciais").update({
+    // NOVO: quando o robô manda uma sessão Gov.br nova (login bem-sucedido,
+    // reaproveitado ou não), guardamos ela aqui para a PRÓXIMA consulta poder
+    // pular o login inteiro - ver disparar-detran-mg-workflow, que lê essas
+    // colunas antes de disparar o robô.
+    const updatePayload: Record<string, unknown> = {
       ultima_consulta_status: sucesso ? 'sucesso' : `erro: ${(error_message || 'desconhecido').slice(0, 200)}`,
       ultima_consulta_em: new Date().toISOString(),
-    }).eq("corretora_id", execucao.corretora_id || corretora_id);
+    };
+    if (sucesso && session_state) {
+      try {
+        updatePayload.session_state_json = typeof session_state === 'string' ? JSON.parse(session_state) : session_state;
+        updatePayload.session_atualizada_em = new Date().toISOString();
+      } catch (e) {
+        console.warn("[webhook-detran-mg] session_state recebido não é JSON válido, ignorando:", e);
+      }
+    }
 
-    console.log(`[webhook-detran-mg] Execução ${execucao_id} finalizada: ${statusFinal}`);
+    await supabase.from("detran_mg_credenciais").update(updatePayload).eq("corretora_id", execucao.corretora_id || corretora_id);
+
+    console.log(`[webhook-detran-mg] Execução ${execucao_id} finalizada: ${statusFinal}${session_state ? ' (sessão Gov.br atualizada)' : ''}`);
 
     return new Response(
       JSON.stringify({ success: true }),
