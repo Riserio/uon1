@@ -6,6 +6,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Sessão do Gov.br reaproveitada entre consultas: se o login mais recente foi
+// há menos desse tempo, mandamos ela pro robô tentar pular o login inteiro.
+// É um valor conservador (não sabemos ao certo quanto tempo o Gov.br mantém a
+// sessão válida) - se a sessão já tiver expirado do lado do Gov.br mesmo
+// dentro desse prazo, o robô simplesmente cai de volta no login completo, sem
+// custo real além de alguns segundos tentando reaproveitar.
+const SESSAO_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -81,6 +89,28 @@ serve(async (req) => {
       );
     }
 
+    // NOVO: busca uma sessão Gov.br salva de uma consulta anterior (se ainda
+    // dentro do prazo de validade estimado) para o robô tentar reaproveitar e
+    // pular o login completo - a etapa mais lenta e mais frágil do processo.
+    let sessionStateToSend = '';
+    try {
+      const { data: cred } = await supabase
+        .from("detran_mg_credenciais")
+        .select("session_state_json, session_atualizada_em")
+        .eq("corretora_id", corretora_id)
+        .maybeSingle();
+
+      const atualizadaEm = cred?.session_atualizada_em ? new Date(cred.session_atualizada_em).getTime() : 0;
+      const dentroDoPrazo = atualizadaEm > 0 && Date.now() - atualizadaEm < SESSAO_TTL_MS;
+
+      if (cred?.session_state_json && dentroDoPrazo) {
+        sessionStateToSend = JSON.stringify(cred.session_state_json);
+        console.log(`[disparar-detran-mg-workflow] Reaproveitando sessão Gov.br salva em ${cred.session_atualizada_em}`);
+      }
+    } catch (e) {
+      console.warn("[disparar-detran-mg-workflow] Falha ao buscar sessão salva (seguindo sem ela):", e);
+    }
+
     const dispatchUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/detran-mg.yml/dispatches`;
     const dispatchResponse = await fetch(dispatchUrl, {
       method: 'POST',
@@ -101,6 +131,7 @@ serve(async (req) => {
           cpf_consulta: cpf_consulta || '',
           execucao_id: execucao.id,
           webhook_url: `${supabaseUrl}/functions/v1/webhook-detran-mg`,
+          session_state: sessionStateToSend,
         },
       }),
     });
