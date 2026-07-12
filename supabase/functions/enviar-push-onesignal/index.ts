@@ -102,7 +102,23 @@ serve(async (req) => {
       case "associacao": {
         const ids = (body.corretora_ids || []).filter(Boolean);
         if (ids.length === 0) throw new Error("Selecione ao menos uma associação");
-        payload.filters = orTags("corretora_id", ids);
+        // Alvo determinístico: usuários vinculados às associações no NOSSO
+        // banco (corretora_usuarios.profile_id = external_id gravado pelo
+        // OneSignal.login no portal). Não depende das tags terem sincronizado.
+        const { data: vinculados } = await supabase
+          .from("corretora_usuarios")
+          .select("profile_id")
+          .in("corretora_id", ids)
+          .eq("ativo", true)
+          .not("profile_id", "is", null);
+        const externalIds = [...new Set((vinculados || []).map((v) => String(v.profile_id)))];
+        if (externalIds.length > 0) {
+          payload.include_aliases = { external_id: externalIds };
+          payload.target_channel = "push";
+        } else {
+          // Fallback: segmentação por tag (dispositivos antigos sem vínculo no banco)
+          payload.filters = orTags("corretora_id", ids);
+        }
         break;
       }
       case "localizacao": {
@@ -155,7 +171,12 @@ serve(async (req) => {
       created_by: userId,
     });
 
-    if (!ok) throw new Error(`OneSignal recusou o envio: ${erro}`);
+    if (!ok) {
+      const msg = /not subscribed/i.test(erro || "")
+        ? "Nenhum dispositivo inscrito para os destinatários selecionados. O usuário precisa abrir o portal e ACEITAR as notificações no navegador para virar assinante."
+        : `OneSignal recusou o envio: ${erro}`;
+      throw new Error(msg);
+    }
 
     return new Response(
       JSON.stringify({ success: true, onesignal_id: json.id, destinatarios: json.recipients ?? null }),
