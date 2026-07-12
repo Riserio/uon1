@@ -76,6 +76,13 @@ export function useOneSignalPortal(tags: PortalTags | null) {
                 serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
                 serviceWorkerParam: { scope: "/onesignal/" },
                 allowLocalhostAsSecureOrigin: true,
+                // Mensagem automática enviada pelo OneSignal assim que o
+                // dispositivo se inscreve (era o "Thanks for subscribing!"
+                // padrão em inglês) — agora em português.
+                welcomeNotification: {
+                  title: "Vangard",
+                  message: "Notificações ativadas! Você vai receber avisos importantes por aqui.",
+                },
                 // Sem notifyButton (sino flutuante) — o controle de ativar/
                 // desativar fica em Configurações (PortalMobileSettingsSheet).
                 // Texto e visual do slidedown (soft-ask) com a marca Vangard —
@@ -103,6 +110,33 @@ export function useOneSignalPortal(tags: PortalTags | null) {
               });
               // 1º acesso: pergunta uma vez, de forma suave (slidedown nativo)
               OneSignal.Slidedown.promptPush();
+
+              // Reforça as tags no exato momento em que a inscrição de push
+              // fica ativa (optedIn). Sem isso, a 1ª chamada de addTags()
+              // (logo abaixo) podia rodar cedo demais — antes de o OneSignal
+              // terminar de vincular o dispositivo ao usuário — e a tag
+              // nunca era persistida (assinante ficava "Sem vínculo").
+              OneSignal.User.PushSubscription.addEventListener(
+                "change",
+                // deno-lint-ignore no-explicit-any
+                async (event: any) => {
+                  if (!event?.current?.optedIn) return;
+                  try {
+                    await OneSignal.User.addTags({
+                      tipo: "parceiro",
+                      corretora_id: tags.corretora_id,
+                      corretora_nome: tags.corretora_nome || "",
+                      estado: (corr?.estado || "").toUpperCase(),
+                      cidade: corr?.cidade || "",
+                    });
+                  } catch (e) {
+                    console.error(
+                      "[OneSignal] Falha ao gravar tags do parceiro (subscription change):",
+                      e,
+                    );
+                  }
+                },
+              );
             } catch (e) {
               // Esse catch é importante: o callback roda de forma assíncrona,
               // depois que este hook já retornou — sem ele, um erro aqui
