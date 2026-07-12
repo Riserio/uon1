@@ -623,37 +623,28 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, corretoraId]);
 
-  // Importa a BASE (Cadastro + Estudo de Base) via API — chamada direta à
-  // importar-api-hinova (mesma usada pelo scheduler diário da base).
+  // Recalcula os Indicadores (Estudo de Base) a partir dos registros já
+  // sincronizados localmente (estudo_base_registros), via RPC
+  // agregar_estudo_base — NÃO puxa valores prontos da API. Os totais passam a
+  // refletir exatamente o que está armazenado na base.
   const handleExecuteBase = async (silencioso = false) => {
-    if (!creds.usar_api || !creds.api_token) {
-      if (!silencioso) toast.error("A base é importada via API — configure o token da API na aba Configuração.");
-      return;
-    }
     setBaseExecuting(true);
-    if (!silencioso) toast.info("Importando base de veículos... pode levar alguns minutos.", { duration: 8000 });
+    if (!silencioso) toast.info("Recalculando indicadores a partir da base local...", { duration: 8000 });
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      const session = (await supabase.auth.getSession()).data.session;
-      const response = await fetch(`${supabaseUrl}/functions/v1/importar-api-hinova`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token || supabaseKey}`,
-          apikey: supabaseKey,
-        },
-        body: JSON.stringify({ corretora_id: corretoraId, modulo: "base" }),
+      const { data: res, error } = await supabase.rpc("agregar_estudo_base", {
+        p_corretora_id: corretoraId,
+        p_data_referencia: null,
       });
-      const j = await response.json().catch(() => null);
-      if (response.ok && j?.success !== false) {
-        toast.success(`Base atualizada${j?.total ? `: ${j.total} veículos` : ""}!`);
-      } else {
-        toast.error(j?.message || "Erro ao importar a base");
-      }
-    } catch {
-      // A função pode exceder o tempo da conexão e continuar no servidor
-      toast.info("Importação da base em andamento no servidor — confira em alguns minutos.");
+      if (error) throw error;
+      const r = res as any;
+      if (r && r.success === false) throw new Error(r.message || "Falha ao recalcular indicadores");
+      toast.success(
+        r?.total != null
+          ? `Indicadores recalculados da base (${Number(r.total).toLocaleString("pt-BR")} veículos)`
+          : "Indicadores recalculados a partir da base",
+      );
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível recalcular os indicadores a partir da base");
     } finally {
       setBaseExecuting(false);
       loadBaseStatus();
@@ -1093,9 +1084,10 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                 })
               )}
 
-              {/* Indicadores (Base de veículos) — importa Cadastro + Estudo de
-                  Base via API e alimenta Placas Ativas do PID. Também roda no
-                  automático diário (scheduler-base-hinova) e no Executar Todos. */}
+              {/* Indicadores (Base de veículos) — recalcula a compilação a
+                  partir dos registros locais (estudo_base_registros) via RPC
+                  agregar_estudo_base. Não puxa valores prontos da API. Também
+                  roda no Executar Todos. */}
               {(creds.hinova_user || creds.api_token) && (
                 <div className="rounded-2xl border bg-card overflow-hidden transition-all hover:shadow-sm">
                   <div className="flex items-center gap-3 px-4 py-3">
@@ -1107,11 +1099,11 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                         <span className="font-semibold text-sm">Indicadores (Base)</span>
                         {baseExecuting ? (
                           <span className="text-[9px] px-1.5 py-0 rounded-full font-medium bg-primary/10 text-primary">
-                            importando...
+                            calculando...
                           </span>
                         ) : (
-                          <span className="text-[9px] px-1.5 py-0 rounded-full font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                            via API
+                          <span className="text-[9px] px-1.5 py-0 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            recalcula da base
                           </span>
                         )}
                       </div>
