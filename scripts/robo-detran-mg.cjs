@@ -34,6 +34,10 @@ const CONFIG = {
   WEBHOOK_URL: process.env.WEBHOOK_URL || '',
   WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || '',
 
+  // NOVO: sessão Gov.br (cookies/localStorage) salva de uma consulta anterior
+  // bem-sucedida - se ainda válida, deixa o robô pular o login inteiro.
+  SESSION_STATE_JSON: process.env.SESSION_STATE_JSON || '',
+
   CORRETORA_ID: process.env.CORRETORA_ID || '',
   EXECUCAO_ID: process.env.EXECUCAO_ID || '',
   GITHUB_RUN_ID: process.env.GITHUB_RUN_ID || '',
@@ -103,6 +107,18 @@ async function safeScreenshot(page, name) {
   }
 }
 
+// NOVO: detecta se a página atual já É o formulário de consulta (com campos
+// de placa/CPF/chassi/renavam) - usado para saber se uma sessão Gov.br
+// reaproveitada de uma consulta anterior ainda está válida, sem precisar
+// tentar preencher nada ainda.
+async function estaNoFormularioDeConsulta(page) {
+  const placaSelectors = ['input[name*="placa" i]', '#placa', 'input[id*="placa" i]'];
+  for (const sel of placaSelectors) {
+    if (await page.locator(sel).first().isVisible({ timeout: 2500 }).catch(() => false)) return true;
+  }
+  return false;
+}
+
 // Detecta se a página atual parece ser uma tela de 2FA/confirmação em duas etapas
 async function detectarTelaDeConfirmacao(page) {
   const bodyText = (await page.textContent('body').catch(() => '')) || '';
@@ -168,6 +184,15 @@ async function fazerLoginGovBr(page) {
     throw new Error('Não foi possível localizar o link do formulário/login Gov.br na página do Detran-MG (layout pode ter mudado)');
   }
 
+  // NOVO: se veio uma sessão Gov.br salva de uma consulta anterior (ainda
+  // válida), o clique acima pode já ter caído direto no formulário de
+  // consulta, sem passar pela página intermediária nem pelo login do Gov.br -
+  // nesse caso não há mais nada a fazer aqui, é só devolver a página.
+  if (await estaNoFormularioDeConsulta(targetPage)) {
+    log('Sessão Gov.br reaproveitada com sucesso - login pulado.');
+    return targetPage;
+  }
+
   // NOVO (corrige "Campo de CPF não encontrado"): o Detran-MG passou a exibir
   // uma página intermediária de confirmação ("ATENÇÃO! Faça login do Gov.br
   // para acessar este serviço.") com um botão "Entrar" (id="botao-entrar")
@@ -199,6 +224,15 @@ async function fazerLoginGovBr(page) {
         break;
       }
     }
+
+    // NOVO: mesma ideia do check acima, mas depois do clique em "Entrar" -
+    // se a sessão Gov.br salva ainda for válida, esse clique pode já cair
+    // direto no formulário de consulta em vez de ir para o acesso.gov.br.
+    if (avancouIntermediario && await estaNoFormularioDeConsulta(targetPage)) {
+      log('Sessão Gov.br reaproveitada com sucesso - login pulado.');
+      return targetPage;
+    }
+
     if (!avancouIntermediario || !/acesso\.gov\.br/i.test(targetPage.url())) {
       await safeScreenshot(targetPage, 'debug_govbr_01c_sem_redirecionar_sso.png');
       throw new Error('Não foi possível avançar da página intermediária do Detran-MG para o login do Gov.br (layout pode ter mudado)');
@@ -396,8 +430,21 @@ async function main() {
     throw new Error('Credenciais Gov.br não disponíveis (nem via servidor, nem via env vars)');
   }
 
+  // NOVO: se veio uma sessão Gov.br salva de uma consulta anterior, tenta
+  // abrir o navegador já com esses cookies/localStorage - se ainda válida,
+  // o robô pula o login inteiro (ver estaNoFormularioDeConsulta acima).
+  let storageStateInicial;
+  if (CONFIG.SESSION_STATE_JSON) {
+    try {
+      storageStateInicial = JSON.parse(CONFIG.SESSION_STATE_JSON);
+      log('Sessão Gov.br salva encontrada, tentando reaproveitar...');
+    } catch (e) {
+      log(`SESSION_STATE_JSON inválido, ignorando e seguindo com login normal: ${e.message}`);
+    }
+  }
+
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ locale: 'pt-BR' });
+  const context = await browser.newContext({ locale: 'pt-BR', storageState: storageStateInicial });
   const page = await context.newPage();
 
   // NOVO: o login Gov.br pode abrir numa aba nova (popup) - `currentPage`
@@ -414,8 +461,19 @@ async function main() {
     await preencherFormularioConsulta(currentPage);
     const resultado = await extrairResultado(currentPage);
 
+    // NOVO: guarda a sessão Gov.br (cookies/localStorage) autenticada com
+    // sucesso - reaproveitada ou recém-logada, não importa - para a PRÓXIMA
+    // consulta poder tentar pular o login inteiro. Se isso falhar por
+    // qualquer motivo, não compromete a consulta atual (já concluída).
+    let sessionState;
+    try {
+      sessionState = JSON.stringify(await context.storageState());
+    } catch (e) {
+      console.warn('[Detran-MG] Falha ao capturar sessão Gov.br para salvar (ignorado):', e.message);
+    }
+
     log('Consulta concluída com sucesso');
-    await notifyWebhook({ action: 'success', resultado });
+    await notifyWebhook({ action: 'success', resultado, session_state: sessionState });
 
     await browser.close();
     process.exit(0);
