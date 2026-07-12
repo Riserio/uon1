@@ -52,6 +52,12 @@ type Assinante = {
   criadoEm: Date | null;
   ultimaAtividade: Date | null;
   sessoes: number;
+  // Vínculo (tags gravadas por useOneSignalPortal/useOneSignalInterno) —
+  // "null" quando o assinante ainda não sincronizou (precisa reabrir o app).
+  tipoUsuario: "parceiro" | "interno" | null;
+  corretoraNome: string | null;
+  localizacao: string | null;
+  cargo: string | null;
 };
 
 const SEGMENTO_LABEL: Record<string, string> = {
@@ -186,6 +192,10 @@ export default function PushCentral() {
           canal === "push"
             ? [deviceModel, deviceOs].filter(Boolean).join(" · ") || "Dispositivo"
             : identifier;
+        const tags = (p.tags as Record<string, string>) || {};
+        const tipoUsuario: Assinante["tipoUsuario"] =
+          tags.tipo === "parceiro" ? "parceiro" : tags.tipo === "interno" ? "interno" : null;
+        const localizacao = [tags.cidade, tags.estado].filter(Boolean).join(" / ") || null;
         return {
           id: p.id as string,
           canal,
@@ -194,6 +204,10 @@ export default function PushCentral() {
           criadoEm: formatarDataUnix(p.created_at as number),
           ultimaAtividade: formatarDataUnix(p.last_active as number),
           sessoes: (p.session_count as number) ?? 0,
+          tipoUsuario,
+          corretoraNome: tags.corretora_nome || null,
+          localizacao,
+          cargo: tags.cargo || null,
         };
       });
       parsed.sort((a, b) => (b.ultimaAtividade?.getTime() || 0) - (a.ultimaAtividade?.getTime() || 0));
@@ -679,6 +693,22 @@ export default function PushCentral() {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{a.tipoLabel}</p>
                         <p className="text-xs text-muted-foreground truncate">{a.identificador}</p>
+                        {a.tipoUsuario === "parceiro" ? (
+                          <Badge variant="outline" className="mt-1 gap-1 text-[10px] font-normal">
+                            <Building2 className="h-3 w-3" />
+                            {a.corretoraNome || "Associação sem nome"}
+                            {a.localizacao ? ` · ${a.localizacao}` : ""}
+                          </Badge>
+                        ) : a.tipoUsuario === "interno" ? (
+                          <Badge variant="outline" className="mt-1 gap-1 text-[10px] font-normal">
+                            <Users className="h-3 w-3" />
+                            Interno{a.cargo ? ` · ${a.cargo}` : ""}
+                          </Badge>
+                        ) : a.canal === "push" ? (
+                          <Badge variant="outline" className="mt-1 text-[10px] font-normal text-muted-foreground/70 border-dashed">
+                            Sem vínculo — reabra o app pra sincronizar
+                          </Badge>
+                        ) : null}
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-[10px] text-muted-foreground">
