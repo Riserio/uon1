@@ -184,7 +184,10 @@ export function useOneSignalPortal(tags: PortalTags | null) {
           });
         }
 
-        // Atualiza tags de segmentação (roda também quando troca de associação)
+        // Atualiza tags de segmentação (roda também quando troca de associação).
+        // Grava e CONFERE com retry: o addTags pode rodar antes de o OneSignal
+        // terminar de vincular o usuário (login) e ser descartado em silêncio —
+        // era assim que assinantes ficavam "Sem vínculo".
         // deno-lint-ignore no-explicit-any
         window.OneSignalDeferred.push(async (OneSignal: any) => {
           try {
@@ -192,18 +195,24 @@ export function useOneSignalPortal(tags: PortalTags | null) {
           } catch (e) {
             console.error("[OneSignal] Falha ao vincular external_id (Portal):", e);
           }
-          try {
-            await OneSignal.User.addTags({
-              tipo: "parceiro",
-              corretora_id: tags.corretora_id,
-              corretora_nome: tags.corretora_nome || "",
-              estado: (corr?.estado || "").toUpperCase(),
-              cidade: corr?.cidade || "",
-              nome,
-              telefone,
-            });
-          } catch (e) {
-            console.error("[OneSignal] Falha ao gravar tags do parceiro:", e);
+          const desejadas = {
+            tipo: "parceiro",
+            corretora_id: tags.corretora_id,
+            corretora_nome: tags.corretora_nome || "",
+            estado: (corr?.estado || "").toUpperCase(),
+            cidade: corr?.cidade || "",
+            nome,
+            telefone,
+          };
+          for (let tentativa = 0; tentativa < 3; tentativa++) {
+            try {
+              await OneSignal.User.addTags(desejadas);
+              const atuais = (await OneSignal.User.getTags?.()) || {};
+              if (atuais.corretora_id === tags.corretora_id) break;
+            } catch (e) {
+              console.error("[OneSignal] Falha ao gravar tags do parceiro:", e);
+            }
+            await new Promise((r) => setTimeout(r, 4000 * (tentativa + 1)));
           }
         });
       } catch (e) {
