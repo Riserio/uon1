@@ -32,6 +32,22 @@ const SEGMENTO_LABEL: Record<string, string> = {
   tipo: "Por tipo de usuário",
 };
 
+// NOVO: extrai a mensagem de erro de qualquer formato de exceção que possa
+// chegar aqui - erros "de verdade" (instanceof Error), erros do PostgREST/
+// Supabase (objetos com .message mas que nem sempre são instância de Error
+// dependendo da versão do SDK) e, por último, qualquer objeto com .message.
+// Antes, qualquer coisa que não fosse "instanceof Error" caía no texto
+// genérico "Erro ao enviar push", escondendo a causa real (ex.: a exceção
+// que a função enviar_push_onesignal no Postgres levanta com RAISE
+// EXCEPTION, que chega aqui como PostgrestError).
+function mensagemDeErro(e: unknown, fallback: string): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e && typeof (e as { message?: unknown }).message === "string") {
+    return (e as { message: string }).message;
+  }
+  return fallback;
+}
+
 export default function PushCentral() {
   // ----- Config -----
   const [appId, setAppId] = useState("");
@@ -143,7 +159,7 @@ export default function PushCentral() {
       setNomeTemplate("");
       loadTemplates();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar gabarito");
+      toast.error(mensagemDeErro(e, "Erro ao salvar gabarito"));
     } finally {
       setSalvandoTemplate(false);
     }
@@ -167,7 +183,7 @@ export default function PushCentral() {
       if (error) throw error;
       toast.success("Configuração do OneSignal salva");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar configuração");
+      toast.error(mensagemDeErro(e, "Erro ao salvar configuração"));
     } finally {
       setSavingConfig(false);
     }
@@ -211,7 +227,7 @@ export default function PushCentral() {
       setTitulo(""); setMensagem(""); setUrl(""); setImagemUrl(""); setAgendarPara("");
       loadEnvios();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Erro ao enviar push");
+      toast.error(mensagemDeErro(e, "Erro ao enviar push"));
     } finally {
       setEnviando(false);
     }
