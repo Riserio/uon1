@@ -3,11 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Inicializa o OneSignal Web SDK no Portal do Parceiro e marca a inscrição
 // com tags de segmentação (corretora, localização e tipo). O App ID vem da
-// RPC get_push_app_id (só retorna valor quando o Push está ativo na aba
+// RPC get_push_web_config (só retorna valor quando o Push está ativo na aba
 // Push da Central de Atendimento).
 //
 // O worker do OneSignal fica em /onesignal/OneSignalSDKWorker.js com escopo
 // próprio pra não conflitar com o /sw.js do PWA.
+//
+// Usuários INTERNOS (fora do Portal) são cobertos pelo hook irmão
+// useOneSignalInterno.ts — os dois escrevem no mesmo
+// window.OneSignalDeferred/__oneSignalLoaded, então o SDK só carrega/inicia
+// uma vez por sessão, seja qual for a área visitada primeiro.
 
 declare global {
   interface Window {
@@ -30,18 +35,25 @@ export function useOneSignalPortal(tags: PortalTags | null) {
 
     (async () => {
       try {
-        const { data: cfg } = await supabase.rpc("get_push_web_config" as never);
+        const { data: cfg, error: cfgError } = await supabase.rpc("get_push_web_config" as never);
+        if (cfgError) {
+          console.warn("[OneSignal] Falha ao buscar config de push:", cfgError.message);
+          return;
+        }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const webCfg = cfg as any;
         const appId = webCfg?.app_id as string | undefined;
         if (cancelled || !appId) return;
 
         // Localização da associação (para segmentação por estado/cidade)
-        const { data: corr } = await supabase
+        const { data: corr, error: corrError } = await supabase
           .from("corretoras")
           .select("estado, cidade")
           .eq("id", tags.corretora_id)
           .maybeSingle();
+        if (corrError) {
+          console.warn("[OneSignal] Falha ao buscar estado/cidade da associação:", corrError.message);
+        }
         if (cancelled) return;
 
         window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -55,57 +67,69 @@ export function useOneSignalPortal(tags: PortalTags | null) {
 
           // deno-lint-ignore no-explicit-any
           window.OneSignalDeferred.push(async (OneSignal: any) => {
-            await OneSignal.init({
-              appId: String(appId),
-              ...(webCfg?.safari_web_id ? { safari_web_id: String(webCfg.safari_web_id) } : {}),
-              // Worker em /onesignal/ com escopo próprio pra NÃO substituir o
-              // /sw.js do PWA (dois SWs não podem dividir o mesmo escopo).
-              serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
-              serviceWorkerParam: { scope: "/onesignal/" },
-              allowLocalhostAsSecureOrigin: true,
-              // Sem notifyButton (sino flutuante) — o controle de ativar/
-              // desativar fica em Configurações (PortalMobileSettingsSheet).
-              // Texto e visual do slidedown (soft-ask) com a marca Vangard —
-              // o card em si é estilizado em src/index.css.
-              promptOptions: {
-                slidedown: {
-                  prompts: [
-                    {
-                      type: "push",
-                      autoPrompt: true,
-                      text: {
-                        actionMessage:
-                          "Ative as notificações da Vangard e receba avisos importantes em tempo real.",
-                        acceptButton: "Ativar",
-                        cancelButton: "Agora não",
+            try {
+              await OneSignal.init({
+                appId: String(appId),
+                ...(webCfg?.safari_web_id ? { safari_web_id: String(webCfg.safari_web_id) } : {}),
+                // Worker em /onesignal/ com escopo próprio pra NÃO substituir o
+                // /sw.js do PWA (dois SWs não podem dividir o mesmo escopo).
+                serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
+                serviceWorkerParam: { scope: "/onesignal/" },
+                allowLocalhostAsSecureOrigin: true,
+                // Sem notifyButton (sino flutuante) — o controle de ativar/
+                // desativar fica em Configurações (PortalMobileSettingsSheet).
+                // Texto e visual do slidedown (soft-ask) com a marca Vangard —
+                // o card em si é estilizado em src/index.css.
+                promptOptions: {
+                  slidedown: {
+                    prompts: [
+                      {
+                        type: "push",
+                        autoPrompt: true,
+                        text: {
+                          actionMessage:
+                            "Ative as notificações da Vangard e receba avisos importantes em tempo real.",
+                          acceptButton: "Ativar",
+                          cancelButton: "Agora não",
+                        },
+                        delay: {
+                          pageViews: 1,
+                          timeDelay: 0,
+                        },
                       },
-                      delay: {
-                        pageViews: 1,
-                        timeDelay: 0,
-                      },
-                    },
-                  ],
+                    ],
+                  },
                 },
-              },
-            });
-            // 1º acesso: pergunta uma vez, de forma suave (slidedown nativo)
-            OneSignal.Slidedown.promptPush();
+              });
+              // 1º acesso: pergunta uma vez, de forma suave (slidedown nativo)
+              OneSignal.Slidedown.promptPush();
+            } catch (e) {
+              // Esse catch é importante: o callback roda de forma assíncrona,
+              // depois que este hook já retornou — sem ele, um erro aqui
+              // (ex.: appId inválido) some como unhandled rejection e nunca
+              // fica claro que foi o OneSignal.init que falhou.
+              console.error("[OneSignal] Falha ao inicializar o SDK (Portal):", e);
+            }
           });
         }
 
         // Atualiza tags de segmentação (roda também quando troca de associação)
         // deno-lint-ignore no-explicit-any
         window.OneSignalDeferred.push(async (OneSignal: any) => {
-          await OneSignal.User.addTags({
-            tipo: "parceiro",
-            corretora_id: tags.corretora_id,
-            corretora_nome: tags.corretora_nome || "",
-            estado: (corr?.estado || "").toUpperCase(),
-            cidade: corr?.cidade || "",
-          });
+          try {
+            await OneSignal.User.addTags({
+              tipo: "parceiro",
+              corretora_id: tags.corretora_id,
+              corretora_nome: tags.corretora_nome || "",
+              estado: (corr?.estado || "").toUpperCase(),
+              cidade: corr?.cidade || "",
+            });
+          } catch (e) {
+            console.error("[OneSignal] Falha ao gravar tags do parceiro:", e);
+          }
         });
-      } catch {
-        /* push é opcional — nunca quebra o portal */
+      } catch (e) {
+        console.error("[OneSignal] Erro inesperado ao configurar push do Portal:", e);
       }
     })();
 
