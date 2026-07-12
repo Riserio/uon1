@@ -266,18 +266,13 @@ serve(async (req) => {
 
     // ================= BASE (veículos/associados) → Cadastro + Estudo de Base =================
     if (modulo === "base") {
-      // Auto-descoberta do endpoint de listagem (a doc da Hinova é fechada; tenta candidatos
-      // e usa o primeiro que responder um array de veículos). O endpoint vencedor é retornado
-      // para consolidarmos após a 1ª validação.
-      const candidatos: { path: string; method: "GET" | "POST"; body?: unknown }[] = [
-        { path: "/listar/veiculos/associados", method: "POST", body: {} },
-        { path: "/listar/veiculo-associado", method: "POST", body: {} },
-        { path: "/listar/veiculo/associado", method: "POST", body: {} },
-        { path: "/listar/veiculo", method: "POST", body: {} },
-        { path: "/listar/associado", method: "POST", body: {} },
-        { path: "/veiculos", method: "GET" },
-      ];
-      // extrai um array de veículos de formatos variados de resposta
+      // Endpoint oficial (mudança da Hinova ~10/07/2026): POST /listar/veiculo
+      // passou a EXIGIR codigo_situacao e devolve objeto paginado
+      // { total_veiculos, numero_paginas, pagina_corrente, veiculos: [...] }
+      // (máx. 5000 por página). Situações VALECAR-like: 1=ATIVO, 2=INATIVO,
+      // 3=PENDENTE, 4=INADIMPLENTE, 5=NEGADO, 6=CANCELAMENTO, 7=REVISTORIA,
+      // 8=REATIVAÇÃO. Busca todas as páginas de cada situação configurada
+      // (default: só 1=ATIVO; aceita body.codigos_situacao, ex. ["1","8"]).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const extrairArray = (j: any): any[] | null => {
         if (Array.isArray(j)) return j;
@@ -287,31 +282,38 @@ serve(async (req) => {
         }
         return null;
       };
+      const codigosSituacao: string[] =
+        Array.isArray(body?.codigos_situacao) && body.codigos_situacao.length > 0
+          ? body.codigos_situacao.map((c: unknown) => String(c))
+          : ["1"];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let veiculos: any[] | null = null;
       let endpointOk: string | null = null;
       const tentativas: string[] = [];
-      for (const c of candidatos) {
-        try {
-          const r = await fetch(`${base}${c.path}`, {
-            method: c.method,
-            headers: H,
-            body: c.method === "POST" ? JSON.stringify(c.body ?? {}) : undefined,
-          });
-          const j = await r.json().catch(() => null);
-          const arr = extrairArray(j);
-          tentativas.push(`${c.method} ${c.path} → ${r.status}${arr ? ` (${arr.length})` : ""}`);
-          if (r.ok && arr && arr.length > 0) {
-            veiculos = arr;
-            endpointOk = `${c.method} ${c.path}`;
+      for (const cod of codigosSituacao) {
+        let pagina = 1;
+        let totalPaginas = 1;
+        while (pagina <= totalPaginas && pagina <= 20) {
+          try {
+            const r = await fetch(`${base}/listar/veiculo`, {
+              method: "POST",
+              headers: H,
+              body: JSON.stringify({ codigo_situacao: cod, pagina: String(pagina) }),
+            });
+            const j = await r.json().catch(() => null);
+            const arr = extrairArray(j);
+            tentativas.push(
+              `POST /listar/veiculo situacao=${cod} pag=${pagina} → ${r.status}${arr ? ` (${arr.length})` : ""}`,
+            );
+            if (!r.ok || !arr) break;
+            veiculos = (veiculos || []).concat(arr);
+            endpointOk = "POST /listar/veiculo";
+            totalPaginas = Math.min(Number(j?.numero_paginas) || 1, 20);
+            pagina++;
+          } catch (_e) {
+            tentativas.push(`POST /listar/veiculo situacao=${cod} pag=${pagina} → erro`);
             break;
           }
-          if (r.ok && arr && veiculos === null) {
-            veiculos = arr;
-            endpointOk = `${c.method} ${c.path}`;
-          } // guarda array vazio como fallback
-        } catch (err) {
-          tentativas.push(`${c.method} ${c.path} → erro`);
         }
       }
 
@@ -402,12 +404,12 @@ serve(async (req) => {
             (g(v, "ano_modelo", "ano_fabricacao", "ano") ?? null)
               ? String(g(v, "ano_modelo", "ano_fabricacao", "ano"))
               : null,
-          situacao: g(v, "situacao", "situacao_veiculo", "status") as string | null,
+          situacao: g(v, "situacao", "situacao_veiculo", "descricao_situacao", "status") as string | null,
           regional: g(v, "regional") as string | null,
           cooperativa: g(v, "cooperativa") as string | null,
           data_cadastro: dateISO(g(v, "data_cadastro", "data_contrato")),
           data_adesao: dateISO(g(v, "data_adesao", "data_contrato")),
-          valor_protegido: num(g(v, "valor_protegido", "valor_fipe")),
+          valor_protegido: num(g(v, "valor_protegido", "valor_fipe_protegido", "valor_fipe")),
           cidade: (g(v, "cidade", "cidade_veiculo", "cidade_proprietario") as string | null) || assocC?.cidade || null,
           estado: (g(v, "estado", "uf") as string | null) || assocC?.estado || null,
         };
@@ -428,11 +430,11 @@ serve(async (req) => {
           cota: g(v, "cota") as string | null,
           categoria: g(v, "categoria") as string | null,
           cor: g(v, "cor") as string | null,
-          valor_protegido: num(g(v, "valor_protegido")),
+          valor_protegido: num(g(v, "valor_protegido", "valor_fipe_protegido")),
           valor_fipe: num(g(v, "valor_fipe", "valor_protegido")),
           cooperativa: g(v, "cooperativa") as string | null,
           regional: g(v, "regional") as string | null,
-          situacao_veiculo: g(v, "situacao_veiculo", "situacao", "status") as string | null,
+          situacao_veiculo: g(v, "situacao_veiculo", "situacao", "descricao_situacao", "status") as string | null,
           cidade_veiculo: (g(v, "cidade", "cidade_veiculo") as string | null) || assocE?.cidade || null,
           estado: (g(v, "estado", "uf") as string | null) || assocE?.estado || null,
           voluntario: g(v, "voluntario") as string | null,
