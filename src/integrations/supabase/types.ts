@@ -652,6 +652,27 @@ export type Database = {
           },
         ]
       }
+      backfill_pid_fat_progress: {
+        Row: {
+          corretora_id: string
+          done_at: string
+          meses_atualizados: number | null
+          meses_inseridos: number | null
+        }
+        Insert: {
+          corretora_id: string
+          done_at?: string
+          meses_atualizados?: number | null
+          meses_inseridos?: number | null
+        }
+        Update: {
+          corretora_id?: string
+          done_at?: string
+          meses_atualizados?: number | null
+          meses_inseridos?: number | null
+        }
+        Relationships: []
+      }
       backfill_recurrences: {
         Row: {
           ativo: boolean
@@ -2372,6 +2393,8 @@ export type Database = {
           gov_br_senha_secret_id: string | null
           id: string
           senha_configurada: boolean | null
+          session_atualizada_em: string | null
+          session_state_json: Json | null
           ultima_consulta_em: string | null
           ultima_consulta_status: string | null
           updated_at: string
@@ -2384,6 +2407,8 @@ export type Database = {
           gov_br_senha_secret_id?: string | null
           id?: string
           senha_configurada?: boolean | null
+          session_atualizada_em?: string | null
+          session_state_json?: Json | null
           ultima_consulta_em?: string | null
           ultima_consulta_status?: string | null
           updated_at?: string
@@ -2396,6 +2421,8 @@ export type Database = {
           gov_br_senha_secret_id?: string | null
           id?: string
           senha_configurada?: boolean | null
+          session_atualizada_em?: string | null
+          session_state_json?: Json | null
           ultima_consulta_em?: string | null
           ultima_consulta_status?: string | null
           updated_at?: string
@@ -6428,6 +6455,117 @@ export type Database = {
           },
         ]
       }
+      push_config: {
+        Row: {
+          ativo: boolean
+          id: string
+          onesignal_app_id: string | null
+          onesignal_rest_api_key: string | null
+          safari_web_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          id?: string
+          onesignal_app_id?: string | null
+          onesignal_rest_api_key?: string | null
+          safari_web_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          id?: string
+          onesignal_app_id?: string | null
+          onesignal_rest_api_key?: string | null
+          safari_web_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      push_envios: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          destinatarios: number | null
+          erro: string | null
+          filtros: Json
+          id: string
+          imagem_url: string | null
+          mensagem: string
+          onesignal_id: string | null
+          segmento: string
+          send_after: string | null
+          status: string
+          titulo: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          destinatarios?: number | null
+          erro?: string | null
+          filtros?: Json
+          id?: string
+          imagem_url?: string | null
+          mensagem: string
+          onesignal_id?: string | null
+          segmento?: string
+          send_after?: string | null
+          status?: string
+          titulo: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          destinatarios?: number | null
+          erro?: string | null
+          filtros?: Json
+          id?: string
+          imagem_url?: string | null
+          mensagem?: string
+          onesignal_id?: string | null
+          segmento?: string
+          send_after?: string | null
+          status?: string
+          titulo?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
+      push_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          imagem_url: string | null
+          mensagem: string
+          nome: string
+          titulo: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          imagem_url?: string | null
+          mensagem: string
+          nome: string
+          titulo: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          imagem_url?: string | null
+          mensagem?: string
+          nome?: string
+          titulo?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
       registros_ponto: {
         Row: {
           ajustado: boolean | null
@@ -9172,6 +9310,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      backfill_pid_faturamento_worker: { Args: never; Returns: Json }
       calcular_dashboard_cobranca: {
         Args: {
           p_cooperativa?: string
@@ -9342,6 +9481,28 @@ export type Database = {
           modulo: string
         }[]
       }
+      enriquecer_cobranca_com_cadastro:
+        | { Args: { p_corretora_id: string }; Returns: Json }
+        | {
+            Args: { p_corretora_id: string; p_fim?: string; p_ini?: string }
+            Returns: Json
+          }
+      enriquecer_cobranca_worker: { Args: { p_batch?: number }; Returns: Json }
+      enviar_push_onesignal: {
+        Args: {
+          p_cidades?: string[]
+          p_corretora_ids?: string[]
+          p_estados?: string[]
+          p_imagem_url?: string
+          p_mensagem: string
+          p_segmento?: string
+          p_send_after?: string
+          p_tipos?: string[]
+          p_titulo: string
+          p_url?: string
+        }
+        Returns: Json
+      }
       executar_importacao_hinova_bg: {
         Args: {
           p_corretora_id: string
@@ -9464,6 +9625,8 @@ export type Database = {
           nome: string
         }[]
       }
+      get_push_app_id: { Args: never; Returns: string }
+      get_push_web_config: { Args: never; Returns: Json }
       get_user_corretora_id: { Args: { _user_id: string }; Returns: string }
       get_user_lider_id: { Args: { _user_id: string }; Returns: string }
       get_user_role: {
