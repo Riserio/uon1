@@ -9780,6 +9780,7 @@ export type Database = {
         }
         Returns: Json
       }
+      listar_push_assinantes: { Args: never; Returns: Json }
       marcar_git_fallback_desativado: { Args: never; Returns: undefined }
       reset_email_rate_limits: { Args: never; Returns: undefined }
       set_detran_mg_senha: {
