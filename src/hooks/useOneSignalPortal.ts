@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "./useAuth";
 
 // Inicializa o OneSignal Web SDK no Portal do Parceiro e marca a inscrição
-// com tags de segmentação (corretora, localização e tipo). O App ID vem da
-// RPC get_push_web_config (só retorna valor quando o Push está ativo na aba
-// Push da Central de Atendimento).
+// com tags de segmentação (corretora, localização, tipo, nome e telefone do
+// parceiro). O App ID vem da RPC get_push_web_config (só retorna valor
+// quando o Push está ativo na aba Push da Central de Atendimento).
 //
 // O worker do OneSignal fica em /onesignal/OneSignalSDKWorker.js com escopo
 // próprio pra não conflitar com o /sw.js do PWA.
@@ -13,6 +14,11 @@ import { supabase } from "@/integrations/supabase/client";
 // useOneSignalInterno.ts — os dois escrevem no mesmo
 // window.OneSignalDeferred/__oneSignalLoaded, então o SDK só carrega/inicia
 // uma vez por sessão, seja qual for a área visitada primeiro.
+//
+// OneSignal.login(user.id) vincula o dispositivo ao mesmo "external_id" em
+// todos os aparelhos/navegadores desse usuário — sem isso, cada navegador
+// vira um assinante anônimo separado e não dá pra unificar/deduplicar na
+// lista de Assinantes.
 
 declare global {
   interface Window {
@@ -28,8 +34,10 @@ type PortalTags = {
 };
 
 export function useOneSignalPortal(tags: PortalTags | null) {
+  const { user } = useAuth();
+
   useEffect(() => {
-    if (!tags?.corretora_id) return;
+    if (!tags?.corretora_id || !user) return;
 
     let cancelled = false;
 
@@ -54,7 +62,21 @@ export function useOneSignalPortal(tags: PortalTags | null) {
         if (corrError) {
           console.warn("[OneSignal] Falha ao buscar estado/cidade da associação:", corrError.message);
         }
+
+        // Nome/telefone do parceiro logado, pra exibir na lista de
+        // Assinantes (hoje só mostrava a associação, não a pessoa).
+        const { data: perfil, error: perfilError } = await supabase
+          .from("profiles")
+          .select("nome, telefone, whatsapp")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (perfilError) {
+          console.warn("[OneSignal] Falha ao buscar perfil do parceiro:", perfilError.message);
+        }
         if (cancelled) return;
+
+        const nome = perfil?.nome || "";
+        const telefone = perfil?.telefone || perfil?.whatsapp || "";
 
         window.OneSignalDeferred = window.OneSignalDeferred || [];
 
@@ -77,11 +99,13 @@ export function useOneSignalPortal(tags: PortalTags | null) {
                 serviceWorkerParam: { scope: "/onesignal/" },
                 allowLocalhostAsSecureOrigin: true,
                 // Mensagem automática enviada pelo OneSignal assim que o
-                // dispositivo se inscreve (era o "Thanks for subscribing!"
-                // padrão em inglês) — agora em português.
+                // dispositivo se inscreve. Evitamos repetir "Vangard" no
+                // título porque o Safari já anexa "from Vangard" (nome do
+                // site) embaixo por conta própria — repetir a marca no
+                // título deixava a notificação com "Vangard from Vangard".
                 welcomeNotification: {
-                  title: "Vangard",
-                  message: "Notificações ativadas! Você vai receber avisos importantes por aqui.",
+                  title: "Notificações ativadas",
+                  message: "Você vai receber avisos importantes da Vangard por aqui.",
                 },
                 // Sem notifyButton (sino flutuante) — o controle de ativar/
                 // desativar fica em Configurações (PortalMobileSettingsSheet).
@@ -108,6 +132,17 @@ export function useOneSignalPortal(tags: PortalTags | null) {
                   },
                 },
               });
+
+              // Vincula esse navegador ao mesmo ID em todos os dispositivos
+              // do usuário (login/logout do Supabase Auth) — sem isso, cada
+              // navegador aparece como um assinante anônimo diferente na
+              // lista, mesmo sendo a mesma pessoa.
+              try {
+                await OneSignal.login(String(user.id));
+              } catch (e) {
+                console.error("[OneSignal] Falha ao vincular external_id (Portal):", e);
+              }
+
               // 1º acesso: pergunta uma vez, de forma suave (slidedown nativo)
               OneSignal.Slidedown.promptPush();
 
@@ -128,6 +163,8 @@ export function useOneSignalPortal(tags: PortalTags | null) {
                       corretora_nome: tags.corretora_nome || "",
                       estado: (corr?.estado || "").toUpperCase(),
                       cidade: corr?.cidade || "",
+                      nome,
+                      telefone,
                     });
                   } catch (e) {
                     console.error(
@@ -151,12 +188,19 @@ export function useOneSignalPortal(tags: PortalTags | null) {
         // deno-lint-ignore no-explicit-any
         window.OneSignalDeferred.push(async (OneSignal: any) => {
           try {
+            await OneSignal.login(String(user.id));
+          } catch (e) {
+            console.error("[OneSignal] Falha ao vincular external_id (Portal):", e);
+          }
+          try {
             await OneSignal.User.addTags({
               tipo: "parceiro",
               corretora_id: tags.corretora_id,
               corretora_nome: tags.corretora_nome || "",
               estado: (corr?.estado || "").toUpperCase(),
               cidade: corr?.cidade || "",
+              nome,
+              telefone,
             });
           } catch (e) {
             console.error("[OneSignal] Falha ao gravar tags do parceiro:", e);
@@ -170,5 +214,5 @@ export function useOneSignalPortal(tags: PortalTags | null) {
     return () => {
       cancelled = true;
     };
-  }, [tags?.corretora_id, tags?.corretora_nome]);
+  }, [tags?.corretora_id, tags?.corretora_nome, user]);
 }
