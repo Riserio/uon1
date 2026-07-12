@@ -4,7 +4,8 @@ import { useAuth } from "./useAuth";
 
 // Inicializa o OneSignal Web SDK para usuários INTERNOS (equipe Vangard,
 // fora do Portal do Parceiro) e marca a inscrição com a tag "tipo: interno"
-// (mais o cargo/role, pra permitir segmentações mais finas no futuro).
+// (mais o cargo/role, nome e telefone, pra permitir segmentações e uma lista
+// de assinantes mais completa na Central de Push).
 //
 // Antes, só o Portal do Parceiro (useOneSignalPortal.ts) inicializava o
 // OneSignal e gravava tags — usuários internos que instalassem o PWA e
@@ -15,6 +16,11 @@ import { useAuth } from "./useAuth";
 // Os dois hooks escrevem no mesmo window.OneSignalDeferred/__oneSignalLoaded,
 // então o SDK só é carregado/inicializado uma vez por sessão, seja qual for
 // a área (Portal ou interna) que o usuário visitar primeiro.
+//
+// OneSignal.login(user.id) vincula o dispositivo ao mesmo "external_id" em
+// todos os aparelhos/navegadores desse usuário — sem isso, cada navegador
+// vira um assinante anônimo separado e não dá pra unificar/deduplicar na
+// lista de Assinantes.
 
 declare global {
   interface Window {
@@ -47,6 +53,21 @@ export function useOneSignalInterno() {
         const appId = webCfg?.app_id as string | undefined;
         if (cancelled || !appId) return;
 
+        // Nome/telefone do usuário interno logado, pra exibir na lista de
+        // Assinantes (hoje só mostrava tipo/cargo).
+        const { data: perfil, error: perfilError } = await supabase
+          .from("profiles")
+          .select("nome, telefone, whatsapp")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (perfilError) {
+          console.warn("[OneSignal] Falha ao buscar perfil do usuário interno:", perfilError.message);
+        }
+        if (cancelled) return;
+
+        const nome = perfil?.nome || "";
+        const telefone = perfil?.telefone || perfil?.whatsapp || "";
+
         window.OneSignalDeferred = window.OneSignalDeferred || [];
 
         if (!window.__oneSignalLoaded) {
@@ -68,11 +89,13 @@ export function useOneSignalInterno() {
                 serviceWorkerParam: { scope: "/onesignal/" },
                 allowLocalhostAsSecureOrigin: true,
                 // Mensagem automática enviada pelo OneSignal assim que o
-                // dispositivo se inscreve (era o "Thanks for subscribing!"
-                // padrão em inglês) — agora em português.
+                // dispositivo se inscreve. Evitamos repetir "Vangard" no
+                // título porque o Safari já anexa "from Vangard" (nome do
+                // site) embaixo por conta própria — repetir a marca no
+                // título deixava a notificação com "Vangard from Vangard".
                 welcomeNotification: {
-                  title: "Vangard",
-                  message: "Notificações ativadas! Você vai receber avisos importantes por aqui.",
+                  title: "Notificações ativadas",
+                  message: "Você vai receber avisos importantes da Vangard por aqui.",
                 },
                 promptOptions: {
                   slidedown: {
@@ -95,6 +118,17 @@ export function useOneSignalInterno() {
                   },
                 },
               });
+
+              // Vincula esse navegador ao mesmo ID em todos os dispositivos
+              // do usuário (login/logout do Supabase Auth) — sem isso, cada
+              // navegador aparece como um assinante anônimo diferente na
+              // lista, mesmo sendo a mesma pessoa.
+              try {
+                await OneSignal.login(String(user.id));
+              } catch (e) {
+                console.error("[OneSignal] Falha ao vincular external_id (interno):", e);
+              }
+
               OneSignal.Slidedown.promptPush();
 
               // Reforça as tags no exato momento em que a inscrição de push
@@ -111,6 +145,8 @@ export function useOneSignalInterno() {
                     await OneSignal.User.addTags({
                       tipo: "interno",
                       cargo: userRole,
+                      nome,
+                      telefone,
                     });
                   } catch (e) {
                     console.error(
@@ -126,14 +162,22 @@ export function useOneSignalInterno() {
           });
         }
 
-        // Marca a inscrição com o tipo (interno) e o cargo/role atual — roda
-        // de novo se o papel do usuário mudar (ex.: promovido a superintendente).
+        // Marca a inscrição com o tipo (interno), cargo/role, nome e telefone
+        // atuais — roda de novo se o papel do usuário mudar (ex.: promovido a
+        // superintendente).
         // deno-lint-ignore no-explicit-any
         window.OneSignalDeferred.push(async (OneSignal: any) => {
+          try {
+            await OneSignal.login(String(user.id));
+          } catch (e) {
+            console.error("[OneSignal] Falha ao vincular external_id (interno):", e);
+          }
           try {
             await OneSignal.User.addTags({
               tipo: "interno",
               cargo: userRole,
+              nome,
+              telefone,
             });
           } catch (e) {
             console.error("[OneSignal] Falha ao gravar tags do usuário interno:", e);
