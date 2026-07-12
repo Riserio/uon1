@@ -32,6 +32,10 @@ on:
         description: 'URL do webhook para callback'
         required: false
         type: string
+      session_state:
+        description: 'Sessão Gov.br salva de uma consulta anterior (JSON, opcional) - o robô tenta reaproveitar antes de logar do zero'
+        required: false
+        type: string
 
 jobs:
   consultar-detran-mg:
@@ -113,6 +117,7 @@ jobs:
           EXECUCAO_ID: ${{ inputs.execucao_id }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SESSION_STATE_JSON: ${{ inputs.session_state }}
         run: NODE_PATH=$PWD/.robot-deps/node_modules node scripts/robo-detran-mg.cjs
 
       - name: Notificar erro ao webhook (fallback)
