@@ -67,6 +67,13 @@ export function useOneSignalInterno() {
                 serviceWorkerPath: "onesignal/OneSignalSDKWorker.js",
                 serviceWorkerParam: { scope: "/onesignal/" },
                 allowLocalhostAsSecureOrigin: true,
+                // Mensagem automática enviada pelo OneSignal assim que o
+                // dispositivo se inscreve (era o "Thanks for subscribing!"
+                // padrão em inglês) — agora em português.
+                welcomeNotification: {
+                  title: "Vangard",
+                  message: "Notificações ativadas! Você vai receber avisos importantes por aqui.",
+                },
                 promptOptions: {
                   slidedown: {
                     prompts: [
@@ -89,6 +96,30 @@ export function useOneSignalInterno() {
                 },
               });
               OneSignal.Slidedown.promptPush();
+
+              // Reforça as tags no exato momento em que a inscrição de push
+              // fica ativa (optedIn). Sem isso, a 1ª chamada de addTags()
+              // (logo abaixo) podia rodar cedo demais — antes de o OneSignal
+              // terminar de vincular o dispositivo ao usuário — e a tag
+              // nunca era persistida (assinante ficava "Sem vínculo").
+              OneSignal.User.PushSubscription.addEventListener(
+                "change",
+                // deno-lint-ignore no-explicit-any
+                async (event: any) => {
+                  if (!event?.current?.optedIn) return;
+                  try {
+                    await OneSignal.User.addTags({
+                      tipo: "interno",
+                      cargo: userRole,
+                    });
+                  } catch (e) {
+                    console.error(
+                      "[OneSignal] Falha ao gravar tags do usuário interno (subscription change):",
+                      e,
+                    );
+                  }
+                },
+              );
             } catch (e) {
               console.error("[OneSignal] Falha ao inicializar o SDK (interno):", e);
             }
