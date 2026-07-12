@@ -44,14 +44,27 @@ type Template = {
   id: string; nome: string; titulo: string; mensagem: string;
   url: string | null; imagem_url: string | null;
 };
-type Assinante = {
-  id: string;
+type Dispositivo = {
+  subscriptionId: string;
   canal: "push" | "email" | "sms";
-  tipoLabel: string;
+  deviceModel: string | null;
+  deviceOs: string | null;
   identificador: string;
-  criadoEm: Date | null;
   ultimaAtividade: Date | null;
   sessoes: number;
+};
+
+type Assinante = {
+  id: string;
+  // Se veio de OneSignal.login() (external_id) o id é o user.id do Supabase
+  // — dá pra confiar que é a mesma pessoa em todos os dispositivos. Senão,
+  // cai pro onesignal_id (mesmo navegador) ou pro id da própria assinatura.
+  vinculado: boolean;
+  nome: string | null;
+  telefone: string | null;
+  ultimaAtividade: Date | null;
+  sessoes: number;
+  dispositivos: Dispositivo[];
   // Vínculo (tags gravadas por useOneSignalPortal/useOneSignalInterno) —
   // "null" quando o assinante ainda não sincronizou (precisa reabrir o app).
   tipoUsuario: "parceiro" | "interno" | null;
@@ -169,8 +182,10 @@ export default function PushCentral() {
   };
 
   // Busca a lista de assinantes direto do OneSignal (via RPC, sem expor a
-  // REST API Key no front). Canal é inferido pelo formato do identificador,
-  // já que o app pode ter assinantes de push, e-mail e SMS misturados.
+  // REST API Key no front). A RPC já agrupa por pessoa (external_id/
+  // onesignal_id), então cada item aqui pode ter mais de um dispositivo.
+  // Canal por dispositivo é inferido pelo formato do identificador, já que
+  // o app pode ter assinantes de push, e-mail e SMS misturados.
   const loadAssinantes = async () => {
     setLoadingAssinantes(true);
     try {
@@ -178,32 +193,40 @@ export default function PushCentral() {
       if (error) throw error;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const body = data as any;
-      const players = (body?.players || []) as Array<Record<string, unknown>>;
-      const parsed: Assinante[] = players.map((p) => {
-        const identifier = (p.identifier as string) || "";
-        const isEmail = identifier.includes("@");
-        const isSms = !isEmail && /^\+?\d[\d\s-]{6,}$/.test(identifier);
-        const canal: Assinante["canal"] = isEmail ? "email" : isSms ? "sms" : "push";
-        const deviceModel = (p.device_model as string) || "";
-        const deviceOs = (p.device_os as string) || "";
-        const tipoLabel =
-          canal === "email" ? "E-mail" : canal === "sms" ? "SMS" : `Push${deviceModel ? ` · ${deviceModel}` : ""}`;
-        const identificador =
-          canal === "push"
-            ? [deviceModel, deviceOs].filter(Boolean).join(" · ") || "Dispositivo"
-            : identifier;
-        const tags = (p.tags as Record<string, string>) || {};
+      const grupos = (body?.assinantes || []) as Array<Record<string, unknown>>;
+      const parsed: Assinante[] = grupos.map((g) => {
+        const tags = (g.tags as Record<string, string>) || {};
         const tipoUsuario: Assinante["tipoUsuario"] =
           tags.tipo === "parceiro" ? "parceiro" : tags.tipo === "interno" ? "interno" : null;
         const localizacao = [tags.cidade, tags.estado].filter(Boolean).join(" / ") || null;
+
+        const dispositivosRaw = (g.dispositivos as Array<Record<string, unknown>>) || [];
+        const dispositivos: Dispositivo[] = dispositivosRaw.map((d) => {
+          const identifier = (d.identifier as string) || "";
+          const isEmail = identifier.includes("@");
+          const isSms = !isEmail && /^\+?\d[\d\s-]{6,}$/.test(identifier);
+          const canal: Dispositivo["canal"] = isEmail ? "email" : isSms ? "sms" : "push";
+          return {
+            subscriptionId: (d.subscription_id as string) || "",
+            canal,
+            deviceModel: (d.device_model as string) || null,
+            deviceOs: (d.device_os as string) || null,
+            identificador: canal === "push"
+              ? [d.device_model, d.device_os].filter(Boolean).join(" · ") || "Dispositivo"
+              : identifier,
+            ultimaAtividade: formatarDataUnix(d.last_active as number),
+            sessoes: (d.session_count as number) ?? 0,
+          };
+        });
+
         return {
-          id: p.id as string,
-          canal,
-          tipoLabel,
-          identificador,
-          criadoEm: formatarDataUnix(p.created_at as number),
-          ultimaAtividade: formatarDataUnix(p.last_active as number),
-          sessoes: (p.session_count as number) ?? 0,
+          id: g.id as string,
+          vinculado: !!g.external_id,
+          nome: tags.nome || null,
+          telefone: tags.telefone || null,
+          ultimaAtividade: formatarDataUnix(g.last_active as number),
+          sessoes: (g.session_count as number) ?? 0,
+          dispositivos,
           tipoUsuario,
           corretoraNome: tags.corretora_nome || null,
           localizacao,
@@ -680,44 +703,70 @@ export default function PushCentral() {
                 <p className="text-sm text-muted-foreground text-center py-6">Nenhum assinante encontrado.</p>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">{assinantes.length} assinante{assinantes.length === 1 ? "" : "s"}</p>
-                  {assinantes.map((a) => (
-                    <div key={a.id} className="flex items-center gap-3 rounded-xl border border-border/40 p-3">
-                      {a.canal === "email" ? (
-                        <Mail className="h-4 w-4 text-blue-500 shrink-0" />
-                      ) : a.canal === "sms" ? (
-                        <MessageSquare className="h-4 w-4 text-emerald-500 shrink-0" />
-                      ) : (
-                        <Smartphone className="h-4 w-4 text-primary shrink-0" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{a.tipoLabel}</p>
-                        <p className="text-xs text-muted-foreground truncate">{a.identificador}</p>
-                        {a.tipoUsuario === "parceiro" ? (
-                          <Badge variant="outline" className="mt-1 gap-1 text-[10px] font-normal">
-                            <Building2 className="h-3 w-3" />
-                            {a.corretoraNome || "Associação sem nome"}
-                            {a.localizacao ? ` · ${a.localizacao}` : ""}
-                          </Badge>
-                        ) : a.tipoUsuario === "interno" ? (
-                          <Badge variant="outline" className="mt-1 gap-1 text-[10px] font-normal">
-                            <Users className="h-3 w-3" />
-                            Interno{a.cargo ? ` · ${a.cargo}` : ""}
-                          </Badge>
-                        ) : a.canal === "push" ? (
-                          <Badge variant="outline" className="mt-1 text-[10px] font-normal text-muted-foreground/70 border-dashed">
-                            Sem vínculo — reabra o app pra sincronizar
-                          </Badge>
-                        ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    {assinantes.length} assinante{assinantes.length === 1 ? "" : "s"}
+                    {" · "}
+                    {assinantes.reduce((n, a) => n + a.dispositivos.length, 0)} dispositivo(s)
+                  </p>
+                  {assinantes.map((a) => {
+                    const canaisUnicos = [...new Set(a.dispositivos.map((d) => d.canal))];
+                    return (
+                      <div key={a.id} className="flex items-center gap-3 rounded-xl border border-border/40 p-3">
+                        <div className="flex -space-x-1 shrink-0">
+                          {canaisUnicos.map((canal) => (
+                            <span key={canal} className="flex h-7 w-7 items-center justify-center rounded-full border border-border/40 bg-background">
+                              {canal === "email" ? (
+                                <Mail className="h-3.5 w-3.5 text-blue-500" />
+                              ) : canal === "sms" ? (
+                                <MessageSquare className="h-3.5 w-3.5 text-emerald-500" />
+                              ) : (
+                                <Smartphone className="h-3.5 w-3.5 text-primary" />
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">
+                            {a.nome || (a.tipoUsuario === "parceiro" ? "Parceiro sem nome" : a.tipoUsuario === "interno" ? "Interno sem nome" : "Assinante sem nome")}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {[a.telefone, a.dispositivos.length > 1 ? `${a.dispositivos.length} dispositivos` : a.dispositivos[0]?.identificador]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {a.tipoUsuario === "parceiro" ? (
+                              <Badge variant="outline" className="gap-1 text-[10px] font-normal">
+                                <Building2 className="h-3 w-3" />
+                                {a.corretoraNome || "Associação sem nome"}
+                                {a.localizacao ? ` · ${a.localizacao}` : ""}
+                              </Badge>
+                            ) : a.tipoUsuario === "interno" ? (
+                              <Badge variant="outline" className="gap-1 text-[10px] font-normal">
+                                <Users className="h-3 w-3" />
+                                Interno{a.cargo ? ` · ${a.cargo}` : ""}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground/70 border-dashed">
+                                Sem vínculo — reabra o app pra sincronizar
+                              </Badge>
+                            )}
+                            {!a.vinculado && (
+                              <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground/70 border-dashed">
+                                ID por dispositivo (pode duplicar)
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-[10px] text-muted-foreground">
+                            {a.ultimaAtividade ? `Ativo em ${format(a.ultimaAtividade, "dd/MM/yyyy HH:mm")}` : "Sem atividade"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">{a.sessoes} sessõe{a.sessoes === 1 ? "" : "s"}</p>
+                        </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-[10px] text-muted-foreground">
-                          {a.ultimaAtividade ? `Ativo em ${format(a.ultimaAtividade, "dd/MM/yyyy HH:mm")}` : "Sem atividade"}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">{a.sessoes} sessõe{a.sessoes === 1 ? "" : "s"}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
