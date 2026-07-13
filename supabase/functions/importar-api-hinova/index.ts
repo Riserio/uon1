@@ -1,4 +1,4 @@
-// lovable-deploy: deploy nudge 2026-07-13T03:26:07Z
+// lovable-deploy: deploy nudge 2026-07-13T03:35:34Z
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -257,7 +257,8 @@ serve(async (req) => {
     if (modulo !== "eventos" && modulo !== "mgf" && modulo !== "cobranca" && modulo !== "base") {
       return new Response(
         JSON.stringify({
-          debug_associado: assocDebug, success: false, message: `Módulo '${modulo}' ainda não implementado na API` }),
+          debug_associado: assocDebug,
+          debug_veiculo_keys: veiculos && veiculos[0] ? Object.keys(veiculos[0]) : null, success: false, message: `Módulo '${modulo}' ainda não implementado na API` }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
