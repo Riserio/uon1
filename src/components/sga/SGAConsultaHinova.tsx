@@ -28,6 +28,9 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
   // Associados
   const [buscaAssociado, setBuscaAssociado] = useState("");
   const [associados, setAssociados] = useState<Record<string, string>[]>([]);
+  // Aviso quando a busca por PRIMEIRO NOME retorna vários associados (nome repetido):
+  // pede o sobrenome para localizar o correto.
+  const [avisoSobrenome, setAvisoSobrenome] = useState<string | null>(null);
 
   // Veículos
   const [buscaVeiculo, setBuscaVeiculo] = useState("");
@@ -137,11 +140,36 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
     if (!buscaAssociado.trim()) { toast.error("Digite um termo de busca"); return; }
     setLoading(true);
     setError("");
+    setAvisoSobrenome(null);
     try {
-      const result = await invokeProxy('consultar-associado', { busca: buscaAssociado });
-      setAssociados(result.data || []);
-      if (result.data?.length === 0) toast.info("Nenhum associado encontrado");
-      else toast.success(`${result.data.length} associado(s) encontrado(s)`);
+      const termo = buscaAssociado.trim();
+      const result = await invokeProxy('consultar-associado', { busca: termo });
+      const data: Record<string, string>[] = result.data || [];
+      setAssociados(data);
+      if (data.length === 0) { toast.info("Nenhum associado encontrado"); return; }
+      toast.success(`${data.length} associado(s) encontrado(s)`);
+
+      // Busca só pelo primeiro nome = termo com uma única palavra alfabética
+      // (sem CPF/código). Se retornar mais de um associado, o nome está repetido:
+      // pede o sobrenome para localizar o correto.
+      const soPrimeiroNome = /^[A-Za-zÀ-ÿ'.-]+$/.test(termo);
+      if (soPrimeiroNome && data.length > 1) {
+        const nomeKey = Object.keys(data[0]).find((k) => /nome/i.test(k));
+        const primeirosIguais = nomeKey
+          ? data.filter(
+              (r) =>
+                String(r[nomeKey] || "")
+                  .trim()
+                  .split(/\s+/)[0]
+                  .toLowerCase() === termo.toLowerCase(),
+            ).length
+          : data.length;
+        if (primeirosIguais > 1) {
+          setAvisoSobrenome(
+            `Foram encontrados ${primeirosIguais} associados com o primeiro nome "${termo}". Digite também o sobrenome para localizar o correto.`,
+          );
+        }
+      }
     } catch (e: any) {
       setError(e.message);
       toast.error(e.message);
@@ -373,6 +401,12 @@ export default function SGAConsultaHinova({ corretoraId, corretoraNome }: SGACon
                 <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
               ) : (
                 <>
+                  {avisoSobrenome && (
+                    <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <span>{avisoSobrenome}</span>
+                    </div>
+                  )}
                   {associados.length > 0 && <p className="text-xs text-muted-foreground">{associados.length} resultado(s)</p>}
                   {renderTable(associados)}
                 </>
