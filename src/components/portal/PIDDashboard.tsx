@@ -508,6 +508,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   // Estudo de Base) — garante que Indicadores e Estudo de Base batem o mesmo
   // número (ex.: 4909 ativas) e alimenta o card de Inadimplentes.
   const [baseCounts, setBaseCounts] = useState<{ ativas: number; inadimplentes: number } | null>(null);
+  // Janela dos GRÁFICOS (independente do mês dos cards). 999 = tudo.
+  const [chartRange, setChartRange] = useState<number>(12);
   // Inadimplentes do MÊS CORRENTE (fonte Cobrança): boletos JÁ VENCIDOS e ainda
   // em aberto, contados por placa distinta. Ver cobranca_boletos_ativos.
   const [cobrancaInad, setCobrancaInad] = useState<number | null>(null);
@@ -611,51 +613,37 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     if (!corretoraId) return;
     setLoading(true);
     try {
-      let query = supabase
+      // SEMPRE carrega a série completa: os GRÁFICOS mostram o histórico (últimos
+      // 12 meses por padrão), enquanto os CARDS usam o mês selecionado (dadosAtual).
+      const { data: anoData, error } = await supabase
         .from("pid_operacional")
         .select("*")
         .eq("corretora_id", corretoraId)
         .order("ano", { ascending: true })
         .order("mes", { ascending: true });
-      if (!todoPeriodo && ano && mes) {
-        query = query.eq("ano", parseInt(ano)).eq("mes", parseInt(mes));
-      }
-      const { data: anoData, error } = await query;
       if (error) throw error;
-      setDadosAno(anoData || []);
-      if (anoData && anoData.length > 0) {
-        const registrosComDados = anoData.filter(
-          (d) =>
-            (d.placas_ativas && d.placas_ativas > 0) ||
-            (d.faturamento_operacional && d.faturamento_operacional > 0) ||
-            (d.total_recebido && d.total_recebido > 0),
-        );
-        const dadoAtual =
-          registrosComDados.length > 0 ? registrosComDados[registrosComDados.length - 1] : anoData[anoData.length - 1];
-        setDadosAtual(dadoAtual);
-
-        const mesAtual = dadoAtual.mes;
-        const anoAtual = dadoAtual.ano;
-        const mesAnterior = mesAtual - 1;
-        if (mesAnterior >= 1) {
-          const { data: prevData } = await supabase
-            .from("pid_operacional")
-            .select("*")
-            .eq("corretora_id", corretoraId)
-            .eq("ano", anoAtual)
-            .eq("mes", mesAnterior)
-            .single();
-          setDadosAnterior(prevData || null);
+      const rows = anoData || [];
+      setDadosAno(rows);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const temDados = (d: any) =>
+        (d.placas_ativas && d.placas_ativas > 0) ||
+        (d.faturamento_operacional && d.faturamento_operacional > 0) ||
+        (d.total_recebido && d.total_recebido > 0);
+      if (rows.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let dadoAtual: any;
+        if (!todoPeriodo && ano && mes) {
+          dadoAtual =
+            rows.find((d) => d.ano === parseInt(ano) && d.mes === parseInt(mes)) ||
+            [...rows].reverse().find(temDados) ||
+            rows[rows.length - 1];
         } else {
-          const { data: prevData } = await supabase
-            .from("pid_operacional")
-            .select("*")
-            .eq("corretora_id", corretoraId)
-            .eq("ano", anoAtual - 1)
-            .eq("mes", 12)
-            .single();
-          setDadosAnterior(prevData || null);
+          const comDados = rows.filter(temDados);
+          dadoAtual = comDados.length > 0 ? comDados[comDados.length - 1] : rows[rows.length - 1];
         }
+        setDadosAtual(dadoAtual);
+        const idx = rows.findIndex((d) => d.ano === dadoAtual.ano && d.mes === dadoAtual.mes);
+        setDadosAnterior(idx > 0 ? rows[idx - 1] : null);
       } else {
         setDadosAtual(null);
         setDadosAnterior(null);
@@ -770,8 +758,9 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   }, [corretoraId]);
 
   const chartData = useMemo(() => {
-    return dadosAno.map((d, index) => {
-      const prev = index > 0 ? dadosAno[index - 1] : null;
+    const serie = chartRange >= 999 ? dadosAno : dadosAno.slice(-chartRange);
+    return serie.map((d, index) => {
+      const prev = index > 0 ? serie[index - 1] : null;
       const currFaturamento = Number(d.faturamento_operacional ?? 0);
       const currRecebido = Number(d.total_recebido ?? 0);
       const prevFaturamento = Number(prev?.faturamento_operacional ?? 0);
@@ -805,7 +794,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
           (d.pagamento_valor_carro_reserva || 0);
       const sinistroFinanceiro = d.sinistralidade_financeira ?? calcPercent(custoTotalEventos, d.total_recebido);
       const sinistroGeral = d.sinistralidade_geral ?? calcPercent(d.abertura_total_eventos, d.placas_ativas);
-      const mesLabel = todoPeriodo ? `${mesesNome[d.mes - 1]}/${String(d.ano).slice(-2)}` : mesesNome[d.mes - 1];
+      const mesLabel = `${mesesNome[d.mes - 1]}/${String(d.ano).slice(-2)}`;
       return {
         mes: mesLabel,
         placas_ativas: d.placas_ativas || 0,
@@ -883,7 +872,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         cme_explit: d.cme_explit || 0,
       };
     });
-  }, [dadosAno, todoPeriodo]);
+  }, [dadosAno, todoPeriodo, chartRange]);
 
   const permanenciaSeries = useMemo(() => {
     if (!dadosAno || !dadosAno.length) return [];
@@ -1196,7 +1185,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
           {/* ============ Abas por tema ============ */}
           <Tabs defaultValue="visao-geral" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 md:w-auto rounded-full bg-muted/50 p-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+            <TabsList className="grid grid-cols-2 md:grid-cols-4 md:w-auto rounded-full bg-muted/50 p-1">
               <TabsTrigger value="visao-geral" className="gap-1.5">
                 <LayoutDashboard className="h-4 w-4" />
                 Visão Geral
@@ -1214,6 +1204,21 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 Permanência
               </TabsTrigger>
             </TabsList>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-medium text-muted-foreground">Gráficos</span>
+              <Select value={String(chartRange)} onValueChange={(v) => setChartRange(Number(v))}>
+                <SelectTrigger className="h-8 w-[168px] rounded-full text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="6">Últimos 6 meses</SelectItem>
+                  <SelectItem value="12">Últimos 12 meses</SelectItem>
+                  <SelectItem value="24">Últimos 24 meses</SelectItem>
+                  <SelectItem value="999">Todo o período</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            </div>
 
             {/* ---------- VISÃO GERAL: só o essencial ---------- */}
             <TabsContent value="visao-geral" className="space-y-4">
