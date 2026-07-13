@@ -500,7 +500,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [ano, setAno] = useState<string>("");
   const [mes, setMes] = useState<string>("");
-  const [todoPeriodo, setTodoPeriodo] = useState(true);
+  const [todoPeriodo, setTodoPeriodo] = useState(false); // padrão: mês atual
   const [dadosAno, setDadosAno] = useState<any[]>([]);
   const [dadosAtual, setDadosAtual] = useState<any>(null);
   const [dadosAnterior, setDadosAnterior] = useState<any>(null);
@@ -562,15 +562,17 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       );
 
       if (naoFuturos.length > 0) {
-        // 1º) o próprio mês corrente, se existir; 2º) o mês mais recente com dados
+        // Regra: usa o MÊS CORRENTE quando tem dados; se o mês atual ainda não
+        // tem importação/dados, cai para o mês mais recente com dados (mês
+        // passado) até que o mês atual seja atualizado.
+        const temDados = (r: { placas_ativas?: number | null; faturamento_operacional?: number | null; total_recebido?: number | null }) =>
+          (r.placas_ativas && r.placas_ativas > 0) ||
+          (r.faturamento_operacional && r.faturamento_operacional > 0) ||
+          (r.total_recebido && r.total_recebido > 0);
+        const mesCorrenteComDados = naoFuturos.find((r) => r.ano === curY && r.mes === curM && temDados(r));
+        const registroComDados = naoFuturos.find(temDados);
         const mesCorrente = naoFuturos.find((r) => r.ano === curY && r.mes === curM);
-        const registroComDados = naoFuturos.find(
-          (r) =>
-            (r.placas_ativas && r.placas_ativas > 0) ||
-            (r.faturamento_operacional && r.faturamento_operacional > 0) ||
-            (r.total_recebido && r.total_recebido > 0),
-        );
-        const result = mesCorrente || registroComDados || naoFuturos[0];
+        const result = mesCorrenteComDados || registroComDados || mesCorrente || naoFuturos[0];
         const anoStr = result.ano.toString();
         const mesStr = result.mes.toString();
         setAno(anoStr);
