@@ -1,4 +1,4 @@
-// lovable-deploy: deploy nudge 2026-07-13T02:04:15Z
+// lovable-deploy: deploy nudge 2026-07-13T02:49:47Z
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -282,14 +282,17 @@ serve(async (req) => {
         }
         return null;
       };
-      // Situações trazidas por padrão na importação da base: 1=ATIVO, 4=INADIMPLENTE,
-      // 3=PENDENTE, 2=INATIVO, 8=REATIVAÇÃO, 6=CANCELAMENTO. Isso alimenta o gráfico "Placas por
-      // Situação" (Estudo de Base) e o card "Inadimplentes" (Indicadores). O total
-      // de "Placas Ativas" (4909) considera apenas as situações ativas.
+      // Situação padrão da importação diária: apenas 1=ATIVO. Motivo: no ambiente
+      // VALECAR o endpoint /listar/veiculo com codigo_situacao=4 (INADIMPLENTE)
+      // devolveu ~4955 placas (praticamente toda a base, sobrepondo os ativos) em
+      // vez das ~200 esperadas, além de paginação duplicando registros. Enquanto a
+      // origem correta de inadimplentes não é definida, a base diária traz só ATIVO
+      // (contagem correta e sempre atual). Para trazer outras situações, envie
+      // body.codigos_situacao (ex.: ["1","4"]).
       const codigosSituacao: string[] =
         Array.isArray(body?.codigos_situacao) && body.codigos_situacao.length > 0
           ? body.codigos_situacao.map((c: unknown) => String(c))
-          : ["1", "4", "3", "2", "8", "6"];
+          : ["1"];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let veiculos: any[] | null = null;
       let endpointOk: string | null = null;
