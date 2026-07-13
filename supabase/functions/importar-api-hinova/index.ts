@@ -1,4 +1,4 @@
-// lovable-deploy: deploy nudge 2026-07-13T02:49:47Z
+// lovable-deploy: deploy nudge 2026-07-13T03:26:07Z
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -256,7 +256,8 @@ serve(async (req) => {
 
     if (modulo !== "eventos" && modulo !== "mgf" && modulo !== "cobranca" && modulo !== "base") {
       return new Response(
-        JSON.stringify({ success: false, message: `Módulo '${modulo}' ainda não implementado na API` }),
+        JSON.stringify({
+          debug_associado: assocDebug, success: false, message: `Módulo '${modulo}' ainda não implementado na API` }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -377,24 +378,45 @@ serve(async (req) => {
         string,
         { cidade: string | null; estado: string | null; sexo: string | null; estado_civil: string | null; idade: number | null }
       >();
+      // Debug do endpoint de associado (para confirmar contrato/campos reais da Hinova)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const assocDebug: any = { tentativas: [], amostra_keys: null, total: 0 };
       try {
-        const ar = await fetch(`${base}/listar/associado`, { method: "POST", headers: H, body: JSON.stringify({}) });
-        const aj = await ar.json().catch(() => null);
-        const aarr = extrairArray(aj) || [];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for (const a of aarr as any[]) {
-          const cod = String(a.codigo_associado ?? a.codigo ?? "");
-          if (cod)
-            assocMap.set(cod, {
-              cidade: a.cidade ?? a.cidade_associado ?? null,
-              estado: a.estado ?? a.uf ?? null,
-              sexo: normalizaSexo(a.sexo ?? a.sexo_associado),
-              estado_civil: (a.estado_civil ?? a.estado_civil_associado ?? null) as string | null,
-              idade: int(a.idade) ?? idadeFromNascimento(a.data_nascimento ?? a.nascimento ?? a.data_nascimento_associado),
+        // /listar/associado passou a exigir paginação (mesma mudança do /listar/veiculo).
+        // Percorre as páginas de cada código de situação configurado.
+        for (const cod of codigosSituacao) {
+          let apag = 1;
+          let atot = 1;
+          while (apag <= atot && apag <= 20) {
+            const ar = await fetch(`${base}/listar/associado`, {
+              method: "POST",
+              headers: H,
+              body: JSON.stringify({ codigo_situacao: cod, pagina: String(apag) }),
             });
+            const aj = await ar.json().catch(() => null);
+            const aarr = extrairArray(aj) || [];
+            assocDebug.tentativas.push(`situacao=${cod} pag=${apag} → ${ar.status} (${aarr.length})`);
+            if (!ar.ok || aarr.length === 0) break;
+            if (!assocDebug.amostra_keys && aarr[0]) assocDebug.amostra_keys = Object.keys(aarr[0]);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const a of aarr as any[]) {
+              const codA = String(a.codigo_associado ?? a.codigo ?? "");
+              if (codA)
+                assocMap.set(codA, {
+                  cidade: a.cidade ?? a.cidade_associado ?? null,
+                  estado: a.estado ?? a.uf ?? null,
+                  sexo: normalizaSexo(a.sexo ?? a.sexo_associado),
+                  estado_civil: (a.estado_civil ?? a.estado_civil_associado ?? null) as string | null,
+                  idade: int(a.idade) ?? idadeFromNascimento(a.data_nascimento ?? a.nascimento ?? a.data_nascimento_associado),
+                });
+            }
+            atot = Math.min(Number(aj?.numero_paginas) || 1, 20);
+            apag++;
+          }
         }
-      } catch (_e) {
-        /* segue sem cidade/estado/demografia */
+        assocDebug.total = assocMap.size;
+      } catch (e) {
+        assocDebug.erro = String((e as Error)?.message || e);
       }
 
       // Mapear -> Cadastro (lista bruta)
