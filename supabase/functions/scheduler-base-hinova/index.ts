@@ -1,4 +1,4 @@
-// lovable-deploy: deploy nudge 2026-07-04T15:18:37Z
+// lovable-deploy: deploy nudge 2026-07-13T01:08:24Z
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
