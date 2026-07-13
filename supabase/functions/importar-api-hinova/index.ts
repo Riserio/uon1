@@ -1,4 +1,4 @@
-// lovable-deploy: deploy nudge 2026-07-13T01:08:24Z
+// lovable-deploy: deploy nudge 2026-07-13T02:04:15Z
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -455,36 +455,37 @@ serve(async (req) => {
 
       const nomeArqB = `API base ${ddmmyyyy(new Date())}`;
 
-      // grava Cadastro
+      // grava Cadastro — desativa a importação anterior ANTES de inserir a nova
+      // (constraint uq_cadastro_importacoes_ativo permite só uma ativa por associação)
+      await supabase
+        .from("cadastro_importacoes")
+        .update({ ativo: false })
+        .eq("corretora_id", corretora_id)
+        .eq("ativo", true);
       const { data: impCad, error: impCadErr } = await supabase
         .from("cadastro_importacoes")
         .insert({ nome_arquivo: nomeArqB, total_registros: cadastro.length, corretora_id, ativo: true })
         .select("id")
         .single();
       if (impCadErr) throw new Error(`Erro import Cadastro: ${impCadErr.message}`);
-      await supabase
-        .from("cadastro_importacoes")
-        .update({ ativo: false })
-        .eq("corretora_id", corretora_id)
-        .neq("id", impCad.id);
       for (let i = 0; i < cadastro.length; i += 500) {
         const lote = cadastro.slice(i, i + 500).map((r) => ({ ...r, importacao_id: impCad.id }));
         const { error } = await supabase.from("cadastro_registros").insert(lote);
         if (error) throw new Error(`Erro inserir Cadastro (lote ${i}): ${error.message}`);
       }
 
-      // grava Estudo de Base
+      // grava Estudo de Base — desativa a anterior ANTES de inserir a nova
+      await supabase
+        .from("estudo_base_importacoes")
+        .update({ ativo: false })
+        .eq("corretora_id", corretora_id)
+        .eq("ativo", true);
       const { data: impEb, error: impEbErr } = await supabase
         .from("estudo_base_importacoes")
         .insert({ nome_arquivo: nomeArqB, total_registros: eb.length, corretora_id, ativo: true })
         .select("id")
         .single();
       if (impEbErr) throw new Error(`Erro import Estudo de Base: ${impEbErr.message}`);
-      await supabase
-        .from("estudo_base_importacoes")
-        .update({ ativo: false })
-        .eq("corretora_id", corretora_id)
-        .neq("id", impEb.id);
       for (let i = 0; i < eb.length; i += 500) {
         const lote = eb.slice(i, i + 500).map((r) => ({ ...r, importacao_id: impEb.id }));
         const { error } = await supabase.from("estudo_base_registros").insert(lote);
