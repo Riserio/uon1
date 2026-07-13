@@ -1217,19 +1217,35 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
             {/* ---------- VISÃO GERAL: só o essencial ---------- */}
             <TabsContent value="visao-geral" className="space-y-4">
+              {/* Frota protegida — gráfico principal em largura total */}
+              <ChartCard
+                title="Evolução da Frota Protegida"
+                accentColor="#2563eb"
+                subtitle="Placas ativas por mês"
+                hasData={hasData}
+                height={300}
+              >
+                <SingleSeriesChart
+                  data={chartData}
+                  dataKey="placas_ativas"
+                  name="Placas Ativas"
+                  color="#2563eb"
+                  kind="line"
+                />
+              </ChartCard>
               <div className="grid gap-4 lg:grid-cols-2">
                 <ChartCard
-                  title="Placas Ativas"
-                  accentColor="#2563eb"
-                  subtitle="Evolução da frota protegida"
+                  title="Histórico de Inadimplentes"
+                  accentColor="#f97316"
+                  subtitle="Inadimplentes por mês"
                   hasData={hasData}
                 >
                   <SingleSeriesChart
                     data={chartData}
-                    dataKey="placas_ativas"
-                    name="Placas Ativas"
-                    color="#2563eb"
-                    kind="line"
+                    dataKey="inadimplentes"
+                    name="Inadimplentes"
+                    color="#f97316"
+                    kind="bar"
                   />
                 </ChartCard>
                 <ChartCard
