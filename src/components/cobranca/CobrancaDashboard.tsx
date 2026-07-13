@@ -380,10 +380,17 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
       {/* Boletos por Dia de Vencimento Veículo */}
       {(() => {
         const activeData = stats.diasVencimentoData || [];
-        // Boletos AVULSOS = fora do ciclo padrão de vencimento (5/10/15/20).
-        const CICLO_PADRAO = [5, 10, 15, 20];
-        const parseDia = (d: unknown) => parseInt(String((d as { dia?: unknown })?.dia ?? "").replace(/\D/g, ""), 10);
-        const avulsos = activeData.filter((d: unknown) => !CICLO_PADRAO.includes(parseDia(d)));
+        // Boletos AVULSOS = dias FORA DO CICLO de cobrança da associação. Em vez de
+        // fixar dias (o ciclo varia por associação: a VALECAR tem dia grande no 27),
+        // consideramos "ciclo" os dias com volume relevante e "avulsos" os dias de
+        // baixo volume (< 5% do total emitido do mês). Respeita o filtro de mês/período
+        // porque activeData já vem do RPC filtrado.
+        const totalEmitDias = activeData.reduce(
+          (acc: number, d: Record<string, unknown>) => acc + (Number(d.qtde) || 0),
+          0,
+        );
+        const limiarCiclo = totalEmitDias * 0.05;
+        const avulsos = activeData.filter((d: Record<string, unknown>) => (Number(d.qtde) || 0) < limiarCiclo);
         const somaAvulsos = (k: string) =>
           avulsos.reduce((acc: number, d: Record<string, unknown>) => acc + (Number(d[k]) || 0), 0);
         const avulsosEmitidos = somaAvulsos("qtde");
