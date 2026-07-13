@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      _debug_hinova: {
+        Row: {
+          k: string
+          v: string | null
+        }
+        Insert: {
+          k: string
+          v?: string | null
+        }
+        Update: {
+          k?: string
+          v?: string | null
+        }
+        Relationships: []
+      }
       _sync_queue: {
         Row: {
           corretora_id: string
@@ -3193,6 +3208,38 @@ export type Database = {
             columns: ["importacao_id"]
             isOneToOne: false
             referencedRelation: "estudo_base_importacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      estudo_base_situacoes: {
+        Row: {
+          codigo: string
+          corretora_id: string
+          descricao: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          codigo: string
+          corretora_id: string
+          descricao: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string
+          corretora_id?: string
+          descricao?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estudo_base_situacoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
             referencedColumns: ["id"]
           },
         ]
