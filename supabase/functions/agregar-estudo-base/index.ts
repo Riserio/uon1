@@ -1,4 +1,4 @@
-// lovable-deploy: deploy nudge 2026-07-13T01:08:24Z
+// lovable-deploy: deploy nudge 2026-07-13T03:00:26Z
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -161,6 +161,44 @@ serve(async (req) => {
     const totalAssociados = voluntariosAtivos.size;
     const cadastrosRealizados = voluntariosNovosNoMes.size;
 
+    // Inadimplentes do MÊS CORRENTE via Cobrança: boletos JÁ VENCIDOS e ainda em
+    // aberto, por placa distinta. Só calcula/gera quando o mês de referência é o
+    // corrente (não sobrescreve inadimplência de meses passados no histórico).
+    let inadimplentesCobranca: number | null = null;
+    {
+      const hoje = new Date();
+      const refIsCurrent = refAno === hoje.getUTCFullYear() && refMes === hoje.getUTCMonth() + 1;
+      if (refIsCurrent) {
+        const firstISO = `${refAno}-${String(refMes).padStart(2, "0")}-01`;
+        const todayISO = hoje.toISOString().slice(0, 10);
+        const placasInad = new Set<string>();
+        let offC = 0;
+        const PAGEC = 1000;
+        while (true) {
+          const { data: bc, error: ec } = await supabase
+            .from("cobranca_boletos_ativos")
+            .select("placas")
+            .eq("corretora_id", corretora_id)
+            .ilike("situacao", "ABERTO")
+            .is("data_pagamento", null)
+            .gte("data_vencimento", firstISO)
+            .lt("data_vencimento", todayISO)
+            .range(offC, offC + PAGEC - 1);
+          if (ec) break;
+          if (!bc || bc.length === 0) break;
+          for (const r of bc) {
+            const pl = (r as { placas?: string | null }).placas;
+            if (pl) placasInad.add(String(pl).trim().toUpperCase());
+          }
+          if (bc.length < PAGEC) break;
+          offC += PAGEC;
+          if (offC >= 100000) break;
+        }
+        inadimplentesCobranca = placasInad.size;
+      }
+    }
+    const inadimplentesPersistir = inadimplentesCobranca ?? totalInadimplentes;
+
     // 4) montar linha do pid_estudo_base (qtd, protegido, valor e ticket médio por categoria)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const linha: any = {
@@ -219,7 +257,7 @@ serve(async (req) => {
           total_associados: totalAssociados,
           cadastros_realizados: cadastrosRealizados,
           placas_ativas: totalAtivos,
-          inadimplentes: totalInadimplentes,
+          inadimplentes: inadimplentesPersistir,
           updated_at: new Date().toISOString(),
         })
         .eq("id", pidExistente.id);
@@ -232,7 +270,7 @@ serve(async (req) => {
         total_associados: totalAssociados,
         cadastros_realizados: cadastrosRealizados,
         placas_ativas: totalAtivos,
-        inadimplentes: totalInadimplentes,
+        inadimplentes: inadimplentesPersistir,
       });
       if (pidErr) throw pidErr;
     }

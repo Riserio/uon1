@@ -508,6 +508,9 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   // Estudo de Base) — garante que Indicadores e Estudo de Base batem o mesmo
   // número (ex.: 4909 ativas) e alimenta o card de Inadimplentes.
   const [baseCounts, setBaseCounts] = useState<{ ativas: number; inadimplentes: number } | null>(null);
+  // Inadimplentes do MÊS CORRENTE (fonte Cobrança): boletos JÁ VENCIDOS e ainda
+  // em aberto, contados por placa distinta. Ver cobranca_boletos_ativos.
+  const [cobrancaInad, setCobrancaInad] = useState<number | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [ultimoMesComDados, setUltimoMesComDados] = useState<{ ano: string; mes: string } | null>(null);
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
@@ -548,14 +551,26 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         .limit(12);
       if (error) throw error;
 
-      if (results && results.length > 0) {
-        const registroComDados = results.find(
+      // Nunca considerar meses FUTUROS como período atual (o backfill de
+      // faturamento cria linhas de meses à frente com boletos a vencer).
+      // O Indicadores deve sempre mostrar o mês corrente.
+      const now = new Date();
+      const curY = now.getFullYear();
+      const curM = now.getMonth() + 1;
+      const naoFuturos = (results || []).filter(
+        (r) => r.ano < curY || (r.ano === curY && r.mes <= curM),
+      );
+
+      if (naoFuturos.length > 0) {
+        // 1º) o próprio mês corrente, se existir; 2º) o mês mais recente com dados
+        const mesCorrente = naoFuturos.find((r) => r.ano === curY && r.mes === curM);
+        const registroComDados = naoFuturos.find(
           (r) =>
             (r.placas_ativas && r.placas_ativas > 0) ||
             (r.faturamento_operacional && r.faturamento_operacional > 0) ||
             (r.total_recebido && r.total_recebido > 0),
         );
-        const result = registroComDados || results[0];
+        const result = mesCorrente || registroComDados || naoFuturos[0];
         const anoStr = result.ano.toString();
         const mesStr = result.mes.toString();
         setAno(anoStr);
@@ -707,6 +722,48 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       }
     };
     fetchBaseCounts();
+    return () => { cancelado = true; };
+  }, [corretoraId]);
+
+  // Inadimplentes do mês corrente via Cobrança (boletos já vencidos e abertos).
+  useEffect(() => {
+    let cancelado = false;
+    const fetchCobrancaInad = async () => {
+      if (!corretoraId) { setCobrancaInad(null); return; }
+      try {
+        const now = new Date();
+        const firstISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+        const todayISO = now.toISOString().slice(0, 10); // hoje (exclusivo) => já vencidos
+        const placas = new Set<string>();
+        let offset = 0;
+        const PAGE = 1000;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { data: batch, error } = await supabase
+            .from("cobranca_boletos_ativos")
+            .select("placas")
+            .eq("corretora_id", corretoraId)
+            .ilike("situacao", "ABERTO")
+            .is("data_pagamento", null)
+            .gte("data_vencimento", firstISO)
+            .lt("data_vencimento", todayISO)
+            .range(offset, offset + PAGE - 1);
+          if (error) break;
+          if (!batch || batch.length === 0) break;
+          for (const r of batch) {
+            const pl = (r as { placas?: string | null }).placas;
+            if (pl) placas.add(String(pl).trim().toUpperCase());
+          }
+          if (batch.length < PAGE) break;
+          offset += PAGE;
+          if (offset >= 100000) break;
+        }
+        if (!cancelado) setCobrancaInad(placas.size);
+      } catch {
+        if (!cancelado) setCobrancaInad(null);
+      }
+    };
+    fetchCobrancaInad();
     return () => { cancelado = true; };
   }, [corretoraId]);
 
@@ -882,7 +939,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const placasAtivasView =
     baseCounts && isPeriodoAtual ? baseCounts.ativas : dadosAtual?.placas_ativas;
   const inadimplentesView =
-    baseCounts && isPeriodoAtual ? baseCounts.inadimplentes : dadosAtual?.inadimplentes;
+    isPeriodoAtual && cobrancaInad != null ? cobrancaInad : dadosAtual?.inadimplentes;
 
   const hasData = chartData.length > 0;
 
