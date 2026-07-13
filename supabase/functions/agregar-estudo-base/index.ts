@@ -47,12 +47,20 @@ const valorEfetivo = (protegido: unknown, fipe: unknown): number => {
   return f > 0 ? f : 0;
 };
 
-// "veiculo ativo" = situacao nao indica cancelamento/inatividade
+// Situacao normalizada (uppercase, sem acentos)
+const normSit = (situacao?: string | null): string =>
+  (situacao || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+// "veiculo ativo" (conta no total de 4909): ATIVO/REATIVACAO ou legado sem
+// situacao. Inadimplente, inativo, pendente, cancelado, negado NAO entram.
 const isAtivo = (situacao?: string | null): boolean => {
-  const s = (situacao || "").toUpperCase();
+  const s = normSit(situacao);
   if (!s) return true;
-  return !/CANCEL|INATIV|EXCLU|SUSPEN|BAIXAD|DESLIG/.test(s);
+  if (/INADIMPL/.test(s)) return false;
+  if (/INATIV|CANCEL|EXCLU|SUSPEN|BAIXAD|DESLIG|NEGAD|PENDENT|REVISTORIA/.test(s)) return false;
+  return /ATIVO|REATIV/.test(s);
 };
+const isInadimplente = (situacao?: string | null): boolean => /INADIMPL/.test(normSit(situacao));
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -116,7 +124,7 @@ serve(async (req) => {
     // 3) agregação por categoria
     type Ac = { qtd: number; protegido: number; valorProt: number; valorTotal: number };
     const acc: Record<Cat, Ac> = Object.fromEntries(CATS.map((c) => [c, { qtd: 0, protegido: 0, valorProt: 0, valorTotal: 0 }])) as Record<Cat, Ac>;
-    let totalGeral = 0, totalAtivos = 0;
+    let totalGeral = 0, totalAtivos = 0, totalInadimplentes = 0;
 
     // 3b) total de associados (voluntário) únicos e cadastros novos no mês -
     // calculado automaticamente a partir da base ativa, em vez de depender de
@@ -128,8 +136,9 @@ serve(async (req) => {
     const voluntariosNovosNoMes = new Set<string>();
 
     for (const r of rows) {
-      if (!isAtivo(r.situacao_veiculo)) continue; // base considera veículos ativos
-      totalGeral++;
+      totalGeral++; // total inclui TODAS as situacoes importadas
+      if (isInadimplente(r.situacao_veiculo)) totalInadimplentes++;
+      if (!isAtivo(r.situacao_veiculo)) continue; // categorias/valor: só ativos
       totalAtivos++;
       const cat = classificar(r.tipo_veiculo, r.categoria);
       const vProt = Number(r.valor_protegido) || 0;
@@ -209,6 +218,8 @@ serve(async (req) => {
         .update({
           total_associados: totalAssociados,
           cadastros_realizados: cadastrosRealizados,
+          placas_ativas: totalAtivos,
+          inadimplentes: totalInadimplentes,
           updated_at: new Date().toISOString(),
         })
         .eq("id", pidExistente.id);
@@ -220,6 +231,8 @@ serve(async (req) => {
         mes: refMes,
         total_associados: totalAssociados,
         cadastros_realizados: cadastrosRealizados,
+        placas_ativas: totalAtivos,
+        inadimplentes: totalInadimplentes,
       });
       if (pidErr) throw pidErr;
     }
@@ -229,6 +242,8 @@ serve(async (req) => {
       message: `Estudo de Base agregado (${totalGeral} veículos, mês ${ref.slice(0, 7)})`,
       data_referencia: ref,
       total: totalGeral,
+      total_ativos: totalAtivos,
+      total_inadimplentes: totalInadimplentes,
       total_associados: totalAssociados,
       cadastros_realizados: cadastrosRealizados,
       por_categoria: Object.fromEntries(CATS.map((c) => [c, acc[c].qtd])),

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Filter, Car, DollarSign, ShieldCheck, AlertTriangle, Loader2, TrendingUp, ChevronDown, X } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { isAtivo as isAtivoSituacao } from "@/lib/situacaoVeiculo";
 import {
   ResponsiveContainer,
   BarChart,
@@ -434,7 +435,7 @@ export default function EstudoBaseDashboard({
     return { situacoes, regionais, montadoras };
   }, [registros]);
 
-  const filtered = useMemo(() => {
+  const filteredTodas = useMemo(() => {
     let result = [...registros];
     if (filters.situacao.length > 0) {
       result = result.filter((r) => filters.situacao.includes(r.situacao_veiculo));
@@ -461,6 +462,13 @@ export default function EstudoBaseDashboard({
     return result;
   }, [registros, filters]);
 
+  // Base ATIVA (headline/KPIs e rankings): mantém o total em 4909 mesmo
+  // quando a base passa a conter inadimplentes/inativos/pendentes.
+  const filtered = useMemo(
+    () => filteredTodas.filter((r) => isAtivoSituacao(r.situacao_veiculo)),
+    [filteredTodas],
+  );
+
   const totalPlacas = filtered.length;
   const totalValorProtegido = useMemo(
     () => filtered.reduce((sum, r) => sum + Math.round((r.valor_fipe || 0) * 100), 0) / 100,
@@ -472,7 +480,7 @@ export default function EstudoBaseDashboard({
 
   const placasPorSituacao = useMemo(() => {
     const map = new Map<string, number>();
-    filtered.forEach((r) => {
+    filteredTodas.forEach((r) => {
       const raw = r.situacao_veiculo ? String(r.situacao_veiculo).trim() : "N/I";
       const sit = raw
         .toUpperCase()
@@ -483,7 +491,7 @@ export default function EstudoBaseDashboard({
     return Array.from(map.entries())
       .map(([name, value], i) => ({ name, value, fill: COLORS[i % COLORS.length] }))
       .sort((a, b) => b.value - a.value);
-  }, [filtered]);
+  }, [filteredTodas]);
 
   const cadastrosPorMes = useMemo<MonthItem[]>(() => {
     const map = new Map<string, number>();

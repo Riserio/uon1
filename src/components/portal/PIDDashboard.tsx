@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency, formatPercent, calcPercent } from "@/lib/formatters";
+import { classificarSituacao } from "@/lib/situacaoVeiculo";
 import {
   DollarSign,
   Car,
@@ -23,6 +24,7 @@ import {
   Minus,
   LayoutDashboard,
   ChevronDown,
+  UserX,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -502,6 +504,10 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [dadosAno, setDadosAno] = useState<any[]>([]);
   const [dadosAtual, setDadosAtual] = useState<any>(null);
   const [dadosAnterior, setDadosAnterior] = useState<any>(null);
+  // Contagem SEMPRE ATUAL de placas a partir da base ativa (mesma fonte do
+  // Estudo de Base) — garante que Indicadores e Estudo de Base batem o mesmo
+  // número (ex.: 4909 ativas) e alimenta o card de Inadimplentes.
+  const [baseCounts, setBaseCounts] = useState<{ ativas: number; inadimplentes: number } | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [ultimoMesComDados, setUltimoMesComDados] = useState<{ ano: string; mes: string } | null>(null);
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
@@ -657,6 +663,52 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [corretoraId, ano, mes, todoPeriodo, initialized]);
+
+  // Conta placas ATIVAS e INADIMPLENTES direto da base ativa (estudo_base_registros),
+  // a mesma fonte usada pelo Estudo de Base. Assim os números batem e ficam sempre atuais.
+  useEffect(() => {
+    let cancelado = false;
+    const fetchBaseCounts = async () => {
+      if (!corretoraId) { setBaseCounts(null); return; }
+      try {
+        const { data: imp } = await supabase
+          .from("estudo_base_importacoes")
+          .select("id")
+          .eq("ativo", true)
+          .eq("corretora_id", corretoraId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!imp?.id) { if (!cancelado) setBaseCounts(null); return; }
+
+        let ativas = 0, inadimplentes = 0, offset = 0;
+        const PAGE = 1000;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { data: batch, error } = await supabase
+            .from("estudo_base_registros")
+            .select("situacao_veiculo")
+            .eq("importacao_id", imp.id)
+            .range(offset, offset + PAGE - 1);
+          if (error) break;
+          if (!batch || batch.length === 0) break;
+          for (const r of batch) {
+            const cat = classificarSituacao((r as { situacao_veiculo?: string | null }).situacao_veiculo);
+            if (cat === "ativo") ativas++;
+            else if (cat === "inadimplente") inadimplentes++;
+          }
+          if (batch.length < PAGE) break;
+          offset += PAGE;
+          if (offset >= 200000) break;
+        }
+        if (!cancelado) setBaseCounts({ ativas, inadimplentes });
+      } catch {
+        if (!cancelado) setBaseCounts(null);
+      }
+    };
+    fetchBaseCounts();
+    return () => { cancelado = true; };
+  }, [corretoraId]);
 
   const chartData = useMemo(() => {
     return dadosAno.map((d, index) => {
@@ -818,6 +870,20 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     return mesesNome[mesIndex] || "";
   }, [todoPeriodo, mes, dadosAtual]);
 
+  // Considera "período atual" quando o mês/ano selecionado é o corrente (ou "Todo
+  // Período"). Só nesse caso sobrepomos a contagem viva da base às placas ativas
+  // e inadimplentes, para exibir sempre o número atual (ex.: 4909 ativas).
+  const isPeriodoAtual = useMemo(() => {
+    if (todoPeriodo) return true;
+    const now = new Date();
+    return parseInt(ano) === now.getFullYear() && parseInt(mes) === now.getMonth() + 1;
+  }, [todoPeriodo, ano, mes]);
+
+  const placasAtivasView =
+    baseCounts && isPeriodoAtual ? baseCounts.ativas : dadosAtual?.placas_ativas;
+  const inadimplentesView =
+    baseCounts && isPeriodoAtual ? baseCounts.inadimplentes : dadosAtual?.inadimplentes;
+
   const hasData = chartData.length > 0;
 
   // Spinner de tela cheia apenas no PRIMEIRO carregamento.
@@ -942,12 +1008,26 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               icon={<Car className="h-5 w-5 text-blue-500" />}
               accent="blue"
               badge={mesAtualLabel || undefined}
-              value={dadosAtual.placas_ativas?.toLocaleString("pt-BR")}
+              value={(placasAtivasView ?? 0).toLocaleString("pt-BR")}
               label="Placas Ativas"
               variation={
                 <VariationIndicator
-                  current={dadosAtual.placas_ativas || 0}
+                  current={placasAtivasView || 0}
                   previous={dadosAnterior?.placas_ativas}
+                  format="number"
+                />
+              }
+            />
+            <KpiCard
+              icon={<UserX className="h-5 w-5 text-orange-500" />}
+              accent="amber"
+              badge={isPeriodoAtual ? mesAtualLabel || undefined : undefined}
+              value={(inadimplentesView ?? 0).toLocaleString("pt-BR")}
+              label="Inadimplentes"
+              variation={
+                <VariationIndicator
+                  current={inadimplentesView || 0}
+                  previous={dadosAnterior?.inadimplentes}
                   format="number"
                 />
               }
@@ -977,20 +1057,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                   current={dadosAtual.total_recebido || 0}
                   previous={dadosAnterior?.total_recebido}
                   format="currency"
-                />
-              }
-            />
-            <KpiCard
-              icon={<Activity className="h-5 w-5 text-purple-500" />}
-              accent="purple"
-              value={dadosAtual.crescimento_liquido?.toLocaleString("pt-BR")}
-              valueClassName={(dadosAtual.crescimento_liquido || 0) >= 0 ? "text-green-600" : "text-red-600"}
-              label="Crescimento Líquido"
-              variation={
-                <VariationIndicator
-                  current={dadosAtual.crescimento_liquido || 0}
-                  previous={dadosAnterior?.crescimento_liquido}
-                  format="number"
                 />
               }
             />

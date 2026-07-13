@@ -282,10 +282,14 @@ serve(async (req) => {
         }
         return null;
       };
+      // Situações trazidas por padrão na importação da base: 1=ATIVO, 4=INADIMPLENTE,
+      // 3=PENDENTE, 2=INATIVO, 8=REATIVAÇÃO. Isso alimenta o gráfico "Placas por
+      // Situação" (Estudo de Base) e o card "Inadimplentes" (Indicadores). O total
+      // de "Placas Ativas" (4909) considera apenas as situações ativas.
       const codigosSituacao: string[] =
         Array.isArray(body?.codigos_situacao) && body.codigos_situacao.length > 0
           ? body.codigos_situacao.map((c: unknown) => String(c))
-          : ["1"];
+          : ["1", "4", "3", "2", "8"];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let veiculos: any[] | null = null;
       let endpointOk: string | null = null;
