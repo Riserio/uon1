@@ -198,9 +198,11 @@ interface ChartCardProps {
   hasData: boolean;
   /** Cor de destaque do widget (mesma cor da série) */
   accentColor?: string;
+  /** Conteúdo opcional à direita do cabeçalho (ex.: toggle Mês/Dia) */
+  headerRight?: React.ReactNode;
 }
 
-const ChartCard = ({ title, subtitle, height = 260, children, hasData, accentColor = "#64748b" }: ChartCardProps) => (
+const ChartCard = ({ title, subtitle, height = 260, children, hasData, accentColor = "#64748b", headerRight }: ChartCardProps) => (
   <Card className="rounded-xl border-border/60 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
     <CardHeader className="pb-1 pt-4 px-4">
       <div className="flex items-center gap-2">
@@ -209,6 +211,7 @@ const ChartCard = ({ title, subtitle, height = 260, children, hasData, accentCol
           style={{ backgroundColor: accentColor }}
         />
         <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+        {headerRight && <div className="ml-auto">{headerRight}</div>}
       </div>
       {subtitle && <p className="text-xs text-muted-foreground pl-[18px]">{subtitle}</p>}
     </CardHeader>
@@ -510,6 +513,9 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [baseCounts, setBaseCounts] = useState<{ ativas: number; inadimplentes: number } | null>(null);
   // Janela dos GRÁFICOS (independente do mês dos cards). 999 = tudo.
   const [chartRange, setChartRange] = useState<number>(12);
+  // Modo do gráfico da frota: 'mes' (histórico mensal) ou 'dia' (snapshot diário)
+  const [frotaModo, setFrotaModo] = useState<"mes" | "dia">("mes");
+  const [frotaDiaData, setFrotaDiaData] = useState<{ mes: string; placas_ativas: number }[]>([]);
   // Inadimplentes do MÊS CORRENTE (fonte Cobrança): boletos JÁ VENCIDOS e ainda
   // em aberto, contados por placa distinta. Ver cobranca_boletos_ativos.
   const [cobrancaInad, setCobrancaInad] = useState<number | null>(null);
@@ -754,6 +760,38 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       }
     };
     fetchCobrancaInad();
+    return () => { cancelado = true; };
+  }, [corretoraId]);
+
+  // Snapshot diário da frota (tabela pid_placas_diario) para o modo "Dia".
+  useEffect(() => {
+    let cancelado = false;
+    const fetchFrotaDia = async () => {
+      if (!corretoraId) { setFrotaDiaData([]); return; }
+      try {
+        const desde = new Date();
+        desde.setDate(desde.getDate() - 60);
+        // pid_placas_diario ainda não está nos tipos gerados — cast controlado.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("pid_placas_diario")
+          .select("data, placas_ativas")
+          .eq("corretora_id", corretoraId)
+          .gte("data", desde.toISOString().slice(0, 10))
+          .order("data", { ascending: true });
+        if (cancelado) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setFrotaDiaData(
+          ((data || []) as any[]).map((r) => ({
+            mes: String(r.data).slice(8, 10) + "/" + String(r.data).slice(5, 7),
+            placas_ativas: Number(r.placas_ativas) || 0,
+          })),
+        );
+      } catch {
+        if (!cancelado) setFrotaDiaData([]);
+      }
+    };
+    fetchFrotaDia();
     return () => { cancelado = true; };
   }, [corretoraId]);
 
@@ -1222,16 +1260,32 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
             {/* ---------- VISÃO GERAL: só o essencial ---------- */}
             <TabsContent value="visao-geral" className="space-y-4">
-              {/* Frota protegida — gráfico principal em largura total */}
+              {/* Frota protegida — gráfico principal em largura total, com modo Mês/Dia */}
               <ChartCard
                 title="Evolução da Frota Protegida"
                 accentColor="#2563eb"
-                subtitle="Placas ativas por mês"
-                hasData={hasData}
+                subtitle={frotaModo === "dia" ? "Placas ativas por dia" : "Placas ativas por mês"}
+                hasData={frotaModo === "dia" ? frotaDiaData.length > 0 : hasData}
                 height={300}
+                headerRight={
+                  <div className="flex items-center gap-1 rounded-full bg-muted/60 p-0.5">
+                    <button
+                      onClick={() => setFrotaModo("mes")}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${frotaModo === "mes" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                    >
+                      Mês
+                    </button>
+                    <button
+                      onClick={() => setFrotaModo("dia")}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${frotaModo === "dia" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                    >
+                      Dia
+                    </button>
+                  </div>
+                }
               >
                 <SingleSeriesChart
-                  data={chartData}
+                  data={frotaModo === "dia" ? frotaDiaData : chartData}
                   dataKey="placas_ativas"
                   name="Placas Ativas"
                   color="#2563eb"

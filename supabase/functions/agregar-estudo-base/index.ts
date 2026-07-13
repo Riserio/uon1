@@ -1,4 +1,4 @@
-// lovable-deploy: deploy nudge 2026-07-13T03:00:26Z
+// lovable-deploy: deploy nudge 2026-07-13T03:31:21Z
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -273,6 +273,32 @@ serve(async (req) => {
         inadimplentes: inadimplentesPersistir,
       });
       if (pidErr) throw pidErr;
+    }
+
+    // Snapshot DIÁRIO da frota (placas ativas + inadimplentes) para o gráfico
+    // "Evolução da Frota Protegida" no modo Dia. Uma linha por associação/dia.
+    try {
+      const hojeStr = new Date().toISOString().slice(0, 10);
+      const { data: snapExist } = await supabase
+        .from("pid_placas_diario")
+        .select("id")
+        .eq("corretora_id", corretora_id)
+        .eq("data", hojeStr)
+        .maybeSingle();
+      const snapRow = {
+        corretora_id,
+        data: hojeStr,
+        placas_ativas: totalAtivos,
+        inadimplentes: inadimplentesPersistir ?? 0,
+        updated_at: new Date().toISOString(),
+      };
+      if (snapExist?.id) {
+        await supabase.from("pid_placas_diario").update(snapRow).eq("id", snapExist.id);
+      } else {
+        await supabase.from("pid_placas_diario").insert(snapRow);
+      }
+    } catch (_snapErr) {
+      /* snapshot diário é best-effort */
     }
 
     return new Response(JSON.stringify({
