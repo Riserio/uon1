@@ -380,6 +380,15 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
       {/* Boletos por Dia de Vencimento Veículo */}
       {(() => {
         const activeData = stats.diasVencimentoData || [];
+        // Boletos AVULSOS = fora do ciclo padrão de vencimento (5/10/15/20).
+        const CICLO_PADRAO = [5, 10, 15, 20];
+        const parseDia = (d: unknown) => parseInt(String((d as { dia?: unknown })?.dia ?? "").replace(/\D/g, ""), 10);
+        const avulsos = activeData.filter((d: unknown) => !CICLO_PADRAO.includes(parseDia(d)));
+        const somaAvulsos = (k: string) =>
+          avulsos.reduce((acc: number, d: Record<string, unknown>) => acc + (Number(d[k]) || 0), 0);
+        const avulsosEmitidos = somaAvulsos("qtde");
+        const avulsosPagos = somaAvulsos("pagos");
+        const avulsosAbertos = somaAvulsos("abertos");
 
         return (
           <Card className="rounded-2xl overflow-hidden border-border/40">
@@ -391,7 +400,7 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
             </CardHeader>
             <CardContent className="p-0">
               {/* Totais */}
-              <div className="grid grid-cols-3 divide-x divide-border/40 border-b border-border/40 px-1 py-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-border/40 border-b border-border/40 px-1 py-4">
                 <div className="px-5">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Emitidos</p>
                   <p className="text-2xl font-bold text-primary tabular-nums">{stats.totalBoletos.toLocaleString('pt-BR')}</p>
@@ -406,6 +415,11 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Em Aberto</p>
                   <p className="text-2xl font-bold text-destructive tabular-nums">{stats.qtdeAbertos.toLocaleString('pt-BR')}</p>
                   <p className="text-xs text-destructive/70 mt-0.5">{formatCurrency(stats.totalAberto)}</p>
+                </div>
+                <div className="px-5">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Avulsos <span className="normal-case tracking-normal text-muted-foreground/70">(fora do ciclo)</span></p>
+                  <p className="text-2xl font-bold text-amber-600 tabular-nums">{avulsosEmitidos.toLocaleString('pt-BR')}</p>
+                  <p className="text-xs text-amber-600/70 mt-0.5">{avulsosPagos.toLocaleString('pt-BR')} pagos · {avulsosAbertos.toLocaleString('pt-BR')} em aberto</p>
                 </div>
               </div>
 
