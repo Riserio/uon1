@@ -213,6 +213,7 @@ export default function PortalMobileSettingsSheet({
               <div className="space-y-1">
                 {availableModules.map((mod) => {
                   const cfg = MODULE_CONFIG[mod];
+                  if (!cfg) return null;
                   const Icon = cfg.icon;
                   const isFav = favoritos.includes(mod);
                   return (
