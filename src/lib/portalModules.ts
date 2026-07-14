@@ -12,12 +12,12 @@ export type PortalModule =
   | "acompanhamento-eventos"
   | "ouvidoria";
 
-// "estudo-base" foi removido da navegação — o tipo `PortalModule` mantém a
-// entrada apenas para retrocompatibilidade com telas legadas, mas ela não
-// aparece no CONFIG (por isso o Exclude aqui).
-export const MODULE_CONFIG: Record<
-  Exclude<PortalModule, "estudo-base">,
-  { label: string; shortLabel: string; icon: React.ElementType; path: string }
+// "estudo-base" foi removido da navegação do Portal do Parceiro. O tipo
+// `PortalModule` mantém a entrada apenas para retrocompatibilidade com
+// telas legadas (rotas antigas ainda apontam pra ela), mas ela não existe
+// mais no CONFIG/ORDER, então nunca aparece em sidebar/barra/favoritos.
+export const MODULE_CONFIG: Partial<
+  Record<PortalModule, { label: string; shortLabel: string; icon: React.ElementType; path: string }>
 > = {
   indicadores: { label: "Indicadores", shortLabel: "Indic.", icon: TrendingUp, path: "/portal" },
   eventos: { label: "Eventos", shortLabel: "Eventos", icon: Activity, path: "/portal/sga-insights" },
@@ -27,7 +27,7 @@ export const MODULE_CONFIG: Record<
   ouvidoria: { label: "Ouvidoria", shortLabel: "Ouvidoria", icon: MessageSquare, path: "/portal/ouvidoria" },
 };
 
-export const MODULE_ORDER: Exclude<PortalModule, "estudo-base">[] = [
+export const MODULE_ORDER: PortalModule[] = [
   "indicadores",
   "eventos",
   "mgf",
