@@ -698,8 +698,17 @@ serve(async (req) => {
         };
         const lancs = _extrairMgf(j);
         if (paginas === 1 && lancs.length === 0) {
-          _mgfDebug = `HTTP ${r.status} chaves=${j && typeof j === "object" ? Object.keys(j).join("|") : String(j).slice(0, 20)} body=${_mgfRaw.slice(0, 300)}`;
-          console.log("[MGF] 1a pagina sem array ->", _mgfDebug);
+          // Hinova responde HTTP 200 { mensagem: "OK", error: ["Nao foram
+          // encontrados lancamentos..."] } quando o filtro nao casa com nada.
+          // Isso NAO e erro — e apenas periodo sem lancamentos.
+          const msgOk = j && typeof j === "object" && typeof j.mensagem === "string" && j.mensagem.toUpperCase() === "OK";
+          const semDadosMsg = j && Array.isArray((j as any).error) && (j as any).error.some((e: unknown) => typeof e === "string" && /n[ãa]o\s+foram\s+encontrados/i.test(e));
+          if (!msgOk && !semDadosMsg) {
+            _mgfDebug = `HTTP ${r.status} chaves=${j && typeof j === "object" ? Object.keys(j).join("|") : String(j).slice(0, 20)} body=${_mgfRaw.slice(0, 300)}`;
+            console.log("[MGF] 1a pagina sem array ->", _mgfDebug);
+          } else {
+            console.log("[MGF] 1a pagina vazia (sem lancamentos no periodo) — tratando como sucesso");
+          }
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const L of lancs as any[]) {
