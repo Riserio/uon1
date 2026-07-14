@@ -136,7 +136,6 @@ export default function PortalLayout() {
     ...(corretora.modulos_bi.includes('eventos') ? ['eventos'] as const : []),
     ...(corretora.modulos_bi.includes('mgf') ? ['mgf'] as const : []),
     ...(corretora.modulos_bi.includes('cobranca') ? ['cobranca'] as const : []),
-    ...(corretora.modulos_bi.includes('estudo-base') ? ['estudo-base'] as const : []),
     ...(corretora.modulos_bi.includes('acompanhamento-eventos') ? ['acompanhamento-eventos'] as const : []),
     ...(corretora.modulos_bi.includes('ouvidoria') ? ['ouvidoria'] as const : []),
   ];
