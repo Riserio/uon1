@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,12 +14,16 @@ type CorretoraComModulos = {
   acesso_ouvidoria?: boolean;
 };
 
+export type MenuPosition = 'inferior' | 'vertical';
+
 interface PortalLayoutContextType {
   corretora: CorretoraComModulos | null;
   corretorasDisponiveis: CorretoraComModulos[];
   loading: boolean;
   notLinked: boolean;
   showSelection: boolean;
+  menuPosition: MenuPosition;
+  setMenuPosition: (value: MenuPosition) => Promise<void>;
   handleSelectCorretora: (c: CorretoraComModulos) => void;
   handleChangeCorretora: () => void;
   handleLogout: () => void;
@@ -46,6 +50,7 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
   const [showSelection, setShowSelection] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notLinked, setNotLinked] = useState(false);
+  const [menuPosition, setMenuPositionState] = useState<MenuPosition>('inferior');
 
   useEffect(() => {
     async function loadCorretoraData() {
@@ -55,7 +60,7 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase
           .from("corretora_usuarios")
-          .select("corretora_id, modulos_bi, acesso_ouvidoria, corretoras(id, nome, slug, logo_url, logo_collapsed_url, logo_expanded_url)")
+          .select("corretora_id, modulos_bi, acesso_ouvidoria, menu_position, corretoras(id, nome, slug, logo_url, logo_collapsed_url, logo_expanded_url)")
           .eq("profile_id", user.id)
           .eq("ativo", true);
 
@@ -64,6 +69,9 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           return;
         }
+
+        const firstPos = (data.find((r: any) => r.menu_position)?.menu_position as MenuPosition) || 'inferior';
+        setMenuPositionState(firstPos === 'vertical' ? 'vertical' : 'inferior');
 
         const validas: CorretoraComModulos[] = data
           .filter(item => item.corretoras)
@@ -158,6 +166,15 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
     navigate("/auth", { replace: true });
   };
 
+  const setMenuPosition = async (value: MenuPosition) => {
+    setMenuPositionState(value);
+    try {
+      await supabase.rpc('set_user_menu_position' as any, { new_position: value });
+    } catch (e) {
+      console.error('Falha ao salvar menu_position', e);
+    }
+  };
+
   return (
     <PortalLayoutContext.Provider value={{
       corretora,
@@ -165,6 +182,8 @@ export function PortalLayoutProvider({ children }: { children: ReactNode }) {
       loading,
       notLinked,
       showSelection,
+      menuPosition,
+      setMenuPosition,
       handleSelectCorretora,
       handleChangeCorretora,
       handleLogout,
