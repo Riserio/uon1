@@ -157,15 +157,14 @@ export default function PortalLayout() {
       <div className="portal-theme min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
         <PortalMobileHeader corretora={corretora} force={useBottomBar} />
 
-        {!useBottomBar && (
-          <PortalSidebar
-            corretora={corretora}
-            currentModule={currentModule}
-            showChangeButton={corretorasDisponiveis.length > 1}
-            onChangeCorretora={handleChangeCorretora}
-            onLogout={handleLogout}
-          />
-        )}
+        <PortalSidebar
+          corretora={corretora}
+          currentModule={currentModule}
+          showChangeButton={corretorasDisponiveis.length > 1}
+          onChangeCorretora={handleChangeCorretora}
+          onLogout={handleLogout}
+          hidden={useBottomBar}
+        />
 
         <PortalMobileNav
           corretora={corretora}
