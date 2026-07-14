@@ -1278,9 +1278,28 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                           className="h-9 text-sm rounded-xl"
                         />
                       </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Frequência de atualização da base</Label>
+                        <Select
+                          value={String(creds.api_intervalo_horas ?? 24)}
+                          onValueChange={(v) => setCreds((p) => ({ ...p, api_intervalo_horas: Number(v) }))}
+                          disabled={!creds.usar_api}
+                        >
+                          <SelectTrigger className="h-9 text-sm rounded-xl">
+                            <SelectValue placeholder="24h (1x/dia)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">A cada 1h</SelectItem>
+                            <SelectItem value="3">A cada 3h</SelectItem>
+                            <SelectItem value="6">A cada 6h</SelectItem>
+                            <SelectItem value="12">A cada 12h</SelectItem>
+                            <SelectItem value="24">24h (1x/dia)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground">
-                      A importação via API roda diariamente nesse horário (Brasília) e é sempre a prioridade.
+                      A importação via API roda automaticamente respeitando a frequência escolhida (mínimo 1h, padrão 24h) e é sempre a prioridade.
                     </p>
                   </div>
 
