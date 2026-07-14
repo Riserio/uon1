@@ -8,7 +8,6 @@ import {
   TrendingUp,
   KanbanSquare,
   BarChart3,
-  Keyboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -67,12 +66,6 @@ const modules = [
     label: "Cobrança",
     icon: CreditCard,
     path: "/cobranca-insights",
-  },
-  {
-    id: "estudo-base",
-    label: "Estudo de Base",
-    icon: Database,
-    path: "/estudo-base-insights",
   },
   {
     id: "acompanhamento-eventos",
