@@ -3877,6 +3877,7 @@ export type Database = {
         Row: {
           api_base_url: string | null
           api_hora_agendada: string
+          api_intervalo_horas: number
           api_token: string | null
           ativo_cobranca: boolean | null
           ativo_eventos: boolean | null
@@ -3905,6 +3906,7 @@ export type Database = {
         Insert: {
           api_base_url?: string | null
           api_hora_agendada?: string
+          api_intervalo_horas?: number
           api_token?: string | null
           ativo_cobranca?: boolean | null
           ativo_eventos?: boolean | null
@@ -3933,6 +3935,7 @@ export type Database = {
         Update: {
           api_base_url?: string | null
           api_hora_agendada?: string
+          api_intervalo_horas?: number
           api_token?: string | null
           ativo_cobranca?: boolean | null
           ativo_eventos?: boolean | null
@@ -6218,6 +6221,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pid_placas_diario: {
+        Row: {
+          corretora_id: string
+          created_at: string
+          data: string
+          id: string
+          inadimplentes: number
+          placas_ativas: number
+          updated_at: string
+        }
+        Insert: {
+          corretora_id: string
+          created_at?: string
+          data: string
+          id?: string
+          inadimplentes?: number
+          placas_ativas?: number
+          updated_at?: string
+        }
+        Update: {
+          corretora_id?: string
+          created_at?: string
+          data?: string
+          id?: string
+          inadimplentes?: number
+          placas_ativas?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       platform_settings: {
         Row: {
