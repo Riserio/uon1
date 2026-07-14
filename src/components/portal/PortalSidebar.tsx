@@ -154,7 +154,7 @@ function PortalSettingsDialog({ open, onOpenChange, availableModules }: {
                       onCheckedChange={(checked) => handleModuleToggle(mod, !!checked)}
                       disabled={isVisible && !canDisable}
                     />
-                    <span className="text-sm flex-1">{MODULE_CONFIG[mod].label}</span>
+                    <span className="text-sm flex-1">{MODULE_CONFIG[mod]!.label}</span>
                   </label>
                 );
               })}
@@ -181,7 +181,10 @@ function SidebarContent({
   const carousel = usePortalCarouselOptional();
   const assocKey = corretora.slug || corretora.id;
 
-  const availableModules = (Object.keys(MODULE_CONFIG) as PortalModule[]).filter(m =>
+  // Object.keys(MODULE_CONFIG) já exclui "estudo-base" (fora do CONFIG),
+  // então castamos para o subconjunto válido — evita `possibly undefined`
+  // em toda a árvore da sidebar.
+  const availableModules = (Object.keys(MODULE_CONFIG) as Exclude<PortalModule, "estudo-base">[]).filter(m =>
     corretora.modulos_bi.includes(m)
   );
 
@@ -190,7 +193,7 @@ function SidebarContent({
     if (carousel) {
       carousel.goToModule(mod);
     } else {
-      navigate(`${MODULE_CONFIG[mod].path}?associacao=${assocKey}`);
+      navigate(`${MODULE_CONFIG[mod]!.path}?associacao=${assocKey}`);
     }
     onNavigate?.();
   };
@@ -314,7 +317,7 @@ function SidebarContent({
                         key={mod}
                         onClick={() => !carousel.config.enabled && carousel.goToModule(mod)}
                         disabled={carousel.config.enabled}
-                        title={MODULE_CONFIG[mod].label}
+                        title={MODULE_CONFIG[mod]!.label}
                         className={cn(
                           "h-1.5 rounded-full transition-all",
                           mod === currentModule ? "bg-primary w-4" : "bg-muted-foreground/30 w-1.5 hover:bg-muted-foreground/50",
@@ -388,7 +391,7 @@ export default function PortalSidebar(props: Props) {
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const availableModules = (Object.keys(MODULE_CONFIG) as PortalModule[]).filter(m =>
+  const availableModules = (Object.keys(MODULE_CONFIG) as Exclude<PortalModule, "estudo-base">[]).filter(m =>
     props.corretora.modulos_bi.includes(m)
   );
 
