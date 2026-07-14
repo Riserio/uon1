@@ -292,6 +292,15 @@ function formatPct(n: number) {
   return `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`;
 }
 
+/** Moeda compacta para KPIs quando o valor é muito grande (evita estourar o card). */
+function formatCurrencyCompact(v: number): string {
+  const abs = Math.abs(v || 0);
+  if (abs >= 1_000_000_000) return `R$ ${(v / 1_000_000_000).toFixed(2).replace(".", ",")} bi`;
+  if (abs >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(2).replace(".", ",")} mi`;
+  if (abs >= 100_000) return `R$ ${(v / 1_000).toFixed(1).replace(".", ",")} mil`;
+  return formatCurrency(v || 0);
+}
+
 function buildFaixasValorDinamicas(maxValue: number) {
   const step = 10000;
   const maxFaixa = Math.ceil(maxValue / step) * step;
@@ -851,13 +860,15 @@ export default function EstudoBaseDashboard({
           },
           {
             label: "Valor Protegido",
-            value: formatCurrency(totalValorProtegido),
+            value: formatCurrencyCompact(totalValorProtegido),
+            fullValue: formatCurrency(totalValorProtegido),
             icon: DollarSign,
             cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20",
           },
           {
             label: "Ticket Médio",
-            value: formatCurrency(ticketMedio),
+            value: formatCurrencyCompact(ticketMedio),
+            fullValue: formatCurrency(ticketMedio),
             icon: DollarSign,
             cls: "text-amber-600 bg-amber-500/5 border-amber-500/20",
           },
@@ -873,14 +884,19 @@ export default function EstudoBaseDashboard({
             icon: TrendingUp,
             cls: "text-rose-600 bg-rose-500/5 border-rose-500/20",
           },
-        ].map(({ label, value, icon: Icon, cls }) => (
-          <Card key={label} className={`rounded-2xl border ${cls}`}>
-            <CardContent className="p-4">
+        ].map(({ label, value, icon: Icon, cls, fullValue }: any) => (
+          <Card key={label} className={`rounded-2xl border min-w-0 ${cls}`}>
+            <CardContent className="p-4 min-w-0">
               <div className={`flex items-center gap-1.5 text-[11px] font-medium mb-1.5 ${cls.split(" ")[0]}`}>
-                <Icon className="h-3 w-3" />
-                {label}
+                <Icon className="h-3 w-3 shrink-0" />
+                <span className="truncate">{label}</span>
               </div>
-              <div className="text-xl font-bold tracking-tight">{value}</div>
+              <div
+                className="text-lg sm:text-xl font-bold tracking-tight truncate"
+                title={fullValue || value}
+              >
+                {value}
+              </div>
             </CardContent>
           </Card>
         ))}
