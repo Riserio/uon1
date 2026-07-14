@@ -188,19 +188,6 @@ function AssociacaoCard({ a, onOpen }: { a: AssociacaoStatus; onOpen: () => void
     { label: "Cobrança", status: a.cobranca_status, ultima: a.cobranca_ultima, erro: a.cobranca_erro, ativo: a.ativo_cobranca, origem: a.cobranca_origem },
     { label: "Eventos", status: a.eventos_status, ultima: a.eventos_ultima, erro: a.eventos_erro, ativo: a.ativo_eventos, origem: a.eventos_origem },
     { label: "MGF", status: a.mgf_status, ultima: a.mgf_ultima, erro: a.mgf_erro, ativo: a.ativo_mgf, origem: a.mgf_origem },
-    {
-      label: "Indicadores",
-      status: a.estudo_base_ativo ? "sucesso" : "erro",
-      ultima: a.estudo_base_ultima,
-      erro: a.estudo_base_ativo
-        ? null
-        : "Nenhum indicador compilado ainda para esta associação. Clique em \"Sincronizar\" para atualizar.",
-      // Sem credenciais Hinova cadastradas não há nada pra compilar — mesmo
-      // critério usado pelos outros módulos (evita mostrar "Erro" quando na
-      // verdade a associação simplesmente ainda não foi configurada).
-      ativo: a.tem_credenciais,
-      origem: null as string | null,
-    },
   ];
 
   return (
