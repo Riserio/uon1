@@ -4,18 +4,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import PIDDashboard from "@/components/portal/PIDDashboard";
-import PIDOperacional from "@/components/portal/PIDOperacional";
 import PIDHistorico from "@/components/portal/PIDHistorico";
-import PortalSinistros from "@/components/portal/PortalSinistros";
+import EstudoBaseConteudo from "@/components/estudo-base/EstudoBaseConteudo";
 import { GestaoAssociacaoKanban } from "@/components/gestao-associacao/GestaoAssociacaoKanban";
-import PortalComite from "@/components/portal/PortalComite";
 import PortalHeader from "@/components/portal/PortalHeader";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePortalLayoutOptional } from "@/contexts/PortalLayoutContext";
-import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare, KanbanSquare } from "lucide-react";
+import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare, KanbanSquare, Database } from "lucide-react";
 
 /**
  * PORTAL BI - Business Intelligence para Parceiros
@@ -281,11 +279,9 @@ export default function Portal() {
 
   // Tabs do BI Indicadores
   const tabs = [
-    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-    { id: "operacional", label: "Operacional", icon: Activity },
+    { id: "dashboard", label: "Visão Geral", icon: BarChart3 },
+    { id: "estudo-base", label: "Estudo de Base", icon: Database },
     { id: "historico", label: "Histórico", icon: Calendar },
-    { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
-    { id: "comite", label: "Comitê", icon: MessageSquare },
   ];
 
   // Lista de módulos disponíveis para o carrossel
@@ -316,10 +312,8 @@ export default function Portal() {
             </TabsList>
           </div>
           <TabsContent value="dashboard" className="space-y-4 mt-0"><PIDDashboard corretoraId={corretora.id} /></TabsContent>
-          <TabsContent value="operacional" className="space-y-4 mt-0"><PIDOperacional corretoraId={corretora.id} /></TabsContent>
+          <TabsContent value="estudo-base" className="space-y-4 mt-0"><EstudoBaseConteudo corretoraId={corretora.id} hideImport /></TabsContent>
           <TabsContent value="historico" className="space-y-4 mt-0"><PIDHistorico corretoraId={corretora.id} /></TabsContent>
-          <TabsContent value="sinistros" className="space-y-4 mt-0"><PortalSinistros corretoraId={corretora.id} /></TabsContent>
-          <TabsContent value="comite" className="space-y-4 mt-0"><PortalComite corretoraId={corretora.id} /></TabsContent>
         </Tabs>
       </div>
     );
@@ -357,10 +351,8 @@ export default function Portal() {
                 </TabsList>
               </div>
               <TabsContent value="dashboard" className="space-y-4 mt-0"><PIDDashboard corretoraId={corretora.id} /></TabsContent>
-              <TabsContent value="operacional" className="space-y-4 mt-0"><PIDOperacional corretoraId={corretora.id} /></TabsContent>
+              <TabsContent value="estudo-base" className="space-y-4 mt-0"><EstudoBaseConteudo corretoraId={corretora.id} hideImport /></TabsContent>
                   <TabsContent value="historico" className="space-y-4 mt-0"><PIDHistorico corretoraId={corretora.id} /></TabsContent>
-              <TabsContent value="sinistros" className="space-y-4 mt-0"><PortalSinistros corretoraId={corretora.id} /></TabsContent>
-              <TabsContent value="comite" className="space-y-4 mt-0"><PortalComite corretoraId={corretora.id} /></TabsContent>
             </Tabs>
           </div>
         </PortalPageWrapper>
