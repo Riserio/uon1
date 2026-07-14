@@ -19,7 +19,7 @@ const COOLDOWN_MS = 30_000;
 const ROTAS_IGNORADAS = ["/auth", "/reset-password", "/f/", "/vistoria/", "/contrato/", "/ouvidoria", "/reportar-problema", "/login"];
 
 /** Erros de infraestrutura/ruído que não devem gerar popup */
-const RUIDO_RE = /ResizeObserver|Loading chunk|dynamically imported module|Script error\.?$|Importing a module script failed|AbortError|NetworkError when attempting/i;
+const RUIDO_RE = /ResizeObserver|Loading chunk|dynamically imported module|Script error\.?$|Importing a module script failed|AbortError|NetworkError when attempting|Registration does not have an active worker|OneSignal|service ?worker|push subscription|Notification permission|The operation is insecure/i;
 
 /**
  * Popup global de relato de erro.
