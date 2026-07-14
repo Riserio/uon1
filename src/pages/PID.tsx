@@ -1,27 +1,23 @@
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import PIDDashboard from "@/components/portal/PIDDashboard";
-import PIDOperacional from "@/components/portal/PIDOperacional";
 import PIDHistorico from "@/components/portal/PIDHistorico";
 import PIDImportacao from "@/components/portal/PIDImportacao";
-import PortalSinistros from "@/components/portal/PortalSinistros";
-import PortalComite from "@/components/portal/PortalComite";
+import EstudoBaseConteudo from "@/components/estudo-base/EstudoBaseConteudo";
 import { GerenciarUsuariosCorretoraDialog } from "@/components/GerenciarUsuariosCorretoraDialog";
 import BIAdminDashboard from "@/components/bi/BIAdminDashboard";
 import { useBILayout } from "@/contexts/BILayoutContext";
 import { useState } from "react";
-import { Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity, Upload } from "lucide-react";
+import { Users, BarChart3, Calendar, Upload, Database } from "lucide-react";
 export default function PID() {
   const { associacoes, selectedAssociacao, isAdminView } = useBILayout();
   const [usuariosDialogOpen, setUsuariosDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const selectedAssociacaoData = associacoes.find((c) => c.id === selectedAssociacao);
   const tabs = [
-    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-    { id: "operacional", label: "Operacional", icon: Activity },
+    { id: "dashboard", label: "Visão Geral", icon: BarChart3 },
+    { id: "estudo-base", label: "Estudo de Base", icon: Database },
     { id: "historico", label: "Histórico", icon: Calendar },
     { id: "importacao", label: "Importação", icon: Upload },
-    { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
-    { id: "comite", label: "Comitê", icon: MessageSquare },
   ];
   return (
     <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -68,20 +64,17 @@ export default function PID() {
             <TabsContent value="dashboard" className="space-y-4 mt-0">
               <PIDDashboard corretoraId={selectedAssociacao} />
             </TabsContent>
-            <TabsContent value="operacional" className="space-y-4 mt-0">
-              <PIDOperacional corretoraId={selectedAssociacao} />
+            <TabsContent value="estudo-base" className="space-y-4 mt-0">
+              <EstudoBaseConteudo
+                corretoraId={selectedAssociacao}
+                corretoraNome={selectedAssociacaoData?.nome}
+              />
             </TabsContent>
             <TabsContent value="historico" className="space-y-4 mt-0">
               <PIDHistorico corretoraId={selectedAssociacao} />
             </TabsContent>
             <TabsContent value="importacao" className="space-y-4 mt-0">
-              <PIDImportacao corretoraId={selectedAssociacao} onImportSuccess={() => setActiveTab("operacional")} />
-            </TabsContent>
-            <TabsContent value="sinistros" className="space-y-4 mt-0">
-              <PortalSinistros corretoraId={selectedAssociacao} />
-            </TabsContent>
-            <TabsContent value="comite" className="space-y-4 mt-0">
-              <PortalComite corretoraId={selectedAssociacao} />
+              <PIDImportacao corretoraId={selectedAssociacao} onImportSuccess={() => setActiveTab("dashboard")} />
             </TabsContent>
           </Tabs>
         </>
