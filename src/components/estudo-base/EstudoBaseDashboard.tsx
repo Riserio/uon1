@@ -292,6 +292,15 @@ function formatPct(n: number) {
   return `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`;
 }
 
+/** Moeda compacta para KPIs quando o valor é muito grande (evita estourar o card). */
+function formatCurrencyCompact(v: number): string {
+  const abs = Math.abs(v || 0);
+  if (abs >= 1_000_000_000) return `R$ ${(v / 1_000_000_000).toFixed(2).replace(".", ",")} bi`;
+  if (abs >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(2).replace(".", ",")} mi`;
+  if (abs >= 100_000) return `R$ ${(v / 1_000).toFixed(1).replace(".", ",")} mil`;
+  return formatCurrency(v || 0);
+}
+
 function buildFaixasValorDinamicas(maxValue: number) {
   const step = 10000;
   const maxFaixa = Math.ceil(maxValue / step) * step;
