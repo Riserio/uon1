@@ -391,7 +391,7 @@ export default function PortalSidebar(props: Props) {
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const availableModules = (Object.keys(MODULE_CONFIG) as PortalModule[]).filter(m =>
+  const availableModules = (Object.keys(MODULE_CONFIG) as Exclude<PortalModule, "estudo-base">[]).filter(m =>
     props.corretora.modulos_bi.includes(m)
   );
 
