@@ -55,6 +55,7 @@ interface HinovaCredenciais {
   url_mgf: string;
   hora_agendada: string; // horário do robô GitHub (fallback)
   api_hora_agendada: string; // horário da importação via API (prioridade)
+  api_intervalo_horas: number; // intervalo em horas entre atualizações da base via API
   git_fallback_ativo: boolean; // se o robô GitHub roda como fallback da API
   dias_agendados: number[] | null;
   ativo_cobranca: boolean;
@@ -153,6 +154,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     url_mgf: "",
     hora_agendada: "10:00",
     api_hora_agendada: "09:00",
+    api_intervalo_horas: 24,
     git_fallback_ativo: true,
     dias_agendados: null,
     ativo_cobranca: false,
@@ -209,6 +211,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           url_mgf: data.url_mgf || "",
           hora_agendada: (data.hora_agendada || "10:00").slice(0, 5),
           api_hora_agendada: ((data as any).api_hora_agendada || "09:00").slice(0, 5),
+          api_intervalo_horas: (data as any).api_intervalo_horas ?? 24,
           git_fallback_ativo: (data as any).git_fallback_ativo ?? true,
           dias_agendados: data.dias_agendados || null,
           ativo_cobranca: data.ativo_cobranca || false,
@@ -416,6 +419,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         url_mgf: creds.url_mgf,
         hora_agendada: creds.hora_agendada,
         api_hora_agendada: creds.api_hora_agendada,
+        api_intervalo_horas: creds.api_intervalo_horas,
         git_fallback_ativo: creds.git_fallback_ativo,
         dias_agendados: creds.dias_agendados,
         ativo_cobranca: creds.ativo_cobranca,
