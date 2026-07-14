@@ -1091,49 +1091,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                 })
               )}
 
-              {/* Indicadores (Base de veículos) — recalcula a compilação a
-                  partir dos registros locais (estudo_base_registros) via RPC
-                  agregar_estudo_base. Não puxa valores prontos da API. Também
-                  roda no Executar Todos. */}
-              {(creds.hinova_user || creds.api_token) && (
-                <div className="rounded-2xl border bg-card overflow-hidden transition-all hover:shadow-sm">
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-                      <Wifi className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm">Indicadores (Base)</span>
-                        {baseExecuting ? (
-                          <span className="text-[9px] px-1.5 py-0 rounded-full font-medium bg-primary/10 text-primary">
-                            calculando...
-                          </span>
-                        ) : (
-                          <span className="text-[9px] px-1.5 py-0 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                            recalcula da base
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {baseLastImport
-                          ? `Última: ${format(new Date(baseLastImport), "dd/MM HH:mm", { locale: ptBR })}${baseTotal ? ` · ${baseTotal.toLocaleString("pt-BR")} veículos` : ""}`
-                          : "Nunca importada"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleExecuteBase()}
-                        disabled={baseExecuting || executingModule !== null}
-                        className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary"
-                      >
-                        {baseExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
+
             </div>
           )}
 
