@@ -51,7 +51,8 @@ export default function PortalMobileNav({
     if (carousel) {
       carousel.goToModule(mod);
     } else {
-      navigate(`${MODULE_CONFIG[mod].path}?associacao=${assocKey}`);
+      const cfg = MODULE_CONFIG[mod];
+      if (cfg) navigate(`${cfg.path}?associacao=${assocKey}`);
     }
   };
 
@@ -79,6 +80,7 @@ export default function PortalMobileNav({
       >
         {favoritos.map((mod) => {
           const cfg = MODULE_CONFIG[mod];
+          if (!cfg) return null;
           const Icon = cfg.icon;
           const isActive = mod === currentModule;
           return (
