@@ -55,7 +55,7 @@ export default function PortalLogin() {
           toast.info("Digite o código do Google Authenticator");
         }
       } else if (data.token) {
-        login(data.token, data.corretora);
+        login(data.token, data.corretora, { userId: data.userId, menu_position: data.menu_position });
         toast.success("Login realizado com sucesso");
         navigate(`/${slug}/dashboard`);
       }

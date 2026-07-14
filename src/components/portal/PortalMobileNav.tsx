@@ -22,6 +22,7 @@ type Props = {
   showChangeButton?: boolean;
   onChangeCorretora?: () => void;
   onLogout: () => void;
+  force?: boolean;
 };
 
 // Barra flutuante estilo Instagram, só no mobile: mostra os 4 favoritos do
@@ -35,6 +36,7 @@ export default function PortalMobileNav({
   showChangeButton,
   onChangeCorretora,
   onLogout,
+  force = false,
 }: Props) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -43,7 +45,7 @@ export default function PortalMobileNav({
   const { favoritos, toggleFavorito, maxFavoritos } = usePortalFavoritos(corretora.id, availableModules);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  if (!isMobile) return null;
+  if (!isMobile && !force) return null;
 
   const handleNav = (mod: PortalModule) => {
     if (carousel) {

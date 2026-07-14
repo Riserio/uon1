@@ -13,6 +13,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePortalCarouselOptional } from "@/contexts/PortalCarouselContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
 import { MODULE_CONFIG, PortalModule } from "@/lib/portalModules";
+import { usePortalLayout } from "@/contexts/PortalLayoutContext";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ type Props = {
   showChangeButton?: boolean;
   onChangeCorretora?: () => void;
   onLogout: () => void;
+  hidden?: boolean;
 };
 
 // Diálogo de configurações do carrossel de apresentação — só usado no
@@ -48,6 +50,7 @@ function PortalSettingsDialog({ open, onOpenChange, availableModules }: {
   availableModules: PortalModule[];
 }) {
   const carousel = usePortalCarouselOptional();
+  const { menuPosition, setMenuPosition } = usePortalLayout();
   if (!carousel) return null;
 
   const { config, setEnabled, setInterval, setVisibleModules } = carousel;
@@ -73,6 +76,37 @@ function PortalSettingsDialog({ open, onOpenChange, availableModules }: {
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-6 pt-2">
+          {/* Posição do menu */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Posição do menu</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setMenuPosition('inferior')}
+                className={cn(
+                  "rounded-xl border px-3 py-2 text-sm transition-colors",
+                  menuPosition === 'inferior'
+                    ? "border-primary bg-primary/10 text-primary font-medium"
+                    : "border-border hover:bg-muted"
+                )}
+              >
+                Inferior (padrão)
+              </button>
+              <button
+                type="button"
+                onClick={() => setMenuPosition('vertical')}
+                className={cn(
+                  "rounded-xl border px-3 py-2 text-sm transition-colors",
+                  menuPosition === 'vertical'
+                    ? "border-primary bg-primary/10 text-primary font-medium"
+                    : "border-border hover:bg-muted"
+                )}
+              >
+                Vertical
+              </button>
+            </div>
+          </div>
+
           {/* Carousel section */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -384,18 +418,20 @@ export default function PortalSidebar(props: Props) {
   useEffect(() => {
     const el = document.getElementById("portal-main-content");
     if (!el) return;
-    if (isMobile) {
+    if (isMobile || props.hidden) {
       el.style.marginLeft = "0";
-      el.style.paddingTop = "calc(2.75rem + env(safe-area-inset-top))";
-      el.style.paddingBottom = "5.75rem";
+      if (isMobile || props.hidden) {
+        el.style.paddingTop = "calc(2.75rem + env(safe-area-inset-top))";
+        el.style.paddingBottom = "5.75rem";
+      }
     } else {
       el.style.marginLeft = expanded ? "15.5rem" : "4rem";
       el.style.paddingTop = "0";
       el.style.paddingBottom = "0";
     }
-  }, [expanded, isMobile]);
+  }, [expanded, isMobile, props.hidden]);
 
-  if (isMobile) {
+  if (isMobile || props.hidden) {
     return null;
   }
 

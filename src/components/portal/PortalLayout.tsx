@@ -32,6 +32,7 @@ export default function PortalLayout() {
     loading,
     notLinked,
     showSelection,
+    menuPosition,
     handleSelectCorretora,
     handleChangeCorretora,
     handleLogout,
@@ -140,6 +141,12 @@ export default function PortalLayout() {
     ...(corretora.modulos_bi.includes('ouvidoria') ? ['ouvidoria'] as const : []),
   ];
 
+  // Modo "inferior" (padrão): SEMPRE mostra a barra flutuante inferior +
+  // header do topo, tanto no mobile quanto no desktop. A sidebar vertical
+  // fica escondida. Modo "vertical": comportamento anterior (sidebar no
+  // desktop, barra inferior no mobile).
+  const useBottomBar = menuPosition === 'inferior' || isMobile;
+
   return (
     <PortalCarouselProvider
       corretoraId={corretora.id}
@@ -148,7 +155,7 @@ export default function PortalLayout() {
       currentModule={currentModule}
     >
       <div className="portal-theme min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
-        <PortalMobileHeader corretora={corretora} />
+        <PortalMobileHeader corretora={corretora} force={useBottomBar} />
 
         <PortalSidebar
           corretora={corretora}
@@ -156,6 +163,7 @@ export default function PortalLayout() {
           showChangeButton={corretorasDisponiveis.length > 1}
           onChangeCorretora={handleChangeCorretora}
           onLogout={handleLogout}
+          hidden={useBottomBar}
         />
 
         <PortalMobileNav
@@ -165,6 +173,7 @@ export default function PortalLayout() {
           showChangeButton={corretorasDisponiveis.length > 1}
           onChangeCorretora={handleChangeCorretora}
           onLogout={handleLogout}
+          force={useBottomBar}
         />
 
         {/* Mobile: precisamos reservar tanto o topo (PortalMobileHeader
@@ -176,9 +185,13 @@ export default function PortalLayout() {
             desktop a navegação é a sidebar lateral, então não precisa. */}
         <div
           id="portal-main-content"
-          className="transition-all duration-300 ease-in-out pb-28 md:pb-0"
+          className={
+            useBottomBar
+              ? "transition-all duration-300 ease-in-out pb-28"
+              : "transition-all duration-300 ease-in-out pb-28 md:pb-0"
+          }
           style={
-            isMobile
+            useBottomBar
               ? { paddingTop: "calc(2.75rem + env(safe-area-inset-top))" }
               : undefined
           }
