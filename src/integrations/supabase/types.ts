@@ -6219,6 +6219,36 @@ export type Database = {
           },
         ]
       }
+      pid_placas_diario: {
+        Row: {
+          corretora_id: string
+          created_at: string
+          data: string
+          id: string
+          inadimplentes: number
+          placas_ativas: number
+          updated_at: string
+        }
+        Insert: {
+          corretora_id: string
+          created_at?: string
+          data: string
+          id?: string
+          inadimplentes?: number
+          placas_ativas?: number
+          updated_at?: string
+        }
+        Update: {
+          corretora_id?: string
+          created_at?: string
+          data?: string
+          id?: string
+          inadimplentes?: number
+          placas_ativas?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           app_icon_192_url: string | null
