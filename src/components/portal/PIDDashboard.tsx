@@ -1089,7 +1089,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       ) : (
         <>
           {/* ============ KPIs (sempre visíveis) ============ */}
-          <div className="grid gap-2.5 sm:gap-3 grid-cols-2 md:grid-cols-4 2xl:grid-cols-8">
+          <div className="grid gap-2.5 sm:gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4 2xl:grid-cols-8">
             <KpiCard
               icon={<Car className="h-5 w-5 text-blue-500" />}
               accent="blue"
@@ -1229,8 +1229,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 escondido atrás do seletor), linha 2 = seletor. No desktop
                 fica lado a lado como antes. */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div className="-mx-1 overflow-x-auto scrollbar-none">
-                <TabsList className="inline-flex h-auto w-max min-w-full md:min-w-0 gap-1 rounded-full bg-muted/60 p-1 mx-1">
+              <div className="w-full md:w-auto">
+                <TabsList className="grid grid-cols-2 gap-1 h-auto w-full rounded-2xl bg-muted/60 p-1 md:inline-flex md:w-max md:rounded-full">
                   {[
                     { value: "visao-geral", icon: LayoutDashboard, label: "Visão Geral" },
                     { value: "base", icon: Users, label: "Base de Associados" },
@@ -1240,7 +1240,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     <TabsTrigger
                       key={value}
                       value={value}
-                      className="gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all"
+                      className="gap-1.5 rounded-xl md:rounded-full px-3 py-2 text-xs font-medium whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all"
                     >
                       <Icon className="h-3.5 w-3.5" />
                       {label}
