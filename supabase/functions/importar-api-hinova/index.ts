@@ -668,6 +668,7 @@ serve(async (req) => {
       const PAGE = 1000;
       let inicioPag = 0,
         paginas = 0;
+      let _mgfDebug = "";
       while (paginas < 100) {
         paginas++;
         const r = await fetch(`${base}/mgf-lancamento/listar`, {
@@ -680,8 +681,26 @@ serve(async (req) => {
             inicio_paginacao: inicioPag,
           }),
         });
-        const j = await r.json().catch(() => null);
-        const lancs = Array.isArray(j?.retorno) ? j.retorno : [];
+        const _mgfRaw = await r.text().catch(() => "");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let j: any = null;
+        try { j = _mgfRaw ? JSON.parse(_mgfRaw) : null; } catch { j = null; }
+        // Contrato Hinova mudou (~10/07): leitura flexivel da lista de lancamentos.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const _extrairMgf = (o: any): any[] => {
+          if (Array.isArray(o)) return o;
+          if (o && typeof o === "object") {
+            for (const k of ["retorno", "lancamentos", "dados", "data", "registros", "resultado", "lista", "mgf"]) {
+              if (Array.isArray(o[k])) return o[k];
+            }
+          }
+          return [];
+        };
+        const lancs = _extrairMgf(j);
+        if (paginas === 1 && lancs.length === 0) {
+          _mgfDebug = `HTTP ${r.status} chaves=${j && typeof j === "object" ? Object.keys(j).join("|") : String(j).slice(0, 20)} body=${_mgfRaw.slice(0, 300)}`;
+          console.log("[MGF] 1a pagina sem array ->", _mgfDebug);
+        }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const L of lancs as any[]) {
           const parcelas = Array.isArray(L.parcelas) ? L.parcelas : [L];
@@ -752,11 +771,12 @@ serve(async (req) => {
         .update({ total_registros: totalM ?? mergeResM.totalProcessado })
         .eq("id", impMId);
 
+      const _mgfSemDados = rows.length === 0 && !!_mgfDebug;
       await supabase
         .from("mgf_automacao_config")
         .update({
-          ultimo_status: "sucesso",
-          ultimo_erro: null,
+          ultimo_status: _mgfSemDados ? "erro" : "sucesso",
+          ultimo_erro: _mgfSemDados ? `API MGF sem array valido na 1a pagina. ${_mgfDebug}` : null,
           ultima_execucao: new Date().toISOString(),
           ultima_origem: "api",
         })
