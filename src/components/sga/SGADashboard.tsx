@@ -232,7 +232,7 @@ export default function SGADashboard({
   return (
     <div className="space-y-3 max-w-full overflow-x-hidden">
       {/* KPI Cards */}
-      <div className="grid gap-2.5 sm:gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-2.5 sm:gap-3 grid-cols-2 md:grid-cols-4">
         {[
           { label: "Custo Total", value: formatCompactCurrency(stats.totalCusto), icon: DollarSign, cls: "text-primary bg-primary/5 border-primary/20" },
           { label: "Total Reparo", value: formatCompactCurrency(stats.totalReparo), icon: Car, cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
