@@ -2264,6 +2264,7 @@ export type Database = {
           created_at: string | null
           email: string
           id: string
+          menu_position: string
           modulos_bi: string[] | null
           ouvidoria_pode_editar: boolean | null
           profile_id: string | null
@@ -2281,6 +2282,7 @@ export type Database = {
           created_at?: string | null
           email: string
           id?: string
+          menu_position?: string
           modulos_bi?: string[] | null
           ouvidoria_pode_editar?: boolean | null
           profile_id?: string | null
@@ -2298,6 +2300,7 @@ export type Database = {
           created_at?: string | null
           email?: string
           id?: string
+          menu_position?: string
           modulos_bi?: string[] | null
           ouvidoria_pode_editar?: boolean | null
           profile_id?: string | null
@@ -9865,6 +9868,10 @@ export type Database = {
       reset_email_rate_limits: { Args: never; Returns: undefined }
       set_detran_mg_senha: {
         Args: { p_corretora_id: string; p_senha: string }
+        Returns: undefined
+      }
+      set_user_menu_position: {
+        Args: { new_position: string }
         Returns: undefined
       }
       sga_proxima_data_inicio: {
