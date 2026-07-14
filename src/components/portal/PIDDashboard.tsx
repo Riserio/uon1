@@ -1223,39 +1223,45 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
           {/* ============ Abas por tema ============ */}
           <Tabs defaultValue="visao-geral" className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-            <TabsList className="grid grid-cols-2 md:grid-cols-4 md:w-auto rounded-full bg-muted/50 p-1">
-              <TabsTrigger value="visao-geral" className="gap-1.5">
-                <LayoutDashboard className="h-4 w-4" />
-                Visão Geral
-              </TabsTrigger>
-              <TabsTrigger value="base" className="gap-1.5">
-                <Users className="h-4 w-4" />
-                Base de Associados
-              </TabsTrigger>
-              <TabsTrigger value="financeiro" className="gap-1.5">
-                <CreditCard className="h-4 w-4" />
-                Financeiro
-              </TabsTrigger>
-              <TabsTrigger value="permanencia" className="gap-1.5">
-                <Activity className="h-4 w-4" />
-                Permanência
-              </TabsTrigger>
-            </TabsList>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-medium text-muted-foreground">Gráficos</span>
-              <Select value={String(chartRange)} onValueChange={(v) => setChartRange(Number(v))}>
-                <SelectTrigger className="h-8 w-[168px] rounded-full text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="6">Últimos 6 meses</SelectItem>
-                  <SelectItem value="12">Últimos 12 meses</SelectItem>
-                  <SelectItem value="24">Últimos 24 meses</SelectItem>
-                  <SelectItem value="999">Todo o período</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Barra de navegação das abas + range de gráficos.
+                No mobile empilha: linha 1 = pills roláveis horizontalmente
+                (sem overflow, sem quebra em duas linhas com "Financeiro"
+                escondido atrás do seletor), linha 2 = seletor. No desktop
+                fica lado a lado como antes. */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="-mx-1 overflow-x-auto scrollbar-none">
+                <TabsList className="inline-flex h-auto w-max min-w-full md:min-w-0 gap-1 rounded-full bg-muted/60 p-1 mx-1">
+                  {[
+                    { value: "visao-geral", icon: LayoutDashboard, label: "Visão Geral" },
+                    { value: "base", icon: Users, label: "Base de Associados" },
+                    { value: "financeiro", icon: CreditCard, label: "Financeiro" },
+                    { value: "permanencia", icon: Activity, label: "Permanência" },
+                  ].map(({ value, icon: Icon, label }) => (
+                    <TabsTrigger
+                      key={value}
+                      value={value}
+                      className="gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all"
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
+                <span className="text-xs font-medium text-muted-foreground">Gráficos</span>
+                <Select value={String(chartRange)} onValueChange={(v) => setChartRange(Number(v))}>
+                  <SelectTrigger className="h-8 w-[168px] rounded-full text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="6">Últimos 6 meses</SelectItem>
+                    <SelectItem value="12">Últimos 12 meses</SelectItem>
+                    <SelectItem value="24">Últimos 24 meses</SelectItem>
+                    <SelectItem value="999">Todo o período</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* ---------- VISÃO GERAL: só o essencial ---------- */}
