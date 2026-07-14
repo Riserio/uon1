@@ -609,7 +609,7 @@ export default function SGAInsights() {
       {dashboardStats && dashboardStats.totalEventos > 0 && (
         <div className="container mx-auto px-4 pt-4">
           <div
-            className={`grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 ${filters.status === "em_andamento" ? "" : "md:grid-cols-4"}`}
+            className={`grid grid-cols-2 gap-2.5 sm:gap-3 ${filters.status === "em_andamento" ? "" : "md:grid-cols-4"}`}
           >
             {/* Card Total Eventos - oculto quando o filtro é "Eventos em andamento" */}
             {filters.status !== "em_andamento" && (
