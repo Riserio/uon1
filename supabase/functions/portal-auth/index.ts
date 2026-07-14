@@ -269,6 +269,71 @@ serve(async (req) => {
       );
     }
 
+    if (action === "preferencia-menu") {
+      const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
+      const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+      if (!token) {
+        return new Response(JSON.stringify({ error: "Token ausente" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        });
+      }
+
+      const jwtSecret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(jwtSecret);
+      const key = await crypto.subtle.importKey(
+        "raw",
+        keyData,
+        { name: "HMAC", hash: "SHA-512" },
+        false,
+        ["sign", "verify"]
+      );
+
+      let payload: any;
+      try {
+        payload = await verify(token, key);
+      } catch (_e) {
+        return new Response(JSON.stringify({ error: "Token inválido" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        });
+      }
+
+      const userId = payload?.userId;
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "Token sem usuário" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        });
+      }
+
+      const { menu_position } = await req.json();
+      if (menu_position !== "inferior" && menu_position !== "vertical") {
+        return new Response(JSON.stringify({ error: "menu_position inválido" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
+      }
+
+      const { error: updateError } = await supabaseClient
+        .from("corretora_usuarios")
+        .update({ menu_position })
+        .eq("id", userId);
+
+      if (updateError) {
+        return new Response(JSON.stringify({ error: updateError.message }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500,
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, menu_position }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Ação não encontrada" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 404,
