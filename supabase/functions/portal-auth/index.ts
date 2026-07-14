@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { compareSync } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { create } from "https://deno.land/x/djwt@v3.0.1/mod.ts";
+import { verify } from "https://deno.land/x/djwt@v3.0.1/mod.ts";
 
 function base32Decode(secret: string): Uint8Array {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -212,6 +213,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           token: jwt,
+          userId: usuario.id,
+          menu_position: usuario.menu_position ?? 'inferior',
           corretora: {
             id: corretora.id,
             nome: corretora.nome,
