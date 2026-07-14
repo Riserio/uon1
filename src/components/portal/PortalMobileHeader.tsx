@@ -15,9 +15,9 @@ type Corretora = {
 //
 // Altura reduzida (2.75rem, padrão de toolbar fina tipo iOS) — estava em
 // 3.5rem e ficou "gordinha" tomando espaço demais da tela no mobile.
-export default function PortalMobileHeader({ corretora }: { corretora: Corretora }) {
+export default function PortalMobileHeader({ corretora, force = false }: { corretora: Corretora; force?: boolean }) {
   const isMobile = useIsMobile();
-  if (!isMobile) return null;
+  if (!isMobile && !force) return null;
 
   const logo = corretora.logo_expanded_url || corretora.logo_url || corretora.logo_collapsed_url;
 
