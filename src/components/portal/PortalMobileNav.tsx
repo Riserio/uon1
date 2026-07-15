@@ -26,9 +26,10 @@ type Props = {
 };
 
 // Barra flutuante estilo Instagram, responsiva: compacta e centralizada no
-// mobile, mais larga e distribuída no desktop. Mostra os 4 favoritos do
-// usuário + um botão de Configurações (que abre o seletor de favoritos, o
-// botão de instalar como PWA, trocar associação e sair).
+// mobile (4 favoritos + Ajustes), mais larga e distribuída no desktop, onde
+// por padrão exibe TODOS os módulos disponíveis — mas segue editável (o
+// usuário pode ocultar alguns pelo botão de Configurações). As duas listas
+// são independentes (chaves distintas no localStorage).
 export default function PortalMobileNav({
   corretora,
   currentModule,
@@ -42,7 +43,16 @@ export default function PortalMobileNav({
   const navigate = useNavigate();
   const carousel = usePortalCarouselOptional();
   const assocKey = corretora.slug || corretora.id;
-  const { favoritos, toggleFavorito, maxFavoritos } = usePortalFavoritos(corretora.id, availableModules);
+  // Mobile: 4 favoritos (default = primeiros 4). Desktop: todos os módulos
+  // por padrão, editável, sem limite. Os dois hooks rodam sempre (nada de
+  // hook condicional); só a lista usada muda conforme o tamanho de tela.
+  const mobileFav = usePortalFavoritos(corretora.id, availableModules);
+  const desktopNav = usePortalFavoritos(corretora.id, availableModules, {
+    storageKeyPrefix: "portal-nav-desktop",
+    maxFavoritos: availableModules.length || 1,
+    defaultAll: true,
+  });
+  const { favoritos, toggleFavorito, maxFavoritos } = isMobile ? mobileFav : desktopNav;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   if (!isMobile && !force) return null;
@@ -71,7 +81,7 @@ export default function PortalMobileNav({
           atrás durante o scroll ficava visível por trás da pill, dando a
           impressão de uma segunda barra colada/vazamento. */}
       <nav
-        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border shadow-2xl px-2 md:px-4 lg:px-6 flex items-center justify-center md:justify-between gap-0.5 md:gap-2 lg:gap-4 w-fit max-w-[calc(100vw-1.5rem)] md:w-full md:max-w-3xl pointer-events-auto"
+        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border shadow-2xl px-2 md:px-4 lg:px-6 flex items-center justify-center md:justify-between gap-0.5 md:gap-2 lg:gap-4 w-fit max-w-[calc(100vw-1.5rem)] md:w-full md:max-w-4xl lg:max-w-5xl pointer-events-auto"
         style={{ paddingTop: "0.4rem", paddingBottom: "max(0.4rem, env(safe-area-inset-bottom))" }}
       >
         {favoritos.map((mod) => {
