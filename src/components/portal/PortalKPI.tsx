@@ -139,7 +139,8 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
       {/* Header e filtros */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Painel Financeiro da Corretora</h2>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-accent-brand mb-1">Financeiro</p>
+          <h2 className="text-2xl font-semibold tracking-tight">Painel Financeiro da Corretora</h2>
           <p className="text-sm text-muted-foreground">
             Visão consolidada de faturamento, comissões e repasses do período.
           </p>
@@ -198,7 +199,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(kpis.faturamento)}</div>
+                <div className="text-lg sm:text-2xl font-serif font-semibold tabular-nums truncate">{formatCurrency(kpis.faturamento)}</div>
                 <p className="text-xs text-muted-foreground">Prêmio total do período</p>
               </CardContent>
             </Card>
@@ -209,7 +210,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(kpis.comissoes)}</div>
+                <div className="text-lg sm:text-2xl font-serif font-semibold tabular-nums truncate">{formatCurrency(kpis.comissoes)}</div>
                 <p className="text-xs text-muted-foreground">Total de comissões do período</p>
               </CardContent>
             </Card>
@@ -220,7 +221,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(kpis.repassePrevisto)}</div>
+                <div className="text-lg sm:text-2xl font-serif font-semibold tabular-nums truncate">{formatCurrency(kpis.repassePrevisto)}</div>
                 <p className="text-xs text-muted-foreground">A receber no período</p>
               </CardContent>
             </Card>
@@ -231,7 +232,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(kpis.repassePago)}</div>
+                <div className="text-lg sm:text-2xl font-serif font-semibold tabular-nums truncate">{formatCurrency(kpis.repassePago)}</div>
                 <p className="text-xs text-muted-foreground">Pendente: {formatCurrency(kpis.repassePendente)}</p>
               </CardContent>
             </Card>

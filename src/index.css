@@ -36,6 +36,11 @@ All colors MUST be HSL.
     --input: 220 13% 91%;
     --ring: 247 51% 35%;
 
+    /* Laranja da marca — acento editorial (CTAs/destaques). O roxo segue
+       como --primary; este é o único token de cor novo do estilo editorial. */
+    --accent-brand: 24 88% 52%;
+    --accent-brand-foreground: 0 0% 100%;
+
     --radius: 1.5rem;
 
     /* Status colors - tons profissionais e distintos */
@@ -116,6 +121,8 @@ All colors MUST be HSL.
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+    --accent-brand: 24 88% 52%;
+    --accent-brand-foreground: 0 0% 100%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -135,6 +142,18 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Estilo editorial do Portal do Parceiro: títulos serifados (Georgia).
+     O container do /portal tem a classe .portal-theme e o CardTitle do
+     shadcn renderiza como <h3>, então esta regra cobre títulos de seção
+     e de card de uma vez, sem tocar no corpo (que segue em sans). */
+  .portal-theme h1,
+  .portal-theme h2,
+  .portal-theme h3 {
+    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    font-weight: 600;
+    letter-spacing: normal;
   }
 }
 
