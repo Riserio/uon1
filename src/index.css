@@ -144,17 +144,6 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 
-  /* Estilo editorial do Portal do Parceiro: títulos serifados (Georgia).
-     O container do /portal tem a classe .portal-theme e o CardTitle do
-     shadcn renderiza como <h3>, então esta regra cobre títulos de seção
-     e de card de uma vez, sem tocar no corpo (que segue em sans). */
-  .portal-theme h1,
-  .portal-theme h2,
-  .portal-theme h3 {
-    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-    font-weight: 600;
-    letter-spacing: normal;
-  }
 
   /* Botões editoriais só no /portal: cantos mais arredondados e texto
      semibold. Só afeta os Button do shadcn (marcados com data-ui-button),

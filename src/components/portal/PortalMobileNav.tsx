@@ -82,7 +82,7 @@ export default function PortalMobileNav({
           impressão de uma segunda barra colada/vazamento. */}
       <nav
         className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border shadow-2xl px-2 md:px-4 lg:px-6 flex items-center justify-center md:justify-between gap-0.5 md:gap-2 lg:gap-4 w-fit max-w-[calc(100vw-1.5rem)] md:w-full md:max-w-4xl lg:max-w-5xl pointer-events-auto"
-        style={{ paddingTop: "0.4rem", paddingBottom: "max(0.4rem, env(safe-area-inset-bottom))" }}
+        style={{ paddingTop: "0.25rem", paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
       >
         {favoritos.map((mod) => {
           const cfg = MODULE_CONFIG[mod];
@@ -94,7 +94,7 @@ export default function PortalMobileNav({
               key={mod}
               onClick={() => handleNav(mod)}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1.5 rounded-full transition-colors",
+                "flex flex-col items-center justify-center gap-0.5 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1 landscape:py-0.5 rounded-full transition-colors",
                 isActive ? "text-accent-brand" : "text-muted-foreground"
               )}
             >
@@ -108,7 +108,7 @@ export default function PortalMobileNav({
 
         <button
           onClick={() => setSettingsOpen(true)}
-          className="flex flex-col items-center justify-center gap-0.5 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1.5 rounded-full text-muted-foreground"
+          className="flex flex-col items-center justify-center gap-0.5 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1 landscape:py-0.5 rounded-full text-muted-foreground"
         >
           <Settings className="h-5 w-5" />
           <span className="text-[9px] md:text-[11px] font-medium leading-none">Ajustes</span>
