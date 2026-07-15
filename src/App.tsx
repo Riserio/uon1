@@ -76,6 +76,7 @@ const Uon1Sign = lazy(() => import("./pages/Uon1Sign"));
 const ContratoAssinatura = lazy(() => import("./pages/ContratoAssinatura"));
 const CentralAtendimento = lazy(() => import("./pages/CentralAtendimento"));
 const Biblioteca = lazy(() => import("./pages/Biblioteca"));
+const EstudoRegulatorio = lazy(() => import("./pages/EstudoRegulatorio"));
 const WhatsAppFlows = lazy(() => import("./pages/WhatsAppFlows"));
 const VideoRooms = lazy(() => import("./pages/VideoRooms"));
 const MeetingRoom = lazy(() => import("./pages/MeetingRoom"));
@@ -259,7 +260,7 @@ const App = () => (
               <Route path="/embed/ouvidoria/:slug" element={<OuvidoriaEmbed />} />
               <Route path="/gestao-cobranca" element={<GestaoCobranca />} />
               <Route path="/f/:slug" element={<FormularioPublico />} />
-              <Route path="/biblioteca" element={<Biblioteca />} />
+              <Route path="/biblioteca/estudoregulatorio" element={<EstudoRegulatorio />} />
               <Route path="/" element={<DomainBasedRoute />} />
 
               {/* All protected routes share sidebar via AppLayout */}
@@ -312,6 +313,7 @@ const App = () => (
                 <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
                 <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
                 <Route path="/ouvidoria-backoffice" element={<ProtectedRoute><OuvidoriaBackoffice /></ProtectedRoute>} />
+                <Route path="/biblioteca" element={<ProtectedRoute><Biblioteca /></ProtectedRoute>} />
                 <Route path="/ajuda" element={<ProtectedRoute><Treinamento /></ProtectedRoute>} />
                 <Route path="/debitos-veiculares" element={<ProtectedRoute><DebitosVeiculares /></ProtectedRoute>} />
                 <Route path="/formularios" element={<ProtectedRoute><Formularios /></ProtectedRoute>} />
