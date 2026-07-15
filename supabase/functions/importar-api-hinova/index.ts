@@ -460,6 +460,7 @@ serve(async (req) => {
           cota: g(v, "cota") as string | null,
           categoria: g(v, "categoria") as string | null,
           cor: g(v, "cor") as string | null,
+          data_contrato: dateISO(g(v, "data_contrato", "data_adesao", "data_cadastro")),
           valor_protegido: num(g(v, "valor_protegido", "valor_fipe_protegido")),
           valor_fipe: num(g(v, "valor_fipe", "valor_protegido")),
           cooperativa: g(v, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome", "cooperativa_descricao") as string | null,

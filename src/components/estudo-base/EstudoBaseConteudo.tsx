@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, Upload, Database, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import EstudoBaseDashboard, { type EstudoBaseFilters, EstudoBaseFilterBar } from "@/components/estudo-base/EstudoBaseDashboard";
 import EstudoBaseImportacao from "@/components/estudo-base/EstudoBaseImportacao";
@@ -169,11 +170,26 @@ export default function EstudoBaseConteudo({
             const totalPages = Math.ceil(registros.length / tabelaPerPage);
             const startIdx = (tabelaPage - 1) * tabelaPerPage;
             const pageRecords = registros.slice(startIdx, startIdx + tabelaPerPage);
+            const fmtFipe = (r: any) =>
+              r.valor_fipe
+                ? `R$ ${Number(r.valor_fipe).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                : r.valor_protegido
+                ? `R$ ${Number(r.valor_protegido).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                : "—";
+            const dash = (v: any) => (v === null || v === undefined || v === "" ? "—" : v);
+            const isAtivo = (sit?: string | null) => (sit || "").toUpperCase().includes("ATIV");
             return (
-              <>
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Itens por página:</span>
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between space-y-0">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Database className="h-5 w-5 text-primary" />
+                    Dados Completos
+                    <span className="text-sm font-normal text-muted-foreground">
+                      ({registros.length.toLocaleString("pt-BR")} registros)
+                    </span>
+                  </CardTitle>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-muted-foreground">Por página:</span>
                     <Select value={tabelaPerPage.toString()} onValueChange={(v) => { setTabelaPerPage(Number(v)); setTabelaPage(1); }}>
                       <SelectTrigger className="w-20 h-8"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -183,58 +199,61 @@ export default function EstudoBaseConteudo({
                         <SelectItem value="200">200</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      {startIdx + 1}–{Math.min(startIdx + tabelaPerPage, registros.length)} de {registros.length.toLocaleString("pt-BR")}
+                    <span className="text-xs text-muted-foreground tabular-nums px-1">
+                      {registros.length === 0 ? 0 : startIdx + 1}–{Math.min(startIdx + tabelaPerPage, registros.length)} de {registros.length.toLocaleString("pt-BR")}
                     </span>
-                    <Button variant="outline" size="sm" onClick={() => setTabelaPage((p) => Math.max(1, p - 1))} disabled={tabelaPage === 1}>
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setTabelaPage((p) => Math.max(1, p - 1))} disabled={tabelaPage === 1}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <span className="text-sm font-medium px-2">Pág. {tabelaPage} / {totalPages}</span>
-                    <Button variant="outline" size="sm" onClick={() => setTabelaPage((p) => Math.min(totalPages, p + 1))} disabled={tabelaPage === totalPages || totalPages === 0}>
+                    <span className="text-xs font-medium px-1 tabular-nums">{tabelaPage}/{totalPages || 1}</span>
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setTabelaPage((p) => Math.min(totalPages, p + 1))} disabled={tabelaPage === totalPages || totalPages === 0}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs border">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        {["Placa", "Tipo", "Montadora", "Modelo", "Categoria", "Ano", "Situação", "Valor FIPE", "Cooperativa", "Cidade", "Estado", "Sexo", "Idade", "Data Contrato"].map((h) => (
-                          <th key={h} className="text-left py-2 px-2 font-medium whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pageRecords.map((r, i) => (
-                        <tr key={r.id || i} className="border-b hover:bg-muted/30">
-                          <td className="py-1.5 px-2">{r.placa}</td>
-                          <td className="py-1.5 px-2">{r.tipo_veiculo}</td>
-                          <td className="py-1.5 px-2">{r.montadora}</td>
-                          <td className="py-1.5 px-2 max-w-[200px] truncate">{r.modelo}</td>
-                          <td className="py-1.5 px-2">{r.categoria}</td>
-                          <td className="py-1.5 px-2">{r.ano_modelo}</td>
-                          <td className="py-1.5 px-2">{r.situacao_veiculo}</td>
-                          <td className="py-1.5 px-2 whitespace-nowrap">
-                            {r.valor_fipe
-                              ? `R$ ${Number(r.valor_fipe).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                              : r.valor_protegido
-                              ? `R$ ${Number(r.valor_protegido).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                              : "-"}
-                          </td>
-                          <td className="py-1.5 px-2 max-w-[160px] truncate">{r.cooperativa}</td>
-                          <td className="py-1.5 px-2 max-w-[160px] truncate">{r.cidade_veiculo}</td>
-                          <td className="py-1.5 px-2">{r.estado}</td>
-                          <td className="py-1.5 px-2">{r.sexo}</td>
-                          <td className="py-1.5 px-2">{r.idade_associado}</td>
-                          <td className="py-1.5 px-2">{r.data_contrato}</td>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-xl border border-border">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-secondary">
+                          {["Placa", "Tipo", "Montadora", "Modelo", "Categoria", "Ano", "Situação", "Valor FIPE", "Cooperativa", "Cidade", "Estado", "Sexo", "Idade", "Data Contrato"].map((h) => (
+                            <th key={h} className="text-left py-3 px-3 font-semibold uppercase tracking-wide text-[10px] text-muted-foreground whitespace-nowrap">{h}</th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+                      </thead>
+                      <tbody>
+                        {pageRecords.length === 0 ? (
+                          <tr><td colSpan={14} className="py-10 text-center text-muted-foreground">Nenhum registro para exibir.</td></tr>
+                        ) : pageRecords.map((r, i) => (
+                          <tr key={r.id || i} className="border-t border-border/60 hover:bg-muted/40 transition-colors">
+                            <td className="py-2 px-3 font-medium whitespace-nowrap">{dash(r.placa)}</td>
+                            <td className="py-2 px-3 whitespace-nowrap">{dash(r.tipo_veiculo)}</td>
+                            <td className="py-2 px-3 whitespace-nowrap">{dash(r.montadora)}</td>
+                            <td className="py-2 px-3 max-w-[200px] truncate">{dash(r.modelo)}</td>
+                            <td className="py-2 px-3 whitespace-nowrap">{dash(r.categoria)}</td>
+                            <td className="py-2 px-3 tabular-nums">{dash(r.ano_modelo)}</td>
+                            <td className="py-2 px-3 whitespace-nowrap">
+                              {r.situacao_veiculo ? (
+                                <span className={"inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold " + (isAtivo(r.situacao_veiculo) ? "bg-emerald-500/12 text-emerald-600" : "bg-muted text-muted-foreground")}>
+                                  <span className={"h-1.5 w-1.5 rounded-full " + (isAtivo(r.situacao_veiculo) ? "bg-emerald-500" : "bg-muted-foreground")} />
+                                  {r.situacao_veiculo}
+                                </span>
+                              ) : "—"}
+                            </td>
+                            <td className="py-2 px-3 whitespace-nowrap tabular-nums">{fmtFipe(r)}</td>
+                            <td className="py-2 px-3 max-w-[160px] truncate">{dash(r.cooperativa)}</td>
+                            <td className="py-2 px-3 max-w-[160px] truncate">{dash(r.cidade_veiculo)}</td>
+                            <td className="py-2 px-3">{dash(r.estado)}</td>
+                            <td className="py-2 px-3">{dash(r.sexo)}</td>
+                            <td className="py-2 px-3 tabular-nums">{dash(r.idade_associado)}</td>
+                            <td className="py-2 px-3 whitespace-nowrap">{dash(r.data_contrato)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
             );
           })()}
         </TabsContent>
