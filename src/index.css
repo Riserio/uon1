@@ -155,6 +155,19 @@ All colors MUST be HSL.
     font-weight: 600;
     letter-spacing: normal;
   }
+
+  /* Botões editoriais só no /portal: cantos mais arredondados e texto
+     semibold. Só afeta os Button do shadcn (marcados com data-ui-button),
+     não a pill da barra nem as abas (que são <button> cru). O padding maior
+     não vale pra botão-ícone (size icon = quadrado w-10) pra não distorcer. */
+  .portal-theme [data-ui-button] {
+    border-radius: 0.85rem;
+    font-weight: 600;
+  }
+  .portal-theme [data-ui-button]:not(.w-10) {
+    padding-left: 1.15rem;
+    padding-right: 1.15rem;
+  }
 }
 
 @keyframes shimmer {
