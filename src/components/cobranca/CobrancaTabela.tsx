@@ -100,6 +100,20 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
   // variantes como "ABERTO MIGRADO" e mostrar 0 registros indevidamente.
   const [filtroSituacoes, setFiltroSituacoes] = useState<string[]>([]);
 
+  // Default da aba "Dados Completos": já vem filtrando por ABERTO (pedido do
+  // parceiro), pra facilitar a visualização dos boletos em aberto. O Dashboard
+  // NÃO é afetado (usa o filtro global, que segue em "todos"). Só inicializa
+  // uma vez; depois respeita o que o usuário escolher.
+  const situacaoInicializadaRef = useRef(false);
+  useEffect(() => {
+    if (situacaoInicializadaRef.current) return;
+    const sits = filterOptions?.situacoes || [];
+    if (sits.length === 0) return;
+    situacaoInicializadaRef.current = true;
+    const abertos = sits.filter((sit) => isSituacaoAberta(sit));
+    if (abertos.length > 0) setFiltroSituacoes(abertos);
+  }, [filterOptions?.situacoes]);
+
   // Filtros avançados (dentro do colapse "Mais filtros")
   const [filtroDataPagamentoDe, setFiltroDataPagamentoDe] = useState("");
   const [filtroDataPagamentoAte, setFiltroDataPagamentoAte] = useState("");

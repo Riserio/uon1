@@ -101,34 +101,13 @@ export default function CobrancaInsights() {
   const getMesAtual = () => format(new Date(), "yyyy-MM");
   const getMesAnterior = () => format(subMonths(new Date(), 1), "yyyy-MM");
 
-  // Padrão: já abre exibindo boletos em ABERTO (pedido do parceiro). O
-  // usuário pode trocar para "Todas" ou outra situação no filtro. Se a base
-  // não tiver exatamente "ABERTO" (ex.: só "ABERTO MIGRADO"), o efeito mais
-  // abaixo ajusta para a variante de aberto disponível.
   const [filters, setFilters] = useState<CobrancaFilters>({
     mesReferencia: getMesAtual(),
-    situacao: "ABERTO",
+    situacao: "todos",
     regional: "todos",
     cooperativa: "todos",
     diaVencimento: "todos",
   });
-  // Só ajustamos a situação inicial uma vez (não brigar com a escolha do user).
-  const situacaoInicialAjustadaRef = useRef(false);
-
-  // Ajusta a situação inicial à base real: mantém "ABERTO" se existir; senão
-  // usa a 1ª variante "ABERTO..." (ex.: "ABERTO MIGRADO"); se não houver
-  // nenhuma, cai para "todos" pra não exibir 0 registros por engano.
-  useEffect(() => {
-    if (situacaoInicialAjustadaRef.current) return;
-    const sits = filterOptions.situacoes;
-    if (!sits || sits.length === 0) return;
-    situacaoInicialAjustadaRef.current = true;
-    setFilters((f) => {
-      if (f.situacao === "todos" || sits.includes(f.situacao)) return f;
-      const variante = sits.find((sit) => sit.trim().toUpperCase().startsWith("ABERTO"));
-      return variante ? { ...f, situacao: variante } : { ...f, situacao: "todos" };
-    });
-  }, [filterOptions.situacoes]);
 
   // Detectar se é acesso via portal (parceiro)
   const isPortalAccess = location.pathname.startsWith("/portal");
