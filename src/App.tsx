@@ -75,6 +75,7 @@ const Gestao = lazy(() => import("./pages/Gestao"));
 const Uon1Sign = lazy(() => import("./pages/Uon1Sign"));
 const ContratoAssinatura = lazy(() => import("./pages/ContratoAssinatura"));
 const CentralAtendimento = lazy(() => import("./pages/CentralAtendimento"));
+const Biblioteca = lazy(() => import("./pages/Biblioteca"));
 const WhatsAppFlows = lazy(() => import("./pages/WhatsAppFlows"));
 const VideoRooms = lazy(() => import("./pages/VideoRooms"));
 const MeetingRoom = lazy(() => import("./pages/MeetingRoom"));
@@ -258,6 +259,7 @@ const App = () => (
               <Route path="/embed/ouvidoria/:slug" element={<OuvidoriaEmbed />} />
               <Route path="/gestao-cobranca" element={<GestaoCobranca />} />
               <Route path="/f/:slug" element={<FormularioPublico />} />
+              <Route path="/biblioteca" element={<Biblioteca />} />
               <Route path="/" element={<DomainBasedRoute />} />
 
               {/* All protected routes share sidebar via AppLayout */}
