@@ -25,10 +25,10 @@ type Props = {
   force?: boolean;
 };
 
-// Barra flutuante estilo Instagram, só no mobile: mostra os 4 favoritos do
+// Barra flutuante estilo Instagram, responsiva: compacta e centralizada no
+// mobile, mais larga e distribuída no desktop. Mostra os 4 favoritos do
 // usuário + um botão de Configurações (que abre o seletor de favoritos, o
-// botão de instalar como PWA, trocar associação e sair). Substitui por
-// completo a navegação mobile antiga (hamburger + drawer + carrossel).
+// botão de instalar como PWA, trocar associação e sair).
 export default function PortalMobileNav({
   corretora,
   currentModule,
@@ -58,12 +58,10 @@ export default function PortalMobileNav({
 
   return (
     <>
-      {/* w-auto + centralizado (em vez de left-3/right-3 esticando ponta a
-          ponta): com poucos favoritos a pill ficava larga demais, com
-          botões espalhados e vãos enormes entre eles — "desconfigurada".
-          Agora cada botão tem largura fixa (w-14) e a nav só ocupa o
-          espaço que o número real de botões precisa, com um teto de
-          largura pra nunca estourar a tela. */}
+      {/* Mobile: pill compacta e centralizada, com botões de largura fixa
+          (w-14) para não estourar a tela. Desktop: barra mais larga, com
+          max-width sensato, distribuindo os 5 itens ao longo da largura
+          disponível sem colar nas bordas. */}
       {/* pointer-events-none no container só serve pra caso alguma página
           coloque um overlay full-screen — os botões dentro do <nav> reativam
           eventos com pointer-events-auto. isolate cria stacking context próprio
@@ -71,11 +69,9 @@ export default function PortalMobileNav({
       {/* Fundo 100% opaco (sem transparência/blur): com bg-card/95 + blur, o
           conteúdo da página (ex.: as abas Financeiro/Permanência) passando
           atrás durante o scroll ficava visível por trás da pill, dando a
-          impressão de uma segunda barra colada/vazamento. Largura e
-          distribuição dos botões continuam exatamente como antes — só o
-          fundo deixou de ser transparente. */}
+          impressão de uma segunda barra colada/vazamento. */}
       <nav
-        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border shadow-2xl px-2 flex items-center justify-center gap-0.5 w-fit max-w-[calc(100vw-1.5rem)] pointer-events-auto"
+        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border shadow-2xl px-2 md:px-4 lg:px-6 flex items-center justify-center md:justify-between gap-0.5 md:gap-2 lg:gap-4 w-fit max-w-[calc(100vw-1.5rem)] md:w-full md:max-w-3xl pointer-events-auto"
         style={{ paddingTop: "0.4rem", paddingBottom: "max(0.4rem, env(safe-area-inset-bottom))" }}
       >
         {favoritos.map((mod) => {
@@ -88,12 +84,12 @@ export default function PortalMobileNav({
               key={mod}
               onClick={() => handleNav(mod)}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 w-14 shrink-0 py-1.5 rounded-full transition-colors",
+                "flex flex-col items-center justify-center gap-0.5 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1.5 rounded-full transition-colors",
                 isActive ? "text-orange-500" : "text-muted-foreground"
               )}
             >
               <Icon className={cn("h-5 w-5 transition-transform", isActive && "scale-110")} />
-              <span className="text-[9px] font-medium leading-none truncate max-w-[52px]">
+              <span className="text-[9px] md:text-[11px] font-medium leading-none truncate max-w-[52px] md:max-w-[8rem]">
                 {cfg.shortLabel}
               </span>
             </button>
@@ -102,10 +98,10 @@ export default function PortalMobileNav({
 
         <button
           onClick={() => setSettingsOpen(true)}
-          className="flex flex-col items-center justify-center gap-0.5 w-14 shrink-0 py-1.5 rounded-full text-muted-foreground"
+          className="flex flex-col items-center justify-center gap-0.5 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1.5 rounded-full text-muted-foreground"
         >
           <Settings className="h-5 w-5" />
-          <span className="text-[9px] font-medium leading-none">Ajustes</span>
+          <span className="text-[9px] md:text-[11px] font-medium leading-none">Ajustes</span>
         </button>
       </nav>
 
