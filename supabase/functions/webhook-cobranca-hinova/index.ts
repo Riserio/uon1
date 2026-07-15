@@ -1646,6 +1646,25 @@ serve(async (req) => {
 
     console.log(`Importação concluída: ${processados} processados, ${erros} erros`);
 
+    // Deriva faturamento/recebido do mês a partir dos boletos recém-sincronizados
+    // e grava no pid_operacional, pra esses KPIs ficarem tão frescos quanto as
+    // placas ativas (antes vinham só de planilha manual → ficavam defasados).
+    // Só no último chunk, pra não reprocessar a cada pedaço da importação.
+    if (corretora_id && isLastChunkFinal) {
+      try {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/agregar-financeiro-cobranca`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ corretora_id }),
+        });
+      } catch (aggErr) {
+        console.warn("[Webhook Cobrança] Falha ao agregar financeiro:", aggErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
