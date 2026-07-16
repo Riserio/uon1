@@ -42,7 +42,36 @@ export const exportDeliberacaoPDF = async (
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const bottomMargin = 20;
   let yPos = 15;
+
+  const ensureSpace = (required: number) => {
+    if (yPos + required > pageHeight - bottomMargin) {
+      doc.addPage();
+      yPos = 15;
+    }
+  };
+
+  const drawSectionTitle = (title: string) => {
+    ensureSpace(14);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text(title, 14, yPos);
+    yPos += 8;
+  };
+
+  const drawWrappedText = (text: string, fontSize = 9, lineHeight = 5) => {
+    doc.setFontSize(fontSize);
+    doc.setFont('helvetica', 'normal');
+    const lines = doc.splitTextToSize(text, pageWidth - 28) as string[];
+    for (const line of lines) {
+      ensureSpace(lineHeight);
+      doc.text(line, 14, yPos);
+      yPos += lineHeight;
+    }
+  };
 
   // Título
   doc.setFontSize(18);
@@ -56,10 +85,7 @@ export const exportDeliberacaoPDF = async (
   yPos += 15;
 
   // Informações do Sinistro
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('1. Dados do Sinistro', 14, yPos);
-  yPos += 8;
+  drawSectionTitle('1. Dados do Sinistro');
 
   const dadosSinistro = [
     ['Cliente', sinistro.cliente_nome || 'N/A'],
@@ -82,15 +108,13 @@ export const exportDeliberacaoPDF = async (
       1: { cellWidth: 'auto' }
     },
     theme: 'plain',
+    margin: { left: 14, right: 14, bottom: bottomMargin },
   });
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
 
   // Dados do Veículo
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('2. Dados do Veículo', 14, yPos);
-  yPos += 8;
+  drawSectionTitle('2. Dados do Veículo');
 
   const dadosVeiculo = [
     ['Placa', sinistro.veiculo_placa || 'N/A'],
@@ -113,22 +137,16 @@ export const exportDeliberacaoPDF = async (
       1: { cellWidth: 'auto' }
     },
     theme: 'plain',
+    margin: { left: 14, right: 14, bottom: bottomMargin },
   });
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
 
   // Relato do Incidente
   if (sinistro.relato_incidente) {
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('3. Relato do Incidente', 14, yPos);
-    yPos += 8;
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    const relatoLines = doc.splitTextToSize(sinistro.relato_incidente, pageWidth - 28);
-    doc.text(relatoLines, 14, yPos);
-    yPos += relatoLines.length * 5 + 10;
+    drawSectionTitle('3. Relato do Incidente');
+    drawWrappedText(sinistro.relato_incidente);
+    yPos += 6;
   }
 
   // Nova página para as perguntas
@@ -136,10 +154,8 @@ export const exportDeliberacaoPDF = async (
   yPos = 15;
 
   // Respostas da Entrevista
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('4. Respostas da Entrevista do Comitê', 14, yPos);
-  yPos += 10;
+  drawSectionTitle('4. Respostas da Entrevista do Comitê');
+  yPos += 2;
 
   const respostasTable: string[][] = [];
   
@@ -150,7 +166,7 @@ export const exportDeliberacaoPDF = async (
     perguntas.forEach(pergunta => {
       const resposta = respostas[pergunta.id] || 'Não respondido';
       respostasTable.push([
-        pergunta.pergunta.substring(0, 60) + (pergunta.pergunta.length > 60 ? '...' : ''),
+        pergunta.pergunta,
         resposta
       ]);
     });
@@ -160,32 +176,22 @@ export const exportDeliberacaoPDF = async (
     startY: yPos,
     head: [['Pergunta', 'Resposta']],
     body: respostasTable,
-    styles: { fontSize: 7, cellPadding: 2 },
+    styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak', valign: 'top' },
     headStyles: { fillColor: [59, 130, 246], textColor: 255 },
     columnStyles: {
       0: { cellWidth: 100 },
       1: { cellWidth: 'auto' }
     },
-    didDrawPage: (data) => {
-      // Rodapé em cada página
-      doc.setFontSize(8);
-      doc.text(
-        `Página ${data.pageNumber}`,
-        pageWidth - 20,
-        doc.internal.pageSize.height - 10
-      );
-    }
+    margin: { left: 14, right: 14, top: 15, bottom: bottomMargin },
+    showHead: 'everyPage',
+    rowPageBreak: 'auto',
   });
 
-  // Nova página para parecer do comitê
-  doc.addPage();
-  yPos = 15;
+  yPos = (doc as any).lastAutoTable.finalY + 10;
 
   // Parecer do Comitê
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('5. Parecer do Comitê', 14, yPos);
-  yPos += 10;
+  drawSectionTitle('5. Parecer do Comitê');
+  yPos += 2;
 
   const getStatusColor = (status: string): [number, number, number] => {
     switch (status?.toLowerCase()) {
@@ -205,7 +211,8 @@ export const exportDeliberacaoPDF = async (
   };
 
   const statusColor = getStatusColor(comite.decisao || '');
-  
+
+  ensureSpace(30);
   doc.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
   doc.roundedRect(14, yPos, pageWidth - 28, 25, 3, 3, 'F');
   
@@ -228,19 +235,17 @@ export const exportDeliberacaoPDF = async (
   yPos += 35;
 
   if (comite.justificativa) {
+    ensureSpace(14);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('Justificativa:', 14, yPos);
     yPos += 7;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    const justificativaLines = doc.splitTextToSize(comite.justificativa, pageWidth - 28);
-    doc.text(justificativaLines, 14, yPos);
-    yPos += justificativaLines.length * 5 + 10;
+    drawWrappedText(comite.justificativa, 10, 5);
+    yPos += 6;
   }
 
   if (comite.data_deliberacao) {
+    ensureSpace(8);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'italic');
     doc.text(
@@ -248,6 +253,7 @@ export const exportDeliberacaoPDF = async (
       14,
       yPos
     );
+    yPos += 6;
   }
 
   // Fotos (se houver)
@@ -255,10 +261,8 @@ export const exportDeliberacaoPDF = async (
     doc.addPage();
     yPos = 15;
 
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('6. Fotos do Sinistro', 14, yPos);
-    yPos += 10;
+    drawSectionTitle('6. Fotos do Sinistro');
+    yPos += 2;
 
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
@@ -267,20 +271,33 @@ export const exportDeliberacaoPDF = async (
     const larguraFoto = 55;
     const alturaFoto = 40;
     const espacamento = 5;
-    
+    const alturaLinha = alturaFoto + 15;
+
     fotos.forEach((foto, index) => {
       const coluna = index % fotosPorLinha;
-      const linha = Math.floor(index / fotosPorLinha);
-      
+      if (coluna === 0) {
+        ensureSpace(alturaLinha);
+      }
+      const linhaAtual = Math.floor(index / fotosPorLinha);
+      const primeiroDaLinha = index - coluna;
+      // Reinicia y da linha quando é o primeiro item
+      if (coluna === 0) {
+        (fotos as any)._yLinha = yPos;
+      }
+      const yLinha = (fotos as any)._yLinha ?? yPos;
       const x = 14 + coluna * (larguraFoto + espacamento);
-      const y = yPos + linha * (alturaFoto + 15);
-      
-      // Placeholder para foto (em produção, usar addImage com a URL)
+      const y = yLinha;
+
       doc.setDrawColor(200, 200, 200);
       doc.rect(x, y, larguraFoto, alturaFoto);
       doc.setFontSize(7);
       doc.text(foto.tipo || `Foto ${index + 1}`, x + 2, y + alturaFoto + 5);
       doc.text('[Imagem]', x + larguraFoto / 2, y + alturaFoto / 2, { align: 'center' });
+
+      const ultimoDaLinha = coluna === fotosPorLinha - 1 || index === fotos.length - 1;
+      if (ultimoDaLinha) {
+        yPos = yLinha + alturaLinha;
+      }
     });
   }
 
