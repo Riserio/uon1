@@ -23,8 +23,8 @@ export default function PortalSplash({ logo, nome, corretoraId }: Props) {
     setSaindo(false);
     setMostrarAssoc(false);
     const tAssoc = setTimeout(() => setMostrarAssoc(true), 2000); // 2s só Vangard
-    const tFade = setTimeout(() => setSaindo(true), 3000);
-    const tHide = setTimeout(() => setVisivel(false), 3500);
+    const tFade = setTimeout(() => setSaindo(true), 4500);
+    const tHide = setTimeout(() => setVisivel(false), 5000);
     return () => {
       clearTimeout(tAssoc);
       clearTimeout(tFade);
