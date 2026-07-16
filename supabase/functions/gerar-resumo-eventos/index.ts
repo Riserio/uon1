@@ -66,7 +66,7 @@ serve(async (req) => {
       while (hasMore) {
         const { data: batchEventos, error: batchError } = await supabase
         .from('sga_eventos')
-        .select('motivo_evento, evento_cidade, cooperativa, data_cadastro_evento')
+        .select('motivo_evento, evento_cidade, cooperativa, placa, data_cadastro_evento')
         .eq('importacao_id', importacao.id)
         .gte('data_cadastro_evento', inicio)
         .lte('data_cadastro_evento', fim)
@@ -114,6 +114,53 @@ serve(async (req) => {
     }
     console.log(`[gerar-resumo-eventos] Total eventos carregados: ${eventos.length}`);
 
+    // Enriquecimento: cidade/cooperativa ausentes nos eventos são puxadas da
+    // base ativa (estudo_base_registros) pela placa, pra evitar que o resumo
+    // saia com "Não informada"/"Sem cooperativa" quando a base tem o dado.
+    const normPlaca = (p: unknown) => String(p ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    const baseMap = new Map<string, { cidade?: string | null; cooperativa?: string | null }>();
+    try {
+      const placasEventos = [...new Set((eventos || []).map((e: any) => normPlaca(e.placa)).filter(Boolean))];
+      if (placasEventos.length > 0) {
+        const { data: impBase } = await supabase
+          .from("estudo_base_importacoes")
+          .select("id")
+          .eq("corretora_id", corretora_id)
+          .eq("ativo", true)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (impBase?.id) {
+          for (let i = 0; i < placasEventos.length; i += 150) {
+            const lote = placasEventos.slice(i, i + 150);
+            const { data: rows } = await supabase
+              .from("estudo_base_registros")
+              .select("placa, cidade_veiculo, cooperativa")
+              .eq("importacao_id", impBase.id)
+              .in("placa", lote);
+            (rows || []).forEach((r: any) => {
+              const p = normPlaca(r.placa);
+              if (p && !baseMap.has(p)) baseMap.set(p, { cidade: r.cidade_veiculo, cooperativa: r.cooperativa });
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[gerar-resumo-eventos] Falha ao enriquecer cidade/cooperativa pela base:", e);
+    }
+    const cidadeDoEvento = (e: any): string => {
+      const c = (e.evento_cidade || "").toString().trim();
+      if (c) return c;
+      const base = baseMap.get(normPlaca(e.placa));
+      return (base?.cidade || "").toString().trim() || "Não informada";
+    };
+    const coopDoEvento = (e: any): string => {
+      const c = (e.cooperativa || "").toString().trim();
+      if (c) return c;
+      const base = baseMap.get(normPlaca(e.placa));
+      return (base?.cooperativa || "").toString().trim() || "Sem cooperativa";
+    };
+
     // Calculate metrics
     const totalEventos = eventos?.length || 0;
 
@@ -141,7 +188,7 @@ serve(async (req) => {
     // Count by city using evento_cidade field
     const cidadeContagem: Record<string, number> = {};
     eventos?.forEach(e => {
-      const cidade = e.evento_cidade || 'Não informada';
+      const cidade = cidadeDoEvento(e);
       cidadeContagem[cidade] = (cidadeContagem[cidade] || 0) + 1;
     });
 
@@ -156,7 +203,7 @@ serve(async (req) => {
     // Count by cooperativa
     const cooperativaContagem: Record<string, number> = {};
     eventos?.forEach(e => {
-      const coop = e.cooperativa || 'Sem cooperativa';
+      const coop = coopDoEvento(e);
       cooperativaContagem[coop] = (cooperativaContagem[coop] || 0) + 1;
     });
 

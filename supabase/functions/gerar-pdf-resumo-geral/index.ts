@@ -357,6 +357,15 @@ serve(async (req) => {
       );
     }
 
+    // ----- Numeração de páginas (1/N ... N/N), centralizada no rodapé -----
+    const paginas = pdfDoc.getPages();
+    const totalPag = paginas.length;
+    paginas.forEach((pg, i) => {
+      const rotulo = `${i + 1}/${totalPag}`;
+      const w = fontRegular.widthOfTextAtSize(rotulo, 8);
+      pg.drawText(rotulo, { x: (width - w) / 2, y: 26, size: 8, font: fontRegular, color: GRAY_MUTED });
+    });
+
     const pdfBytes = await pdfDoc.save();
 
     // ----- Upload no Storage -----
