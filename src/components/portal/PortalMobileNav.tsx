@@ -81,7 +81,7 @@ export default function PortalMobileNav({
           atrás durante o scroll ficava visível por trás da pill, dando a
           impressão de uma segunda barra colada/vazamento. */}
       <nav
-        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border shadow-2xl px-2 md:px-4 lg:px-6 flex items-center justify-center md:justify-between gap-0.5 md:gap-2 lg:gap-4 w-fit max-w-[calc(100vw-1.5rem)] md:w-full md:max-w-4xl lg:max-w-5xl pointer-events-auto"
+        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border/70 shadow-[0_8px_30px_-6px_rgba(0,0,0,0.18)] px-2 md:px-3 lg:px-5 flex items-center justify-center md:justify-between gap-0.5 md:gap-1.5 lg:gap-3 w-fit max-w-[calc(100vw-1.5rem)] md:w-full md:max-w-4xl lg:max-w-5xl pointer-events-auto"
         style={{ paddingTop: "0.25rem", paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
       >
         {favoritos.map((mod) => {
@@ -93,13 +93,25 @@ export default function PortalMobileNav({
             <button
               key={mod}
               onClick={() => handleNav(mod)}
-              className={cn(
-                "flex flex-col items-center justify-center gap-0.5 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1 landscape:py-0.5 rounded-full transition-colors",
-                isActive ? "text-accent-brand" : "text-muted-foreground"
-              )}
+              aria-current={isActive ? "page" : undefined}
+              className="group flex flex-col items-center justify-center gap-1 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1 landscape:py-0.5 rounded-2xl transition-transform active:scale-90"
             >
-              <Icon className={cn("h-5 w-5 transition-transform", isActive && "scale-110")} />
-              <span className="text-[9px] md:text-[11px] font-medium leading-none truncate max-w-[52px] md:max-w-[8rem]">
+              <span
+                className={cn(
+                  "flex items-center justify-center h-8 w-8 rounded-full transition-all duration-200",
+                  isActive
+                    ? "bg-accent-brand/12 text-accent-brand"
+                    : "text-muted-foreground group-hover:bg-muted group-hover:text-foreground"
+                )}
+              >
+                <Icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "scale-110")} />
+              </span>
+              <span
+                className={cn(
+                  "text-[9px] md:text-[11px] leading-none truncate max-w-[52px] md:max-w-[8rem] transition-colors",
+                  isActive ? "font-semibold text-accent-brand" : "font-medium text-muted-foreground"
+                )}
+              >
                 {cfg.shortLabel}
               </span>
             </button>
@@ -108,10 +120,12 @@ export default function PortalMobileNav({
 
         <button
           onClick={() => setSettingsOpen(true)}
-          className="flex flex-col items-center justify-center gap-0.5 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1 landscape:py-0.5 rounded-full text-muted-foreground"
+          className="group flex flex-col items-center justify-center gap-1 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1 landscape:py-0.5 rounded-2xl transition-transform active:scale-90"
         >
-          <Settings className="h-5 w-5" />
-          <span className="text-[9px] md:text-[11px] font-medium leading-none">Ajustes</span>
+          <span className="flex items-center justify-center h-8 w-8 rounded-full text-muted-foreground transition-all duration-200 group-hover:bg-muted group-hover:text-foreground">
+            <Settings className="h-5 w-5" />
+          </span>
+          <span className="text-[9px] md:text-[11px] font-medium leading-none text-muted-foreground">Ajustes</span>
         </button>
       </nav>
 
