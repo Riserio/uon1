@@ -15,10 +15,10 @@ const corsHeaders = {
 //
 // Layout "clean e moderno" aprovado pelo usuário: fundo branco, logo real da
 // Vangard (/images/vangard-logo.png) no cabeçalho, seções em formato de
-// tabela (linha + borda inferior) em vez de cards, acento laranja único,
-// botão sólido preto "Abrir Painel" no rodapé apontando para
-// vangard.uon1.com.br/{slug}/dashboard. "Referência" = data de emissão do
-// relatório (não o mês de referência financeiro/eventos).
+// tabela (linha + borda inferior) em vez de cards, acento laranja único.
+// Rodapé discreto (uma linha pequena e cinza) com a assinatura da Vangard —
+// sem botão. Pagina automaticamente (cabeçalho compacto repetido) quando o
+// conteúdo passa de uma página. "Referência" = data de emissão do relatório.
 //
 // Reaproveita o mesmo agregador de dados já usado na mensagem de texto
 // (gerar-resumo-geral), então o conteúdo do PDF é sempre consistente com o
@@ -78,9 +78,51 @@ serve(async (req) => {
     const dataEmissao = `${pad2(nowSP.getUTCDate())}/${pad2(nowSP.getUTCMonth() + 1)}/${nowSP.getUTCFullYear()}`;
     const dataLabelArquivo = `${pad2(nowSP.getUTCDate())}-${pad2(nowSP.getUTCMonth() + 1)}-${nowSP.getUTCFullYear()}`;
 
+    // ----- Base: total de placas ativas + cadastros do mês por cooperativa -----
+    let placasAtivas = 0;
+    let cadastrosPorCoop: { coop: string; qtd: number }[] = [];
+    let cadastrosTotalMes = 0;
+    try {
+      const { data: impBase } = await supabase
+        .from("estudo_base_importacoes")
+        .select("id")
+        .eq("corretora_id", corretora_id)
+        .eq("ativo", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (impBase?.id) {
+        const { count: ativasCount } = await supabase
+          .from("estudo_base_registros")
+          .select("id", { count: "exact", head: true })
+          .eq("importacao_id", impBase.id)
+          .or("situacao_veiculo.ilike.ativ%,situacao_veiculo.is.null");
+        placasAtivas = ativasCount ?? 0;
+
+        const primeiroDia = `${nowSP.getUTCFullYear()}-${pad2(nowSP.getUTCMonth() + 1)}-01`;
+        const { data: novos } = await supabase
+          .from("estudo_base_registros")
+          .select("cooperativa, data_contrato")
+          .eq("importacao_id", impBase.id)
+          .gte("data_contrato", primeiroDia)
+          .limit(20000);
+        const mapa = new Map<string, number>();
+        (novos || []).forEach((r: any) => {
+          const coop = ((r.cooperativa || "").toString().trim()) || "Sem cooperativa";
+          mapa.set(coop, (mapa.get(coop) || 0) + 1);
+        });
+        cadastrosPorCoop = [...mapa.entries()]
+          .map(([coop, qtd]) => ({ coop, qtd }))
+          .sort((a, b) => b.qtd - a.qtd);
+        cadastrosTotalMes = cadastrosPorCoop.reduce((acc, c) => acc + c.qtd, 0);
+      }
+    } catch (e) {
+      console.warn("[gerar-pdf-resumo-geral] Falha ao buscar base/cadastros:", e);
+    }
+
     // ---- Monta o PDF ----
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595.28, 841.89]); // A4
+    let page = pdfDoc.addPage([595.28, 841.89]); // A4
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const { width } = page.getSize();
@@ -175,9 +217,34 @@ serve(async (req) => {
     drawInfoCard(marginX + cardW + 16, "Referência", dataEmissao);
     y -= cardH + 28;
 
+    // ----- Paginação: cabeçalho compacto repetido nas páginas seguintes -----
+    const PAGE_H = 841.89;
+    const drawHeaderCompacto = () => {
+      let hy = PAGE_H - 50;
+      if (logoImage) {
+        const targetH = 30;
+        const scale = targetH / logoImage.height;
+        page.drawImage(logoImage, { x: marginX, y: hy - targetH, width: logoImage.width * scale, height: targetH });
+      } else {
+        drawText("VANGARD", marginX, hy - 14, { size: 13, font: fontBold, color: BLACK });
+      }
+      drawTextRight("Resumo executivo", width - marginX, hy - 16, { size: 16, font: fontBold, color: BLACK });
+      hy -= 42;
+      page.drawRectangle({ x: marginX, y: hy - 2, width: width - marginX * 2, height: 2, color: rgb(236 / 255, 236 / 255, 236 / 255) });
+      y = hy - 26;
+    };
+    const novaPagina = () => {
+      page = pdfDoc.addPage([595.28, PAGE_H]);
+      drawHeaderCompacto();
+    };
+    const garantirEspaco = (necessario: number) => {
+      if (y - necessario < 70) novaPagina();
+    };
+
     // ----- Helper: seção em formato de tabela (título com barra + linhas) -----
     type Row = { label: string; value: string; color?: ReturnType<typeof rgb> };
     const drawTableSection = (title: string, rows: Row[]) => {
+      garantirEspaco(30 + rows.length * 26 + 12);
       page.drawRectangle({ x: marginX, y: y - 14, width: 4, height: 14, color: ORANGE });
       drawText(title.toUpperCase(), marginX + 14, y - 11, { size: 11, font: fontBold, color: BLACK });
       y -= 30;
@@ -238,33 +305,40 @@ serve(async (req) => {
       ]);
     }
 
-    // ----- Rodapé: wordmark + link à esquerda, botão "Abrir Painel" à direita -----
-    // Trabalhamos SEM slug — o link é sempre o principal (vangard.uon1.com.br).
-    const painelUrl = `${PAINEL_BASE}/portal`;
+    // ----- Base -----
+    drawTableSection("Base", [
+      { label: "Total de placas ativas", value: placasAtivas.toLocaleString("pt-BR") },
+    ]);
 
-    const footerY = 118;
-    page.drawRectangle({
-      x: marginX,
-      y: footerY,
-      width: width - marginX * 2,
-      height: 2,
-      color: rgb(236 / 255, 236 / 255, 236 / 255),
-    });
-
-    drawText("VANGARD", marginX, footerY - 22, { size: 11, font: fontBold, color: BLACK });
-    drawText("Business Intelligence Operacional", marginX, footerY - 36, { size: 9, color: GRAY_MUTED });
-    if (painelUrl) {
-      drawText(painelUrl.replace("https://", ""), marginX, footerY - 50, { size: 9, color: GRAY_MUTED });
+    // ----- Cadastros do mês (por cooperativa) -----
+    {
+      const rowsCad: Row[] = cadastrosPorCoop.length > 0
+        ? cadastrosPorCoop.map((c) => ({ label: c.coop, value: `${c.qtd.toLocaleString("pt-BR")} placas` }))
+        : [{ label: "Nenhum cadastro no mês", value: "0 placas" }];
+      rowsCad.push({
+        label: "Total",
+        value: `${cadastrosTotalMes.toLocaleString("pt-BR")} placas`,
+        color: ORANGE,
+      });
+      drawTableSection("Cadastros do mês (por cooperativa)", rowsCad);
     }
 
-    if (painelUrl) {
-      const btnH = 30;
-      const btnLabel = "Abrir Painel  >";
-      const btnW = fontBold.widthOfTextAtSize(btnLabel, 11) + 36;
-      const btnX = width - marginX - btnW;
-      const btnY = footerY - 22 - btnH;
-      page.drawRectangle({ x: btnX, y: btnY, width: btnW, height: btnH, color: BLACK });
-      drawText(btnLabel, btnX + 18, btnY + 10.5, { size: 11, font: fontBold, color: WHITE });
+    // ----- Rodapé discreto (sem botão) na última página -----
+    {
+      const fy = 44;
+      page.drawRectangle({
+        x: marginX,
+        y: fy + 14,
+        width: width - marginX * 2,
+        height: 0.75,
+        color: rgb(236 / 255, 236 / 255, 236 / 255),
+      });
+      drawText(
+        "VANGARD  ·  Business Intelligence Operacional  ·  vangard.uon1.com.br/portal",
+        marginX,
+        fy,
+        { size: 7.5, color: GRAY_MUTED },
+      );
     }
 
     const pdfBytes = await pdfDoc.save();
