@@ -996,7 +996,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       >
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-primary" />
-          <span className="font-semibold text-sm">Período de análise</span>
+          <span className="font-semibold text-sm">Filtro</span>
           <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-semibold px-2 py-0.5 rounded-full">
             {periodoResumo}
           </span>
