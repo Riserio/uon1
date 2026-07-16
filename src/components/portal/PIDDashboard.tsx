@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import SyncStatusHint from "@/components/portal/SyncStatusHint";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1000,9 +1001,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             {periodoResumo}
           </span>
         </div>
-        <ChevronDown
-          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${periodoOpen ? "rotate-180" : ""}`}
-        />
+        <div className="flex items-center gap-3">
+          <SyncStatusHint corretoraId={corretoraId} />
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${periodoOpen ? "rotate-180" : ""}`}
+          />
+        </div>
       </button>
       {/* Corpo colapsável - controles de período */}
       {periodoOpen && (
