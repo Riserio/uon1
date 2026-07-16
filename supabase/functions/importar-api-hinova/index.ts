@@ -113,18 +113,29 @@ async function getOrCreateImportacaoAtiva(
 ): Promise<{ id: string; isNova: boolean }> {
   const { data: ativas } = await supabase
     .from(table)
-    .select("id")
+    .select("id, nome_arquivo")
     .eq("corretora_id", corretoraId)
     .eq("ativo", true)
     .order("created_at", { ascending: false });
 
+  // Importações da API são nomeadas "API base/cobrança/MGF/eventos ...".
+  const isApiName = (n?: string | null) => !!n && /^API\b/i.test(String(n).trim());
+
   if (ativas && ativas.length > 0) {
-    const id = ativas[0].id as string;
-    if (ativas.length > 1) {
-      // Higieniza duplicatas de execuções passadas antes de continuar.
+    // Reaproveita a ativa SOMENTE se ela for de origem API (pra manter o
+    // merge incremental). Se a ativa for uma planilha MANUAL (.xlsx), a API
+    // ASSUME: desativa a manual e cria uma importação API ativa nova. Assim
+    // "hoje é via API" — o sync automático passa a ser a fonte de verdade,
+    // sem ficar preso a uma importação manual antiga (dados defasados).
+    const apiAtiva = (ativas as Array<{ id: string; nome_arquivo?: string | null }>).find((a) => isApiName(a.nome_arquivo));
+    if (apiAtiva) {
+      const id = apiAtiva.id;
+      // Higieniza qualquer outra ativa (manual ou duplicata) além da API.
       await supabase.from(table).update({ ativo: false }).eq("corretora_id", corretoraId).neq("id", id);
+      return { id, isNova: false };
     }
-    return { id, isNova: false };
+    // Ativa(s) são manuais → desativa todas; segue pra criar a API ativa.
+    await supabase.from(table).update({ ativo: false }).eq("corretora_id", corretoraId).eq("ativo", true);
   }
 
   const { data: nova, error } = await supabase
