@@ -360,10 +360,14 @@ serve(async (req) => {
     // ----- Numeração de páginas (1/N ... N/N), centralizada no rodapé -----
     const paginas = pdfDoc.getPages();
     const totalPag = paginas.length;
+    const carimboDataHora = `Gerado em ${dados.data_geracao || dataEmissao}`;
     paginas.forEach((pg, i) => {
       const rotulo = `${i + 1}/${totalPag}`;
       const w = fontRegular.widthOfTextAtSize(rotulo, 8);
       pg.drawText(rotulo, { x: (width - w) / 2, y: 26, size: 8, font: fontRegular, color: GRAY_MUTED });
+      // Data/hora de geração à direita, no rodapé de cada página.
+      const dw = fontRegular.widthOfTextAtSize(carimboDataHora, 7.5);
+      pg.drawText(carimboDataHora, { x: width - marginX - dw, y: 26, size: 7.5, font: fontRegular, color: GRAY_MUTED });
     });
 
     const pdfBytes = await pdfDoc.save();
