@@ -78,6 +78,7 @@ export default function PortalLogin() {
         backgroundRepeat: 'no-repeat'
       }}
     >
+      <PortalOrientationGuard />
       {/* Overlay escuro para melhor contraste */}
       <div className="absolute inset-0 bg-black/40" />
       <Card className="w-full max-w-md relative z-10">
