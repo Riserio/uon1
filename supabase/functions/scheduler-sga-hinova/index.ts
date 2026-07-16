@@ -356,19 +356,30 @@ serve(async (req) => {
         }
       }
 
-      // Verificar se já executou hoje
-      const hoje = new Date().toISOString().split('T')[0];
-      const { data: execucoesHoje } = await supabase
-        .from("sga_automacao_execucoes")
-        .select("id, status")
-        .eq("corretora_id", cred.corretora_id)
-        .gte("created_at", `${hoje}T00:00:00`)
-        .in("status", ["sucesso", "executando"])
-        .limit(1);
-
-      if (execucoesHoje && execucoesHoje.length > 0) {
-        console.log(`[Scheduler SGA] ${nomeAssociacao} já executou hoje, pulando`);
-        continue;
+      // Respeita a frequência configurável (api_intervalo_horas), unificado
+      // com a base (antes era fixo 1x/dia).
+      {
+        const { data: credInt } = await supabase
+          .from("hinova_credenciais")
+          .select("api_intervalo_horas")
+          .eq("corretora_id", cred.corretora_id)
+          .maybeSingle();
+        const intervaloHoras = Number((credInt as any)?.api_intervalo_horas) || 24;
+        const { data: ultimaExec } = await supabase
+          .from("sga_automacao_execucoes")
+          .select("created_at")
+          .eq("corretora_id", cred.corretora_id)
+          .in("status", ["sucesso", "executando"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (ultimaExec?.created_at) {
+          const diffHoras = (Date.now() - new Date(ultimaExec.created_at).getTime()) / 3_600_000;
+          if (diffHoras < intervaloHoras) {
+            console.log(`[Scheduler SGA] ${nomeAssociacao} intervalo não atingido (${diffHoras.toFixed(1)}h / ${intervaloHoras}h), pulando`);
+            continue;
+          }
+        }
       }
 
       // Verificar credenciais (da tabela hinova_credenciais)

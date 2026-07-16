@@ -424,19 +424,31 @@ serve(async (req) => {
         }
       }
 
-      // Verificar se já executou hoje (evitar duplicatas) - verificar qualquer tipo de disparo com sucesso
-      const hoje = new Date().toISOString().split('T')[0];
-      const { data: execucoesHoje } = await supabase
-        .from("cobranca_automacao_execucoes")
-        .select("id, status")
-        .eq("config_id", config.id)
-        .gte("created_at", `${hoje}T00:00:00`)
-        .in("status", ["sucesso", "executando"])
-        .limit(1);
-
-      if (execucoesHoje && execucoesHoje.length > 0) {
-        console.log(`[Scheduler] ${config.corretora?.nome || config.corretora_id} já executou hoje com sucesso, pulando`);
-        continue;
+      // Respeita a frequência configurável (api_intervalo_horas), unificado
+      // com a base: só reimporta se a última execução (sucesso ou em curso)
+      // foi há mais que o intervalo. Antes era fixo em 1x/dia.
+      {
+        const { data: credInt } = await supabase
+          .from("hinova_credenciais")
+          .select("api_intervalo_horas")
+          .eq("corretora_id", config.corretora_id)
+          .maybeSingle();
+        const intervaloHoras = Number((credInt as any)?.api_intervalo_horas) || 24;
+        const { data: ultimaExec } = await supabase
+          .from("cobranca_automacao_execucoes")
+          .select("created_at")
+          .eq("config_id", config.id)
+          .in("status", ["sucesso", "executando"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (ultimaExec?.created_at) {
+          const diffHoras = (Date.now() - new Date(ultimaExec.created_at).getTime()) / 3_600_000;
+          if (diffHoras < intervaloHoras) {
+            console.log(`[Scheduler] ${config.corretora?.nome || config.corretora_id} intervalo não atingido (${diffHoras.toFixed(1)}h / ${intervaloHoras}h), pulando`);
+            continue;
+          }
+        }
       }
 
       // Verificar credenciais (agora em hinova_credenciais, não mais em cobranca_automacao_config)
