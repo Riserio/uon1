@@ -698,6 +698,7 @@ serve(async (req) => {
       let inicioPag = 0,
         paginas = 0;
       let _mgfDebug = "";
+      let _mgfHttpFail = false;
       while (paginas < 100) {
         paginas++;
         const r = await fetch(`${base}/mgf-lancamento/listar`, {
@@ -722,22 +723,41 @@ serve(async (req) => {
             for (const k of ["retorno", "lancamentos", "dados", "data", "registros", "resultado", "lista", "mgf"]) {
               if (Array.isArray(o[k])) return o[k];
             }
+            // Fallback: procura recursivamente qualquer array de objetos
+            // que pareça um lançamento (tem codigo_lancamento ou parcelas).
+            for (const k of Object.keys(o)) {
+              const v = (o as any)[k];
+              if (Array.isArray(v) && v.length && typeof v[0] === "object") {
+                const s = v[0] || {};
+                if ("codigo_lancamento" in s || "parcelas" in s || "valor_parcela" in s || "data_vencimento" in s) {
+                  return v;
+                }
+              }
+              if (v && typeof v === "object" && !Array.isArray(v)) {
+                const nested = _extrairMgf(v);
+                if (nested.length) return nested;
+              }
+            }
           }
           return [];
         };
         const lancs = _extrairMgf(j);
+        if (!r.ok) {
+          _mgfHttpFail = true;
+          _mgfDebug = `HTTP ${r.status} body=${_mgfRaw.slice(0, 300)}`;
+          console.log("[MGF] HTTP falhou ->", _mgfDebug);
+          break;
+        }
         if (paginas === 1 && lancs.length === 0) {
-          // Hinova responde HTTP 200 { mensagem: "OK", error: ["Nao foram
-          // encontrados lancamentos..."] } quando o filtro nao casa com nada.
-          // Isso NAO e erro — e apenas periodo sem lancamentos.
-          const msgOk = j && typeof j === "object" && typeof j.mensagem === "string" && j.mensagem.toUpperCase() === "OK";
-          const semDadosMsg = j && Array.isArray((j as any).error) && (j as any).error.some((e: unknown) => typeof e === "string" && /n[ãa]o\s+foram\s+encontrados/i.test(e));
-          if (!msgOk && !semDadosMsg) {
-            _mgfDebug = `HTTP ${r.status} chaves=${j && typeof j === "object" ? Object.keys(j).join("|") : String(j).slice(0, 20)} body=${_mgfRaw.slice(0, 300)}`;
-            console.log("[MGF] 1a pagina sem array ->", _mgfDebug);
-          } else {
-            console.log("[MGF] 1a pagina vazia (sem lancamentos no periodo) — tratando como sucesso");
-          }
+          // HTTP 200 + nenhum lançamento reconhecível.
+          // Isso é comum: Hinova responde { mensagem: "OK", error: ["Nao foram
+          // encontrados lancamentos..."] } para períodos sem lançamentos.
+          // Também pode ser um contrato ligeiramente diferente — logamos para
+          // diagnóstico, mas NÃO tratamos como erro (evita falso positivo que
+          // apaga o histórico anterior). O merge incremental preserva os dados
+          // já importados.
+          _mgfDebug = `HTTP ${r.status} chaves=${j && typeof j === "object" ? Object.keys(j).join("|") : String(j).slice(0, 20)} body=${_mgfRaw.slice(0, 300)}`;
+          console.log("[MGF] 1a pagina sem lancamentos ->", _mgfDebug);
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const L of lancs as any[]) {
@@ -809,12 +829,14 @@ serve(async (req) => {
         .update({ total_registros: totalM ?? mergeResM.totalProcessado })
         .eq("id", impMId);
 
-      const _mgfSemDados = rows.length === 0 && !!_mgfDebug;
+      // Só marcamos como erro se o HTTP falhou. Se HTTP=200 sem dados, é sucesso
+      // com 0 novos registros (não sobrescreve nem apaga o histórico anterior).
+      const _mgfSemDados = _mgfHttpFail;
       await supabase
         .from("mgf_automacao_config")
         .update({
           ultimo_status: _mgfSemDados ? "erro" : "sucesso",
-          ultimo_erro: _mgfSemDados ? `API MGF sem array valido na 1a pagina. ${_mgfDebug}` : null,
+          ultimo_erro: _mgfSemDados ? `API MGF HTTP falhou. ${_mgfDebug}` : null,
           ultima_execucao: new Date().toISOString(),
           ultima_origem: "api",
         })
