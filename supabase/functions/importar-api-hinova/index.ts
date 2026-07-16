@@ -546,6 +546,23 @@ serve(async (req) => {
         console.warn("[importar-api-hinova] Falha ao agregar Estudo de Base:", err);
       }
 
+      // Registra no histórico (bi_audit_logs) pra aparecer no botão "Histórico"
+      // da tela de Estudo de Base / Indicadores — antes só imports MANUAIS
+      // eram logados, então o histórico não refletia a sincronização por API.
+      try {
+        await supabase.from("bi_audit_logs").insert({
+          modulo: "base",
+          acao: "importacao_automatica",
+          descricao: `Importação da base via API SGA Hinova: ${veiculos.length} veículos`,
+          corretora_id,
+          user_id: "00000000-0000-0000-0000-000000000000",
+          user_nome: "Sistema (API)",
+          dados_novos: { total: veiculos.length, via: "api", endpoint: endpointOk },
+        });
+      } catch (logErr) {
+        console.warn("[importar-api-hinova] Falha ao logar histórico da base:", logErr);
+      }
+
       // NOTA: Cadastro/Estudo de Base ainda seguem o padrão antigo (substituição
       // total a cada importação) — não fazem parte do escopo deste ajuste, que
       // cobriu especificamente Cobrança, MGF e Eventos (onde o histórico estava

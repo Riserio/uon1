@@ -67,10 +67,23 @@ export function BIAuditLogDialog({ open, onOpenChange, modulo, corretoraId }: BI
   const fetchLogs = async () => {
     setLoading(true);
     try {
+      // As importações via API/automação logam com o nome "base" do módulo
+      // (ex.: "cobranca"), enquanto as ações manuais da UI usam o sufixo
+      // "_insights" (ex.: "cobranca_insights"). Lemos os dois (aliases) pra
+      // o histórico mostrar TANTO os imports manuais QUANTO os da API.
+      const MODULO_ALIASES: Record<string, string[]> = {
+        cobranca_insights: ["cobranca_insights", "cobranca"],
+        mgf_insights: ["mgf_insights", "mgf"],
+        sga_insights: ["sga_insights", "sga", "eventos"],
+        estudo_base: ["estudo_base", "base"],
+        bi_indicadores: ["bi_indicadores", "base"],
+      };
+      const modulos = MODULO_ALIASES[modulo] ?? [modulo];
+
       let query = supabase
         .from("bi_audit_logs")
         .select("*")
-        .eq("modulo", modulo)
+        .in("modulo", modulos)
         .order("created_at", { ascending: false })
         .limit(100);
 
