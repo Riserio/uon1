@@ -10,6 +10,7 @@ import { usePortalAuth } from "@/contexts/PortalAuthContext";
 import { Loader2, QrCode } from "lucide-react";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import LoginBackgroundDefault from "@/assets/login-background-default.png";
+import PortalOrientationGuard from "@/components/portal/PortalOrientationGuard";
 
 export default function PortalLogin() {
   const { slug } = useParams<{ slug: string }>();
