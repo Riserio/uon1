@@ -81,7 +81,7 @@ export default function PortalMobileNav({
           atrás durante o scroll ficava visível por trás da pill, dando a
           impressão de uma segunda barra colada/vazamento. */}
       <nav
-        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border/70 shadow-[0_8px_30px_-6px_rgba(0,0,0,0.18)] px-2 md:px-3 lg:px-5 flex items-center justify-center md:justify-between gap-0.5 md:gap-1.5 lg:gap-3 w-fit max-w-[calc(100vw-1.5rem)] md:w-full md:max-w-4xl lg:max-w-5xl pointer-events-auto"
+        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-2xl bg-card border border-border/70 shadow-[0_8px_30px_-6px_rgba(0,0,0,0.18)] px-2 md:px-3 lg:px-5 flex items-center justify-center md:justify-between gap-0.5 md:gap-1.5 lg:gap-3 w-fit max-w-[calc(100vw-1.5rem)] md:w-full md:max-w-4xl lg:max-w-5xl pointer-events-auto"
         style={{ paddingTop: "0.25rem", paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
       >
         {favoritos.map((mod) => {
