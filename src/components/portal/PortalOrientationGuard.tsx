@@ -1,14 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Smartphone } from "lucide-react";
 
 // No mobile, o Portal do Parceiro é feito para o modo retrato. Em paisagem,
 // mostramos uma tela pedindo para girar o aparelho (bloqueando a navegação).
-// Detecção: touch (pointer coarse) + orientação paisagem + altura baixa — pega
-// celular em paisagem sem afetar desktop/tablet grande.
-const QUERY = "(orientation: landscape) and (max-height: 600px) and (pointer: coarse)";
+// Detecção: qualquer dispositivo touch (pointer: coarse) em orientação paisagem.
+const QUERY = "(orientation: landscape) and (pointer: coarse)";
 
 export default function PortalOrientationGuard() {
   const [bloquear, setBloquear] = useState(false);
+  const lockedRef = useRef(false);
+
+  // Tenta travar a orientação em retrato via Screen Orientation API.
+  // Onde não for suportada (iOS, alguns navegadores), o overlay abaixo
+  // continua impedindo o uso em paisagem.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const orientation = (window.screen as ScreenOrientationAPI).orientation;
+    if (orientation && typeof orientation.lock === "function") {
+      orientation
+        .lock("portrait")
+        .then(() => {
+          lockedRef.current = true;
+        })
+        .catch(() => {
+          // Lock pode exigir interação/tela cheia — ignoramos e deixamos o overlay.
+        });
+    }
+    return () => {
+      if (lockedRef.current && orientation && typeof orientation.unlock === "function") {
+        orientation.unlock();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -32,4 +55,12 @@ export default function PortalOrientationGuard() {
       </p>
     </div>
   );
+}
+
+// Tipagem mínima para a Screen Orientation API (nem todos os targets a expõem).
+interface ScreenOrientationAPI {
+  orientation?: {
+    lock?: (orientation: "portrait" | "portrait-primary" | "portrait-secondary" | "landscape") => Promise<void>;
+    unlock?: () => void;
+  };
 }
