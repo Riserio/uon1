@@ -71,9 +71,9 @@ function BILayoutInner() {
           showHistorico={canViewHistorico && !isAdminView}
           onHistoricoClick={() => setHistoricoDialogOpen(true)}
           showAdminOption={canViewAdmin}
-          recordCount={headerDynamic.recordCount}
-          hasActiveFilters={headerDynamic.hasActiveFilters}
-          fileName={headerDynamic.fileName}
+          recordCount={headerDynamic.modulo === currentModule ? headerDynamic.recordCount : undefined}
+          hasActiveFilters={headerDynamic.modulo === currentModule ? headerDynamic.hasActiveFilters : undefined}
+          fileName={headerDynamic.modulo === currentModule ? headerDynamic.fileName : undefined}
         />
       </div>
 

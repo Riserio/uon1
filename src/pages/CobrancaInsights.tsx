@@ -483,6 +483,7 @@ export default function CobrancaInsights() {
   useEffect(() => {
     if (biLayout && !isPortalAccess) {
       biLayout.setHeaderDynamic({
+        modulo: 'cobranca',
         recordCount: dashboardStats?.totalBoletos ?? 0,
         hasActiveFilters: !!hasActiveFilters,
         fileName: importacaoAtiva?.nome_arquivo,

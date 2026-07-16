@@ -378,6 +378,7 @@ export default function SGAInsights() {
   useEffect(() => {
     if (biLayout && !isPortalAccess) {
       biLayout.setHeaderDynamic({
+        modulo: 'eventos',
         recordCount: dashboardStats?.totalEventos ?? 0,
         hasActiveFilters: !!hasActiveFilters,
         fileName: importacaoAtiva?.nome_arquivo,

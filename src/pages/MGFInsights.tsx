@@ -394,6 +394,7 @@ export default function MGFInsights() {
   useEffect(() => {
     if (biLayout && !isPortalAccess) {
       biLayout.setHeaderDynamic({
+        modulo: 'mgf',
         recordCount,
         fileName: importacaoAtiva?.nome_arquivo,
       });

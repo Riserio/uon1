@@ -9,6 +9,9 @@ interface BIHeaderDynamic {
   recordCount?: number;
   hasActiveFilters?: boolean;
   fileName?: string;
+  // Módulo dono desta contagem — o header só a exibe quando bate com a aba
+  // atual (evita mostrar a contagem de um módulo em outra aba).
+  modulo?: string;
 }
 
 interface BILayoutContextType {

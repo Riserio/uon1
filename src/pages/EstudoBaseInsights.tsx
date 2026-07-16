@@ -49,6 +49,7 @@ export default function EstudoBaseInsights() {
   useEffect(() => {
     if (biLayout && !isPortalAccess) {
       biLayout.setHeaderDynamic({
+        modulo: 'estudo-base',
         recordCount,
         fileName,
       });

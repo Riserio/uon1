@@ -59,6 +59,7 @@ export default function CadastroInsights() {
   useEffect(() => {
     if (biLayout) {
       biLayout.setHeaderDynamic({
+        modulo: 'cadastro',
         recordCount: registros.length,
         hasActiveFilters: false,
         fileName: undefined,
