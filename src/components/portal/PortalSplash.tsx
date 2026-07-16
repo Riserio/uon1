@@ -5,34 +5,26 @@ import { cn } from "@/lib/utils";
 type Props = {
   logo?: string | null;
   nome?: string;
+  // Reexibe a splash sempre que mudar (ex.: troca de associação).
+  corretoraId?: string;
 };
 
-// Splash exibida ao abrir o /portal — uma vez por sessão do navegador.
-// Mostra a logo da associação (fallback: logo do app), com fade-out suave.
-export default function PortalSplash({ logo, nome }: Props) {
-  const [visivel, setVisivel] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem("portal-splash-shown") !== "1";
-    } catch {
-      return true;
-    }
-  });
+// Splash exibida ao abrir o /portal e a cada troca de associação. ~3s com
+// fade-out suave. Co-branding: logo da Vangard | logo da associação.
+export default function PortalSplash({ logo, nome, corretoraId }: Props) {
+  const [visivel, setVisivel] = useState(true);
   const [saindo, setSaindo] = useState(false);
 
   useEffect(() => {
-    if (!visivel) return;
-    try {
-      sessionStorage.setItem("portal-splash-shown", "1");
-    } catch {
-      // sem persistência — segue exibindo só nesta montagem
-    }
-    const t1 = setTimeout(() => setSaindo(true), 1300);
-    const t2 = setTimeout(() => setVisivel(false), 1850);
+    setVisivel(true);
+    setSaindo(false);
+    const tFade = setTimeout(() => setSaindo(true), 2500);
+    const tHide = setTimeout(() => setVisivel(false), 3000);
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
+      clearTimeout(tFade);
+      clearTimeout(tHide);
     };
-  }, [visivel]);
+  }, [corretoraId]);
 
   if (!visivel) return null;
 
