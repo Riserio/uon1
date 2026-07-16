@@ -6,6 +6,7 @@ import PortalSidebar from "./PortalSidebar";
 import PortalMobileHeader from "./PortalMobileHeader";
 import PortalMobileNav from "./PortalMobileNav";
 import PortalOrientationGuard from "./PortalOrientationGuard";
+import PortalSplash from "./PortalSplash";
 import PortalPageWrapper from "./PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
@@ -156,6 +157,7 @@ export default function PortalLayout() {
     >
       <div className="portal-theme min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
         <PortalOrientationGuard />
+        <PortalSplash logo={corretora.logo_expanded_url || corretora.logo_url || corretora.logo_collapsed_url} nome={corretora.nome} />
         <PortalMobileHeader corretora={corretora} force={useBottomBar} />
 
         <PortalSidebar
