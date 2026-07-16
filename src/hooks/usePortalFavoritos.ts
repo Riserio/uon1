@@ -4,22 +4,25 @@ import { PortalModule, MODULE_ORDER } from "@/lib/portalModules";
 const MAX_FAVORITOS_MOBILE = 4;
 
 type Options = {
-  // Prefixo da chave no localStorage. Permite ter listas independentes
-  // (ex.: 4 favoritos no mobile x todos os módulos no desktop) sem uma
-  // sobrescrever a outra.
   storageKeyPrefix?: string;
-  // Limite de itens selecionáveis. No mobile = 4; no desktop = todos.
   maxFavoritos?: number;
-  // Se true, o default (quando o usuário nunca editou) é TODOS os módulos
-  // disponíveis em vez dos primeiros N.
+  // Se true, o default é TODOS os módulos disponíveis. Além disso, módulos
+  // que passarem a ficar disponíveis DEPOIS (ex.: Ouvidoria habilitada mais
+  // tarde) são adicionados automaticamente — preservando remoções explícitas.
   defaultAll?: boolean;
 };
 
-// Lista de módulos exibidos na barra do Portal. Não existe coluna no banco
-// pra isso (checado: profiles e corretora_usuarios não têm campo de
-// preferência pessoal), então fica em localStorage, escopado por corretora
-// — mesmo padrão já usado em "portal-sidebar-expanded" e
-// "portal-carousel-config".
+const readList = (key: string): PortalModule[] => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as PortalModule[]) : [];
+  } catch {
+    return [];
+  }
+};
+
 export function usePortalFavoritos(
   corretoraId: string,
   availableModules: PortalModule[],
@@ -32,11 +35,28 @@ export function usePortalFavoritos(
   } = options;
 
   const storageKey = `${storageKeyPrefix}-${corretoraId}`;
+  // Guarda os módulos já "conhecidos" na última vez — distingue um módulo
+  // NOVO (deve aparecer) de um REMOVIDO de propósito (segue oculto). Só no
+  // modo defaultAll (desktop).
+  const knownKey = `${storageKey}-known`;
 
   const computeDefault = useCallback(() => {
     const all = MODULE_ORDER.filter((m) => availableModules.includes(m));
     return defaultAll ? all : all.slice(0, maxFavoritos);
   }, [availableModules, defaultAll, maxFavoritos]);
+
+  const withNewlyAvailable = useCallback(
+    (lista: PortalModule[]): PortalModule[] => {
+      if (!defaultAll) return lista;
+      const known = readList(knownKey);
+      const novos = availableModules.filter(
+        (m) => !known.includes(m) && !lista.includes(m)
+      );
+      if (novos.length === 0) return lista;
+      return MODULE_ORDER.filter((m) => lista.includes(m) || novos.includes(m));
+    },
+    [defaultAll, knownKey, availableModules]
+  );
 
   const [favoritos, setFavoritosState] = useState<PortalModule[]>(() => {
     try {
@@ -44,10 +64,12 @@ export function usePortalFavoritos(
       if (saved) {
         const parsed: PortalModule[] = JSON.parse(saved);
         const filtered = parsed.filter((m) => availableModules.includes(m));
-        if (filtered.length > 0) return filtered.slice(0, maxFavoritos);
+        if (filtered.length > 0) {
+          return withNewlyAvailable(filtered).slice(0, maxFavoritos);
+        }
       }
     } catch {
-      // ignora storage corrompido, cai no default abaixo
+      // ignora storage corrompido
     }
     return computeDefault();
   });
@@ -56,20 +78,32 @@ export function usePortalFavoritos(
     try {
       localStorage.setItem(storageKey, JSON.stringify(favoritos));
     } catch {
-      // storage indisponível (modo privado etc) — segue sem persistir
+      // storage indisponível — segue
     }
   }, [favoritos, storageKey]);
 
-  // Se os módulos disponíveis mudarem (ex.: trocou de associação) e algum
-  // item salvo não existir mais, recalcula a partir do default.
   const availableKey = availableModules.join(",");
+
+  // Módulos disponíveis mudaram: remove os inexistentes e, no defaultAll,
+  // adiciona os novos. Só DEPOIS de calcular os novos é que registramos os
+  // "conhecidos" — senão o novo já entraria como conhecido e nunca apareceria.
   useEffect(() => {
     setFavoritosState((prev) => {
       const filtered = prev.filter((m) => availableModules.includes(m));
-      if (filtered.length === prev.length && filtered.length > 0) return prev;
-      if (filtered.length > 0) return filtered;
-      return computeDefault();
+      const base = filtered.length > 0 ? filtered : computeDefault();
+      const next = withNewlyAvailable(base);
+      if (next.length === prev.length && next.every((m, i) => m === prev[i])) {
+        return prev;
+      }
+      return next;
     });
+    if (defaultAll) {
+      try {
+        localStorage.setItem(knownKey, JSON.stringify(availableModules));
+      } catch {
+        // sem persistência
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [corretoraId, availableKey]);
 
@@ -77,7 +111,6 @@ export function usePortalFavoritos(
     setFavoritosState((prev) => {
       if (prev.includes(mod)) return prev.filter((m) => m !== mod);
       if (prev.length >= maxFavoritos) return prev;
-      // preserva a ordem canônica dos módulos ao (re)adicionar
       return MODULE_ORDER.filter((m) => prev.includes(m) || m === mod);
     });
   }, [maxFavoritos]);
