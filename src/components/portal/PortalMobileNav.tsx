@@ -98,9 +98,9 @@ export default function PortalMobileNav({
             >
               <span
                 className={cn(
-                  "flex items-center justify-center h-8 w-8 rounded-full transition-all duration-200",
+                  "flex items-center justify-center h-9 w-9 rounded-xl transition-all duration-200",
                   isActive
-                    ? "bg-accent-brand/12 text-accent-brand"
+                    ? "bg-primary/10 text-primary"
                     : "text-muted-foreground group-hover:bg-muted group-hover:text-foreground"
                 )}
               >
@@ -109,7 +109,7 @@ export default function PortalMobileNav({
               <span
                 className={cn(
                   "text-[9px] md:text-[11px] leading-none truncate max-w-[52px] md:max-w-[8rem] transition-colors",
-                  isActive ? "font-semibold text-accent-brand" : "font-medium text-muted-foreground"
+                  isActive ? "font-medium text-primary" : "font-medium text-muted-foreground"
                 )}
               >
                 {cfg.shortLabel}
@@ -122,7 +122,7 @@ export default function PortalMobileNav({
           onClick={() => setSettingsOpen(true)}
           className="group flex flex-col items-center justify-center gap-1 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1 landscape:py-0.5 rounded-2xl transition-transform active:scale-90"
         >
-          <span className="flex items-center justify-center h-8 w-8 rounded-full text-muted-foreground transition-all duration-200 group-hover:bg-muted group-hover:text-foreground">
+          <span className="flex items-center justify-center h-9 w-9 rounded-xl text-muted-foreground transition-all duration-200 group-hover:bg-muted group-hover:text-foreground">
             <Settings className="h-5 w-5" />
           </span>
           <span className="text-[9px] md:text-[11px] font-medium leading-none text-muted-foreground">Ajustes</span>
