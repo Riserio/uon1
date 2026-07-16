@@ -9,18 +9,24 @@ type Props = {
   corretoraId?: string;
 };
 
-// Splash exibida ao abrir o /portal e a cada troca de associação. ~3s com
-// fade-out suave. Co-branding: logo da Vangard | logo da associação.
+// Splash em duas fases, ao abrir o /portal e a cada troca de associação:
+//   1) ~2s exibindo só a logo da Vangard;
+//   2) a logo da associação aparece ao lado (co-branding) e então some com
+//      fade-out suave.
 export default function PortalSplash({ logo, nome, corretoraId }: Props) {
   const [visivel, setVisivel] = useState(true);
   const [saindo, setSaindo] = useState(false);
+  const [mostrarAssoc, setMostrarAssoc] = useState(false);
 
   useEffect(() => {
     setVisivel(true);
     setSaindo(false);
-    const tFade = setTimeout(() => setSaindo(true), 2500);
-    const tHide = setTimeout(() => setVisivel(false), 3000);
+    setMostrarAssoc(false);
+    const tAssoc = setTimeout(() => setMostrarAssoc(true), 2000); // 2s só Vangard
+    const tFade = setTimeout(() => setSaindo(true), 3000);
+    const tHide = setTimeout(() => setVisivel(false), 3500);
     return () => {
+      clearTimeout(tAssoc);
       clearTimeout(tFade);
       clearTimeout(tHide);
     };
@@ -41,13 +47,13 @@ export default function PortalSplash({ logo, nome, corretoraId }: Props) {
           alt="Vangard"
           className="h-12 max-w-[150px] object-contain"
         />
-        {logo && (
+        {logo && mostrarAssoc && (
           <>
-            <div className="h-10 w-px bg-border" />
+            <div className="h-10 w-px bg-border animate-in fade-in duration-500" />
             <img
               src={logo}
               alt={nome || "Associação"}
-              className="h-12 max-w-[150px] object-contain"
+              className="h-12 max-w-[150px] object-contain animate-in fade-in slide-in-from-right-4 duration-500"
             />
           </>
         )}
