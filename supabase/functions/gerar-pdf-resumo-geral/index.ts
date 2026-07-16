@@ -83,6 +83,23 @@ serve(async (req) => {
     let cadastrosPorCoop: { coop: string; qtd: number }[] = [];
     let cadastrosTotalMes = 0;
     try {
+      // Placas ativas: usa o valor AGREGADO (pid_operacional.placas_ativas),
+      // mesma fonte do KPI do dashboard (isAtivo: exclui inadimplente/inativo).
+      // Evita count ad-hoc que inflava o número.
+      const { data: pidRow } = await supabase
+        .from("pid_operacional")
+        .select("placas_ativas")
+        .eq("corretora_id", corretora_id)
+        .order("ano", { ascending: false })
+        .order("mes", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      placasAtivas = Number((pidRow as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
+
+      // Cadastros do mês por cooperativa: veículos com data_contrato dentro do
+      // mês corrente, na base ativa. (Depende de data_contrato preenchido — só
+      // é gravado a partir do fix recente do importador; meses/bases antigas
+      // podem vir sem data e portanto zerados.)
       const { data: impBase } = await supabase
         .from("estudo_base_importacoes")
         .select("id")
@@ -92,20 +109,19 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
       if (impBase?.id) {
-        const { count: ativasCount } = await supabase
-          .from("estudo_base_registros")
-          .select("id", { count: "exact", head: true })
-          .eq("importacao_id", impBase.id)
-          .or("situacao_veiculo.ilike.ativ%,situacao_veiculo.is.null");
-        placasAtivas = ativasCount ?? 0;
-
-        const primeiroDia = `${nowSP.getUTCFullYear()}-${pad2(nowSP.getUTCMonth() + 1)}-01`;
+        const anoAtual = nowSP.getUTCFullYear();
+        const mesAtual = nowSP.getUTCMonth() + 1;
+        const primeiroDia = `${anoAtual}-${pad2(mesAtual)}-01`;
+        const proxAno = mesAtual === 12 ? anoAtual + 1 : anoAtual;
+        const proxMes = mesAtual === 12 ? 1 : mesAtual + 1;
+        const primeiroDiaProx = `${proxAno}-${pad2(proxMes)}-01`;
         const { data: novos } = await supabase
           .from("estudo_base_registros")
           .select("cooperativa, data_contrato")
           .eq("importacao_id", impBase.id)
           .gte("data_contrato", primeiroDia)
-          .limit(20000);
+          .lt("data_contrato", primeiroDiaProx)
+          .limit(50000);
         const mapa = new Map<string, number>();
         (novos || []).forEach((r: any) => {
           const coop = ((r.cooperativa || "").toString().trim()) || "Sem cooperativa";
