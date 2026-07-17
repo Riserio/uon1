@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-// Horários (Brasília) em que os schedulers rodam — cron 08–18 a cada 2h.
-// Mantido em sincronia com a migration de otimização dos crons.
-const SYNC_HOURS = [8, 10, 12, 14, 16, 18];
+const HORARIOS_PADRAO = [8, 14];
 
 // Módulo -> tabela de importações (mesma fonte que cada tela usa).
 const MODULOS: { chave: string; label: string; tabela: string }[] = [
@@ -24,21 +22,34 @@ function tempoRelativo(d: Date): string {
   return `há ${Math.floor(h / 24)}d`;
 }
 
-function proximaSync(): string {
-  const now = new Date();
-  const alvo = SYNC_HOURS.find((x) => x > now.getHours()) ?? SYNC_HOURS[0];
+// Próximo horário agendado (Brasília) a partir da lista configurada.
+function proximaSync(horarios: number[]): string {
+  const lista = [...horarios].sort((a, b) => a - b);
+  if (lista.length === 0) return "—";
+  const h = new Date().getHours();
+  const alvo = lista.find((x) => x > h) ?? lista[0];
   return `${String(alvo).padStart(2, "0")}:00`;
 }
 
 // Indicador discreto: última sincronização (geral, inline) e detalhe por
-// módulo no tooltip. Só leitura.
+// módulo no tooltip. "Próxima" segue os horários configurados (horarios_sync).
 export default function SyncStatusHint({ corretoraId }: { corretoraId?: string }) {
   const [porModulo, setPorModulo] = useState<Record<string, Date | null>>({});
+  const [horarios, setHorarios] = useState<number[]>(HORARIOS_PADRAO);
 
   useEffect(() => {
     if (!corretoraId) return;
     let cancelado = false;
     (async () => {
+      // Horários configurados da associação (default 08h/14h).
+      const { data: cred } = await supabase
+        .from("hinova_credenciais")
+        .select("horarios_sync")
+        .eq("corretora_id", corretoraId)
+        .maybeSingle();
+      const hs = (cred as { horarios_sync?: number[] } | null)?.horarios_sync;
+      if (!cancelado && Array.isArray(hs) && hs.length > 0) setHorarios(hs);
+
       const entradas = await Promise.all(
         MODULOS.map(async (m) => {
           const { data } = await supabase
@@ -59,12 +70,14 @@ export default function SyncStatusHint({ corretoraId }: { corretoraId?: string }
 
   const datas = Object.values(porModulo).filter(Boolean) as Date[];
   const maisRecente = datas.length > 0 ? new Date(Math.max(...datas.map((d) => d.getTime()))) : null;
+  const prox = proximaSync(horarios);
+  const listaHorarios = [...horarios].sort((a, b) => a - b).map((h) => `${String(h).padStart(2, "0")}:00`).join(", ");
 
   const detalhe =
     MODULOS.map((m) => {
       const d = porModulo[m.chave];
       return `${m.label}: ${d ? tempoRelativo(d) : "—"}`;
-    }).join("\n") + `\nPróxima ~${proximaSync()} (08–18h, a cada 2h)`;
+    }).join("\n") + `\nHorários: ${listaHorarios}`;
 
   return (
     <span
@@ -73,7 +86,7 @@ export default function SyncStatusHint({ corretoraId }: { corretoraId?: string }
     >
       <RefreshCw className="h-3 w-3" />
       {maisRecente ? `atualizado ${tempoRelativo(maisRecente)}` : "sync automática"}
-      {` · próxima ~${proximaSync()}`}
+      {` · próxima ~${prox}`}
     </span>
   );
 }
