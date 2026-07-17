@@ -8857,6 +8857,7 @@ export type Database = {
         Row: {
           body: string | null
           contact_id: string
+          corretora_id: string | null
           created_at: string
           direction: string
           error_message: string | null
@@ -8874,6 +8875,7 @@ export type Database = {
         Insert: {
           body?: string | null
           contact_id: string
+          corretora_id?: string | null
           created_at?: string
           direction: string
           error_message?: string | null
@@ -8891,6 +8893,7 @@ export type Database = {
         Update: {
           body?: string | null
           contact_id?: string
+          corretora_id?: string | null
           created_at?: string
           direction?: string
           error_message?: string | null
