@@ -35,6 +35,8 @@ import {
   WifiOff,
   ChevronDown,
   GitBranch,
+  X,
+  Plus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -56,7 +58,8 @@ interface HinovaCredenciais {
   url_mgf: string;
   hora_agendada: string; // horário do robô GitHub (fallback)
   api_hora_agendada: string; // horário da importação via API (prioridade)
-  api_intervalo_horas: number; // intervalo em horas entre atualizações da base via API
+  api_intervalo_horas: number; // (legado) intervalo entre atualizações — não mais usado no agendamento
+  horarios_sync: number[]; // horas (Brasília) em que a importação roda, ex.: [8,14]
   git_fallback_ativo: boolean; // se o robô GitHub roda como fallback da API
   dias_agendados: number[] | null;
   ativo_cobranca: boolean;
@@ -156,6 +159,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     hora_agendada: "10:00",
     api_hora_agendada: "09:00",
     api_intervalo_horas: 24,
+    horarios_sync: [8, 14],
     git_fallback_ativo: true,
     dias_agendados: null,
     ativo_cobranca: false,
@@ -213,6 +217,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           hora_agendada: (data.hora_agendada || "10:00").slice(0, 5),
           api_hora_agendada: ((data as any).api_hora_agendada || "09:00").slice(0, 5),
           api_intervalo_horas: (data as any).api_intervalo_horas ?? 24,
+          horarios_sync: Array.isArray((data as any).horarios_sync) && (data as any).horarios_sync.length > 0 ? (data as any).horarios_sync : [8, 14],
           git_fallback_ativo: (data as any).git_fallback_ativo ?? true,
           dias_agendados: data.dias_agendados || null,
           ativo_cobranca: data.ativo_cobranca || false,
@@ -421,6 +426,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         hora_agendada: creds.hora_agendada,
         api_hora_agendada: creds.api_hora_agendada,
         api_intervalo_horas: creds.api_intervalo_horas,
+        horarios_sync: creds.horarios_sync,
         git_fallback_ativo: creds.git_fallback_ativo,
         dias_agendados: creds.dias_agendados,
         ativo_cobranca: creds.ativo_cobranca,
@@ -1227,34 +1233,58 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                           className="h-9 text-xs rounded-xl font-mono"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Horário da importação (API)</Label>
-                        <Input
-                          type="time"
-                          value={creds.api_hora_agendada}
-                          onChange={(e) => setCreds((p) => ({ ...p, api_hora_agendada: e.target.value }))}
-                          disabled={!creds.usar_api}
-                          className="h-9 text-sm rounded-xl"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Frequência de atualização da base</Label>
-                        <Select
-                          value={String(creds.api_intervalo_horas ?? 24)}
-                          onValueChange={(v) => setCreds((p) => ({ ...p, api_intervalo_horas: Number(v) }))}
-                          disabled={!creds.usar_api}
-                        >
-                          <SelectTrigger className="h-9 text-sm rounded-xl">
-                            <SelectValue placeholder="24h (1x/dia)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1">A cada 1h</SelectItem>
-                            <SelectItem value="3">A cada 3h</SelectItem>
-                            <SelectItem value="6">A cada 6h</SelectItem>
-                            <SelectItem value="12">A cada 12h</SelectItem>
-                            <SelectItem value="24">24h (1x/dia)</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-xs">Horários da importação (API)</Label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {[...creds.horarios_sync].sort((a, b) => a - b).map((h) => (
+                            <span
+                              key={h}
+                              className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary text-xs font-medium px-2.5 py-1"
+                            >
+                              {String(h).padStart(2, "0")}:00
+                              <button
+                                type="button"
+                                disabled={!creds.usar_api}
+                                onClick={() =>
+                                  setCreds((p) => ({ ...p, horarios_sync: p.horarios_sync.filter((x) => x !== h) }))
+                                }
+                                className="hover:text-destructive disabled:opacity-40"
+                                aria-label={`Remover ${String(h).padStart(2, "0")}:00`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                          <Select
+                            value=""
+                            onValueChange={(v) => {
+                              const h = Number(v);
+                              setCreds((p) =>
+                                p.horarios_sync.includes(h)
+                                  ? p
+                                  : { ...p, horarios_sync: [...p.horarios_sync, h] }
+                              );
+                            }}
+                            disabled={!creds.usar_api}
+                          >
+                            <SelectTrigger className="h-8 w-[120px] text-xs rounded-xl">
+                              <SelectValue placeholder="+ horário" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 24 }, (_, h) => h)
+                                .filter((h) => !creds.horarios_sync.includes(h))
+                                .map((h) => (
+                                  <SelectItem key={h} value={String(h)}>
+                                    {String(h).padStart(2, "0")}:00
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          A importação roda nesses horários (Brasília). Quantos horários = frequência por dia.
+                          Ex.: 08:00 e 14:00 = 2x/dia.
+                        </p>
                       </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground">

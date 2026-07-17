@@ -430,10 +430,20 @@ serve(async (req) => {
       {
         const { data: credInt } = await supabase
           .from("hinova_credenciais")
-          .select("api_intervalo_horas")
+          .select("horarios_sync")
           .eq("corretora_id", config.corretora_id)
           .maybeSingle();
-        const intervaloHoras = Number((credInt as any)?.api_intervalo_horas) || 24;
+        // Só importa nas horas configuradas (horarios_sync, em Brasília; default
+        // 8/14). O cron roda de hora em hora e cada scheduler filtra pela hora.
+        const horariosSync: number[] = Array.isArray((credInt as any)?.horarios_sync) && (credInt as any).horarios_sync.length > 0
+          ? (credInt as any).horarios_sync
+          : [8, 14];
+        const horaBrt = new Date(Date.now() - 3 * 3_600_000).getUTCHours();
+        if (!horariosSync.includes(horaBrt)) {
+          continue;
+        }
+        // Dedup: evita reimportar duas vezes na mesma hora (o QUANDO já é
+        // decidido por horarios_sync acima). Não depende mais do intervalo.
         const { data: ultimaExec } = await supabase
           .from("cobranca_automacao_execucoes")
           .select("created_at")
@@ -443,9 +453,8 @@ serve(async (req) => {
           .limit(1)
           .maybeSingle();
         if (ultimaExec?.created_at) {
-          const diffHoras = (Date.now() - new Date(ultimaExec.created_at).getTime()) / 3_600_000;
-          if (diffHoras < intervaloHoras) {
-            console.log(`[Scheduler] ${config.corretora?.nome || config.corretora_id} intervalo não atingido (${diffHoras.toFixed(1)}h / ${intervaloHoras}h), pulando`);
+          const diffMin = (Date.now() - new Date(ultimaExec.created_at).getTime()) / 60000;
+          if (diffMin < 50) {
             continue;
           }
         }

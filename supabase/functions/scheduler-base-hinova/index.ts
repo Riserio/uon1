@@ -32,7 +32,7 @@ serve(async (req) => {
   try {
     const { data: creds } = await supabase
       .from("hinova_credenciais")
-      .select("corretora_id, usar_api, api_token, api_intervalo_horas, dias_agendados")
+      .select("corretora_id, usar_api, api_token, api_intervalo_horas, dias_agendados, horarios_sync")
       .eq("usar_api", true);
 
     const alvos = (creds || []).filter(
@@ -66,6 +66,17 @@ serve(async (req) => {
           continue;
         }
 
+        // Só importa nas horas configuradas (horarios_sync, em Brasília; default
+        // 8/14). O cron roda de hora em hora e o scheduler filtra pela hora.
+        const horariosSync: number[] = Array.isArray((c as any).horarios_sync) && (c as any).horarios_sync.length > 0
+          ? (c as any).horarios_sync
+          : [8, 14];
+        const horaBrt = new Date(Date.now() - 3 * 3_600_000).getUTCHours();
+        if (!horariosSync.includes(horaBrt)) {
+          resultados.push({ corretora_id: c.corretora_id, ok: false, pulado: `fora-dos-horarios (${horaBrt}h)` });
+          continue;
+        }
+
         const { data: ultima } = await supabase
           .from("estudo_base_importacoes")
           .select("created_at")
@@ -74,13 +85,11 @@ serve(async (req) => {
           .limit(1)
           .maybeSingle();
         if (ultima?.created_at) {
-          const diffHoras = (Date.now() - new Date(ultima.created_at).getTime()) / 3_600_000;
-          if (diffHoras < intervaloHoras) {
-            resultados.push({
-              corretora_id: c.corretora_id,
-              ok: false,
-              pulado: `intervalo-nao-atingido (${diffHoras.toFixed(1)}h / ${intervaloHoras}h)`,
-            });
+          // Dedup: não reimporta duas vezes na mesma hora (o QUANDO é decidido
+          // por horarios_sync). Não depende mais do api_intervalo_horas.
+          const diffMin = (Date.now() - new Date(ultima.created_at).getTime()) / 60000;
+          if (diffMin < 50) {
+            resultados.push({ corretora_id: c.corretora_id, ok: false, pulado: "dedup-mesma-hora" });
             continue;
           }
         }
