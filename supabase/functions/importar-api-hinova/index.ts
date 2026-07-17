@@ -803,6 +803,59 @@ serve(async (req) => {
         inicioPag += PAGE;
       }
 
+      if (_mgfHttpFail) {
+        await persistApiError(supabase, "mgf", corretora_id, `API MGF HTTP falhou. ${_mgfDebug}`);
+        return new Response(
+          JSON.stringify({ success: false, modulo: "mgf", message: "API MGF indisponível; dados existentes preservados.", debug: _mgfDebug }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      if (rows.length === 0) {
+        const { data: impAtiva } = await supabase
+          .from("mgf_importacoes")
+          .select("id, total_registros")
+          .eq("corretora_id", corretora_id)
+          .eq("ativo", true)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let totalExistente = Number(impAtiva?.total_registros ?? 0);
+        if (impAtiva?.id) {
+          const { count } = await supabase
+            .from("mgf_dados")
+            .select("id", { count: "exact", head: true })
+            .eq("importacao_id", impAtiva.id);
+          totalExistente = count ?? totalExistente;
+        }
+
+        await supabase
+          .from("mgf_automacao_config")
+          .update({
+            ultimo_status: "sucesso",
+            ultimo_erro: null,
+            ultima_execucao: new Date().toISOString(),
+            ultima_origem: "api",
+          })
+          .eq("corretora_id", corretora_id);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            modulo: "mgf",
+            total: totalExistente,
+            novos: 0,
+            atualizados: 0,
+            paginas,
+            importacao_id: impAtiva?.id ?? null,
+            preservado: true,
+            via: "api",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
       // Mesmo princípio de Cobrança/Eventos: reaproveita a importação ativa,
       // nunca cria uma nova que apague o histórico anterior.
       const nomeArqM = `API MGF ${ddmmyyyy(inicioM)}–${ddmmyyyy(fimM)}`;
@@ -829,14 +882,11 @@ serve(async (req) => {
         .update({ total_registros: totalM ?? mergeResM.totalProcessado })
         .eq("id", impMId);
 
-      // Só marcamos como erro se o HTTP falhou. Se HTTP=200 sem dados, é sucesso
-      // com 0 novos registros (não sobrescreve nem apaga o histórico anterior).
-      const _mgfSemDados = _mgfHttpFail;
       await supabase
         .from("mgf_automacao_config")
         .update({
-          ultimo_status: _mgfSemDados ? "erro" : "sucesso",
-          ultimo_erro: _mgfSemDados ? `API MGF HTTP falhou. ${_mgfDebug}` : null,
+          ultimo_status: "sucesso",
+          ultimo_erro: null,
           ultima_execucao: new Date().toISOString(),
           ultima_origem: "api",
         })

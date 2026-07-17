@@ -9388,6 +9388,19 @@ export type Database = {
         Returns: Json
       }
       agregar_estudo_base_todas: { Args: never; Returns: Json }
+      assinar_contrato_publico: {
+        Args: {
+          p_assinatura_id: string
+          p_assinatura_url: string
+          p_hash_documento?: string
+          p_ip?: string
+          p_latitude?: number
+          p_link_token: string
+          p_longitude?: number
+          p_user_agent?: string
+        }
+        Returns: Json
+      }
       atualizar_anexos_ouvidoria_publico: {
         Args: {
           p_anexos_urls: string[]
@@ -9597,8 +9610,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      extract_hinova_mgf_array: { Args: { p_payload: Json }; Returns: Json }
       generate_contrato_numero: { Args: never; Returns: string }
       generate_lancamento_numero: { Args: never; Returns: string }
+      get_contrato_publico_por_token: {
+        Args: { p_link_token: string }
+        Returns: Json
+      }
       get_dashboard_cobranca_cached: {
         Args: {
           p_cooperativa?: string

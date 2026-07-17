@@ -108,13 +108,9 @@ export default function ContratoAssinatura() {
   const { data: contrato, isLoading, error, refetch } = useQuery({
     queryKey: ["contrato-publico", token],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contratos")
-        .select(
-          `*, contrato_assinaturas(*), contrato_templates:template_id(logo_url, titulo), corretoras:corretora_id(nome, logo_url)`,
-        )
-        .eq("link_token", token)
-        .maybeSingle();
+      const { data, error } = await (supabase as any).rpc("get_contrato_publico_por_token", {
+        p_link_token: token,
+      });
       if (error) throw error;
       if (!data) throw new Error("Contrato não encontrado");
       return data;
@@ -276,39 +272,18 @@ export default function ContratoAssinatura() {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
 
-      const { error: updErr } = await supabase
-        .from("contrato_assinaturas")
-        .update({
-          status: "assinado",
-          assinado_em: new Date().toISOString(),
-          assinatura_url: assinaturaDataUrl,
-          ip_assinatura: ipAddress,
-          latitude,
-          longitude,
-          hash_documento: hashHex,
-          user_agent: navigator.userAgent,
-        })
-        .eq("id", currentAssinatura.id)
-        .eq("status", "pendente"); // guarda contra dupla assinatura (race)
-      if (updErr) throw updErr;
-
-      await supabase.from("contrato_historico").insert({
-        contrato_id: contrato.id,
-        acao: "assinado",
-        descricao: `Contrato assinado por ${currentAssinatura.nome}`,
-        ip: ipAddress,
-        user_agent: navigator.userAgent,
+      const { error: signErr } = await (supabase as any).rpc("assinar_contrato_publico", {
+        p_link_token: token,
+        p_assinatura_id: currentAssinatura.id,
+        p_assinatura_url: assinaturaDataUrl,
+        p_ip: ipAddress,
+        p_user_agent: navigator.userAgent,
+        p_latitude: latitude,
+        p_longitude: longitude,
+        p_hash_documento: hashHex,
       });
+      if (signErr) throw signErr;
 
-      // Marca o contrato como assinado quando todas as assinaturas terminarem
-      const { data: fresh } = await supabase
-        .from("contrato_assinaturas")
-        .select("status")
-        .eq("contrato_id", contrato.id);
-      const todasAssinadas = !!fresh && fresh.length > 0 && fresh.every((a) => a.status === "assinado");
-      if (todasAssinadas) {
-        await supabase.from("contratos").update({ status: "assinado" }).eq("id", contrato.id);
-      }
       return true;
     },
     onSuccess: () => {
