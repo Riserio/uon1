@@ -370,7 +370,7 @@ serve(async (req) => {
           ? (credInt as any).horarios_sync
           : [8, 14];
         const horaBrt = new Date(Date.now() - 3 * 3_600_000).getUTCHours();
-        if (!horariosSync.includes(horaBrt)) {
+        if (!forceMode && !horariosSync.includes(horaBrt)) {
           continue;
         }
         // Dedup: evita reimportar duas vezes na mesma hora (o QUANDO já é
@@ -385,7 +385,7 @@ serve(async (req) => {
           .maybeSingle();
         if (ultimaExec?.created_at) {
           const diffMin = (Date.now() - new Date(ultimaExec.created_at).getTime()) / 60000;
-          if (diffMin < 50) {
+          if (!forceMode && diffMin < 50) {
             continue;
           }
         }
