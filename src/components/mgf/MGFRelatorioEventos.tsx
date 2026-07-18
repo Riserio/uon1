@@ -110,6 +110,64 @@ const truncateText = (text: string, maxLength: number = 20) => {
   return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
 };
 
+const KPI_SCAN_CAP = 20000;
+
+// Agrega os KPIs e as séries dos gráficos a partir das linhas retornadas.
+// Mantém exatamente o formato que os gráficos já consomem.
+// deno-lint-ignore no-explicit-any
+function agregarKpis(linhas: any[]) {
+  const mapaSub = new Map<string, { rateavel: number; naoRateavel: number; countRateavel: number; countNaoRateavel: number }>();
+  const mapaCoop = new Map<string, { rateavel: number; naoRateavel: number }>();
+  const mapaMes = new Map<string, { rateavel: number; naoRateavel: number }>();
+
+  let totalRateaveis = 0, totalNaoRateaveis = 0, valorRateaveis = 0, valorNaoRateaveis = 0;
+
+  for (const l of linhas) {
+    const valor = Number(l?.valor) || 0;
+    const rateavel = !!l?.is_rateavel;
+    if (rateavel) { totalRateaveis++; valorRateaveis += valor; }
+    else { totalNaoRateaveis++; valorNaoRateaveis += valor; }
+
+    const sub = (l?.sub_operacao || "").toString().trim() || "Sem subOperação";
+    const s0 = mapaSub.get(sub) ?? { rateavel: 0, naoRateavel: 0, countRateavel: 0, countNaoRateavel: 0 };
+    if (rateavel) { s0.rateavel += valor; s0.countRateavel++; } else { s0.naoRateavel += valor; s0.countNaoRateavel++; }
+    mapaSub.set(sub, s0);
+
+    const coop = (l?.cooperativa || "").toString().trim() || "Sem cooperativa";
+    const c0 = mapaCoop.get(coop) ?? { rateavel: 0, naoRateavel: 0 };
+    if (rateavel) c0.rateavel += valor; else c0.naoRateavel += valor;
+    mapaCoop.set(coop, c0);
+
+    const dataRef: string | null = l?.data_evento || l?.data_vencimento || null;
+    const mes = dataRef ? String(dataRef).slice(0, 7) : null; // YYYY-MM
+    if (mes) {
+      const m0 = mapaMes.get(mes) ?? { rateavel: 0, naoRateavel: 0 };
+      if (rateavel) m0.rateavel += valor; else m0.naoRateavel += valor;
+      mapaMes.set(mes, m0);
+    }
+  }
+
+  const top10 = (m: Map<string, any>) =>
+    [...m.entries()]
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => (b.rateavel + b.naoRateavel) - (a.rateavel + a.naoRateavel))
+      .slice(0, 10);
+
+  return {
+    totalEventos: linhas.length,
+    totalRateaveis,
+    totalNaoRateaveis,
+    valorTotalEventos: valorRateaveis + valorNaoRateaveis,
+    valorRateaveis,
+    valorNaoRateaveis,
+    subOperacaoData: top10(mapaSub),
+    cooperativaData: top10(mapaCoop),
+    evolucaoData: [...mapaMes.entries()]
+      .map(([mes, v]) => ({ mes, ...v }))
+      .sort((a, b) => a.mes.localeCompare(b.mes)),
+  };
+}
+
 const EMPTY_KPI = {
   totalEventos: 0,
   totalRateaveis: 0,
@@ -165,10 +223,13 @@ export default function MGFRelatorioEventos({
     setKpiLoading(true);
     (async () => {
       try {
+        // Os KPIs/gráficos são calculados AQUI, a partir das próprias linhas.
+        // Antes dependiam de campos agregados que a RPC não devolve (vinham
+        // zerados, deixando todos os gráficos vazios). Buscamos o conjunto
+        // filtrado (com teto) e agregamos no cliente — mesma fonte da tabela,
+        // então os números sempre batem.
         const { data, error } = await supabase.rpc("calcular_relatorio_eventos_mgf", {
           p_corretora_id: corretoraId,
-          // calcular_relatorio_eventos_mgf só aceita valor único — com 2+
-          // seleções cai em "todas" (mesmo critério da outra chamada abaixo).
           p_operacao: unicoOuNulo(operacoes),
           p_sub_operacao: unicoOuNulo(subOperacoes),
           p_situacao: situacao,
@@ -179,11 +240,11 @@ export default function MGFRelatorioEventos({
           p_data_inicio: dataInicio,
           p_data_fim: dataFim,
           p_page: 1,
-          p_page_size: 1,
+          p_page_size: KPI_SCAN_CAP,
         } as any);
         if (myId !== kpiFetchIdRef.current) return;
         if (error) throw error;
-        setKpiData(data);
+        setKpiData(agregarKpis(((data as any)?.rows ?? []) as any[]));
       } catch (error) {
         console.error("Erro ao calcular relatório de eventos MGF:", error);
         if (myId === kpiFetchIdRef.current) setKpiData(null);
