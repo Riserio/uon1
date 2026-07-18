@@ -172,7 +172,7 @@ export default function MGFTabela({
   const [status, setStatus] = useState<Record<StatusKey, boolean>>({
     a_vencer: true,
     vencido: true,
-    pago: false,
+    pago: true,
     inativo: false,
   });
 
@@ -264,8 +264,13 @@ export default function MGFTabela({
     p_status_pago: status.pago,
     p_status_inativo: status.inativo,
     p_periodo_dias: typeof periodo === "number" ? periodo : 7,
-    p_periodo_custom_inicio: periodo === "custom" ? dateToRpc(customVenc?.from) : null,
-    p_periodo_custom_fim: periodo === "custom" ? dateToRpc(customVenc?.to) : null,
+    // Se a página já definiu um período (filtro global), a tabela usa ELE —
+    // antes ela forçava ±7 dias de hoje e ignorava o recorte escolhido, o que
+    // deixava a lista vazia mesmo com dados no período filtrado.
+    p_periodo_custom_inicio:
+      periodo === "custom" ? dateToRpc(customVenc?.from) : (dataInicio ?? null),
+    p_periodo_custom_fim:
+      periodo === "custom" ? dateToRpc(customVenc?.to) : (dataFim ?? null),
     p_search: debouncedSearch.trim() || null,
     p_page: pageNum,
     p_page_size: pageSize,
@@ -461,7 +466,14 @@ export default function MGFTabela({
   };
 
   // Rótulo do período ativo (pra descrição)
-  const periodoLabel = periodo === "custom" ? "período personalizado" : `±${periodo} dias`;
+  // O rótulo precisa dizer a verdade: quando a página define um período, é ELE
+  // que vale (a tabela não força mais ±N dias de hoje).
+  const periodoLabel =
+    periodo === "custom"
+      ? "período personalizado"
+      : dataInicio
+      ? "período do filtro acima"
+      : `±${periodo} dias`;
 
   if (loading) {
     return (
