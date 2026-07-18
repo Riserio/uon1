@@ -556,10 +556,11 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
       if (!response.ok) {
         const msg = responseData?.message || `Erro ${response.status}`;
         if (isDuplicateError(msg)) {
-          toast.info(
-            `${MODULE_LABELS[mod]}: Já importado hoje. Próxima importação amanhã às ${creds.usar_api ? creds.api_hora_agendada : creds.hora_agendada}.`,
-            { duration: 6000 },
-          );
+          // O limite de 1 importação/dia foi removido — o bloqueio agora só
+          // acontece quando já existe uma importação EM ANDAMENTO.
+          toast.info(`${MODULE_LABELS[mod]}: já existe uma importação em andamento. Aguarde concluir.`, {
+            duration: 6000,
+          });
         } else {
           toast.error(msg);
         }

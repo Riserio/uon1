@@ -18,14 +18,14 @@ async function startCobrancaApiImport(supabase: any, corretoraId: string, user: 
     .select("id, status")
     .eq("corretora_id", corretoraId)
     .gte("created_at", `${hoje}T03:00:00.000Z`)
-    .in("status", ["sucesso", "executando"])
+    .in("status", ["executando"])
     .limit(1);
 
   if (execucoesHoje?.length) {
     const st = execucoesHoje[0].status;
     return {
       started: false,
-      message: st === "executando" ? "Já existe uma importação via API em andamento hoje." : "Já houve uma integração com sucesso hoje.",
+      message: st === "executando" ? "Já existe uma importação via API em andamento." : "Já existe uma importação em andamento.",
     };
   }
 
@@ -239,14 +239,14 @@ serve(async (req) => {
         .select("id, status")
         .eq("corretora_id", corretora_id)
         .gte("created_at", `${hoje}T03:00:00.000Z`)
-        .in("status", ["sucesso", "executando"])
+        .in("status", ["executando"])
         .limit(1);
 
       if (!skipDailyGate && execucoesHoje && execucoesHoje.length > 0) {
         const st = execucoesHoje[0].status;
         console.log(`[GitHub Workflow] Corretora ${corretora_id} já tem execução '${st}' hoje, bloqueando disparo`);
         return new Response(
-          JSON.stringify({ success: false, message: st === "executando" ? "Já existe uma execução em andamento hoje" : "Já houve uma integração com sucesso hoje. Apenas uma por dia é permitida." }),
+          JSON.stringify({ success: false, message: st === "executando" ? "Já existe uma execução em andamento" : "Já existe uma importação em andamento." }),
           { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
