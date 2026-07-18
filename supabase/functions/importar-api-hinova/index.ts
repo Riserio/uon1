@@ -627,19 +627,44 @@ serve(async (req) => {
       const fimC = body.data_fim ? parseBR(body.data_fim) || hojeC : hojeC;
       const inicioC = body.data_inicio ? parseBR(body.data_inicio) || addDays(fimC, -540) : addDays(fimC, -540);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // A API trunca a resposta em ~3000 boletos por janela, sem avisar e sem
+      // paginar. Com janela de 30 dias, abril/26 vinha com exatamente 3.000;
+      // quebrado em fatias de 12 dias, 5.354. Ou seja, todo mes com volume alto
+      // estava sendo importado pela metade em silencio.
+      // Aqui, se a resposta chegar no teto, a janela e dividida ao meio
+      // recursivamente ate caber — sem depender do teto ser exatamente 3000.
+      const TETO_RESPOSTA = 3000;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const coletarBoletos = async (ini: Date, fim: Date, prof = 0): Promise<any[]> => {
+        const r = await fetch(`${base}/listar/boleto-associado/periodo`, {
+          method: "POST",
+          headers: H,
+          body: JSON.stringify({ data_vencimento_inicial: ddmmyyyy(ini), data_vencimento_final: ddmmyyyy(fim) }),
+        });
+        const j = await r.json().catch(() => null);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const bs: any[] = Array.isArray(j?.boletos) ? j.boletos : [];
+        const dias = Math.round((fim.getTime() - ini.getTime()) / 86_400_000);
+        if (bs.length >= TETO_RESPOSTA && dias >= 1 && prof < 8) {
+          const meio = addDays(ini, Math.floor(dias / 2));
+          const esq = await coletarBoletos(ini, meio, prof + 1);
+          const dir = await coletarBoletos(addDays(meio, 1), fim, prof + 1);
+          console.log(
+            `[COBRANCA] janela ${ddmmyyyy(ini)}-${ddmmyyyy(fim)} veio no teto (${bs.length}); ` +
+            `dividida -> ${esq.length + dir.length}`,
+          );
+          return esq.concat(dir);
+        }
+        return bs;
+      };
+
       const rows: any[] = [];
       let cursorC = new Date(inicioC),
         janelasC = 0;
       while (cursorC <= fimC && janelasC < 40) {
         const janFim = addDays(cursorC, 30) > fimC ? fimC : addDays(cursorC, 30); // <=31 dias
         janelasC++;
-        const r = await fetch(`${base}/listar/boleto-associado/periodo`, {
-          method: "POST",
-          headers: H,
-          body: JSON.stringify({ data_vencimento_inicial: ddmmyyyy(cursorC), data_vencimento_final: ddmmyyyy(janFim) }),
-        });
-        const j = await r.json().catch(() => null);
-        const boletos = Array.isArray(j?.boletos) ? j.boletos : [];
+        const boletos = await coletarBoletos(cursorC, janFim);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const b of boletos as any[]) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
