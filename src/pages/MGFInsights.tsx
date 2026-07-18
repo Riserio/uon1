@@ -51,6 +51,9 @@ export interface MGFFilters {
   operacao: string;
   subOperacao: string;
   situacao: string;
+  // Base de data do filtro de período: 'vencimento' (previsão) ou
+  // 'pagamento' (movimentação efetivamente realizada, como no relatório MGF).
+  baseData: "vencimento" | "pagamento";
   cooperativa: string;
   regional: string;
   formaPagamento: string;
@@ -123,6 +126,7 @@ export default function MGFInsights() {
     operacao: "all",
     subOperacao: "all",
     situacao: "all",
+    baseData: "vencimento",
     cooperativa: "all",
     regional: "all",
     formaPagamento: "all",
@@ -320,6 +324,7 @@ export default function MGFInsights() {
           p_tipo_veiculo: toRpcValue(filters.tipoVeiculo),
           p_data_inicio: dateToRpcValue(filters.dateRange?.from),
           p_data_fim: dateToRpcValue(filters.dateRange?.to),
+          p_base_data: filters.baseData,
           p_force_refresh: forceRefresh,
         } as any);
 
@@ -378,6 +383,7 @@ export default function MGFInsights() {
       operacao: "all",
       subOperacao: "all",
       situacao: "all",
+      baseData: "vencimento",
       cooperativa: "all",
       regional: "all",
       formaPagamento: "all",
@@ -578,6 +584,24 @@ export default function MGFInsights() {
                             {s}
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Base de data do período: alinha o BI ao relatório do MGF.
+                        "Pagamento" = movimentação efetivamente realizada;
+                        "Vencimento" = previsão (lançamentos por vencimento). */}
+                    <Select
+                      value={filters.baseData}
+                      onValueChange={(v) =>
+                        setFilters((f) => ({ ...f, baseData: v as "vencimento" | "pagamento" }))
+                      }
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Base da data" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="vencimento">Data de Vencimento</SelectItem>
+                        <SelectItem value="pagamento">Data de Pagamento</SelectItem>
                       </SelectContent>
                     </Select>
 
