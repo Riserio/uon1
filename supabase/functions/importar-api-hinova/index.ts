@@ -644,6 +644,14 @@ serve(async (req) => {
         for (const b of boletos as any[]) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const veics: any[] = Array.isArray(b.veiculos) ? b.veiculos : [];
+          // Diagnostico: as colunas dia_vencimento_veiculo e
+          // qtde_dias_atraso_vencimento_original sempre ficaram NULL porque nunca
+          // foram lidas aqui. Logamos as chaves reais do payload uma unica vez para
+          // confirmar os nomes em vez de adivinhar.
+          if (rows.length === 0) {
+            console.log("[COBRANCA] chaves boleto:", JSON.stringify(Object.keys(b)));
+            console.log("[COBRANCA] chaves veiculo:", JSON.stringify(Object.keys(veics[0] ?? {})));
+          }
           const placas =
             veics
               .map((v) => v.placa)
@@ -657,6 +665,14 @@ serve(async (req) => {
             data_pagamento: dateISO(b.data_pagamento),
             situacao: b.situacao_boleto || null,
             placas,
+            // Leitura defensiva: aceita as variacoes de nome que a Hinova usa entre
+            // endpoints. Se nenhuma bater, o log acima revela o nome correto.
+            dia_vencimento_veiculo: num(
+              veics[0]?.dia_vencimento ?? b.dia_vencimento ?? b.dia_vencimento_veiculo,
+            ),
+            qtde_dias_atraso_vencimento_original: num(
+              b.qtde_dias_atraso_vencimento_original ?? b.qtde_dias_atraso ?? b.dias_atraso,
+            ),
             dados_extras: {
               nosso_numero: b.nosso_numero,
               cpf: b.cpf,
@@ -669,6 +685,8 @@ serve(async (req) => {
               codigo_regional: veics[0]?.codigo_regional,
               codigo_cooperativa: veics[0]?.codigo_cooperativa,
               codigo_voluntario: veics[0]?.codigo_voluntario,
+              descricao_situacao_veiculo: veics[0]?.descricao_situacao ?? null,
+              situacao_boleto_bruta: b.situacao_boleto ?? null,
             },
           });
         }

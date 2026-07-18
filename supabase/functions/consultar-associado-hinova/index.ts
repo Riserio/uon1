@@ -130,6 +130,9 @@ serve(async (req) => {
     const cpf = onlyDigits(body.cpf);
     const nome = String(body.nome ?? "").trim();
     const meses = Math.min(Math.max(Number(body.meses) || 12, 1), 24);
+    // debug=true anexa o payload cru do 1o veiculo/boleto, para conferir nomes de campo
+    // da API sem ter que adivinhar no importador.
+    const debug = body.debug === true;
 
     if (!placa && !cpf && !nome) {
       return new Response(JSON.stringify({ success: false, message: "Informe placa, CPF ou nome" }), {
@@ -242,6 +245,7 @@ serve(async (req) => {
               const bate = cpfsAchados.has(onlyDigits(b?.cpf)) || ps.some((p: string) => placasAchadas.has(p));
               if (bate) {
                 out.push({
+                  ...(debug && out.length === 0 ? { _raw: b } : {}),
                   vencimento: b?.data_vencimento ?? null,
                   vencimento_original: b?.data_vencimento_original ?? null,
                   valor: b?.valor ?? b?.valor_boleto ?? null,
@@ -335,7 +339,7 @@ serve(async (req) => {
           resultados.push({
             associacao: nomeAssoc,
             sga_url: c.hinova_url ?? null,
-            veiculo: mapVeiculo(v),
+            veiculo: debug ? { ...mapVeiculo(v), _raw: v } : mapVeiculo(v),
             associado: mapAssociado(v),
             boletos,
             eventos,
