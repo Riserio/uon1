@@ -9447,21 +9447,41 @@ export type Database = {
         }
         Returns: Json
       }
-      calcular_dashboard_mgf: {
-        Args: {
-          p_cooperativa?: string
-          p_corretora_id: string
-          p_data_fim?: string
-          p_data_inicio?: string
-          p_forma_pagamento?: string
-          p_operacao?: string
-          p_regional?: string
-          p_situacao?: string
-          p_sub_operacao?: string
-          p_tipo_veiculo?: string
-        }
-        Returns: Json
-      }
+      calcular_dashboard_mgf:
+        | {
+            Args: {
+              p_cooperativa?: string
+              p_corretora_id: string
+              p_data_fim?: string
+              p_data_inicio?: string
+              p_forma_pagamento?: string
+              p_operacao?: string
+              p_regional?: string
+              p_situacao?: string
+              p_sub_operacao?: string
+              p_tipo_veiculo?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_base_data?: string
+              p_cooperativa?: string
+              p_corretora_id: string
+              p_data_fim?: string
+              p_data_inicio?: string
+              p_forma_pagamento?: string
+              p_operacao?: string
+              p_operacoes?: string[]
+              p_regional?: string
+              p_situacao?: string
+              p_situacoes?: string[]
+              p_sub_operacao?: string
+              p_sub_operacoes?: string[]
+              p_tipo_veiculo?: string
+            }
+            Returns: Json
+          }
       calcular_mapa_estudo_base: {
         Args: {
           p_cooperativa?: string
@@ -9663,23 +9683,45 @@ export type Database = {
         Args: { p_importacao_ids: string[] }
         Returns: Json
       }
-      get_dashboard_mgf_cached: {
-        Args: {
-          p_cooperativa?: string
-          p_corretora_id: string
-          p_data_fim?: string
-          p_data_inicio?: string
-          p_force_refresh?: boolean
-          p_forma_pagamento?: string
-          p_max_age_minutes?: number
-          p_operacao?: string
-          p_regional?: string
-          p_situacao?: string
-          p_sub_operacao?: string
-          p_tipo_veiculo?: string
-        }
-        Returns: Json
-      }
+      get_dashboard_mgf_cached:
+        | {
+            Args: {
+              p_cooperativa?: string
+              p_corretora_id: string
+              p_data_fim?: string
+              p_data_inicio?: string
+              p_force_refresh?: boolean
+              p_forma_pagamento?: string
+              p_max_age_minutes?: number
+              p_operacao?: string
+              p_regional?: string
+              p_situacao?: string
+              p_sub_operacao?: string
+              p_tipo_veiculo?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_base_data?: string
+              p_cooperativa?: string
+              p_corretora_id: string
+              p_data_fim?: string
+              p_data_inicio?: string
+              p_force_refresh?: boolean
+              p_forma_pagamento?: string
+              p_max_age_minutes?: number
+              p_operacao?: string
+              p_operacoes?: string[]
+              p_regional?: string
+              p_situacao?: string
+              p_situacoes?: string[]
+              p_sub_operacao?: string
+              p_sub_operacoes?: string[]
+              p_tipo_veiculo?: string
+            }
+            Returns: Json
+          }
       get_estudo_base_filter_options: {
         Args: { p_corretora_id: string }
         Returns: Json
