@@ -35,6 +35,7 @@ import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import MultiSelectFilter from "@/components/mgf/MultiSelectFilter";
 import { format, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -48,8 +49,8 @@ import { useBILayoutOptional } from "@/contexts/BILayoutContext";
 import { usePortalLayoutOptional } from "@/contexts/PortalLayoutContext";
 
 export interface MGFFilters {
-  operacao: string;
-  subOperacao: string;
+  operacoes: string[];
+  subOperacoes: string[];
   situacao: string;
   // Base de data do filtro de período: 'vencimento' (previsão) ou
   // 'pagamento' (movimentação efetivamente realizada, como no relatório MGF).
@@ -123,8 +124,8 @@ export default function MGFInsights() {
   const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
 
   const [filters, setFilters] = useState<MGFFilters>({
-    operacao: "all",
-    subOperacao: "all",
+    operacoes: [],
+    subOperacoes: [],
     situacao: "all",
     baseData: "vencimento",
     cooperativa: "all",
@@ -315,8 +316,8 @@ export default function MGFInsights() {
       try {
         const { data, error } = await supabase.rpc("get_dashboard_mgf_cached", {
           p_corretora_id: selectedAssociacao,
-          p_operacao: toRpcValue(filters.operacao),
-          p_sub_operacao: toRpcValue(filters.subOperacao),
+          p_operacoes: filters.operacoes.length > 0 ? filters.operacoes : null,
+          p_sub_operacoes: filters.subOperacoes.length > 0 ? filters.subOperacoes : null,
           p_situacao: toRpcValue(filters.situacao),
           p_cooperativa: toRpcValue(filters.cooperativa),
           p_regional: toRpcValue(filters.regional),
@@ -367,8 +368,8 @@ export default function MGFInsights() {
   // Contar filtros ativos
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (filters.operacao !== "all") count++;
-    if (filters.subOperacao !== "all") count++;
+    if (filters.operacoes.length > 0) count++;
+    if (filters.subOperacoes.length > 0) count++;
     if (filters.situacao !== "all") count++;
     if (filters.cooperativa !== "all") count++;
     if (filters.regional !== "all") count++;
@@ -380,8 +381,8 @@ export default function MGFInsights() {
 
   const clearFilters = () => {
     setFilters({
-      operacao: "all",
-      subOperacao: "all",
+      operacoes: [],
+      subOperacoes: [],
       situacao: "all",
       baseData: "vencimento",
       cooperativa: "all",
@@ -441,8 +442,8 @@ export default function MGFInsights() {
 
   // Filtros globais já normalizados para RPC (null quando "all"/vazio),
   // repassados para os componentes filhos.
-  const rpcOperacao = toRpcValue(filters.operacao);
-  const rpcSubOperacao = toRpcValue(filters.subOperacao);
+  const rpcOperacoes = filters.operacoes.length > 0 ? filters.operacoes : null;
+  const rpcSubOperacoes = filters.subOperacoes.length > 0 ? filters.subOperacoes : null;
   const rpcSituacao = toRpcValue(filters.situacao);
   const rpcCooperativa = toRpcValue(filters.cooperativa);
   const rpcRegional = toRpcValue(filters.regional);
@@ -508,7 +509,7 @@ export default function MGFInsights() {
                   {!filtersOpen && activeFiltersCount > 0 && (
                     <span className="text-xs text-muted-foreground truncate max-w-[300px]">
                       {[
-                        filters.operacao !== "all" && filters.operacao,
+                        filters.operacoes.length > 0 && filters.operacoes.join(", "),
                         filters.situacao !== "all" && filters.situacao,
                         filters.regional !== "all" && filters.regional,
                         filters.cooperativa !== "all" && filters.cooperativa,
@@ -539,38 +540,23 @@ export default function MGFInsights() {
               {filtersOpen && (
                 <div className="px-4 pb-4 pt-1">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2">
-                    {/* Operação */}
-                    <Select value={filters.operacao} onValueChange={(v) => setFilters((f) => ({ ...f, operacao: v }))}>
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="Operação" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas Operações</SelectItem>
-                        {filterOptions.operacoes.map((o) => (
-                          <SelectItem key={o} value={o}>
-                            {o}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {/* Operação — múltipla (Entrada e Saída juntas) */}
+                    <MultiSelectFilter
+                      allLabel="Todas Operações"
+                      options={filterOptions.operacoes}
+                      selected={filters.operacoes}
+                      onChange={(v) => setFilters((f) => ({ ...f, operacoes: v }))}
+                      className="w-full"
+                    />
 
-                    {/* SubOperação */}
-                    <Select
-                      value={filters.subOperacao}
-                      onValueChange={(v) => setFilters((f) => ({ ...f, subOperacao: v }))}
-                    >
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="SubOperação" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas SubOp.</SelectItem>
-                        {filterOptions.subOperacoes.map((o) => (
-                          <SelectItem key={o} value={o}>
-                            {o}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {/* SubOperação — múltipla (pedido do dossiê) */}
+                    <MultiSelectFilter
+                      allLabel="Todas SubOp."
+                      options={filterOptions.subOperacoes}
+                      selected={filters.subOperacoes}
+                      onChange={(v) => setFilters((f) => ({ ...f, subOperacoes: v }))}
+                      className="w-full"
+                    />
 
                     {/* Situação */}
                     <Select value={filters.situacao} onValueChange={(v) => setFilters((f) => ({ ...f, situacao: v }))}>
@@ -742,8 +728,9 @@ export default function MGFInsights() {
               loading={loading}
               associacaoNome={selectedAssociacaoNome}
               corretoraId={selectedAssociacao}
-              operacao={rpcOperacao}
-              subOperacao={rpcSubOperacao}
+              operacoes={rpcOperacoes}
+              subOperacoes={rpcSubOperacoes}
+              baseData={filters.baseData}
               situacao={rpcSituacao}
               cooperativa={rpcCooperativa}
               regional={rpcRegional}
@@ -757,8 +744,9 @@ export default function MGFInsights() {
           <TabsContent value="eventos">
             <MGFRelatorioEventos
               corretoraId={selectedAssociacao}
-              operacao={rpcOperacao}
-              subOperacao={rpcSubOperacao}
+              operacoes={rpcOperacoes}
+              subOperacoes={rpcSubOperacoes}
+              baseData={filters.baseData}
               situacao={rpcSituacao}
               cooperativa={rpcCooperativa}
               regional={rpcRegional}
@@ -774,8 +762,9 @@ export default function MGFInsights() {
           <TabsContent value="tabela">
             <MGFTabela
               corretoraId={selectedAssociacao}
-              operacao={rpcOperacao}
-              subOperacao={rpcSubOperacao}
+              operacoes={rpcOperacoes}
+              subOperacoes={rpcSubOperacoes}
+              baseData={filters.baseData}
               situacao={rpcSituacao}
               cooperativa={rpcCooperativa}
               regional={rpcRegional}

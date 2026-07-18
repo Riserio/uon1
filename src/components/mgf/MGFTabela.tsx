@@ -27,9 +27,10 @@ import { toast } from "sonner";
 // Evento" são debounced em 300ms.
 interface MGFTabelaProps {
   corretoraId: string;
-  operacao: string | null;
-  subOperacao: string | null;
+  operacoes: string[] | null;
+  subOperacoes: string[] | null;
   situacao: string | null;
+  baseData?: string;
   cooperativa: string | null;
   regional: string | null;
   formaPagamento: string | null;
@@ -158,8 +159,8 @@ const toRpc = (v: string) => (v && v !== "all" ? v : null);
 const dateToRpc = (d?: Date) => (d ? format(d, "yyyy-MM-dd") : null);
 
 export default function MGFTabela({
-  corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo,
-  dataInicio, dataFim, loading, refreshToken,
+  corretoraId, operacoes, subOperacoes, situacao, cooperativa, regional, formaPagamento, tipoVeiculo,
+  dataInicio, dataFim, loading, refreshToken, baseData,
 }: MGFTabelaProps) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -241,8 +242,9 @@ export default function MGFTabela({
 
   const buildRpcParams = (pageNum: number, pageSize: number) => ({
     p_corretora_id: corretoraId,
-    p_operacao: operacao,
-    p_sub_operacao: subOperacao,
+    p_operacoes: operacoes && operacoes.length > 0 ? operacoes : null,
+    p_sub_operacoes: subOperacoes && subOperacoes.length > 0 ? subOperacoes : null,
+    p_base_data: baseData ?? 'vencimento',
     p_situacao: situacao,
     p_cooperativa: cooperativa,
     p_regional: regional,
@@ -300,7 +302,7 @@ export default function MGFTabela({
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim,
+    corretoraId, operacoes?.join(","), subOperacoes?.join(","), baseData, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim,
     debouncedPlacaEvento, filters.fornecedor, filters.operacao, filters.subOperacao, filters.centroCusto, filters.dataPagamento,
     status, periodo, customVenc, debouncedSearch, page, refreshToken,
   ]);
@@ -310,7 +312,7 @@ export default function MGFTabela({
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim,
+    corretoraId, operacoes?.join(","), subOperacoes?.join(","), baseData, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim,
     debouncedPlacaEvento, filters.fornecedor, filters.operacao, filters.subOperacao, filters.centroCusto, filters.dataPagamento,
     status, periodo, customVenc, debouncedSearch, refreshToken,
   ]);

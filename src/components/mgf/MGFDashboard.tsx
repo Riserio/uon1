@@ -27,8 +27,9 @@ interface MGFDashboardProps {
   loading: boolean;
   associacaoNome: string;
   corretoraId: string;
-  operacao: string | null;
-  subOperacao: string | null;
+  operacoes: string[] | null;
+  subOperacoes: string[] | null;
+  baseData?: string;
   situacao: string | null;
   cooperativa: string | null;
   regional: string | null;
@@ -141,9 +142,13 @@ function RadialProgress({ value, label, color }: { value: number; label: string;
   );
 }
 
+// Quando o filtro múltiplo tem exatamente 1 item, repassa ele para as RPCs
+// que só aceitam valor único; com 2+ seleções cai em "todas".
+const unicoOuNulo = (arr?: string[] | null) => (arr && arr.length === 1 ? arr[0] : null);
+
 export default function MGFDashboard({
   stats, colunas, loading, associacaoNome, corretoraId,
-  operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim,
+  operacoes, subOperacoes, baseData, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim,
 }: MGFDashboardProps) {
   const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('mes');
   const evolucaoScrollRef = useRef<HTMLDivElement>(null);
@@ -469,8 +474,8 @@ export default function MGFDashboard({
         field={drilldown?.field || null}
         value={drilldown?.value || null}
         corretoraId={corretoraId}
-        operacao={operacao}
-        subOperacao={subOperacao}
+        operacao={unicoOuNulo(operacoes)}
+        subOperacao={unicoOuNulo(subOperacoes)}
         situacao={situacao}
         cooperativa={cooperativa}
         regional={regional}

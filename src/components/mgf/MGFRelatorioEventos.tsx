@@ -50,8 +50,9 @@ import { toast } from "sonner";
 // retornados. A busca é debounced em 300ms.
 interface MGFRelatorioEventosProps {
   corretoraId: string;
-  operacao: string | null;
-  subOperacao: string | null;
+  operacoes: string[] | null;
+  subOperacoes: string[] | null;
+  baseData?: string;
   situacao: string | null;
   cooperativa: string | null;
   regional: string | null;
@@ -118,8 +119,12 @@ const EMPTY_KPI = {
   evolucaoData: [] as any[],
 };
 
+// Quando o filtro múltiplo tem exatamente 1 item, repassa ele para as RPCs
+// que só aceitam valor único; com 2+ seleções cai em "todas".
+const unicoOuNulo = (arr?: string[] | null) => (arr && arr.length === 1 ? arr[0] : null);
+
 export default function MGFRelatorioEventos({
-  corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo,
+  corretoraId, operacoes, subOperacoes, baseData, situacao, cooperativa, regional, formaPagamento, tipoVeiculo,
   dataInicio, dataFim, loading, refreshToken,
 }: MGFRelatorioEventosProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -156,8 +161,9 @@ export default function MGFRelatorioEventos({
       try {
         const { data, error } = await supabase.rpc("calcular_relatorio_eventos_mgf", {
           p_corretora_id: corretoraId,
-          p_operacao: operacao,
-          p_sub_operacao: subOperacao,
+          p_operacoes: operacoes && operacoes.length > 0 ? operacoes : null,
+          p_sub_operacoes: subOperacoes && subOperacoes.length > 0 ? subOperacoes : null,
+          p_base_data: baseData ?? 'vencimento',
           p_situacao: situacao,
           p_cooperativa: cooperativa,
           p_regional: regional,
@@ -178,7 +184,7 @@ export default function MGFRelatorioEventos({
         if (myId === kpiFetchIdRef.current) setKpiLoading(false);
       }
     })();
-  }, [corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim, refreshToken]);
+  }, [corretoraId, operacoes?.join(","), subOperacoes?.join(","), baseData, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim, refreshToken]);
 
   // Tabela de detalhamento — chamada com busca + paginação.
   useEffect(() => {
@@ -194,8 +200,9 @@ export default function MGFRelatorioEventos({
       try {
         const { data, error } = await supabase.rpc("calcular_relatorio_eventos_mgf", {
           p_corretora_id: corretoraId,
-          p_operacao: operacao,
-          p_sub_operacao: subOperacao,
+          p_operacoes: operacoes && operacoes.length > 0 ? operacoes : null,
+          p_sub_operacoes: subOperacoes && subOperacoes.length > 0 ? subOperacoes : null,
+          p_base_data: baseData ?? 'vencimento',
           p_situacao: situacao,
           p_cooperativa: cooperativa,
           p_regional: regional,
@@ -222,12 +229,12 @@ export default function MGFRelatorioEventos({
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim, debouncedSearch, page, refreshToken]);
+  }, [corretoraId, operacoes?.join(","), subOperacoes?.join(","), baseData, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim, debouncedSearch, page, refreshToken]);
 
   // Reset de página quando filtros/busca mudam
   useEffect(() => {
     setPage(1);
-  }, [corretoraId, operacao, subOperacao, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim, debouncedSearch, refreshToken]);
+  }, [corretoraId, operacoes?.join(","), subOperacoes?.join(","), baseData, situacao, cooperativa, regional, formaPagamento, tipoVeiculo, dataInicio, dataFim, debouncedSearch, refreshToken]);
 
   const kpi = kpiData || EMPTY_KPI;
 
@@ -287,8 +294,8 @@ export default function MGFRelatorioEventos({
     try {
       const { data, error } = await supabase.rpc("calcular_relatorio_eventos_mgf", {
         p_corretora_id: corretoraId,
-        p_operacao: operacao,
-        p_sub_operacao: subOperacao,
+        p_operacao: unicoOuNulo(operacoes),
+        p_sub_operacao: unicoOuNulo(subOperacoes),
         p_situacao: situacao,
         p_cooperativa: cooperativa,
         p_regional: regional,
