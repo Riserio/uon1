@@ -866,10 +866,25 @@ serve(async (req) => {
         "mgf_dados",
         impMId,
         rows,
-        (row) =>
-          row?.dados_extras?.codigo_lancamento && row?.dados_extras?.parcela
-            ? `${row.dados_extras.codigo_lancamento}_${row.dados_extras.parcela}`
-            : null,
+        (row) => {
+          // ATENÇÃO: antes usava `cod && parcela`, o que virava null quando
+          // parcela = 0 (falsy em JS) ou quando a API não manda o código —
+          // e sem chave o merge NUNCA deduplicava: cada importação reinseria
+          // tudo, duplicando a base (causa da divergência MGF x BI).
+          const de = (row?.dados_extras ?? {}) as Record<string, unknown>;
+          const presente = (v: unknown) => v !== null && v !== undefined && String(v).trim() !== "";
+          if (presente(de.codigo_lancamento) && presente(de.parcela)) {
+            return `${de.codigo_lancamento}_${de.parcela}`;
+          }
+          // Fallback: chave composta estável, para não duplicar quando a API
+          // não fornecer os códigos.
+          const partes = [
+            row.operacao, row.sub_operacao, row.fornecedor, row.descricao,
+            row.data_vencimento, row.valor, row.nota_fiscal, row.protocolo_evento,
+          ];
+          const comp = partes.map((v) => String(v ?? "")).join("|");
+          return comp.replace(/\|/g, "").trim() ? `c:${comp}` : null;
+        },
         "id, dados_extras",
       );
 
