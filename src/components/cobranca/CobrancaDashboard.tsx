@@ -26,6 +26,17 @@ interface CobrancaDashboardProps {
   isPortalAccess?: boolean;
 }
 
+type VisaoKpi = "sga" | "total";
+
+interface KpisSga {
+  qtdePagos: number; totalPago: number;
+  qtdeAbertos: number; totalAberto: number;
+  qtdeEmitidos: number; totalValor: number;
+  percentualInadimplencia: number;
+  qtdeAbertosTotal: number; totalAbertoTotal: number;
+  qtdeSemProrrogacao: number;
+}
+
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
 
 const formatCurrency = (value: number) => {
@@ -74,6 +85,25 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   // Serialized keys for stable useMemo deps (avoid new Map reference triggering re-renders)
   const [configVersion, setConfigVersion] = useState(0);
   const [historicoVersion, setHistoricoVersion] = useState(0);
+
+  // KPIs no criterio do SGA (padrao). Vem de uma RPC propria para nao mexer na
+  // agregacao existente — o dedup dela usa dedup_key, que tem colisao; aqui a
+  // chave e o nosso_numero, que e unico no SGA.
+  const [visao, setVisao] = useState<VisaoKpi>("sga");
+  const [kpisSga, setKpisSga] = useState<KpisSga | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    if (!corretoraId) { setKpisSga(null); return; }
+    supabase
+      .rpc("kpis_cobranca_sga", { p_corretora_id: corretoraId, p_mes_referencia: mesReferencia ?? null })
+      .then(({ data, error }) => {
+        if (cancelado) return;
+        if (error) { console.error("[kpis_cobranca_sga]", error.message); setKpisSga(null); return; }
+        setKpisSga((data as unknown as KpisSga) ?? null);
+      });
+    return () => { cancelado = true; };
+  }, [corretoraId, mesReferencia]);
 
   // Carregar configuração de inadimplência do banco
   const loadInadimplenciaConfig = async () => {
@@ -360,18 +390,52 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   return (
     <div className="space-y-3 w-full max-w-full overflow-x-hidden min-w-0">
       {/* KPI Cards */}
-      {/* KPIs alinhados ao relatorio de Fechamento do SGA, conforme conferencia da
-          empresa: "Em Aberto" e o total de boletos abertos (184 em jun/26) e
-          Inadimplencia = em aberto / emitidos (184/4862 = 3,78%). "Vencido" entra
-          como recorte adicional, sem deslocar os numeros que a empresa confere. */}
+      {/* Duas leituras do mesmo mes, ambas conferidas contra o SGA:
+          - "SGA" (padrao): reproduz o Relatorio de Boletos com o filtro
+            "Boletos Anteriores: NAO POSSUI". Na conferencia de jun/26 esse
+            criterio isola exatamente os boletos com vencimento PRORROGADO
+            (182 de 184 do relatorio; a diferenca sao prorrogacoes feitas no
+            intervalo entre o import e a geracao do relatorio).
+          - "Cobranca total": todo boleto em aberto do mes. */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {([
+          { id: "sga" as VisaoKpi, label: "Critério SGA" },
+          { id: "total" as VisaoKpi, label: "Cobrança total" },
+        ]).map((v) => (
+          <button
+            key={v.id}
+            onClick={() => setVisao(v.id)}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              visao === v.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground hover:bg-muted/70"
+            }`}
+          >
+            {v.label}
+          </button>
+        ))}
+        {visao === "sga" && kpisSga && (
+          <span className="text-[11px] text-muted-foreground">
+            {kpisSga.qtdeSemProrrogacao.toLocaleString('pt-BR')} boleto(s) sem prorrogação ficam fora deste critério
+          </span>
+        )}
+      </div>
+
       <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
-        {[
-          { label: "Boletos Emitidos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
-          { label: "Boletos Pagos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
-          { label: "Em Aberto", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
-          { label: "Vencido", value: (stats.qtdeVencidos ?? 0).toLocaleString('pt-BR'), sub: `dos quais ${formatCurrency(stats.totalVencido ?? 0)}`, cls: "text-orange-600 bg-orange-500/5 border-orange-500/20" },
-          { label: "Inadimplência", value: formatPercent(stats.percentualInadimplencia), sub: "em aberto / emitido", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
-        ].map(({ label, value, sub, cls }) => (
+        {(visao === "sga" && kpisSga
+          ? [
+              { label: "Boletos Emitidos", value: kpisSga.qtdeEmitidos.toLocaleString('pt-BR'), sub: formatCurrency(kpisSga.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
+              { label: "Boletos Pagos", value: kpisSga.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(kpisSga.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
+              { label: "Em Aberto", value: kpisSga.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(kpisSga.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
+              { label: "Aberto total", value: kpisSga.qtdeAbertosTotal.toLocaleString('pt-BR'), sub: formatCurrency(kpisSga.totalAbertoTotal), cls: "text-orange-600 bg-orange-500/5 border-orange-500/20" },
+              { label: "Inadimplência", value: formatPercent(kpisSga.percentualInadimplencia), sub: "critério do SGA", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
+            ]
+          : [
+              { label: "Boletos Emitidos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
+              { label: "Boletos Pagos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
+              { label: "Em Aberto", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
+              { label: "Vencido", value: (stats.qtdeVencidos ?? 0).toLocaleString('pt-BR'), sub: `dos quais ${formatCurrency(stats.totalVencido ?? 0)}`, cls: "text-orange-600 bg-orange-500/5 border-orange-500/20" },
+              { label: "Inadimplência", value: formatPercent(stats.percentualInadimplencia), sub: "em aberto / emitido", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
+            ]
+        ).map(({ label, value, sub, cls }) => (
           <Card key={label} className={`rounded-2xl border ${cls}`}>
             <CardContent className="p-4">
               <div className={`text-[11px] font-medium mb-1 ${cls.split(" ")[0]}`}>{label}</div>
