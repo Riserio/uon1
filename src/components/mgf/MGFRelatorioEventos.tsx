@@ -38,6 +38,9 @@ import {
   X,
   Loader2,
   ChevronDown,
+  Building2,
+  Truck,
+  Car,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -119,6 +122,8 @@ function agregarKpis(linhas: any[]) {
   const mapaSub = new Map<string, { rateavel: number; naoRateavel: number; countRateavel: number; countNaoRateavel: number }>();
   const mapaCoop = new Map<string, { rateavel: number; naoRateavel: number }>();
   const mapaMes = new Map<string, { rateavel: number; naoRateavel: number }>();
+  const mapaForn = new Map<string, { rateavel: number; naoRateavel: number }>();
+  const mapaVeic = new Map<string, { eventos: number; valor: number }>();
 
   let totalRateaveis = 0, totalNaoRateaveis = 0, valorRateaveis = 0, valorNaoRateaveis = 0;
 
@@ -137,6 +142,19 @@ function agregarKpis(linhas: any[]) {
     const c0 = mapaCoop.get(coop) ?? { rateavel: 0, naoRateavel: 0 };
     if (rateavel) c0.rateavel += valor; else c0.naoRateavel += valor;
     mapaCoop.set(coop, c0);
+
+    const forn = (l?.fornecedor || l?.nome_fantasia_fornecedor || "").toString().trim() || "Sem fornecedor";
+    const f0 = mapaForn.get(forn) ?? { rateavel: 0, naoRateavel: 0 };
+    if (rateavel) f0.rateavel += valor; else f0.naoRateavel += valor;
+    mapaForn.set(forn, f0);
+
+    const veic = (l?.veiculo_evento || l?.placa || "").toString().trim().toUpperCase();
+    if (veic) {
+      const v0 = mapaVeic.get(veic) ?? { eventos: 0, valor: 0 };
+      v0.eventos += 1;
+      v0.valor += valor;
+      mapaVeic.set(veic, v0);
+    }
 
     const dataRef: string | null = l?.data_evento || l?.data_vencimento || null;
     const mes = dataRef ? String(dataRef).slice(0, 7) : null; // YYYY-MM
@@ -162,10 +180,61 @@ function agregarKpis(linhas: any[]) {
     valorNaoRateaveis,
     subOperacaoData: top10(mapaSub),
     cooperativaData: top10(mapaCoop),
+    fornecedorData: top10(mapaForn),
+    veiculoData: [...mapaVeic.entries()]
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.eventos - a.eventos)
+      .slice(0, 10),
     evolucaoData: [...mapaMes.entries()]
       .map(([mes, v]) => ({ mes, ...v }))
       .sort((a, b) => a.mes.localeCompare(b.mes)),
   };
+}
+
+// Widget de gráfico: cabeçalho padronizado (ícone em quadradinho, título e
+// um valor-resumo à direita) + área do gráfico com altura fixa. Mantém todos
+// os cards visualmente iguais.
+function ChartWidget({
+  icon: Icon,
+  title,
+  subtitle,
+  resumo,
+  children,
+  className,
+}: {
+  // deno-lint-ignore no-explicit-any
+  icon: any;
+  title: string;
+  subtitle?: string;
+  resumo?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card className={cn("rounded-2xl border-border/60 shadow-sm overflow-hidden", className)}>
+      <CardHeader className="pb-2 pt-4 px-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Icon className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <CardTitle className="text-sm font-semibold truncate">{title}</CardTitle>
+              {subtitle && <p className="text-[11px] text-muted-foreground truncate">{subtitle}</p>}
+            </div>
+          </div>
+          {resumo && (
+            <span className="text-xs font-semibold tabular-nums text-muted-foreground whitespace-nowrap">
+              {resumo}
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="px-3 pb-4">
+        <div className="h-[280px]">{children}</div>
+      </CardContent>
+    </Card>
+  );
 }
 
 const EMPTY_KPI = {
@@ -178,6 +247,8 @@ const EMPTY_KPI = {
   subOperacaoData: [] as any[],
   cooperativaData: [] as any[],
   evolucaoData: [] as any[],
+  fornecedorData: [] as any[],
+  veiculoData: [] as any[],
 };
 
 // Quando o filtro múltiplo tem exatamente 1 item, repassa ele para as RPCs
@@ -344,6 +415,28 @@ export default function MGFRelatorioEventos({
     [kpi.cooperativaData],
   );
 
+  const fornecedorData = useMemo(
+    () =>
+      (kpi.fornecedorData || []).map((d: any) => ({
+        fullName: d.name,
+        name: truncateText(d.name, 22),
+        rateavel: d.rateavel,
+        naoRateavel: d.naoRateavel,
+      })),
+    [kpi.fornecedorData],
+  );
+
+  const veiculoData = useMemo(
+    () =>
+      (kpi.veiculoData || []).map((d: any) => ({
+        fullName: d.name,
+        name: d.name,
+        eventos: d.eventos,
+        valor: d.valor,
+      })),
+    [kpi.veiculoData],
+  );
+
   const evolucaoData = useMemo(
     () =>
       (kpi.evolucaoData || []).map((d: any) => ({
@@ -482,118 +575,122 @@ export default function MGFRelatorioEventos({
         </div>
       </div>
 
-      {/* Gráficos */}
+      {/* Gráficos — widgets padronizados */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Distribuição Pizza */}
-        <Card className="rounded-2xl border-border/40">
-            <CardHeader className="pb-1 pt-4 px-5">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-amber-500" />
-                <CardTitle className="text-sm font-semibold">Distribuição de Valores</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    paddingAngle={5}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                  >
-                    {pieData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS_RATEAVEL[index % COLORS_RATEAVEL.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+        <ChartWidget
+          icon={DollarSign}
+          title="Distribuição de Valores"
+          subtitle="Rateáveis x Não rateáveis"
+          resumo={formatFullCurrency(kpi.valorTotalEventos)}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={pieData}
+                cx="50%"
+                cy="50%"
+                innerRadius={62}
+                outerRadius={96}
+                paddingAngle={4}
+                dataKey="value"
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+              >
+                {pieData.map((_, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS_RATEAVEL[index % COLORS_RATEAVEL.length]} />
+                ))}
+              </Pie>
+              <Tooltip content={<CustomTooltip isCurrency />} />
+              <Legend verticalAlign="bottom" height={24} iconType="circle" />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartWidget>
 
-        {/* Evolução Mensal */}
-        <Card className="rounded-2xl border-border/40">
-            <CardHeader className="pb-1 pt-4 px-5">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-amber-500" />
-                <CardTitle className="text-sm font-semibold">Evolução Mensal</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={evolucaoData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="mesLabel" tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(value) => formatCurrency(value)} tick={{ fontSize: 11 }} />
-                  <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Legend />
-                  <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" />
-                  <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+        <ChartWidget
+          icon={TrendingUp}
+          title="Evolução Mensal"
+          subtitle="Valor por mês do evento"
+          resumo={`${evolucaoData.length} meses`}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={evolucaoData} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
+              <XAxis dataKey="mesLabel" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+              <YAxis tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={64} />
+              <Tooltip content={<CustomTooltip isCurrency />} />
+              <Legend verticalAlign="bottom" height={24} iconType="circle" />
+              <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" radius={[4, 4, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartWidget>
 
-        {/* Por SubOperação */}
-        <Card className="rounded-2xl border-border/40">
-            <CardHeader className="pb-1 pt-4 px-5">
-              <div className="flex items-center gap-2">
-                <FileSpreadsheet className="h-4 w-4 text-amber-500" />
-                <CardTitle className="text-sm font-semibold">Por SubOperação (Top 10)</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={subOperacaoData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis type="number" tickFormatter={(value) => formatCurrency(value)} tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={95} />
-                  <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Legend />
-                  <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" />
-                  <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+        <ChartWidget
+          icon={FileSpreadsheet}
+          title="Por SubOperação"
+          subtitle="Top 10 por valor"
+          resumo={`${subOperacaoData.length} itens`}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={subOperacaoData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-muted" />
+              <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={120} tickLine={false} axisLine={false} />
+              <Tooltip content={<CustomTooltip isCurrency />} />
+              <Legend verticalAlign="bottom" height={24} iconType="circle" />
+              <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
+              <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartWidget>
 
-        {/* Por Cooperativa */}
         {cooperativaData.length > 0 && (
-          <Card className="rounded-2xl border-border/40">
-            <CardHeader className="pb-1 pt-4 px-5">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-amber-500" />
-                <CardTitle className="text-sm font-semibold">Por Cooperativa (Top 10)</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={cooperativaData} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis type="number" tickFormatter={(value) => formatCurrency(value)} tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={75} />
-                    <Tooltip content={<CustomTooltip isCurrency />} />
-                    <Legend />
-                    <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" />
-                    <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          <ChartWidget icon={Building2} title="Por Cooperativa" subtitle="Top 10 por valor" resumo={`${cooperativaData.length} itens`}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={cooperativaData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-muted" />
+                <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={110} tickLine={false} axisLine={false} />
+                <Tooltip content={<CustomTooltip isCurrency />} />
+                <Legend verticalAlign="bottom" height={24} iconType="circle" />
+                <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
+                <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartWidget>
+        )}
+
+        {/* NOVO: fornecedores que mais pesam no custo de eventos */}
+        {fornecedorData.length > 0 && (
+          <ChartWidget icon={Truck} title="Por Fornecedor" subtitle="Top 10 por valor" resumo={`${fornecedorData.length} itens`}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={fornecedorData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-muted" />
+                <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={120} tickLine={false} axisLine={false} />
+                <Tooltip content={<CustomTooltip isCurrency />} />
+                <Legend verticalAlign="bottom" height={24} iconType="circle" />
+                <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
+                <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartWidget>
+        )}
+
+        {/* NOVO: veículos com mais eventos (reincidência) */}
+        {veiculoData.length > 0 && (
+          <ChartWidget icon={Car} title="Veículos com mais eventos" subtitle="Top 10 por quantidade" resumo={`${veiculoData.length} placas`}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={veiculoData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-muted" />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={90} tickLine={false} axisLine={false} />
+                <Tooltip
+                  formatter={(v: any, n: any) => (n === "eventos" ? [`${v} evento(s)`, "Eventos"] : [v, n])}
+                />
+                <Bar dataKey="eventos" name="Eventos" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} maxBarSize={18} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartWidget>
         )}
       </div>
 
