@@ -106,9 +106,12 @@ export default function SGABusca() {
   const [tipo, setTipo] = useState<Tipo>("placa");
   const [termo, setTermo] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ total: number; resultados: Resultado[]; apis_ativas: ApiStatus[] } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    total: number;
+    resultados: Resultado[];
+    apis_ativas: ApiStatus[];
+    aviso?: string | null;
+  } | null>(null);
 
   // Logos das associações (corretoras) para exibir no cabeçalho do resultado
   const [logos, setLogos] = useState<Record<string, string>>({});
@@ -142,17 +145,21 @@ export default function SGABusca() {
     setLoading(true);
     setResult(null);
     try {
-      const params = {
-        p_placa: tipo === "placa" ? t : null,
-        p_cpf: tipo === "cpf" ? t.replace(/\D/g, "") : null,
-        p_nome: tipo === "nome" ? t : null,
-      };
-      const { data, error } = await supabase.rpc("consultar_hinova", params);
+      // Consulta AO VIVO na API da Hinova (antes isso batia numa RPC que so lia
+      // tabelas locais, por isso a tela nunca achava quem nao estava na base importada).
+      const { data, error } = await supabase.functions.invoke("consultar-associado-hinova", {
+        body: {
+          placa: tipo === "placa" ? t : undefined,
+          cpf: tipo === "cpf" ? t.replace(/\D/g, "") : undefined,
+          nome: tipo === "nome" ? t : undefined,
+        },
+      });
       if (error) throw error;
       const r = data as any;
       if (r?.success === false) throw new Error(r.message || "Falha na busca");
       setResult(r);
-      if ((r?.total ?? 0) === 0) toast.info("Nenhum cliente encontrado.");
+      if (r?.aviso) toast.info(r.aviso, { duration: 7000 });
+      if ((r?.total ?? 0) === 0 && !r?.aviso) toast.info("Nenhum cliente encontrado.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao buscar no SGA");
       setResult({ total: 0, resultados: [], apis_ativas: [] });
@@ -166,7 +173,7 @@ export default function SGABusca() {
       <PageHeader
         icon={Search}
         title="SGA — Associados"
-        subtitle="Procure por placa, CPF/CNPJ ou nome em todas as associações com API."
+        subtitle="Consulta ao vivo no SGA da Hinova, em todas as associações com API ativa."
       />
 
       <Card>
@@ -231,6 +238,12 @@ export default function SGABusca() {
           <p className="text-xs text-muted-foreground">
             {result.total} resultado{result.total !== 1 ? "s" : ""} encontrado{result.total !== 1 ? "s" : ""}.
           </p>
+
+          {result.aviso && (
+            <div className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              {result.aviso}
+            </div>
+          )}
 
           {result.resultados.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/60 py-14 text-center">
