@@ -1,0 +1,24 @@
+-- PID alinhado ao criterio do Relatorio de Boletos do SGA.
+--
+-- Antes (jun/26 VALECAR):  inadimplentes 344 | inadimplencia 6,85%
+-- Depois:                  inadimplentes 186 | inadimplencia 3,74%
+-- SGA:                     inadimplentes 191 | inadimplencia 3,78%
+--
+-- Tres correcoes:
+-- 1) Referencia passa a ser o VENCIMENTO ORIGINAL (era data_vencimento), que e
+--    o que a empresa usa no relatorio.
+-- 2) "Em aberto" passa a contar so os boletos com vencimento PRORROGADO —
+--    criterio "Boletos Anteriores: NAO POSSUI", derivado do cruzamento do export
+--    do SGA contra a nossa base e validado em dois meses independentes
+--    (jun/26: 182 de 184; mai/26: 160 de 163).
+-- 3) inadimplentes passa a contar PLACAS distintas, nao boletos. O campo era
+--    gravado com a contagem de boletos abertos; um boleto pode cobrir mais de um
+--    veiculo, por isso 182 boletos = 186 placas.
+--
+-- NAO resolvido aqui: placas_ativas de meses passados continua reconstruida a
+-- partir da base de HOJE por data de adesao, entao ignora quem foi cancelado
+-- depois (jun/26: 4.685 contra 4.757 do SGA — a diferenca sao exatamente os 72
+-- cancelamentos do mes). E cancelamentos continua 0. Os dois dependem de
+-- importar veiculos em situacao inativa com a data da mudanca, o que hoje o
+-- importador nao faz (busca so codigo_situacao=1).
+(definicao completa aplicada no banco; arquivo documenta a mudanca)
