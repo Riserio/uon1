@@ -17,7 +17,7 @@ async function startMgfApiImport(supabase: any, corretoraId: string, user: Reque
     .from("mgf_automacao_execucoes")
     .select("id, status")
     .eq("corretora_id", corretoraId)
-    .gte("created_at", `${hoje}T03:00:00.000Z`)
+    .gte("created_at", new Date(Date.now() - 30 * 60 * 1000).toISOString())
     .in("status", ["executando"])
     .limit(1);
 
@@ -200,7 +200,7 @@ serve(async (req) => {
         .from("mgf_automacao_execucoes")
         .select("id, status")
         .eq("corretora_id", corretora_id)
-        .gte("created_at", `${hoje}T03:00:00.000Z`)
+        .gte("created_at", new Date(Date.now() - 30 * 60 * 1000).toISOString())
         .in("status", ["executando"])
         .limit(1);
 
