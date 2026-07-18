@@ -170,7 +170,10 @@ async function mergeIncremental(
   selectCols: string,
 ): Promise<{ atualizados: number; novos: number; totalProcessado: number }> {
   const PAGE = 1000;
-  const existing = new Map<string, string>(); // chave natural -> id da linha existente
+  // IMPORTANTE: um mapa chave -> LISTA de ids. Antes era chave -> um id só, o
+  // que fazia o merge apagar apenas UMA das duplicatas já existentes (as
+  // demais sobreviviam e o total só crescia).
+  const existing = new Map<string, string[]>();
   let offset = 0;
   while (true) {
     const { data, error } = await supabase
@@ -182,18 +185,39 @@ async function mergeIncremental(
     if (!data || data.length === 0) break;
     for (const row of data as AnyRow[]) {
       const k = keyOf(row);
-      if (k) existing.set(k, row.id);
+      if (k) {
+        const ids = existing.get(k) ?? [];
+        ids.push(row.id);
+        existing.set(k, ids);
+      }
     }
     if (data.length < PAGE) break;
     offset += PAGE;
   }
 
-  const idsToDelete: string[] = [];
+  // Deduplica as linhas NOVAS pela chave natural (mantém a última versão).
+  // Sem isso, uma resposta da API com o mesmo lançamento repetido (paginação
+  // sobreposta) inseria várias cópias enquanto o delete removia só uma.
+  const porChave = new Map<string, AnyRow>();
+  const semChave: AnyRow[] = [];
   for (const row of newRows) {
     const k = keyOf(row);
-    if (k && existing.has(k)) idsToDelete.push(existing.get(k)!);
+    if (k) porChave.set(k, row);
+    else semChave.push(row);
   }
-  const rowsToInsert = newRows.map((row) => ({ ...row, importacao_id: importacaoId }));
+
+  // Remove TODAS as versões antigas das chaves que serão reinseridas — é isso
+  // que também limpa as duplicatas acumuladas de execuções anteriores.
+  const idsToDelete: string[] = [];
+  for (const k of porChave.keys()) {
+    const ids = existing.get(k);
+    if (ids && ids.length > 0) idsToDelete.push(...ids);
+  }
+
+  const rowsToInsert = [...porChave.values(), ...semChave].map((row) => ({
+    ...row,
+    importacao_id: importacaoId,
+  }));
 
   // Remove as versões antigas dos registros que serão substituídos pela nova versão.
   for (let i = 0; i < idsToDelete.length; i += 500) {
