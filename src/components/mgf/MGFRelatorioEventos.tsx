@@ -161,9 +161,10 @@ export default function MGFRelatorioEventos({
       try {
         const { data, error } = await supabase.rpc("calcular_relatorio_eventos_mgf", {
           p_corretora_id: corretoraId,
-          p_operacoes: operacoes && operacoes.length > 0 ? operacoes : null,
-          p_sub_operacoes: subOperacoes && subOperacoes.length > 0 ? subOperacoes : null,
-          p_base_data: baseData ?? 'vencimento',
+          // calcular_relatorio_eventos_mgf só aceita valor único — com 2+
+          // seleções cai em "todas" (mesmo critério da outra chamada abaixo).
+          p_operacao: unicoOuNulo(operacoes),
+          p_sub_operacao: unicoOuNulo(subOperacoes),
           p_situacao: situacao,
           p_cooperativa: cooperativa,
           p_regional: regional,
@@ -200,9 +201,10 @@ export default function MGFRelatorioEventos({
       try {
         const { data, error } = await supabase.rpc("calcular_relatorio_eventos_mgf", {
           p_corretora_id: corretoraId,
-          p_operacoes: operacoes && operacoes.length > 0 ? operacoes : null,
-          p_sub_operacoes: subOperacoes && subOperacoes.length > 0 ? subOperacoes : null,
-          p_base_data: baseData ?? 'vencimento',
+          // calcular_relatorio_eventos_mgf só aceita valor único — com 2+
+          // seleções cai em "todas" (mesmo critério da outra chamada abaixo).
+          p_operacao: unicoOuNulo(operacoes),
+          p_sub_operacao: unicoOuNulo(subOperacoes),
           p_situacao: situacao,
           p_cooperativa: cooperativa,
           p_regional: regional,
