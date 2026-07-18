@@ -1,5 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,7 @@ import {
   Check,
   X,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -127,6 +130,9 @@ export default function MGFRelatorioEventos({
   corretoraId, operacoes, subOperacoes, baseData, situacao, cooperativa, regional, formaPagamento, tipoVeiculo,
   dataInicio, dataFim, loading, refreshToken,
 }: MGFRelatorioEventosProps) {
+  // Detalhamento começa recolhido: a lista é longa (milhares de linhas) e
+  // os gráficos/KPIs é que devem aparecer primeiro.
+  const [detalhesAberto, setDetalhesAberto] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -530,14 +536,25 @@ export default function MGFRelatorioEventos({
         )}
       </div>
 
-      {/* Tabela de Detalhes */}
+      {/* Tabela de Detalhes — recolhível */}
+      <Collapsible open={detalhesAberto} onOpenChange={setDetalhesAberto}>
       <Card className="rounded-2xl border-border/40">
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <CardTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5 text-primary" />
-              Detalhamento de Eventos ({totalCount.toLocaleString()} registros)
-            </CardTitle>
+            <CollapsibleTrigger asChild>
+              <button type="button" className="flex items-center gap-2 text-left group">
+                <FileSpreadsheet className="h-5 w-5 text-primary" />
+                <CardTitle className="flex items-center gap-2">
+                  Detalhamento de Eventos ({totalCount.toLocaleString()} registros)
+                </CardTitle>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                    detalhesAberto && "rotate-180",
+                  )}
+                />
+              </button>
+            </CollapsibleTrigger>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-64">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -555,6 +572,7 @@ export default function MGFRelatorioEventos({
             </div>
           </div>
         </CardHeader>
+        <CollapsibleContent>
         <CardContent>
           <div className="rounded-md border overflow-x-auto">
             <Table>
@@ -646,7 +664,9 @@ export default function MGFRelatorioEventos({
             </div>
           )}
         </CardContent>
+        </CollapsibleContent>
       </Card>
+      </Collapsible>
     </div>
   );
 }
