@@ -360,15 +360,17 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   return (
     <div className="space-y-3 w-full max-w-full overflow-x-hidden min-w-0">
       {/* KPI Cards */}
-      {/* KPIs alinhados ao SGA: "Em aberto" (a vencer) e "Vencido" são coisas
-          distintas — somá-los inflava o em aberto e a inadimplência. */}
+      {/* KPIs alinhados ao relatorio de Fechamento do SGA, conforme conferencia da
+          empresa: "Em Aberto" e o total de boletos abertos (184 em jun/26) e
+          Inadimplencia = em aberto / emitidos (184/4862 = 3,78%). "Vencido" entra
+          como recorte adicional, sem deslocar os numeros que a empresa confere. */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
         {[
           { label: "Boletos Emitidos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
           { label: "Boletos Pagos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
-          { label: "Em Aberto", value: (stats.qtdeAVencer ?? stats.qtdeAbertos).toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAVencer ?? stats.totalAberto), cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
-          { label: "Vencido", value: (stats.qtdeVencidos ?? 0).toLocaleString('pt-BR'), sub: formatCurrency(stats.totalVencido ?? 0), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
-          { label: "Inadimplência", value: formatPercent(stats.percentualVencidos ?? stats.percentualInadimplencia), sub: "vencidos / emitidos", cls: "text-orange-600 bg-orange-500/5 border-orange-500/20" },
+          { label: "Em Aberto", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
+          { label: "Vencido", value: (stats.qtdeVencidos ?? 0).toLocaleString('pt-BR'), sub: `dos quais ${formatCurrency(stats.totalVencido ?? 0)}`, cls: "text-orange-600 bg-orange-500/5 border-orange-500/20" },
+          { label: "Inadimplência", value: formatPercent(stats.percentualInadimplencia), sub: "em aberto / emitido", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
         ].map(({ label, value, sub, cls }) => (
           <Card key={label} className={`rounded-2xl border ${cls}`}>
             <CardContent className="p-4">
