@@ -182,20 +182,12 @@ async function mergeIncremental(
   newRows: AnyRow[],
   keyOf: (row: AnyRow) => string | null,
   selectCols: string,
-  /**
-   * Reconciliacao de janela. O merge por chave so apaga o que a API devolveu,
-   * entao um registro que SOME da origem (ex.: associado removido do SGA)
-   * sobrevive para sempre com a situacao antiga — foi o que inflou junho/26 em
-   * 160 boletos "ABERTO" que o SGA ja nao tem. Com este parametro, tudo que
-   * estiver dentro da janela importada e nao voltou na resposta e removido.
-   */
-  reconcile?: { coluna: string; de: string; ate: string } | null,
-): Promise<{ atualizados: number; novos: number; totalProcessado: number; orfaos: number }> {
+): Promise<{ atualizados: number; novos: number; totalProcessado: number }> {
   const PAGE = 1000;
   // IMPORTANTE: um mapa chave -> LISTA de ids. Antes era chave -> um id só, o
   // que fazia o merge apagar apenas UMA das duplicatas já existentes (as
   // demais sobreviviam e o total só crescia).
-  const existing = new Map<string, { id: string; janela: string | null }[]>();
+  const existing = new Map<string, string[]>();
   let offset = 0;
   while (true) {
     const { data, error } = await supabase
@@ -209,7 +201,7 @@ async function mergeIncremental(
       const k = keyOf(row);
       if (k) {
         const ids = existing.get(k) ?? [];
-        ids.push({ id: row.id, janela: reconcile ? (row[reconcile.coluna] ?? null) : null });
+        ids.push(row.id);
         existing.set(k, ids);
       }
     }
@@ -233,34 +225,7 @@ async function mergeIncremental(
   const idsToDelete: string[] = [];
   for (const k of porChave.keys()) {
     const ids = existing.get(k);
-    if (ids && ids.length > 0) idsToDelete.push(...ids.map((x) => x.id));
-  }
-
-  // Orfaos: estavam na janela importada e nao vieram mais da API.
-  let orfaos = 0;
-  if (reconcile) {
-    const naJanela: string[] = [];
-    const orfaosIds: string[] = [];
-    for (const [k, arr] of existing) {
-      for (const r of arr) {
-        if (!r.janela || r.janela < reconcile.de || r.janela > reconcile.ate) continue;
-        naJanela.push(r.id);
-        if (!porChave.has(k)) orfaosIds.push(r.id);
-      }
-    }
-    // Trava: uma resposta parcial da API (timeout, pagina vazia) nao pode
-    // apagar a janela inteira. Acima de 20% preferimos nao mexer e alertar.
-    const limite = Math.floor(naJanela.length * 0.2);
-    if (orfaosIds.length > limite && naJanela.length > 0) {
-      console.warn(
-        `[${table}] reconciliacao ABORTADA: ${orfaosIds.length} orfaos de ${naJanela.length} na janela ` +
-        `(>20%). Provavel resposta parcial da API — nada foi removido.`,
-      );
-    } else if (orfaosIds.length > 0) {
-      orfaos = orfaosIds.length;
-      idsToDelete.push(...orfaosIds);
-      console.log(`[${table}] reconciliacao: ${orfaos} registro(s) sumiram da API e foram removidos da janela.`);
-    }
+    if (ids && ids.length > 0) idsToDelete.push(...ids);
   }
 
   const rowsToInsert = [...porChave.values(), ...semChave].map((row) => ({
@@ -283,10 +248,9 @@ async function mergeIncremental(
   }
 
   return {
-    atualizados: idsToDelete.length - orfaos,
-    novos: rowsToInsert.length - (idsToDelete.length - orfaos),
+    atualizados: idsToDelete.length,
+    novos: rowsToInsert.length - idsToDelete.length,
     totalProcessado: rowsToInsert.length,
-    orfaos,
   };
 }
 
@@ -735,20 +699,13 @@ serve(async (req) => {
       const nomeArqC = `API cobrança ${ddmmyyyy(inicioC)}–${ddmmyyyy(fimC)}`;
       const { id: impCId } = await getOrCreateImportacaoAtiva(supabase, "cobranca_importacoes", corretora_id, nomeArqC);
 
-      // Reconcilia pela MESMA coluna que a API usa para filtrar o periodo
-      // (data_vencimento), senao removeriamos linhas fora da janela consultada.
       const mergeResC = await mergeIncremental(
         supabase,
         "cobranca_boletos",
         impCId,
         rows,
         (row) => (row?.dados_extras?.nosso_numero ? String(row.dados_extras.nosso_numero) : null),
-        "id, dados_extras, data_vencimento",
-        {
-          coluna: "data_vencimento",
-          de: inicioC.toISOString().slice(0, 10),
-          ate: fimC.toISOString().slice(0, 10),
-        },
+        "id, dados_extras",
       );
 
       const { count: totalC } = await supabase
