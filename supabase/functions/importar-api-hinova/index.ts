@@ -161,6 +161,20 @@ async function getOrCreateImportacaoAtiva(
 //    anterior à automação via API) NÃO são tocados — é assim que o histórico
 //    completo nunca é perdido, mesmo que cada chamada à API só traga uma
 //    janela parcial (ex.: últimos 18 meses).
+// Procura um nome (não código) em vários campos possíveis da API Hinova,
+// olhando primeiro a parcela e depois o lançamento. Retorna null se não achar.
+// deno-lint-ignore no-explicit-any
+function pickNome(P: any, L: any, ...chaves: string[]): string | null {
+  for (const fonte of [P, L]) {
+    if (!fonte) continue;
+    for (const k of chaves) {
+      const v = fonte[k];
+      if (v !== null && v !== undefined && String(v).trim() !== "") return String(v).trim();
+    }
+  }
+  return null;
+}
+
 async function mergeIncremental(
   supabase: AnyRow,
   table: string,
@@ -783,6 +797,15 @@ serve(async (req) => {
           _mgfDebug = `HTTP ${r.status} chaves=${j && typeof j === "object" ? Object.keys(j).join("|") : String(j).slice(0, 20)} body=${_mgfRaw.slice(0, 300)}`;
           console.log("[MGF] 1a pagina sem lancamentos ->", _mgfDebug);
         }
+        // Diagnóstico: na 1a página, registra as chaves reais de lançamento e
+        // parcela. Serve para descobrir sob que nome a Hinova manda
+        // veículo/cooperativa/regional quando esses campos vierem vazios.
+        if (paginas === 1 && lancs.length > 0) {
+          const L0: any = lancs[0];
+          const P0: any = Array.isArray(L0?.parcelas) && L0.parcelas[0] ? L0.parcelas[0] : L0;
+          console.log("[MGF] chaves lancamento:", Object.keys(L0 ?? {}).join("|"));
+          console.log("[MGF] chaves parcela:", Object.keys(P0 ?? {}).join("|"));
+        }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const L of lancs as any[]) {
           const parcelas = Array.isArray(L.parcelas) ? L.parcelas : [L];
@@ -794,6 +817,16 @@ serve(async (req) => {
               descricao: P.descricao ?? null,
               situacao_pagamento: P.situacao ?? null,
               fornecedor: P.fornecedor || null,
+              nome_fantasia_fornecedor: pickNome(P, L, "nome_fantasia_fornecedor", "fantasia_fornecedor"),
+              // A API manda os CÓDIGOS em dados_extras, mas os NOMES (quando
+              // vêm) ficavam de fora — por isso Veículo/Cooperativa/Regional
+              // apareciam vazios na tela. Testamos os nomes de campo mais
+              // prováveis, tanto na parcela (P) quanto no lançamento (L).
+              cooperativa: pickNome(P, L, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome"),
+              regional: pickNome(P, L, "regional", "nome_regional", "descricao_regional", "regional_nome"),
+              associado: pickNome(P, L, "associado", "nome_associado", "cliente"),
+              veiculo_evento: pickNome(P, L, "placa", "veiculo", "placa_veiculo", "veiculo_evento", "placa_evento"),
+              placa: pickNome(P, L, "placa", "placa_veiculo", "veiculo"),
               forma_pagamento: P.documento || null,
               data_vencimento: dateISO(P.data_vencimento),
               data_pagamento: dateISO(P.data_pagamento),
