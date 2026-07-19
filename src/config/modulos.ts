@@ -47,17 +47,24 @@ export const GRUPO_ORDEM: ModuloGrupo[] = [
 
 /**
  * Icone de cada grupo (nome do icone lucide-react).
+ *
+ * REGRA: nenhum icone daqui pode se repetir nos itens do menu. Se o grupo
+ * "Inteligencia" usasse TrendingUp, que ja e o icone do BI, o mesmo desenho
+ * significaria duas coisas em niveis diferentes da hierarquia — recolhido, o
+ * usuario nao sabe se clicou no grupo ou na tela. Por isso os grupos usam uma
+ * familia visual propria (formas abstratas: bussola, radar, escudo) e os itens
+ * ficam com os objetos concretos. Ha uma checagem em DEV no AppSidebar.
  * Usado quando a sidebar esta recolhida: em vez de listar todos os itens em
  * coluna, mostra so o icone do grupo — clicar expande a sidebar e abre o grupo.
  */
 export const GRUPO_ICONE: Record<ModuloGrupo, string> = {
-  inicio: "LayoutDashboard",
-  relacionamento: "MessagesSquare",
-  inteligencia: "TrendingUp",
+  inicio: "Compass",
+  relacionamento: "Handshake",
+  inteligencia: "Radar",
   operacao: "Wrench",
   documentos: "FolderOpen",
-  cadastros: "Building2",
-  interno: "Users",
+  cadastros: "Database",
+  interno: "ShieldCheck",
 };
 
 /** Grupos que comecam recolhidos. "inicio" nao expande (item unico). */

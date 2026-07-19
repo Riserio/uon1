@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, MessagesSquare, Wrench, FolderOpen } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, Compass, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -127,8 +127,21 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
       );
     }
   }, [items]);
+  // Icone de grupo nao pode repetir icone de item: recolhida, a sidebar mostra
+  // so os icones de grupo, e um desenho repetido faria o usuario achar que
+  // clicou na tela quando clicou no grupo. Avisa em DEV ao adicionar modulo.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const deGrupo = new Set(Object.values(GRUPO_ICONE));
+    const colisoes = items
+      .filter((i) => deGrupo.has(i.icon.displayName ?? i.icon.name ?? ""))
+      .map((i) => `${i.label} (${i.icon.displayName ?? i.icon.name})`);
+    if (colisoes.length > 0) {
+      console.warn("[menu] icones de item repetindo icone de grupo:", colisoes);
+    }
+  }, [items]);
   const ICONES_GRUPO: Record<string, typeof LayoutDashboard> = {
-    LayoutDashboard, MessagesSquare, TrendingUp, Wrench, FolderOpen, Building2, Users,
+    Compass, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck,
   };
   const groups = GRUPO_ORDEM.map((key) => ({
     key,

@@ -513,6 +513,7 @@ export const CAPITULOS: DocCapitulo[] = [
               "O grupo da rota atual abre sozinho: sem isso, navegar para uma tela cujo grupo está recolhido faz a pessoa perder a referência de onde está.",
               "Com a sidebar recolhida aparecem apenas os ícones dos grupos, não a lista inteira de itens. Clicar num ícone expande a sidebar já com aquele grupo aberto — expandir sem abrir o grupo deixaria a pessoa sem retorno visível ao clique.",
               "O ícone do grupo que contém a tela atual fica destacado, para orientar mesmo com a sidebar estreita.",
+              "Os ícones de grupo não repetem nenhum ícone de item. Grupos usam formas abstratas (bússola, aperto de mão, radar, chave, pasta, banco de dados, escudo); itens usam objetos concretos. Repetir o desenho faria o usuário achar que clicou na tela quando clicou no grupo. Há um aviso em DEV se um módulo novo trouxer um ícone que colide.",
               "Grupo recolhido que contém a tela ativa exibe um ponto colorido.",
               "Documentos, Cadastros e Interno começam recolhidos por serem menos usados no dia a dia.",
               "Ajuda e Configurações ficam fixos no rodapé, fora dos grupos.",
