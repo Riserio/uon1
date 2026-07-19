@@ -800,7 +800,16 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   }, [corretoraId]);
 
   const chartData = useMemo(() => {
-    const serie = chartRange >= 999 ? dadosAno : dadosAno.slice(-chartRange);
+    // Nada de mes futuro: boleto e emitido antes de vencer, entao existiam
+    // linhas de ago/26 e set/26 no pid_operacional — "placas ativas" e
+    // "inadimplencia" de um mes que ainda nao aconteceu nao significam nada.
+    const hoje = new Date();
+    const anoAtual = hoje.getFullYear();
+    const mesAtual = hoje.getMonth() + 1;
+    const ateHoje = dadosAno.filter(
+      (d: any) => d.ano < anoAtual || (d.ano === anoAtual && d.mes <= mesAtual),
+    );
+    const serie = chartRange >= 999 ? ateHoje : ateHoje.slice(-chartRange);
     return serie.map((d, index) => {
       const prev = index > 0 ? serie[index - 1] : null;
       const currFaturamento = Number(d.faturamento_operacional ?? 0);
@@ -836,9 +845,14 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
           (d.pagamento_valor_carro_reserva || 0);
       const sinistroFinanceiro = d.sinistralidade_financeira ?? calcPercent(custoTotalEventos, d.total_recebido);
       const sinistroGeral = d.sinistralidade_geral ?? calcPercent(d.abertura_total_eventos, d.placas_ativas);
-      const mesLabel = `${mesesNome[d.mes - 1]}/${String(d.ano).slice(-2)}`;
+      // O mes corrente ainda esta em curso: sem marcar, quem olha compara com o
+      // mes fechado anterior e conclui que houve queda. Ex.: jul/26 mostrava 160
+      // pagos no dia 19 contra 4.670 de junho inteiro.
+      const parcial = d.ano === anoAtual && d.mes === mesAtual;
+      const mesLabel = `${mesesNome[d.mes - 1]}/${String(d.ano).slice(-2)}${parcial ? " (parcial)" : ""}`;
       return {
         mes: mesLabel,
+        parcial,
         placas_ativas: d.placas_ativas || 0,
         total_cotas: d.total_cotas || 0,
         total_associados: d.total_associados || 0,
@@ -1279,7 +1293,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               <ChartCard
                 title="Evolução da Frota Protegida"
                 accentColor="#2563eb"
-                subtitle={frotaModo === "dia" ? "Placas ativas por dia" : "Placas ativas por mês"}
+                subtitle={
+                  frotaModo === "dia"
+                    ? "Placas ativas por dia"
+                    : chartData.some((d: any) => d.parcial)
+                      ? "Placas ativas por mês · o último mês está em curso (parcial)"
+                      : "Placas ativas por mês"
+                }
                 hasData={frotaModo === "dia" ? frotaDiaData.length > 0 : hasData}
                 height={300}
                 headerRight={
