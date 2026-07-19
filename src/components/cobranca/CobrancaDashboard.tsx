@@ -419,17 +419,32 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
         </span>
       </div>
 
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
         {[
-          { label: "Boletos Emitidos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
-          { label: "Boletos Pagos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
-          { label: "Em Aberto", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
-          { label: "Inadimplência", value: formatPercent(stats.percentualInadimplencia), sub: criterio === "sga" ? "critério do SGA" : "em aberto / emitido", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
-        ].map(({ label, value, sub, cls }) => (
+          { label: "Boletos Emitidos", unidade: "boletos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
+          { label: "Boletos Pagos", unidade: "boletos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
+          { label: "Em Aberto", unidade: "boletos", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
+          // Vencidos x Em Aberto: em mes fechado sao iguais (tudo ja venceu). No
+          // mes corrente separam quem esta em atraso de verdade de quem so tem
+          // conta a vencer — jul/26 tinha 1.538 em aberto e apenas 160 vencidos.
+          { label: "Vencidos", unidade: "boletos", value: (stats.qtdeVencidosMes ?? 0).toLocaleString('pt-BR'), sub: formatCurrency(stats.totalVencidoMes ?? 0), cls: "text-orange-600 bg-orange-500/5 border-orange-500/20" },
+          { label: "Inadimplência", unidade: null, value: formatPercent(stats.percentualInadimplencia), sub: criterio === "sga" ? "critério do SGA" : "em aberto / emitido", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
+        ].map(({ label, unidade, value, sub, cls }) => (
           <Card key={label} className={`rounded-2xl border ${cls}`}>
             <CardContent className="p-4">
               <div className={`text-[11px] font-medium mb-1 ${cls.split(" ")[0]}`}>{label}</div>
-              <div className="text-xl font-bold tracking-tight">{value}</div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl font-bold tracking-tight">{value}</span>
+                {/* A unidade explicita evita a comparacao errada entre cards:
+                    "Em Aberto" conta BOLETOS e "Inadimplentes" conta PLACAS, e
+                    os dois ficam proximos (1.538 x 1.536 em jul/26) — sem o
+                    rotulo, parece divergencia quando e so unidade diferente. */}
+                {unidade && (
+                  <span className="text-[9px] uppercase tracking-wide text-muted-foreground/70">
+                    {unidade}
+                  </span>
+                )}
+              </div>
               <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>
             </CardContent>
           </Card>

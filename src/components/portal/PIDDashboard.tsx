@@ -470,9 +470,16 @@ interface KpiCardProps {
   badge?: string;
   variation?: React.ReactNode;
   valueClassName?: string;
+  /**
+   * Unidade do numero ("placas", "boletos"...). Sem isso, cards vizinhos que
+   * medem coisas diferentes parecem divergir: em jul/26 "Em Aberto" (boletos)
+   * deu 1.538 e "Inadimplentes" (placas) 1.536 — numeros proximos e unidades
+   * distintas, o que naturalmente levanta a duvida de qual esta errado.
+   */
+  unidade?: string;
 }
 
-const KpiCard = ({ icon, label, value, fullValue, accent, badge, variation, valueClassName }: KpiCardProps) => (
+const KpiCard = ({ icon, label, value, fullValue, accent, badge, variation, valueClassName, unidade }: KpiCardProps) => (
   <Card className={`${accentClasses[accent]} shadow-sm min-w-0`}>
     <CardContent className="p-4">
       <div className="flex items-center justify-between">
@@ -484,11 +491,18 @@ const KpiCard = ({ icon, label, value, fullValue, accent, badge, variation, valu
         )}
       </div>
       <div className="mt-2 min-w-0">
-        <div
-          className={`text-lg sm:text-xl xl:text-2xl font-bold tracking-tight truncate ${valueClassName || ""}`}
-          title={fullValue || value}
-        >
-          {value}
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <span
+            className={`text-lg sm:text-xl xl:text-2xl font-bold tracking-tight truncate ${valueClassName || ""}`}
+            title={fullValue || value}
+          >
+            {value}
+          </span>
+          {unidade && (
+            <span className="text-[9px] uppercase tracking-wide text-muted-foreground/70 shrink-0">
+              {unidade}
+            </span>
+          )}
         </div>
         <div className="text-xs text-muted-foreground truncate">{label}</div>
         {variation}
@@ -1089,6 +1103,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               badge={mesAtualLabel || undefined}
               value={(placasAtivasView ?? 0).toLocaleString("pt-BR")}
               label="Placas Ativas"
+              unidade="placas"
               variation={
                 <VariationIndicator
                   current={placasAtivasView || 0}
@@ -1103,6 +1118,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               badge={isPeriodoAtual ? mesAtualLabel || undefined : undefined}
               value={(inadimplentesView ?? 0).toLocaleString("pt-BR")}
               label="Inadimplentes"
+              unidade="placas"
               variation={
                 <VariationIndicator
                   current={inadimplentesView || 0}
