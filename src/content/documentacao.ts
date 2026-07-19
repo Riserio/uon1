@@ -308,7 +308,10 @@ export const CAPITULOS: DocCapitulo[] = [
             titulo: "Identidade do veículo",
             conteudo:
               "Placa OU chassi. Veículo 0km entra na base antes do emplacamento, só com chassi — se a " +
-              "contagem usar apenas placa, ele desaparece do total. VALECAR tinha 37 nessa situação, D3 tem 279.",
+              "contagem usar apenas placa, ele desaparece do total. VALECAR tinha 37 nessa situação, D3 tem 279. " +
+              "Cuidado no diagnóstico: essa diferença (4.794 linhas contra 4.757 placas) PARECE duplicação " +
+              "e não é. Duplicação real existia à parte, na paginação da API, afetando KM PV e EXCLUSIVE " +
+              "com 10.000 linhas para ~5.000 veículos.",
           },
         ],
       },
@@ -471,6 +474,96 @@ export const CAPITULOS: DocCapitulo[] = [
 
   /* ================================================================== */
   {
+    id: "interface",
+    titulo: "Menu e Módulos",
+    icone: "workflow",
+    secoes: [
+      {
+        id: "estrutura-menu",
+        titulo: "Estrutura do menu",
+        resumo: "Sete grupos organizados por objetivo de uso",
+        blocos: [
+          {
+            tipo: "texto",
+            conteudo:
+              "O menu era dividido em três grupos e o de Ferramentas concentrava 16 itens — lista longa " +
+              "demais para encontrar qualquer coisa. Hoje são sete grupos, organizados pelo que a pessoa " +
+              "está tentando fazer, e não por natureza técnica. Cada grupo abre e fecha, com a preferência " +
+              "guardada no navegador.",
+          },
+          {
+            tipo: "tabela",
+            conteudo: {
+              cabecalho: ["Grupo", "Itens"],
+              linhas: [
+                ["Início", "Painel"],
+                ["Relacionamento", "Atendimentos, Central de Atendimento, Mensagens, Uon1 Talk, Ouvidoria, Comunicados"],
+                ["Inteligência", "BI Indicadores, SGA Associados"],
+                ["Operação", "Vistorias, Financeiro, Débitos Veiculares, Formulários"],
+                ["Documentos", "Uon1 Sign, Documentos, Biblioteca, Termos de Aceite"],
+                ["Cadastros", "Associações, Contatos"],
+                ["Interno", "Gestão, PPR, Agenda"],
+              ],
+            },
+          },
+          {
+            tipo: "lista",
+            titulo: "Detalhes de comportamento",
+            conteudo: [
+              "O grupo da rota atual abre sozinho: sem isso, navegar para uma tela cujo grupo está recolhido faz a pessoa perder a referência de onde está.",
+              "Grupo recolhido que contém a tela ativa exibe um ponto colorido.",
+              "Documentos, Cadastros e Interno começam recolhidos por serem menos usados no dia a dia.",
+              "Ajuda e Configurações ficam fixos no rodapé, fora dos grupos.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "registro-modulos",
+        titulo: "Registro de módulos",
+        resumo: "Como adicionar um módulo novo sem quebrar a gestão",
+        blocos: [
+          {
+            tipo: "alerta",
+            nivel: "atencao",
+            titulo: "Módulo novo precisa entrar em SYSTEM_MODULES",
+            conteudo:
+              "src/config/modulos.ts é o registro canônico: dele saem o menu (AppSidebar) e a tela de " +
+              "gestão em Configurações. Item que existe no menu e falta nessa lista aparece normalmente " +
+              "para o usuário, mas não pode ser desabilitado — e ninguém percebe, porque a tela de gestão " +
+              "simplesmente não o exibe. Aconteceu com Biblioteca. Há um aviso no console em " +
+              "desenvolvimento apontando itens órfãos.",
+          },
+          {
+            tipo: "texto",
+            titulo: "usuarios e performance",
+            conteudo:
+              "Ficam fora da gestão de propósito: são chaves de permissão verificadas no código, não itens " +
+              "de menu. Desabilitá-las não teria efeito visível.",
+          },
+          {
+            tipo: "alerta",
+            nivel: "critico",
+            titulo: "O bug da inversão, e por que custou tanto para achar",
+            conteudo:
+              "Por um tempo era impossível desabilitar qualquer módulo: o toast dizia 'desabilitado para " +
+              "todos', mas o switch não mudava e o item seguia no menu. A causa era um booleano invertido " +
+              "— definirModulo(id, !ativo) quando o correto é definirModulo(id, ativo). Como 'ativo' " +
+              "significa 'está habilitado' e o parâmetro se chama 'desabilitar', clicar num módulo " +
+              "habilitado executava REABILITAR: um DELETE de linha inexistente, que retornava zero linhas, " +
+              "passava na verificação do hook e disparava o toast de sucesso. " +
+              "O diagnóstico demorou porque RLS, índice único, permissão do papel e escrita direta pela " +
+              "sessão do usuário foram todos testados e estavam corretos. A pista foi o print do toast: " +
+              "mensagem de sucesso com efeito nenhum só pode significar que o código executou com êxito a " +
+              "operação oposta.",
+          },
+        ],
+      },
+    ],
+  },
+
+  /* ================================================================== */
+  {
     id: "principios",
     titulo: "Princípios",
     icone: "shield",
@@ -489,7 +582,8 @@ export const CAPITULOS: DocCapitulo[] = [
               "descobre é o usuário. Isso apareceu quatro vezes: cards de cobrança contra o gráfico por " +
               "dia (187 × 332), inadimplentes do portal contra o PID, placas ativas do card contra o " +
               "gráfico (4.794 × 4.757), e Estudo de Base contra Visão Geral. Se o número já existe numa " +
-              "função ou tabela, leia de lá.",
+              "função ou tabela, leia de lá. Vale para componentes também: o carimbo de atualização chegou " +
+              "a ser renderizado em três lugares e aparecia duplicado na tela do PID.",
           },
         ],
       },
