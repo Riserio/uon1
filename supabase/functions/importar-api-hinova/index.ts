@@ -388,6 +388,30 @@ serve(async (req) => {
         }
       }
 
+      // A API repete registros entre as paginas: KM PV e EXCLUSIVE vinham com
+      // 10.000 linhas para ~5.000 placas reais (a pagina 2 devolve praticamente
+      // o mesmo conteudo da 1, embora total_veiculos informe 5.816 e 3 paginas).
+      // Isso inflava "placas ativas": a VALECAR aparecia com 4.794 quando o SGA
+      // reporta 4.757 — que e exatamente a nossa contagem DISTINTA. Ou seja, o
+      // numero certo ja estava na base, escondido atras das linhas repetidas.
+      if (Array.isArray(veiculos)) {
+        const vistos = new Set<string>();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const unicos: any[] = [];
+        let repetidos = 0;
+        for (const v of veiculos) {
+          const pl = String(v?.placa ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+          const chave = pl || `sem-placa:${unicos.length}`;
+          if (vistos.has(chave)) { repetidos++; continue; }
+          vistos.add(chave);
+          unicos.push(v);
+        }
+        if (repetidos > 0) {
+          console.log(`[BASE] ${repetidos} veiculo(s) repetidos descartados; ${unicos.length} placas distintas`);
+        }
+        veiculos = unicos;
+      }
+
       if (veiculos === null) {
         return new Response(
           JSON.stringify({
