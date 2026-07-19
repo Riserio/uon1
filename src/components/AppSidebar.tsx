@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, MessagesSquare, Wrench, FolderOpen } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useSignedContracts } from "@/hooks/useSignedContracts";
 import { useModulosDesabilitados } from "@/hooks/useModulosDesabilitados";
-import { SYSTEM_MODULES, GRUPO_LABEL, GRUPO_ORDEM, GRUPO_RECOLHIDO_PADRAO, type ModuloGrupo } from "@/config/modulos";
+import { SYSTEM_MODULES, GRUPO_LABEL, GRUPO_ORDEM, GRUPO_RECOLHIDO_PADRAO, GRUPO_ICONE, type ModuloGrupo } from "@/config/modulos";
 import { useOuvidoriaPendentes } from "@/hooks/useOuvidoriaPendentes";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,7 +106,7 @@ function useMenuItems() {
 
 // ---------------- SIDEBAR CONTENT ----------------
 
-function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: boolean; onNavigate?: () => void; onExpandir?: () => void }) {
   const { signOut, userRole } = useAuth();
   const { canView } = useMenuPermissionsForRole(userRole);
   const { isDesabilitado } = useModulosDesabilitados();
@@ -127,7 +127,14 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
       );
     }
   }, [items]);
-  const groups = GRUPO_ORDEM.map((key) => ({ key, label: GRUPO_LABEL[key] }));
+  const ICONES_GRUPO: Record<string, typeof LayoutDashboard> = {
+    LayoutDashboard, MessagesSquare, TrendingUp, Wrench, FolderOpen, Building2, Users,
+  };
+  const groups = GRUPO_ORDEM.map((key) => ({
+    key,
+    label: GRUPO_LABEL[key],
+    Icone: ICONES_GRUPO[GRUPO_ICONE[key]] ?? LayoutDashboard,
+  }));
 
   // Grupos expansíveis. O menu tinha 16 itens soltos em "Ferramentas"; agora
   // são 7 grupos que abrem e fecham. Guardamos a preferência do usuário e
@@ -174,11 +181,35 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
         {groups.map((group, gi) => {
           const groupItems = items.filter((i) => i.group === group.key && canView(i.id) && (i.id === "configuracoes" || !isDesabilitado(i.id)));
           if (groupItems.length === 0) return null;
-          const aberto = collapsed || group.key === "inicio" || abertos.has(group.key);
+          const aberto = !collapsed && (group.key === "inicio" || abertos.has(group.key));
             const temAtivo = groupItems.some((i) => location.pathname.startsWith(i.to));
             return (
             <div key={group.key}>
               {gi > 0 && <div className="mx-3 my-2 border-t border-sidebar-border" />}
+              {collapsed && (
+                <div className="px-2">
+                  <button
+                    onClick={() => {
+                      // Abre a sidebar E o grupo: clicar no icone sem expandir
+                      // nao mostraria nada, e o usuario ficaria sem retorno.
+                      if (group.key !== "inicio") {
+                        setAbertos((prev) => {
+                          const next = new Set(prev).add(group.key);
+                          try { localStorage.setItem("menu_grupos_abertos", JSON.stringify([...next])); } catch { /* sem persistência */ }
+                          return next;
+                        });
+                      }
+                      onExpandir?.();
+                    }}
+                    title={group.label}
+                    className={`w-full flex items-center justify-center rounded-lg py-2.5 transition-colors ${
+                      temAtivo ? "bg-primary/10 text-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent"
+                    }`}
+                  >
+                    <group.Icone className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               {!collapsed && group.key !== "inicio" && (
                 <button
                   onClick={() => alternarGrupo(group.key)}
@@ -355,7 +386,7 @@ export function AppSidebar() {
       </button>
 
       <div className="flex-1 overflow-hidden rounded-2xl">
-        <SidebarMenuContent collapsed={!expanded} />
+        <SidebarMenuContent collapsed={!expanded} onExpandir={() => setExpanded(true)} />
       </div>
     </div>
   );

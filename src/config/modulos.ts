@@ -45,6 +45,21 @@ export const GRUPO_ORDEM: ModuloGrupo[] = [
   "inicio", "relacionamento", "inteligencia", "operacao", "documentos", "cadastros", "interno",
 ];
 
+/**
+ * Icone de cada grupo (nome do icone lucide-react).
+ * Usado quando a sidebar esta recolhida: em vez de listar todos os itens em
+ * coluna, mostra so o icone do grupo — clicar expande a sidebar e abre o grupo.
+ */
+export const GRUPO_ICONE: Record<ModuloGrupo, string> = {
+  inicio: "LayoutDashboard",
+  relacionamento: "MessagesSquare",
+  inteligencia: "TrendingUp",
+  operacao: "Wrench",
+  documentos: "FolderOpen",
+  cadastros: "Building2",
+  interno: "Users",
+};
+
 /** Grupos que comecam recolhidos. "inicio" nao expande (item unico). */
 export const GRUPO_RECOLHIDO_PADRAO: ModuloGrupo[] = ["documentos", "cadastros", "interno"];
 
