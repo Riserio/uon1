@@ -34,7 +34,7 @@ interface KpisSga {
   qtdeEmitidos: number; totalValor: number;
   percentualInadimplencia: number;
   qtdeAbertosTotal: number; totalAbertoTotal: number;
-  qtdeSemProrrogacao: number;
+  qtdeSemProrrogacao: number; // boletos de veiculos que ja tinham debito anterior
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
@@ -391,12 +391,12 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
     <div className="space-y-3 w-full max-w-full overflow-x-hidden min-w-0">
       {/* KPI Cards */}
       {/* Duas leituras do mesmo mes, ambas conferidas contra o SGA:
-          - "SGA" (padrao): reproduz o Relatorio de Boletos com o filtro
-            "Boletos Anteriores: NAO POSSUI". Na conferencia de jun/26 esse
-            criterio isola exatamente os boletos com vencimento PRORROGADO
-            (182 de 184 do relatorio; a diferenca sao prorrogacoes feitas no
-            intervalo entre o import e a geracao do relatorio).
-          - "Cobranca total": todo boleto em aberto do mes. */}
+          - "Criterio SGA" (padrao): reproduz o Relatorio de Boletos com o
+            filtro "Boletos Anteriores: NAO POSSUI" — conta so os boletos de
+            veiculos que NAO tinham boleto de mes anterior ainda em aberto.
+            Validado em tres meses (abertos nosso/SGA): mai 163/163,
+            jun 186/184, jul 1.521/1.530.
+          - "Cobranca total": todo boleto em aberto do mes, sem filtro. */}
       <div className="flex items-center gap-2 flex-wrap">
         {([
           { id: "sga" as VisaoKpi, label: "Critério SGA" },
@@ -414,7 +414,7 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
         ))}
         {visao === "sga" && kpisSga && (
           <span className="text-[11px] text-muted-foreground">
-            {kpisSga.qtdeSemProrrogacao.toLocaleString('pt-BR')} boleto(s) sem prorrogação ficam fora deste critério
+            {kpisSga.qtdeSemProrrogacao.toLocaleString('pt-BR')} boleto(s) de veículos com débito anterior ficam fora deste critério
           </span>
         )}
       </div>

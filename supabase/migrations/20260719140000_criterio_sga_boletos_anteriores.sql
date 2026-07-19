@@ -1,0 +1,27 @@
+-- CORRECAO DE REGRA. A versao anterior estava errada.
+--
+-- Eu havia concluido que o "Em Aberto" do SGA equivalia aos boletos com
+-- vencimento PRORROGADO. Batia em jun/26 (182 de 184) e mai/26 (160 de 163),
+-- nos dois eixos, e eu tratei isso como validado. Nao era: os dois meses
+-- estavam FECHADOS, e em mes fechado quase todo boleto ainda aberto e um
+-- renegociado — prorrogacao virou um marcador acidental de "boleto velho nao
+-- pago".
+--
+-- O relatorio de julho expos a falha. Com 1.423 boletos que sequer venceram, a
+-- regra devolvia 160 abertos quando o SGA mostra 1.530. Errava no mes corrente,
+-- que e justamente onde o painel mais e olhado, e subestimava a inadimplencia.
+--
+-- Regra correta, lendo o filtro pelo que ele diz: "Boletos Anteriores: NAO
+-- POSSUI" = o VEICULO nao tem boleto de mes anterior ainda em aberto.
+--
+-- Validada nos tres meses, abertos (nosso / SGA):
+--   mai/26   163 / 163
+--   jun/26   186 / 184
+--   jul/26 1.521 / 1.530
+-- E a inadimplencia de julho da 32,25% contra os 32,23% do proprio relatorio.
+--
+-- Pagos ficam ~20 abaixo do SGA nos tres meses (0,4%), diferenca estavel que
+-- aponta para boletos faltando na nossa base, nao para a regra.
+--
+-- Licao: validar em meses fechados nao basta. Uma regra de cobranca precisa ser
+-- testada tambem no mes corrente, onde a distribuicao e completamente outra.
