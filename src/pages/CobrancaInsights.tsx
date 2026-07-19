@@ -50,6 +50,18 @@ export interface CobrancaFilters {
   regional: string;
   cooperativa: string;
   diaVencimento: string;
+  /**
+   * "sga"   — reproduz o Relatorio de Boletos do SGA: conta apenas boletos de
+   *           veiculos que NAO tinham boleto em aberto nos 6 meses anteriores
+   *           ("Boletos Anteriores: NAO POSSUI"). E o numero que a associacao
+   *           confere. Validado em mai/jun/jul de 2026.
+   * "total" — todo boleto do mes, sem filtro. Serve para operacao interna:
+   *           mostra a carteira inteira, inclusive quem arrasta debito antigo.
+   * O criterio vale para a PAGINA TODA (cards e graficos). Antes so os cards
+   * respeitavam o SGA e o grafico por dia seguia no total — a mesma tela
+   * mostrava 187 em aberto em cima e 332 embaixo.
+   */
+  criterio: "sga" | "total";
 }
 
 interface FilterOptions {
@@ -103,6 +115,7 @@ export default function CobrancaInsights() {
 
   const [filters, setFilters] = useState<CobrancaFilters>({
     mesReferencia: getMesAtual(),
+    criterio: "sga" as const,
     situacao: "todos",
     regional: "todos",
     cooperativa: "todos",
@@ -280,6 +293,7 @@ export default function CobrancaInsights() {
           p_cooperativa: toRpcFilterValue(filters.cooperativa),
           p_dia_vencimento: filters.diaVencimento !== "todos" ? Number(filters.diaVencimento) : null,
           p_force_refresh: forceRefresh,
+          p_criterio: filters.criterio,
         };
         let data: any = null;
         let lastError: any = null;
@@ -343,6 +357,7 @@ export default function CobrancaInsights() {
     filters.regional,
     filters.cooperativa,
     filters.diaVencimento,
+    filters.criterio,
   ]);
 
   // Opções dos dropdowns de filtro: RPC leve e separada (não depende dos
@@ -851,6 +866,8 @@ export default function CobrancaInsights() {
               corretoraId={selectedAssociacao}
               mesReferencia={filters.mesReferencia}
               isPortalAccess={isPortalAccess}
+              criterio={filters.criterio}
+              onCriterioChange={(c) => setFilters((f) => ({ ...f, criterio: c }))}
             />
           </TabsContent>
 

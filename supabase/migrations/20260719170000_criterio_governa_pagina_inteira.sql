@@ -1,0 +1,23 @@
+-- O criterio passa a valer para a AGREGACAO INTEIRA, nao so para os cards.
+--
+-- Antes, o seletor "Criterio SGA" afetava apenas os KPIs: o bloco "Boletos por
+-- Dia de Vencimento" e os rankings continuavam vindo da agregacao sem filtro.
+-- A mesma tela mostrava "Em Aberto 187" em cima e "332" embaixo — quem olhasse
+-- concluiria, com razao, que um dos dois estava errado.
+--
+-- calcular_dashboard_cobranca e get_dashboard_cobranca_cached ganham p_criterio
+-- ('total' | 'sga'). O cache passa a considerar o criterio na chave, senao
+-- devolveria a resposta do outro recorte.
+--
+-- Assinaturas antigas foram removidas com DROP explicito: adicionar parametro
+-- com DEFAULT cria uma sobrecarga nova e as chamadas de 6 argumentos ficam
+-- ambiguas ("function is not unique") — foi assim que o dashboard MGF quebrou
+-- mais cedo nesta mesma base.
+--
+-- Performance: a primeira versao usava NOT EXISTS correlacionado e varria as
+-- 832 mil linhas por boleto avaliado — a funcao estourava o timeout. Trocado
+-- por uma CTE que resolve o conjunto de placas com debito anterior uma unica
+-- vez, e ai um anti-join. Junho responde em segundos.
+--
+-- Resultado (jun/26 VALECAR, criterio sga / SGA):
+--   emitidos 4.859 / 4.859   pagos 4.670 / 4.675   abertos 187 / 184

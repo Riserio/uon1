@@ -24,6 +24,9 @@ interface CobrancaDashboardProps {
   corretoraId?: string;
   mesReferencia?: string;
   isPortalAccess?: boolean;
+  /** Governa a PAGINA toda — cards e graficos vem da mesma agregacao. */
+  criterio?: VisaoKpi;
+  onCriterioChange?: (c: VisaoKpi) => void;
 }
 
 type VisaoKpi = "sga" | "total";
@@ -74,7 +77,7 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false, isPercent =
   return null;
 };
 
-export default function CobrancaDashboard({ stats, loading, corretoraId, mesReferencia, isPortalAccess }: CobrancaDashboardProps) {
+export default function CobrancaDashboard({ stats, loading, corretoraId, mesReferencia, isPortalAccess, criterio = "sga", onCriterioChange }: CobrancaDashboardProps) {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [inadimplenciaConfig, setInadimplenciaConfig] = useState<Map<number, number>>(new Map());
   const [inadimplenciaHistorico, setInadimplenciaHistorico] = useState<Map<number, number>>(new Map());
@@ -86,24 +89,6 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   const [configVersion, setConfigVersion] = useState(0);
   const [historicoVersion, setHistoricoVersion] = useState(0);
 
-  // KPIs no criterio do SGA (padrao). Vem de uma RPC propria para nao mexer na
-  // agregacao existente — o dedup dela usa dedup_key, que tem colisao; aqui a
-  // chave e o nosso_numero, que e unico no SGA.
-  const [visao, setVisao] = useState<VisaoKpi>("sga");
-  const [kpisSga, setKpisSga] = useState<KpisSga | null>(null);
-
-  useEffect(() => {
-    let cancelado = false;
-    if (!corretoraId) { setKpisSga(null); return; }
-    supabase
-      .rpc("kpis_cobranca_sga", { p_corretora_id: corretoraId, p_mes_referencia: mesReferencia ?? null })
-      .then(({ data, error }) => {
-        if (cancelado) return;
-        if (error) { console.error("[kpis_cobranca_sga]", error.message); setKpisSga(null); return; }
-        setKpisSga((data as unknown as KpisSga) ?? null);
-      });
-    return () => { cancelado = true; };
-  }, [corretoraId, mesReferencia]);
 
   // Carregar configuração de inadimplência do banco
   const loadInadimplenciaConfig = async () => {
@@ -399,43 +384,48 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           - "Cobranca total": todo boleto em aberto do mes, sem filtro. */}
       <div className="flex items-center gap-2 flex-wrap">
         {([
-          { id: "sga" as VisaoKpi, label: "Critério SGA" },
-          { id: "total" as VisaoKpi, label: "Cobrança total" },
+          {
+            id: "sga" as VisaoKpi,
+            label: "Critério SGA",
+            ajuda:
+              "Reproduz o Relatório de Boletos do SGA. Conta apenas boletos de veículos " +
+              "que não tinham nenhum boleto em aberto nos 6 meses anteriores — é o filtro " +
+              "“Boletos Anteriores: Não possui”. É o número que a associação confere.",
+          },
+          {
+            id: "total" as VisaoKpi,
+            label: "Cobrança total",
+            ajuda:
+              "Todos os boletos do mês, sem filtro. Inclui os veículos que já arrastavam " +
+              "débito de meses anteriores. Mostra a carteira inteira — use para operação " +
+              "e cobrança, não para conferir com o SGA.",
+          },
         ]).map((v) => (
           <button
             key={v.id}
-            onClick={() => setVisao(v.id)}
+            onClick={() => onCriterioChange?.(v.id)}
+            title={v.ajuda}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              visao === v.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground hover:bg-muted/70"
+              criterio === v.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground hover:bg-muted/70"
             }`}
           >
             {v.label}
           </button>
         ))}
-        {visao === "sga" && kpisSga && (
-          <span className="text-[11px] text-muted-foreground">
-            {kpisSga.qtdeSemProrrogacao.toLocaleString('pt-BR')} boleto(s) de veículos com débito anterior ficam fora deste critério
-          </span>
-        )}
+        <span className="text-[11px] text-muted-foreground">
+          {criterio === "sga"
+            ? "Critério do SGA: exclui veículos com boleto em aberto nos 6 meses anteriores."
+            : "Universo completo: todos os boletos do mês, inclusive os de veículos com débito antigo."}
+        </span>
       </div>
 
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
-        {(visao === "sga" && kpisSga
-          ? [
-              { label: "Boletos Emitidos", value: kpisSga.qtdeEmitidos.toLocaleString('pt-BR'), sub: formatCurrency(kpisSga.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
-              { label: "Boletos Pagos", value: kpisSga.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(kpisSga.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
-              { label: "Em Aberto", value: kpisSga.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(kpisSga.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
-              { label: "Aberto total", value: kpisSga.qtdeAbertosTotal.toLocaleString('pt-BR'), sub: formatCurrency(kpisSga.totalAbertoTotal), cls: "text-orange-600 bg-orange-500/5 border-orange-500/20" },
-              { label: "Inadimplência", value: formatPercent(kpisSga.percentualInadimplencia), sub: "critério do SGA", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
-            ]
-          : [
-              { label: "Boletos Emitidos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
-              { label: "Boletos Pagos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
-              { label: "Em Aberto", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
-              { label: "Vencido", value: (stats.qtdeVencidos ?? 0).toLocaleString('pt-BR'), sub: `dos quais ${formatCurrency(stats.totalVencido ?? 0)}`, cls: "text-orange-600 bg-orange-500/5 border-orange-500/20" },
-              { label: "Inadimplência", value: formatPercent(stats.percentualInadimplencia), sub: "em aberto / emitido", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
-            ]
-        ).map(({ label, value, sub, cls }) => (
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        {[
+          { label: "Boletos Emitidos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
+          { label: "Boletos Pagos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
+          { label: "Em Aberto", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
+          { label: "Inadimplência", value: formatPercent(stats.percentualInadimplencia), sub: criterio === "sga" ? "critério do SGA" : "em aberto / emitido", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
+        ].map(({ label, value, sub, cls }) => (
           <Card key={label} className={`rounded-2xl border ${cls}`}>
             <CardContent className="p-4">
               <div className={`text-[11px] font-medium mb-1 ${cls.split(" ")[0]}`}>{label}</div>
