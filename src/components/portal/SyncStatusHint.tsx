@@ -52,14 +52,20 @@ export default function SyncStatusHint({ corretoraId }: { corretoraId?: string }
 
       const entradas = await Promise.all(
         MODULOS.map(async (m) => {
+          // updated_at, nao created_at: a importacao e REUTILIZADA a cada rodada
+          // (getOrCreateImportacaoAtiva), entao created_at e a data em que ela
+          // nasceu — podia ter dias — enquanto updated_at e a sincronizacao real.
+          // Com created_at a tela dizia "atualizado ha 14h" quando o dado tinha
+          // sido atualizado de manha.
           const { data } = await supabase
             .from(m.tabela as never)
-            .select("created_at")
+            .select("created_at, updated_at")
             .eq("corretora_id", corretoraId)
-            .order("created_at", { ascending: false })
+            .order("updated_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          const ts = (data as { created_at?: string } | null)?.created_at;
+          const reg = data as { created_at?: string; updated_at?: string } | null;
+          const ts = reg?.updated_at ?? reg?.created_at;
           return [m.chave, ts ? new Date(ts) : null] as const;
         })
       );
@@ -73,11 +79,17 @@ export default function SyncStatusHint({ corretoraId }: { corretoraId?: string }
   const prox = proximaSync(horarios);
   const listaHorarios = [...horarios].sort((a, b) => a - b).map((h) => `${String(h).padStart(2, "0")}:00`).join(", ");
 
+  const absoluto = (d: Date) =>
+    d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
   const detalhe =
     MODULOS.map((m) => {
       const d = porModulo[m.chave];
-      return `${m.label}: ${d ? tempoRelativo(d) : "—"}`;
-    }).join("\n") + `\nHorários: ${listaHorarios}`;
+      return `${m.label}: ${d ? `${absoluto(d)} (${tempoRelativo(d)})` : "—"}`;
+    }).join("\n") +
+    `\nHorários: ${listaHorarios}` +
+    `\n\nOs números refletem a base nesta data/hora. O SGA consultado em outro` +
+    `\nmomento pode divergir — pagamentos e prorrogações acontecem no intervalo.`;
 
   return (
     <span
@@ -85,7 +97,7 @@ export default function SyncStatusHint({ corretoraId }: { corretoraId?: string }
       title={detalhe}
     >
       <RefreshCw className="h-3 w-3" />
-      {maisRecente ? `atualizado ${tempoRelativo(maisRecente)}` : "sync automática"}
+      {maisRecente ? `dados de ${absoluto(maisRecente)}` : "sync automática"}
       {` · próxima ~${prox}`}
     </span>
   );
