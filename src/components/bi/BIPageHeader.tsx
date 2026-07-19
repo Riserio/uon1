@@ -208,29 +208,27 @@ export default function BIPageHeader({
             </div>
           </div>
 
-          {/* Contagem de registros alinhada à direita, sem ocupar linha própria */}
-          {recordCount !== undefined && recordCount > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
-              <Database className="h-3.5 w-3.5 shrink-0" />
-              <span>{recordCount.toLocaleString("pt-BR")} registros</span>
-              {hasActiveFilters && <span className="text-primary">(filtrados)</span>}
-              {/* Data/hora do dado em todas as telas: o SGA consultado em outro
-                  momento diverge por natureza (pagamentos e prorrogacoes entram
-                  no intervalo). Mostrar o carimbo evita a comparacao cega. */}
-              {selectedAssociacao && (
-                <>
-                  <span className="text-muted-foreground/40">|</span>
-                  <SyncStatusHint corretoraId={selectedAssociacao} />
-                </>
-              )}
-              {fileName && (
-                <>
-                  <span className="text-muted-foreground/40">|</span>
-                  <span className="truncate max-w-[140px]">{fileName}</span>
-                </>
-              )}
-            </div>
-          )}
+          {/* Contagem de registros e carimbo de atualizacao, alinhados a direita.
+              O carimbo fica FORA da condicao de recordCount: telas como
+              Indicadores nao tem contagem de registros e o carimbo sumia junto —
+              justamente uma das telas onde mais importa saber de quando e o dado. */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+            {recordCount !== undefined && recordCount > 0 && (
+              <>
+                <Database className="h-3.5 w-3.5 shrink-0" />
+                <span>{recordCount.toLocaleString("pt-BR")} registros</span>
+                {hasActiveFilters && <span className="text-primary">(filtrados)</span>}
+                {fileName && (
+                  <>
+                    <span className="text-muted-foreground/40">|</span>
+                    <span className="truncate max-w-[140px]">{fileName}</span>
+                  </>
+                )}
+                {selectedAssociacao && <span className="text-muted-foreground/40">|</span>}
+              </>
+            )}
+            {selectedAssociacao && <SyncStatusHint corretoraId={selectedAssociacao} />}
+          </div>
         </div>
       )}
     </div>
