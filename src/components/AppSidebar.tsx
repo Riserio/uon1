@@ -183,9 +183,20 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
   const grupoDaRota = items.find((i) => location.pathname.startsWith(i.to))?.group;
 
   useEffect(() => {
-    if (!grupoDaRota) return;
+    // Recolhida, abrir grupo por navegacao nao aparece na tela e ainda deixaria
+    // o grupo aberto esperando a proxima expansao — o oposto do combinado.
+    if (collapsed || !grupoDaRota) return;
     setAbertos((prev) => (prev.has(grupoDaRota) ? prev : new Set(prev).add(grupoDaRota)));
-  }, [grupoDaRota]);
+  }, [grupoDaRota, collapsed]);
+
+  // Recolher fecha todos os grupos. Ao expandir de novo a sidebar comeca limpa e
+  // a pessoa escolhe o grupo — sem isso ela reabria com o estado de minutos
+  // atras, que raramente e o que se quer no proximo uso.
+  useEffect(() => {
+    if (!collapsed) return;
+    setAbertos(new Set());
+    try { localStorage.setItem("menu_grupos_abertos", JSON.stringify([])); } catch { /* sem persistência */ }
+  }, [collapsed]);
 
   const alternarGrupo = (key: string) => {
     setAbertos((prev) => {

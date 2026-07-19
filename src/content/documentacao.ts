@@ -510,7 +510,8 @@ export const CAPITULOS: DocCapitulo[] = [
             tipo: "lista",
             titulo: "Detalhes de comportamento",
             conteudo: [
-              "O grupo da rota atual abre sozinho: sem isso, navegar para uma tela cujo grupo está recolhido faz a pessoa perder a referência de onde está.",
+              "O grupo da rota atual abre sozinho, desde que a sidebar esteja expandida: sem isso, navegar para uma tela cujo grupo está recolhido faz a pessoa perder a referência de onde está. Recolhida, esse auto-abrir é suprimido — não apareceria na tela e ainda deixaria o grupo aberto esperando a próxima expansão.",
+              "Recolher a sidebar fecha todos os grupos. Ao expandir de novo ela começa limpa e a pessoa escolhe o grupo, em vez de reabrir com o estado de minutos atrás, que raramente é o que se quer no uso seguinte.",
               "Com a sidebar recolhida aparecem apenas os ícones dos grupos, não a lista inteira de itens. Clicar num ícone expande a sidebar já com aquele grupo aberto — expandir sem abrir o grupo deixaria a pessoa sem retorno visível ao clique.",
               "Ao expandir por clique num ícone, o título daquele grupo pisca em destaque por ~2s. A sidebar inteira aparece de uma vez e o grupo pedido se perderia entre os outros; o destaque diz qual foi, e some sozinho para não virar estado permanente competindo com a marcação da tela ativa.",
               "Com a sidebar recolhida não há linhas separadoras entre os grupos, só espaçamento: cada grupo já é um ícone isolado, e a linha picotava a coluna. Expandida as linhas continuam, porque ali separam blocos de texto.",
