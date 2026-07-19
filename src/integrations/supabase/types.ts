@@ -3894,6 +3894,7 @@ export type Database = {
           hinova_url: string
           hinova_user: string
           hora_agendada: string | null
+          horarios_sync: number[]
           id: string
           layout_cobranca: string | null
           layout_eventos: string | null
@@ -3923,6 +3924,7 @@ export type Database = {
           hinova_url?: string
           hinova_user?: string
           hora_agendada?: string | null
+          horarios_sync?: number[]
           id?: string
           layout_cobranca?: string | null
           layout_eventos?: string | null
@@ -3952,6 +3954,7 @@ export type Database = {
           hinova_url?: string
           hinova_user?: string
           hora_agendada?: string | null
+          horarios_sync?: number[]
           id?: string
           layout_cobranca?: string | null
           layout_eventos?: string | null
@@ -9447,41 +9450,34 @@ export type Database = {
         }
         Returns: Json
       }
-      calcular_dashboard_mgf:
-        | {
-            Args: {
-              p_cooperativa?: string
-              p_corretora_id: string
-              p_data_fim?: string
-              p_data_inicio?: string
-              p_forma_pagamento?: string
-              p_operacao?: string
-              p_regional?: string
-              p_situacao?: string
-              p_sub_operacao?: string
-              p_tipo_veiculo?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_base_data?: string
-              p_cooperativa?: string
-              p_corretora_id: string
-              p_data_fim?: string
-              p_data_inicio?: string
-              p_forma_pagamento?: string
-              p_operacao?: string
-              p_operacoes?: string[]
-              p_regional?: string
-              p_situacao?: string
-              p_situacoes?: string[]
-              p_sub_operacao?: string
-              p_sub_operacoes?: string[]
-              p_tipo_veiculo?: string
-            }
-            Returns: Json
-          }
+      calcular_dashboard_mgf: {
+        Args: {
+          p_base_data?: string
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_forma_pagamento?: string
+          p_operacao?: string
+          p_operacoes?: string[]
+          p_regional?: string
+          p_situacao?: string
+          p_situacoes?: string[]
+          p_sub_operacao?: string
+          p_sub_operacoes?: string[]
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
+      calcular_kpis_cobranca_sga: {
+        Args: {
+          p_cooperativa?: string
+          p_importacao_ids: string[]
+          p_mes_referencia?: string
+          p_regional?: string
+        }
+        Returns: Json
+      }
       calcular_mapa_estudo_base: {
         Args: {
           p_cooperativa?: string
@@ -9683,45 +9679,27 @@ export type Database = {
         Args: { p_importacao_ids: string[] }
         Returns: Json
       }
-      get_dashboard_mgf_cached:
-        | {
-            Args: {
-              p_cooperativa?: string
-              p_corretora_id: string
-              p_data_fim?: string
-              p_data_inicio?: string
-              p_force_refresh?: boolean
-              p_forma_pagamento?: string
-              p_max_age_minutes?: number
-              p_operacao?: string
-              p_regional?: string
-              p_situacao?: string
-              p_sub_operacao?: string
-              p_tipo_veiculo?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_base_data?: string
-              p_cooperativa?: string
-              p_corretora_id: string
-              p_data_fim?: string
-              p_data_inicio?: string
-              p_force_refresh?: boolean
-              p_forma_pagamento?: string
-              p_max_age_minutes?: number
-              p_operacao?: string
-              p_operacoes?: string[]
-              p_regional?: string
-              p_situacao?: string
-              p_situacoes?: string[]
-              p_sub_operacao?: string
-              p_sub_operacoes?: string[]
-              p_tipo_veiculo?: string
-            }
-            Returns: Json
-          }
+      get_dashboard_mgf_cached: {
+        Args: {
+          p_base_data?: string
+          p_cooperativa?: string
+          p_corretora_id: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_force_refresh?: boolean
+          p_forma_pagamento?: string
+          p_max_age_minutes?: number
+          p_operacao?: string
+          p_operacoes?: string[]
+          p_regional?: string
+          p_situacao?: string
+          p_situacoes?: string[]
+          p_sub_operacao?: string
+          p_sub_operacoes?: string[]
+          p_tipo_veiculo?: string
+        }
+        Returns: Json
+      }
       get_estudo_base_filter_options: {
         Args: { p_corretora_id: string }
         Returns: Json
@@ -9801,6 +9779,10 @@ export type Database = {
       importar_mgf_api: { Args: { p_corretora_id: string }; Returns: Json }
       importar_tudo_api_todas: { Args: never; Returns: Json }
       jsonb_object_keys_count: { Args: { j: Json }; Returns: number }
+      kpis_cobranca_sga: {
+        Args: { p_corretora_id: string; p_mes_referencia?: string }
+        Returns: Json
+      }
       listar_cobranca_boletos_dedup: {
         Args: {
           p_cooperativa?: string
@@ -9878,12 +9860,14 @@ export type Database = {
       }
       listar_mgf_paginado: {
         Args: {
+          p_base_data?: string
           p_cooperativa?: string
           p_corretora_id: string
           p_data_fim?: string
           p_data_inicio?: string
           p_forma_pagamento?: string
           p_operacao?: string
+          p_operacoes?: string[]
           p_page?: number
           p_page_size?: number
           p_periodo_custom_fim?: string
@@ -9892,11 +9876,13 @@ export type Database = {
           p_regional?: string
           p_search?: string
           p_situacao?: string
+          p_situacoes?: string[]
           p_status_a_vencer?: boolean
           p_status_inativo?: boolean
           p_status_pago?: boolean
           p_status_vencido?: boolean
           p_sub_operacao?: string
+          p_sub_operacoes?: string[]
           p_tipo_veiculo?: string
           t_centro_custo?: string
           t_data_pagamento_fim?: string
