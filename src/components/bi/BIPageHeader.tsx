@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import SyncStatusHint from "@/components/portal/SyncStatusHint";
 import BISyncButton from "./BISyncButton";
 import { useAppConfig } from "@/hooks/useAppConfig";
 
@@ -213,6 +214,15 @@ export default function BIPageHeader({
               <Database className="h-3.5 w-3.5 shrink-0" />
               <span>{recordCount.toLocaleString("pt-BR")} registros</span>
               {hasActiveFilters && <span className="text-primary">(filtrados)</span>}
+              {/* Data/hora do dado em todas as telas: o SGA consultado em outro
+                  momento diverge por natureza (pagamentos e prorrogacoes entram
+                  no intervalo). Mostrar o carimbo evita a comparacao cega. */}
+              {selectedAssociacao && (
+                <>
+                  <span className="text-muted-foreground/40">|</span>
+                  <SyncStatusHint corretoraId={selectedAssociacao} />
+                </>
+              )}
               {fileName && (
                 <>
                   <span className="text-muted-foreground/40">|</span>

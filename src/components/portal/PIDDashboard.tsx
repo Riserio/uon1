@@ -722,40 +722,29 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     return () => { cancelado = true; };
   }, [corretoraId]);
 
-  // Inadimplentes do mês corrente via Cobrança (boletos já vencidos e abertos).
+  // Inadimplentes do mês corrente.
+  //
+  // Antes esta tela contava sozinha as placas com boleto vencido e em aberto,
+  // ignorando o critério do SGA — dava um número diferente do PID e do BI para
+  // o mesmo mês. Passa a ler pid_operacional.inadimplentes, que já vem no
+  // critério "Boletos Anteriores: Não possui" e conta PLACAS distintas, não
+  // boletos. Uma fonte só para todas as telas.
   useEffect(() => {
     let cancelado = false;
     const fetchCobrancaInad = async () => {
       if (!corretoraId) { setCobrancaInad(null); return; }
       try {
         const now = new Date();
-        const firstISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-        const todayISO = now.toISOString().slice(0, 10); // hoje (exclusivo) => já vencidos
-        const placas = new Set<string>();
-        let offset = 0;
-        const PAGE = 1000;
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-          const { data: batch, error } = await supabase
-            .from("cobranca_boletos_ativos")
-            .select("placas")
-            .eq("corretora_id", corretoraId)
-            .ilike("situacao", "ABERTO")
-            .is("data_pagamento", null)
-            .gte("data_vencimento", firstISO)
-            .lt("data_vencimento", todayISO)
-            .range(offset, offset + PAGE - 1);
-          if (error) break;
-          if (!batch || batch.length === 0) break;
-          for (const r of batch) {
-            const pl = (r as { placas?: string | null }).placas;
-            if (pl) placas.add(String(pl).trim().toUpperCase());
-          }
-          if (batch.length < PAGE) break;
-          offset += PAGE;
-          if (offset >= 100000) break;
-        }
-        if (!cancelado) setCobrancaInad(placas.size);
+        const { data } = await supabase
+          .from("pid_operacional")
+          .select("inadimplentes")
+          .eq("corretora_id", corretoraId)
+          .eq("ano", now.getFullYear())
+          .eq("mes", now.getMonth() + 1)
+          .maybeSingle();
+        if (cancelado) return;
+        const v = (data as { inadimplentes?: number | null } | null)?.inadimplentes;
+        setCobrancaInad(typeof v === "number" ? v : null);
       } catch {
         if (!cancelado) setCobrancaInad(null);
       }
