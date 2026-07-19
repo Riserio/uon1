@@ -265,6 +265,19 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+
+    // Janela padrao das rodadas automaticas. Era 540 dias (18 meses) nos tres
+    // modulos, o que fazia cada execucao rebuscar meses ja FECHADOS duas vezes
+    // por dia: ~540 chamadas diarias so de cobranca (18 janelas x 15
+    // associacoes x 2 rodadas), e ~90% delas sobre dados que nao mudam mais.
+    // Boleto de mes fechado nao muda de situacao; o que muda e o recente.
+    // Periodo antigo agora e responsabilidade do backfill, que roda uma vez e
+    // manda data_inicio/data_fim explicitos.
+    const JANELA_PADRAO_DIAS = 45;
+    const janelaDias = (() => {
+      const n = Number((body as Record<string, unknown>)?.dias);
+      return Number.isFinite(n) && n > 0 ? Math.min(Math.trunc(n), 800) : JANELA_PADRAO_DIAS;
+    })();
     corretora_id = body.corretora_id;
     modulo = body.modulo || "eventos";
     if (!corretora_id) {
@@ -625,7 +638,7 @@ serve(async (req) => {
     if (modulo === "cobranca") {
       const hojeC = new Date();
       const fimC = body.data_fim ? parseBR(body.data_fim) || hojeC : hojeC;
-      const inicioC = body.data_inicio ? parseBR(body.data_inicio) || addDays(fimC, -540) : addDays(fimC, -540);
+      const inicioC = body.data_inicio ? parseBR(body.data_inicio) || addDays(fimC, -janelaDias) : addDays(fimC, -janelaDias);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // A API trunca a resposta em ~3000 boletos por janela, sem avisar e sem
       // paginar. Com janela de 30 dias, abril/26 vinha com exatamente 3.000;
@@ -772,7 +785,7 @@ serve(async (req) => {
     if (modulo === "mgf") {
       const hojeM = new Date();
       const fimM = body.data_fim ? parseBR(body.data_fim) || hojeM : hojeM;
-      const inicioM = body.data_inicio ? parseBR(body.data_inicio) || addDays(fimM, -540) : addDays(fimM, -540);
+      const inicioM = body.data_inicio ? parseBR(body.data_inicio) || addDays(fimM, -janelaDias) : addDays(fimM, -janelaDias);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows: any[] = [];
       const PAGE = 1000;
@@ -1026,7 +1039,7 @@ serve(async (req) => {
     // 2) Janela de datas (default: últimos 18 meses). data_cadastro/data_cadastro_final, máx 30 dias por janela.
     const hoje = new Date();
     const fim = body.data_fim ? parseBR(body.data_fim) || hoje : hoje;
-    const inicio = body.data_inicio ? parseBR(body.data_inicio) || addDays(fim, -540) : addDays(fim, -540);
+    const inicio = body.data_inicio ? parseBR(body.data_inicio) || addDays(fim, -janelaDias) : addDays(fim, -janelaDias);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const porCodigo = new Map<string, any>();
