@@ -975,7 +975,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <SyncStatusHint corretoraId={corretoraId} />
           <ChevronDown
             className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${periodoOpen ? "rotate-180" : ""}`}
           />
