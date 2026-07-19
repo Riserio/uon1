@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, Compass, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, LayoutDashboard, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -132,9 +132,15 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
   // clicou na tela quando clicou no grupo. Avisa em DEV ao adicionar modulo.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    const deGrupo = new Set(Object.values(GRUPO_ICONE));
+    // Grupo de item unico pode repetir: grupo e tela sao a mesma coisa.
+    const multiItem = new Set(
+      GRUPO_ORDEM.filter((g) => items.filter((i) => i.group === g).length > 1),
+    );
+    const deGrupo = new Set(
+      GRUPO_ORDEM.filter((g) => multiItem.has(g)).map((g) => GRUPO_ICONE[g]),
+    );
     const colisoes = items
-      .filter((i) => deGrupo.has(i.icon.displayName ?? i.icon.name ?? ""))
+      .filter((i) => multiItem.has(i.group) && deGrupo.has(i.icon.displayName ?? i.icon.name ?? ""))
       .map((i) => `${i.label} (${i.icon.displayName ?? i.icon.name})`);
     if (colisoes.length > 0) {
       console.warn("[menu] icones de item repetindo icone de grupo:", colisoes);
@@ -196,6 +202,11 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
           if (groupItems.length === 0) return null;
           const aberto = !collapsed && (group.key === "inicio" || abertos.has(group.key));
             const temAtivo = groupItems.some((i) => location.pathname.startsWith(i.to));
+            // Recolhido, ou com o grupo fechado, os badges dos itens ficam
+            // invisiveis — sem somar no grupo, uma mensagem nova nao aparece em
+            // lugar nenhum. Soma so o que o usuario pode ver (groupItems ja
+            // exclui modulo sem permissao ou desabilitado).
+            const totalBadge = groupItems.reduce((acc, i) => acc + (i.badge ?? 0), 0);
             return (
             <div key={group.key}>
               {gi > 0 && <div className="mx-3 my-2 border-t border-sidebar-border" />}
@@ -215,11 +226,16 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
                       onExpandir?.();
                     }}
                     title={group.label}
-                    className={`w-full flex items-center justify-center rounded-lg py-2.5 transition-colors ${
+                    className={`relative w-full flex items-center justify-center rounded-lg py-2.5 transition-colors ${
                       temAtivo ? "bg-primary/10 text-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent"
                     }`}
                   >
                     <group.Icone className="h-4 w-4" />
+                    {totalBadge > 0 && (
+                      <span className="absolute top-1 right-1 h-4 min-w-4 px-1 rounded-full bg-orange-500 text-white text-[9px] font-semibold flex items-center justify-center shadow-sm">
+                        {totalBadge > 99 ? "99+" : totalBadge}
+                      </span>
+                    )}
                   </button>
                 </div>
               )}
@@ -233,6 +249,15 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
                     {group.label}
                     {/* Sem isso, grupo recolhido esconde a tela em que a pessoa está */}
                     {!aberto && temAtivo && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                    {/* Grupo fechado esconde os badges dos itens; sem o total
+                        aqui, uma pendencia nova nao se anuncia em lugar nenhum.
+                        Aberto, os badges dos itens ja aparecem — repetir o total
+                        no cabecalho so duplicaria a mesma informacao. */}
+                    {!aberto && totalBadge > 0 && (
+                      <Badge className="bg-orange-500 text-white h-4 min-w-4 flex items-center justify-center text-[9px] rounded-full px-1 shadow-sm">
+                        {totalBadge > 99 ? "99+" : totalBadge}
+                      </Badge>
+                    )}
                   </span>
                   <ChevronDown className={`h-3.5 w-3.5 transition-transform ${aberto ? "" : "-rotate-90"}`} />
                 </button>

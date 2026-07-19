@@ -52,13 +52,17 @@ export const GRUPO_ORDEM: ModuloGrupo[] = [
  * "Inteligencia" usasse TrendingUp, que ja e o icone do BI, o mesmo desenho
  * significaria duas coisas em niveis diferentes da hierarquia — recolhido, o
  * usuario nao sabe se clicou no grupo ou na tela. Por isso os grupos usam uma
- * familia visual propria (formas abstratas: bussola, radar, escudo) e os itens
- * ficam com os objetos concretos. Ha uma checagem em DEV no AppSidebar.
+ * familia visual propria (formas abstratas: radar, escudo, aperto de mao) e os
+ * itens ficam com os objetos concretos. Ha uma checagem em DEV no AppSidebar.
+ *
+ * Excecao: "inicio" repete LayoutDashboard do Painel de proposito. O grupo tem
+ * um item so, entao grupo e tela sao a mesma coisa — aqui o icone repetido e
+ * coerencia, nao ambiguidade. A checagem em DEV ignora grupos de item unico.
  * Usado quando a sidebar esta recolhida: em vez de listar todos os itens em
  * coluna, mostra so o icone do grupo — clicar expande a sidebar e abre o grupo.
  */
 export const GRUPO_ICONE: Record<ModuloGrupo, string> = {
-  inicio: "Compass",
+  inicio: "LayoutDashboard",
   relacionamento: "Handshake",
   inteligencia: "Radar",
   operacao: "Wrench",
