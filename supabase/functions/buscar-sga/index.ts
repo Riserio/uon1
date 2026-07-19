@@ -82,7 +82,72 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   try {
-    const { tipo, termo } = await req.json().catch(() => ({}));
+    const corpo = await req.json().catch(() => ({}));
+
+    // ---- MODO DIAGNOSTICO (somente leitura, nao grava nada) ----
+    // Embutido aqui de proposito: o deploy nao publica edge function nova
+    // criada apenas via git, entao uma funcao que ja existe e o unico caminho
+    // que sobe sozinho. Responde duas perguntas travando 3 itens do dossie:
+    //   1) o filtro codigo_situacao de /listar/veiculo funciona, ou a API
+    //      ignora e devolve sempre a mesma base? (mede a sobreposicao)
+    //   2) qual o teto real de /listar/veiculo — KM PV e EXCLUSIVE param em
+    //      exatamente 10.000, o que cheira a limite da API e nao nosso.
+    // Body: { diagnostico: true, corretora_id, situacoes?: string[] }
+    if (corpo?.diagnostico === true) {
+      const cid = String(corpo.corretora_id ?? "");
+      if (!cid) return json({ success: false, message: "Informe corretora_id" }, 400);
+      const sits: string[] = Array.isArray(corpo.situacoes) && corpo.situacoes.length
+        ? corpo.situacoes.map(String) : ["1", "2", "4"];
+      const { data: cred } = await supabase.from("hinova_credenciais")
+        .select("api_token, api_base_url, hinova_user, hinova_pass")
+        .eq("corretora_id", cid).maybeSingle();
+      if (!cred?.api_token) return json({ success: false, message: "Sem credenciais" }, 400);
+      const b = (cred.api_base_url || "https://api.hinova.com.br/api/sga/v2").replace(/\/$/, "");
+      const aj = await (await fetch(`${b}/usuario/autenticar`, {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cred.api_token}` },
+        body: JSON.stringify({ usuario: cred.hinova_user, senha: cred.hinova_pass }),
+      })).json().catch(() => ({}));
+      const tk = aj?.token_usuario;
+      if (!tk) return json({ success: false, message: aj?.error?.mensagem || "Falha auth" }, 400);
+      const HH = { "Content-Type": "application/json", Authorization: `Bearer ${tk}` };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const out: Record<string, any> = {};
+      const conj: Record<string, Set<string>> = {};
+      for (const cod of sits) {
+        const rr = await fetch(`${b}/listar/veiculo`, {
+          method: "POST", headers: HH, body: JSON.stringify({ codigo_situacao: cod, pagina: "1" }),
+        });
+        const jj = await rr.json().catch(() => null);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const arr: any[] = Array.isArray(jj?.veiculos) ? jj.veiculos : (Array.isArray(jj) ? jj : []);
+        conj[cod] = new Set(arr.map((v) => String(v?.placa ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "")).filter(Boolean));
+        out[`situacao_${cod}`] = {
+          http: rr.status,
+          total_veiculos_informado: jj?.total_veiculos ?? null,
+          numero_paginas: jj?.numero_paginas ?? null,
+          registros_pagina1: arr.length,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          situacoes_vistas: Array.from(new Set(arr.map((v: any) => v?.descricao_situacao).filter(Boolean))).slice(0, 6),
+        };
+      }
+      const ref = conj[sits[0]];
+      const sobrep: Record<string, string> = {};
+      for (const cod of sits.slice(1)) {
+        const sc = conj[cod];
+        if (!ref?.size || !sc?.size) { sobrep[cod] = "sem dados"; continue; }
+        let i = 0; for (const pl of sc) if (ref.has(pl)) i++;
+        sobrep[cod] = `${((i / sc.size) * 100).toFixed(1)}% iguais a situacao ${sits[0]}`;
+      }
+      return json({
+        success: true,
+        aviso: "Diagnostico somente leitura — nada gravado.",
+        por_situacao: out,
+        sobreposicao: sobrep,
+        leitura: "sobreposicao alta => a API ignora codigo_situacao",
+      });
+    }
+
+    const { tipo, termo } = corpo;
     if (!tipo || !termo || !["cpf", "nome", "placa", "chassi"].includes(tipo)) {
       return json({ success: false, message: "Envie tipo (cpf|nome|placa|chassi) e termo." }, 400);
     }
