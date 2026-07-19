@@ -452,62 +452,63 @@ export const HELP_MODULES: HelpModule[] = [
   {
     id: "bi_indicadores",
     title: "BI - Indicadores",
-    description: "Business Intelligence com dashboards de PID, SGA (Eventos), MGF, Cobrança e Estudo de Base.",
+    description: "Dashboards de PID, Eventos, MGF, Cobrança e Estudo de Base, alimentados pela API da Hinova.",
     icon: TrendingUp,
     color: "text-violet-500",
     topics: [
       {
-        title: "PID (Painel de Indicadores)",
+        title: "De onde vêm os dados",
         steps: [
-          "O PID mostra indicadores de desempenho consolidados da associação.",
-          "Gráficos de evolução mensal, comparativos e rankings são gerados automaticamente.",
-          "Selecione a associação no filtro para ver dados específicos."
-        ]
-      },
-      {
-        title: "SGA - Eventos",
-        steps: [
-          "O módulo SGA importa e analisa dados de eventos (sinistros) da plataforma Hinova.",
-          "Para importar, acesse SGA > Importação e faça upload da planilha ou configure a automação.",
-          "O dashboard mostra: total de eventos, distribuição por tipo, evolução temporal e mapa georreferenciado.",
-          "Use os filtros de período e regional para análises específicas."
+          "Os dados são importados direto da API da Hinova, sem planilha e sem intervenção manual.",
+          "A sincronização roda automaticamente duas vezes por dia — por padrão às 08h e às 14h.",
+          "Os horários são editáveis por associação na tela Sincronizar.",
+          "A janela de cada rodada cobre os últimos 45 dias. Períodos mais antigos são trazidos por backfill, sob demanda."
         ],
-        tip: "Configure a importação automática em SGA > Automação para receber dados da Hinova diariamente sem intervenção manual."
+        tip: "Toda tela mostra no cabeçalho a data e hora do dado ('dados de 19/07, 10:04'). Sempre confira esse carimbo antes de comparar com o SGA: os números são de momentos diferentes."
       },
       {
-        title: "MGF (Margem de Gestão Financeira)",
+        title: "Critério SGA × Cobrança total",
         steps: [
-          "O MGF analisa a saúde financeira das associações com base em receitas e despesas operacionais.",
-          "Importe os dados via planilha ou automação Hinova.",
-          "O dashboard apresenta margem líquida, ponto de equilíbrio e projeções."
-        ]
+          "O painel de Cobrança tem dois critérios, e o seletor vale para a página inteira — cards e gráficos.",
+          "Critério SGA (padrão): conta apenas boletos de veículos que NÃO tinham boleto em aberto nos 6 meses anteriores. É o filtro 'Boletos Anteriores: Não possui' do relatório da Hinova.",
+          "Cobrança total: todos os boletos do mês, sem filtro, incluindo quem já arrastava débito antigo.",
+          "Use o Critério SGA para conferir com a associação. Use Cobrança total para operação e régua de cobrança."
+        ],
+        tip: "Se a associação questionar um número, confirme primeiro qual critério está selecionado. Os dois estão certos, medem coisas diferentes."
       },
       {
-        title: "Cobrança",
+        title: "O que cada indicador significa",
         steps: [
-          "O módulo de Cobrança acompanha a inadimplência das associações.",
-          "Importe relatórios de boletos (Hinova) para análise automática.",
-          "O dashboard mostra: % de inadimplência, evolução mensal, boletos em aberto por regional.",
-          "Configure referências de inadimplência para acompanhar metas por dia do mês."
+          "Boletos Emitidos, Pagos e Em Aberto contam BOLETOS.",
+          "Inadimplentes e Placas Ativas contam PLACAS (veículos). Cada card mostra sua unidade.",
+          "Em Aberto inclui boleto que ainda não venceu — é a definição do SGA.",
+          "Vencidos conta só os que já passaram da data. No mês corrente os dois se separam bastante.",
+          "Inadimplência = em aberto ÷ emitidos."
+        ],
+        tip: "Em Aberto e Inadimplentes costumam ficar próximos mas raramente iguais: um boleto pode cobrir dois veículos, e um veículo pode ter dois boletos no mês."
+      },
+      {
+        title: "Mês corrente e mês fechado",
+        steps: [
+          "O mês em curso aparece marcado como '(parcial)' nos gráficos.",
+          "Não compare o mês parcial com o anterior fechado: no dia 19 o mês tem só metade dos pagamentos.",
+          "Meses futuros não são exibidos, mesmo havendo boletos já emitidos com vencimento à frente."
         ]
       },
       {
         title: "Estudo de Base",
         steps: [
-          "O Estudo de Base analisa a composição da carteira de associados.",
-          "Importe dados para visualizar distribuição geográfica, perfil dos veículos e concentração de risco.",
-          "O mapa interativo mostra a distribuição espacial dos associados."
+          "Mostra a composição da carteira: distribuição geográfica, perfil dos veículos e concentração de risco.",
+          "Veículos são identificados por placa ou, quando 0km ainda sem emplacamento, por chassi."
         ]
       },
       {
-        title: "Importação de dados",
+        title: "Consulta ao SGA",
         steps: [
-          "Em cada módulo do BI, acesse a aba 'Importação' para fazer upload manual de planilhas.",
-          "O sistema aceita arquivos XLS, XLSX e CSV.",
-          "Após o upload, os dados são processados e os dashboards são atualizados automaticamente.",
-          "O histórico de importações fica registrado para controle e auditoria."
-        ],
-        tip: "Ative a automação Hinova para que as importações aconteçam automaticamente via GitHub Actions — configure em cada módulo na aba 'Automação'."
+          "A tela SGA consulta a Hinova AO VIVO, em todas as associações com API ativa.",
+          "Busque por placa ou CPF e receba cadastro, boletos, eventos e MGF do associado.",
+          "A busca por nome é limitada: a API da Hinova não oferece esse filtro, então o nome é resolvido na base local e as placas encontradas são consultadas ao vivo."
+        ]
       }
     ]
   },
@@ -893,11 +894,22 @@ export const HELP_MODULES: HelpModule[] = [
       {
         title: "Sincronização automática (Hinova)",
         steps: [
-          "Cada módulo importa dados diretamente da Hinova via automação configurável por associação.",
-          "Configure URL, usuário, senha, código do cliente e horário agendado.",
-          "Limite de 1 sincronização bem-sucedida por dia por módulo."
+          "Cada módulo importa direto da API da Hinova, sem planilha.",
+          "Configure credenciais e horários por associação na tela Sincronizar (padrão: 08h e 14h).",
+          "A rodada automática cobre os últimos 45 dias. Períodos anteriores são trazidos por backfill sob demanda.",
+          "É possível sincronizar manualmente a qualquer momento pelo botão Sincronizar."
         ],
         tip: "Resumos operacionais via WhatsApp são disparados automaticamente após cada sync."
+      },
+      {
+        title: "Quando um número não bate com o SGA",
+        steps: [
+          "Confira o carimbo de data no cabeçalho: nosso dado é de um horário e o relatório da associação de outro. Pagamentos e prorrogações acontecem no intervalo.",
+          "Confira qual critério está selecionado no painel de Cobrança — SGA ou Cobrança total.",
+          "Confira a unidade do card: boletos e placas são contagens diferentes.",
+          "Se for mês corrente, lembre que ele está parcial e não se compara a mês fechado."
+        ],
+        tip: "Diferenças pequenas e estáveis (poucos registros) são normais e vêm do horário da medição. Diferença grande ou que cresce merece investigação."
       }
     ]
   },
