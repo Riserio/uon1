@@ -8,7 +8,19 @@
  * Configurações — foi o caso de "biblioteca", que ficou de fora e passou
  * despercebido porque a tela de gestão simplesmente não o exibia.
  */
-export type ModuloGrupo = "nav" | "cadastros" | "ferramentas";
+/**
+ * Grupos do menu, organizados pelo QUE A PESSOA ESTA TENTANDO FAZER — nao por
+ * tipo tecnico. Antes eram tres ("nav", "cadastros", "ferramentas") e
+ * "ferramentas" acumulava 16 itens: lista longa demais para encontrar algo.
+ */
+export type ModuloGrupo =
+  | "inicio"
+  | "relacionamento"
+  | "inteligencia"
+  | "operacao"
+  | "documentos"
+  | "cadastros"
+  | "interno";
 
 export interface ModuloSistema {
   id: string;
@@ -19,36 +31,48 @@ export interface ModuloSistema {
 }
 
 export const GRUPO_LABEL: Record<ModuloGrupo, string> = {
-  nav: "Navegação",
+  inicio: "Início",
+  relacionamento: "Relacionamento",
+  inteligencia: "Inteligência",
+  operacao: "Operação",
+  documentos: "Documentos",
   cadastros: "Cadastros",
-  ferramentas: "Ferramentas",
+  interno: "Interno",
 };
 
+/** Ordem de exibicao no menu e na tela de gestao. */
+export const GRUPO_ORDEM: ModuloGrupo[] = [
+  "inicio", "relacionamento", "inteligencia", "operacao", "documentos", "cadastros", "interno",
+];
+
+/** Grupos que comecam recolhidos. "inicio" nao expande (item unico). */
+export const GRUPO_RECOLHIDO_PADRAO: ModuloGrupo[] = ["documentos", "cadastros", "interno"];
+
 export const SYSTEM_MODULES: ModuloSistema[] = [
-  { id: "dashboard", label: "Painel", grupo: "nav", essencial: true },
-  { id: "atendimentos", label: "Atendimentos", grupo: "nav" },
+  { id: "dashboard", label: "Painel", grupo: "inicio", essencial: true },
+  { id: "atendimentos", label: "Atendimentos", grupo: "relacionamento" },
   { id: "corretoras", label: "Associações", grupo: "cadastros" },
-  { id: "termos", label: "Termos de Aceite", grupo: "cadastros" },
+  { id: "termos", label: "Termos de Aceite", grupo: "documentos" },
   { id: "contatos", label: "Contatos", grupo: "cadastros" },
-  { id: "sinistros", label: "Vistorias", grupo: "ferramentas" },
-  { id: "lancamentos_financeiros", label: "Financeiro", grupo: "ferramentas" },
-  { id: "agenda", label: "Agenda", grupo: "ferramentas" },
-  { id: "documentos", label: "Documentos", grupo: "ferramentas" },
-  { id: "emails", label: "Central de Atendimento", grupo: "ferramentas" },
-  { id: "mensagens", label: "Mensagens", grupo: "ferramentas" },
-  { id: "sga", label: "SGA — Associados", grupo: "ferramentas" },
-  { id: "pid", label: "BI - Indicadores", grupo: "ferramentas" },
-  { id: "ouvidoria", label: "Ouvidoria", grupo: "ferramentas" },
-  { id: "contratos", label: "Uon1 Sign", grupo: "ferramentas" },
-  { id: "talka", label: "Uon1 Talk", grupo: "ferramentas" },
-  { id: "comunicados", label: "Comunicados", grupo: "ferramentas" },
-  { id: "gestao", label: "Gestão", grupo: "ferramentas" },
-  { id: "formularios", label: "Formulários", grupo: "ferramentas" },
-  { id: "ppr", label: "PPR", grupo: "ferramentas" },
-  { id: "debitos_veiculares", label: "Débitos Veiculares", grupo: "ferramentas" },
-  { id: "biblioteca", label: "Biblioteca", grupo: "ferramentas" },
-  { id: "ajuda", label: "Ajuda", grupo: "ferramentas", essencial: true },
-  { id: "configuracoes", label: "Configurações", grupo: "ferramentas", essencial: true },
+  { id: "sinistros", label: "Vistorias", grupo: "operacao" },
+  { id: "lancamentos_financeiros", label: "Financeiro", grupo: "operacao" },
+  { id: "agenda", label: "Agenda", grupo: "interno" },
+  { id: "documentos", label: "Documentos", grupo: "documentos" },
+  { id: "emails", label: "Central de Atendimento", grupo: "relacionamento" },
+  { id: "mensagens", label: "Mensagens", grupo: "relacionamento" },
+  { id: "sga", label: "SGA — Associados", grupo: "inteligencia" },
+  { id: "pid", label: "BI - Indicadores", grupo: "inteligencia" },
+  { id: "ouvidoria", label: "Ouvidoria", grupo: "relacionamento" },
+  { id: "contratos", label: "Uon1 Sign", grupo: "documentos" },
+  { id: "talka", label: "Uon1 Talk", grupo: "relacionamento" },
+  { id: "comunicados", label: "Comunicados", grupo: "relacionamento" },
+  { id: "gestao", label: "Gestão", grupo: "interno" },
+  { id: "formularios", label: "Formulários", grupo: "operacao" },
+  { id: "ppr", label: "PPR", grupo: "interno" },
+  { id: "debitos_veiculares", label: "Débitos Veiculares", grupo: "operacao" },
+  { id: "biblioteca", label: "Biblioteca", grupo: "documentos" },
+  { id: "ajuda", label: "Ajuda", grupo: "interno", essencial: true },
+  { id: "configuracoes", label: "Configurações", grupo: "interno", essencial: true },
 ];
 
 // ---------------------------------------------------------------------------

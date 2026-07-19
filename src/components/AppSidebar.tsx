@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useSignedContracts } from "@/hooks/useSignedContracts";
 import { useModulosDesabilitados } from "@/hooks/useModulosDesabilitados";
-import { SYSTEM_MODULES } from "@/config/modulos";
+import { SYSTEM_MODULES, GRUPO_LABEL, GRUPO_ORDEM, GRUPO_RECOLHIDO_PADRAO, type ModuloGrupo } from "@/config/modulos";
 import { useOuvidoriaPendentes } from "@/hooks/useOuvidoriaPendentes";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
@@ -64,7 +64,7 @@ interface MenuItem {
   icon: React.ElementType;
   end?: boolean;
   badge?: number;
-  group: "nav" | "cadastros" | "ferramentas";
+  group: ModuloGrupo;
 }
 
 function useMenuItems() {
@@ -75,30 +75,30 @@ function useMenuItems() {
 
   const items: MenuItem[] = [
     // Navegação
-    { id: "dashboard", label: "Painel", to: "/dashboard", icon: LayoutDashboard, end: true, group: "nav" },
-    { id: "atendimentos", label: "Atendimentos", to: "/atendimentos", icon: ClipboardList, group: "nav" },
+    { id: "dashboard", label: "Painel", to: "/dashboard", icon: LayoutDashboard, end: true, group: "inicio" },
+    { id: "atendimentos", label: "Atendimentos", to: "/atendimentos", icon: ClipboardList, group: "relacionamento" },
     // Cadastros
     { id: "corretoras", label: "Associações", to: "/corretoras", icon: Building2, group: "cadastros" },
-    { id: "termos", label: "Termos de Aceite", to: "/termos", icon: FileText, group: "cadastros" },
+    { id: "termos", label: "Termos de Aceite", to: "/termos", icon: FileText, group: "documentos" },
     { id: "contatos", label: "Contatos", to: "/contatos", icon: Users, group: "cadastros" },
      // Ferramentas
-     { id: "sinistros", label: "Vistorias", to: "/sinistros", icon: SearchCheck, group: "ferramentas" },
-    { id: "lancamentos_financeiros", label: "Financeiro", to: "/financeiro", icon: DollarSign, group: "ferramentas" },
-    { id: "agenda", label: "Agenda", to: "/agenda", icon: Calendar, group: "ferramentas" },
-    { id: "documentos", label: "Documentos", to: "/documentos", icon: FileText, group: "ferramentas" },
-    { id: "emails", label: "Central de Atendimento", to: "/central-atendimento", icon: Headset, badge: whatsAppUnread, group: "ferramentas" },
-    { id: "mensagens", label: "Mensagens", to: "/mensagens", icon: MessageCircle, badge: unreadMessages, group: "ferramentas" },
-    { id: "sga", label: "SGA — Associados", to: "/sga", icon: Search, group: "ferramentas" },
-    { id: "pid", label: "BI - Indicadores", to: "/pid", icon: TrendingUp, group: "ferramentas" },
-    { id: "ouvidoria", label: "Ouvidoria", to: "/ouvidoria-backoffice", icon: MessageSquareWarning, badge: ouvidoriaPendentes, group: "ferramentas" },
-    { id: "contratos", label: "Uon1 Sign", to: "/uon1sign", icon: FileSignature, badge: signedContracts.count, group: "ferramentas" },
-    { id: "talka", label: "Uon1 Talk", to: "/video", icon: Video, group: "ferramentas" },
-     { id: "comunicados", label: "Comunicados", to: "/comunicados", icon: Megaphone, group: "ferramentas" },
-     { id: "gestao", label: "Gestão", to: "/gestao", icon: Briefcase, group: "ferramentas" },
-    { id: "formularios", label: "Formulários", to: "/formularios", icon: FileEdit, group: "ferramentas" },
-      { id: "ppr", label: "PPR", to: "/ppr", icon: ClipboardCheck, group: "ferramentas" },
-    { id: "debitos_veiculares", label: "Débitos Veiculares", to: "/debitos-veiculares", icon: CarFront, group: "ferramentas" },
-    { id: "biblioteca", label: "Biblioteca", to: "/biblioteca", icon: BookOpen, group: "ferramentas" },
+     { id: "sinistros", label: "Vistorias", to: "/sinistros", icon: SearchCheck, group: "operacao" },
+    { id: "lancamentos_financeiros", label: "Financeiro", to: "/financeiro", icon: DollarSign, group: "operacao" },
+    { id: "agenda", label: "Agenda", to: "/agenda", icon: Calendar, group: "interno" },
+    { id: "documentos", label: "Documentos", to: "/documentos", icon: FileText, group: "documentos" },
+    { id: "emails", label: "Central de Atendimento", to: "/central-atendimento", icon: Headset, badge: whatsAppUnread, group: "relacionamento" },
+    { id: "mensagens", label: "Mensagens", to: "/mensagens", icon: MessageCircle, badge: unreadMessages, group: "relacionamento" },
+    { id: "sga", label: "SGA — Associados", to: "/sga", icon: Search, group: "inteligencia" },
+    { id: "pid", label: "BI - Indicadores", to: "/pid", icon: TrendingUp, group: "inteligencia" },
+    { id: "ouvidoria", label: "Ouvidoria", to: "/ouvidoria-backoffice", icon: MessageSquareWarning, badge: ouvidoriaPendentes, group: "relacionamento" },
+    { id: "contratos", label: "Uon1 Sign", to: "/uon1sign", icon: FileSignature, badge: signedContracts.count, group: "documentos" },
+    { id: "talka", label: "Uon1 Talk", to: "/video", icon: Video, group: "relacionamento" },
+     { id: "comunicados", label: "Comunicados", to: "/comunicados", icon: Megaphone, group: "relacionamento" },
+     { id: "gestao", label: "Gestão", to: "/gestao", icon: Briefcase, group: "interno" },
+    { id: "formularios", label: "Formulários", to: "/formularios", icon: FileEdit, group: "operacao" },
+      { id: "ppr", label: "PPR", to: "/ppr", icon: ClipboardCheck, group: "interno" },
+    { id: "debitos_veiculares", label: "Débitos Veiculares", to: "/debitos-veiculares", icon: CarFront, group: "operacao" },
+    { id: "biblioteca", label: "Biblioteca", to: "/biblioteca", icon: BookOpen, group: "documentos" },
   ];
 
   return items;
@@ -127,11 +127,36 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
       );
     }
   }, [items]);
-  const groups = [
-    { key: "nav", label: "Navegação" },
-    { key: "cadastros", label: "Cadastros" },
-    { key: "ferramentas", label: "Ferramentas" },
-  ];
+  const groups = GRUPO_ORDEM.map((key) => ({ key, label: GRUPO_LABEL[key] }));
+
+  // Grupos expansíveis. O menu tinha 16 itens soltos em "Ferramentas"; agora
+  // são 7 grupos que abrem e fecham. Guardamos a preferência do usuário e
+  // sempre abrimos o grupo da rota atual — senão a pessoa navega e "perde" de
+  // vista onde está.
+  const location = useLocation();
+  const [abertos, setAbertos] = useState<Set<string>>(() => {
+    try {
+      const salvo = localStorage.getItem("menu_grupos_abertos");
+      if (salvo) return new Set(JSON.parse(salvo) as string[]);
+    } catch { /* preferência corrompida: cai no padrão */ }
+    return new Set(GRUPO_ORDEM.filter((g) => !GRUPO_RECOLHIDO_PADRAO.includes(g)));
+  });
+
+  const grupoDaRota = items.find((i) => location.pathname.startsWith(i.to))?.group;
+
+  useEffect(() => {
+    if (!grupoDaRota) return;
+    setAbertos((prev) => (prev.has(grupoDaRota) ? prev : new Set(prev).add(grupoDaRota)));
+  }, [grupoDaRota]);
+
+  const alternarGrupo = (key: string) => {
+    setAbertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try { localStorage.setItem("menu_grupos_abertos", JSON.stringify([...next])); } catch { /* sem persistência */ }
+      return next;
+    });
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -149,14 +174,26 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
         {groups.map((group, gi) => {
           const groupItems = items.filter((i) => i.group === group.key && canView(i.id) && (i.id === "configuracoes" || !isDesabilitado(i.id)));
           if (groupItems.length === 0) return null;
-          return (
+          const aberto = collapsed || group.key === "inicio" || abertos.has(group.key);
+            const temAtivo = groupItems.some((i) => location.pathname.startsWith(i.to));
+            return (
             <div key={group.key}>
               {gi > 0 && <div className="mx-3 my-2 border-t border-sidebar-border" />}
-              {!collapsed && (
-                <div className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                  {group.label}
-                </div>
+              {!collapsed && group.key !== "inicio" && (
+                <button
+                  onClick={() => alternarGrupo(group.key)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                  aria-expanded={aberto}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {group.label}
+                    {/* Sem isso, grupo recolhido esconde a tela em que a pessoa está */}
+                    {!aberto && temAtivo && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                  </span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${aberto ? "" : "-rotate-90"}`} />
+                </button>
               )}
+              {aberto && (
               <div className="space-y-0.5 px-2">
                 {groupItems.map((item) => (
                   <NavLink
@@ -186,6 +223,7 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
                   </NavLink>
                 ))}
               </div>
+              )}
             </div>
           );
         })}

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Blocks, Lock, Search } from "lucide-react";
-import { GRUPO_LABEL, SYSTEM_MODULES, type ModuloGrupo } from "@/config/modulos";
+import { GRUPO_LABEL, GRUPO_ORDEM, SYSTEM_MODULES, type ModuloGrupo } from "@/config/modulos";
 import { useModulosDesabilitados } from "@/hooks/useModulosDesabilitados";
 
 /**
@@ -16,7 +16,8 @@ export function GestaoModulosConfig() {
   const [busca, setBusca] = useState("");
   const [salvando, setSalvando] = useState<string | null>(null);
 
-  const gruposOrdenados: ModuloGrupo[] = ["nav", "cadastros", "ferramentas"];
+  // Mesma ordem do menu, vinda do registro canonico.
+  const gruposOrdenados: ModuloGrupo[] = GRUPO_ORDEM;
 
   const modulosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
