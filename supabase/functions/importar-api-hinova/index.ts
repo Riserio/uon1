@@ -175,6 +175,33 @@ function pickNome(P: any, L: any, ...chaves: string[]): string | null {
   return null;
 }
 
+/**
+ * A API as vezes devolve regional/cooperativa como OBJETO {codigo, descricao}
+ * em vez de string. Gravado direto numa coluna text, virava o JSON cru na tela
+ * — e pior, quebrava os rankings: a mesma entidade aparecia duas vezes, uma
+ * como texto e outra como JSON, cada uma com sua propria porcentagem.
+ * Eram 2.470 registros em sga_eventos, que o worker de enriquecimento
+ * propagava para 4.609 boletos.
+ */
+function nomeDe(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    const d = o.descricao ?? o.nome ?? o.description;
+    return d === undefined || d === null || String(d).trim() === "" ? null : String(d).trim();
+  }
+  const s = String(v).trim();
+  if (s === "") return null;
+  if (s.startsWith("{") && s.includes("descricao")) {
+    try {
+      const o = JSON.parse(s) as Record<string, unknown>;
+      const d = o.descricao ?? o.nome;
+      if (d !== undefined && d !== null && String(d).trim() !== "") return String(d).trim();
+    } catch { /* nao era json valido: mantem o texto */ }
+  }
+  return s;
+}
+
 async function mergeIncremental(
   supabase: AnyRow,
   table: string,
@@ -521,8 +548,8 @@ serve(async (req) => {
               ? String(g(v, "ano_modelo", "ano_fabricacao", "ano"))
               : null,
           situacao: g(v, "situacao", "situacao_veiculo", "descricao_situacao", "status") as string | null,
-          regional: g(v, "regional", "nome_regional", "descricao_regional", "regional_nome", "regional_descricao") as string | null,
-          cooperativa: g(v, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome", "cooperativa_descricao") as string | null,
+          regional: nomeDe(g(v, "regional", "nome_regional", "descricao_regional", "regional_nome", "regional_descricao")),
+          cooperativa: nomeDe(g(v, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome", "cooperativa_descricao")),
           data_cadastro: dateISO(g(v, "data_cadastro", "data_contrato")),
           data_adesao: dateISO(g(v, "data_adesao", "data_contrato")),
           valor_protegido: num(g(v, "valor_protegido", "valor_fipe_protegido", "valor_fipe")),
@@ -549,8 +576,8 @@ serve(async (req) => {
           data_contrato: dateISO(g(v, "data_contrato", "data_adesao", "data_cadastro")),
           valor_protegido: num(g(v, "valor_protegido", "valor_fipe_protegido")),
           valor_fipe: num(g(v, "valor_fipe", "valor_protegido")),
-          cooperativa: g(v, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome", "cooperativa_descricao") as string | null,
-          regional: g(v, "regional", "nome_regional", "descricao_regional", "regional_nome", "regional_descricao") as string | null,
+          cooperativa: nomeDe(g(v, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome", "cooperativa_descricao")),
+          regional: nomeDe(g(v, "regional", "nome_regional", "descricao_regional", "regional_nome", "regional_descricao")),
           situacao_veiculo: g(v, "situacao_veiculo", "situacao", "descricao_situacao", "status") as string | null,
           cidade_veiculo: (g(v, "cidade", "cidade_veiculo") as string | null) || assocE?.cidade || null,
           estado: (g(v, "estado", "uf") as string | null) || assocE?.estado || null,
@@ -902,8 +929,8 @@ serve(async (req) => {
               // vêm) ficavam de fora — por isso Veículo/Cooperativa/Regional
               // apareciam vazios na tela. Testamos os nomes de campo mais
               // prováveis, tanto na parcela (P) quanto no lançamento (L).
-              cooperativa: pickNome(P, L, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome"),
-              regional: pickNome(P, L, "regional", "nome_regional", "descricao_regional", "regional_nome"),
+              cooperativa: nomeDe(pickNome(P, L, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome")),
+              regional: nomeDe(pickNome(P, L, "regional", "nome_regional", "descricao_regional", "regional_nome")),
               associado: pickNome(P, L, "associado", "nome_associado", "cliente"),
               veiculo_evento: pickNome(P, L, "placa", "veiculo", "placa_veiculo", "veiculo_evento", "placa_evento"),
               placa: pickNome(P, L, "placa", "placa_veiculo", "veiculo"),
@@ -1107,8 +1134,8 @@ serve(async (req) => {
         participacao: num(ev.participacao),
         evento_cidade: ev.cidade || null,
         evento_logradouro: ev.logradouro || null,
-        regional: ev.regional || null,
-        cooperativa: ev.cooperativa || null,
+        regional: nomeDe(ev.regional),
+        cooperativa: nomeDe(ev.cooperativa),
         voluntario: ev.voluntario || null,
         // veículo (objeto aninhado)
         placa: vec.placa || null,
