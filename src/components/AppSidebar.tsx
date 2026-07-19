@@ -98,7 +98,6 @@ function useMenuItems() {
       { id: "ppr", label: "PPR", to: "/ppr", icon: ClipboardCheck, group: "ferramentas" },
     { id: "debitos_veiculares", label: "Débitos Veiculares", to: "/debitos-veiculares", icon: CarFront, group: "ferramentas" },
     { id: "biblioteca", label: "Biblioteca", to: "/biblioteca", icon: BookOpen, group: "ferramentas" },
-    { id: "configuracoes", label: "Configurações", to: "/configuracoes", icon: Settings, group: "ferramentas" },
   ];
 
   return items;
@@ -185,6 +184,17 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
         >
           <Bug className="h-4 w-4 flex-shrink-0" />
           {!collapsed && <span>Reportar problema</span>}
+        </NavLink>
+        {/* Configuracoes fixo no rodape: e acesso frequente e estava perdido no
+            meio da lista de ferramentas, que rola. */}
+        <NavLink
+          to="/configuracoes"
+          onClick={() => onNavigate?.()}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+          title="Configurações"
+        >
+          <Settings className="h-4 w-4 flex-shrink-0" />
+          {!collapsed && <span>Configurações</span>}
         </NavLink>
         <button
           onClick={() => { signOut(); onNavigate?.(); }}

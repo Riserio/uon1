@@ -10,8 +10,8 @@ import { toast } from "sonner";
 import {
   Palette, Image as ImageIcon, Settings, Shield, Bell, BellOff,
   Monitor, Moon, Sun, Upload, RotateCcw, Save, Eye,
-  Globe, Lock, Mail, Smartphone, Users, Share2, Blocks
-} from "lucide-react";
+  Globe, Lock, Mail, Smartphone, Users, Share2, Blocks, BookOpen } from "lucide-react";
+import Documentacao from "@/components/configuracoes/Documentacao";
 import { PageHeader } from "@/components/ui/page-header";
 import Usuarios from "@/pages/Usuarios";
 import { BrandingCompartilhamento } from "@/components/configuracoes/BrandingCompartilhamento";
@@ -286,6 +286,7 @@ export default function Configuracoes() {
     ...(canManageUsers ? [{ id: "modulos", label: "Módulos", icon: Blocks, description: "Habilitar/desabilitar módulos do sistema" }] : []),
     { id: "seguranca", label: "Segurança", icon: Shield, description: "Configurações de acesso" },
     { id: "notificacoes", label: "Notificações", icon: Bell, description: "Alertas e avisos" },
+    { id: "documentacao", label: "Documentação", icon: BookOpen, description: "Arquitetura, regras de negócio e integrações" },
   ];
 
   return (
@@ -596,6 +597,9 @@ export default function Configuracoes() {
                 </div>
               </div>
             )}
+
+            {/* DOCUMENTAÇÃO */}
+            {activeSection === "documentacao" && <Documentacao />}
           </div>
         </div>
       </div>
