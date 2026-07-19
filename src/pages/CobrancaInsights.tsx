@@ -483,6 +483,9 @@ export default function CobrancaInsights() {
       regional: "todos",
       cooperativa: "todos",
       diaVencimento: "todos",
+      // Limpar filtros volta ao padrao do sistema, que e o criterio SGA — e o
+      // criterio em que os numeros batem com o relatorio da associacao.
+      criterio: "sga",
     });
     autoAdjustedMonthRef.current = false;
   };

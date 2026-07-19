@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, LayoutDashboard, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -139,15 +139,18 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
     const deGrupo = new Set(
       GRUPO_ORDEM.filter((g) => multiItem.has(g)).map((g) => GRUPO_ICONE[g]),
     );
+    // icon e ElementType: displayName/name so existem em componente, nao em tag.
+    const nomeIcone = (ic: React.ElementType) =>
+      (ic as { displayName?: string; name?: string }).displayName ?? (ic as { name?: string }).name ?? "";
     const colisoes = items
-      .filter((i) => multiItem.has(i.group) && deGrupo.has(i.icon.displayName ?? i.icon.name ?? ""))
-      .map((i) => `${i.label} (${i.icon.displayName ?? i.icon.name})`);
+      .filter((i) => multiItem.has(i.group) && deGrupo.has(nomeIcone(i.icon)))
+      .map((i) => `${i.label} (${nomeIcone(i.icon)})`);
     if (colisoes.length > 0) {
       console.warn("[menu] icones de item repetindo icone de grupo:", colisoes);
     }
   }, [items]);
   const ICONES_GRUPO: Record<string, typeof LayoutDashboard> = {
-    Compass, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck,
+    LayoutDashboard, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck,
   };
   const groups = GRUPO_ORDEM.map((key) => ({
     key,
