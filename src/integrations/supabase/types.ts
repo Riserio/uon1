@@ -7952,6 +7952,35 @@ export type Database = {
         }
         Relationships: []
       }
+      veiculo_snapshot_diario: {
+        Row: {
+          corretora_id: string
+          data: string
+          placa: string
+          situacao: string | null
+        }
+        Insert: {
+          corretora_id: string
+          data: string
+          placa: string
+          situacao?: string | null
+        }
+        Update: {
+          corretora_id?: string
+          data?: string
+          placa?: string
+          situacao?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "veiculo_snapshot_diario_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       visitor_logs: {
         Row: {
           browser: string | null
@@ -9532,6 +9561,11 @@ export type Database = {
         Args: { target_profile_id: string; viewer_id: string }
         Returns: boolean
       }
+      cancelamentos_periodo: {
+        Args: { p_corretora_id: string; p_fim: string; p_inicio: string }
+        Returns: Json
+      }
+      capturar_snapshot_veiculos: { Args: { p_data?: string }; Returns: Json }
       claim_next_backfill_job: {
         Args: { _corretora_id?: string }
         Returns: {
