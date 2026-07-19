@@ -28,7 +28,16 @@ export function GestaoModulosConfig() {
   const toggle = async (moduloId: string, label: string, ativo: boolean) => {
     setSalvando(moduloId);
     try {
-      await definirModulo(moduloId, !ativo); // ativo=true → desabilitar (!ativo=false → não desabilitado)
+      // `ativo` = o modulo esta habilitado agora. Clicar num habilitado significa
+      // DESABILITAR, e o segundo parametro de definirModulo e "desabilitar".
+      // Portanto passa-se `ativo`, nao `!ativo`.
+      //
+      // Antes ia `!ativo`: clicar em habilitado chamava definirModulo(id, false),
+      // que e REABILITAR — um DELETE de linha inexistente. O delete voltava com
+      // zero linhas, o hook confirmava que a linha nao existe, concluia sucesso e
+      // mostrava o toast. Resultado: mensagem positiva, nada gravado, switch
+      // imovel e modulo nunca ocultado.
+      await definirModulo(moduloId, ativo);
       toast.success(ativo ? `"${label}" desabilitado para todos` : `"${label}" reativado`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível salvar. Verifique suas permissões.");
