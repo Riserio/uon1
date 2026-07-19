@@ -2,6 +2,11 @@
  * Registro canônico dos módulos do sistema.
  * Fonte única usada pelo menu (AppSidebar) e pela gestão de módulos em Configurações.
  * O `id` deve ser idêntico ao usado no menu e nas permissões (menu_item).
+ *
+ * AO CRIAR UM MÓDULO NOVO, adicione aqui também. Item que existe no AppSidebar e
+ * não está nesta lista aparece no menu mas não pode ser desabilitado em
+ * Configurações — foi o caso de "biblioteca", que ficou de fora e passou
+ * despercebido porque a tela de gestão simplesmente não o exibia.
  */
 export type ModuloGrupo = "nav" | "cadastros" | "ferramentas";
 
@@ -31,7 +36,7 @@ export const SYSTEM_MODULES: ModuloSistema[] = [
   { id: "documentos", label: "Documentos", grupo: "ferramentas" },
   { id: "emails", label: "Central de Atendimento", grupo: "ferramentas" },
   { id: "mensagens", label: "Mensagens", grupo: "ferramentas" },
-  { id: "sga", label: "SGA", grupo: "ferramentas" },
+  { id: "sga", label: "SGA — Associados", grupo: "ferramentas" },
   { id: "pid", label: "BI - Indicadores", grupo: "ferramentas" },
   { id: "ouvidoria", label: "Ouvidoria", grupo: "ferramentas" },
   { id: "contratos", label: "Uon1 Sign", grupo: "ferramentas" },
@@ -41,6 +46,7 @@ export const SYSTEM_MODULES: ModuloSistema[] = [
   { id: "formularios", label: "Formulários", grupo: "ferramentas" },
   { id: "ppr", label: "PPR", grupo: "ferramentas" },
   { id: "debitos_veiculares", label: "Débitos Veiculares", grupo: "ferramentas" },
+  { id: "biblioteca", label: "Biblioteca", grupo: "ferramentas" },
   { id: "ajuda", label: "Ajuda", grupo: "ferramentas", essencial: true },
   { id: "configuracoes", label: "Configurações", grupo: "ferramentas", essencial: true },
 ];
@@ -56,7 +62,7 @@ const MODULO_EMOJI: Record<string, string> = {
   sinistros: "🔍", lancamentos_financeiros: "💰", agenda: "📅", documentos: "📁",
   emails: "📧", mensagens: "💬", pid: "📈", ouvidoria: "🛡️", contratos: "✍️",
   talka: "🎥", comunicados: "📢", gestao: "⚙️", formularios: "📝", ppr: "✅",
-  debitos_veiculares: "🚗", ajuda: "❓", configuracoes: "⚙️",
+  debitos_veiculares: "🚗", biblioteca: "📚", ajuda: "❓", configuracoes: "⚙️",
   usuarios: "👤", performance: "🎯",
 };
 

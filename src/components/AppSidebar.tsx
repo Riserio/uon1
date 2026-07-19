@@ -8,6 +8,7 @@ import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useSignedContracts } from "@/hooks/useSignedContracts";
 import { useModulosDesabilitados } from "@/hooks/useModulosDesabilitados";
+import { SYSTEM_MODULES } from "@/config/modulos";
 import { useOuvidoriaPendentes } from "@/hooks/useOuvidoriaPendentes";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
@@ -110,6 +111,22 @@ function SidebarMenuContent({ collapsed, onNavigate }: { collapsed: boolean; onN
   const { canView } = useMenuPermissionsForRole(userRole);
   const { isDesabilitado } = useModulosDesabilitados();
   const items = useMenuItems();
+
+  // Guarda de consistencia: item de menu que nao esta em SYSTEM_MODULES aparece
+  // para o usuario mas nao pode ser desabilitado em Configuracoes — a tela de
+  // gestao simplesmente nao o lista, entao ninguem percebe que ficou de fora.
+  // Aconteceu com "biblioteca". So em desenvolvimento; nao polui producao.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const conhecidos = new Set(SYSTEM_MODULES.map((m) => m.id));
+    const orfaos = items.map((i) => i.id).filter((id) => !conhecidos.has(id));
+    if (orfaos.length > 0) {
+      console.warn(
+        "[modulos] itens no menu que faltam em SYSTEM_MODULES (nao serao gerenciaveis em Configuracoes):",
+        orfaos,
+      );
+    }
+  }, [items]);
   const groups = [
     { key: "nav", label: "Navegação" },
     { key: "cadastros", label: "Cadastros" },
