@@ -33,7 +33,19 @@ function proximaSync(horarios: number[]): string {
 
 // Indicador discreto: última sincronização (geral, inline) e detalhe por
 // módulo no tooltip. "Próxima" segue os horários configurados (horarios_sync).
-export default function SyncStatusHint({ corretoraId }: { corretoraId?: string }) {
+export default function SyncStatusHint({
+  corretoraId,
+  modulo,
+}: {
+  corretoraId?: string;
+  /**
+   * Quando informado, o carimbo mostra a data DESTE modulo em vez da mais
+   * recente entre todos. Cada tela do PID olha uma importacao diferente —
+   * dizer "dados de 19/07 10:04" sem especificar de que modulo induz a erro,
+   * porque cobranca, base, MGF e eventos sincronizam em momentos distintos.
+   */
+  modulo?: "placas" | "cobranca" | "mgf" | "eventos";
+}) {
   const [porModulo, setPorModulo] = useState<Record<string, Date | null>>({});
   const [horarios, setHorarios] = useState<number[]>(HORARIOS_PADRAO);
 
@@ -75,7 +87,12 @@ export default function SyncStatusHint({ corretoraId }: { corretoraId?: string }
   }, [corretoraId]);
 
   const datas = Object.values(porModulo).filter(Boolean) as Date[];
-  const maisRecente = datas.length > 0 ? new Date(Math.max(...datas.map((d) => d.getTime()))) : null;
+  const maisRecente = modulo
+    ? porModulo[modulo] ?? null
+    : datas.length > 0
+      ? new Date(Math.max(...datas.map((d) => d.getTime())))
+      : null;
+  const rotuloModulo = modulo ? MODULOS.find((m) => m.chave === modulo)?.label : null;
   const prox = proximaSync(horarios);
   const listaHorarios = [...horarios].sort((a, b) => a - b).map((h) => `${String(h).padStart(2, "0")}:00`).join(", ");
 
@@ -97,7 +114,9 @@ export default function SyncStatusHint({ corretoraId }: { corretoraId?: string }
       title={detalhe}
     >
       <RefreshCw className="h-3 w-3" />
-      {maisRecente ? `dados de ${absoluto(maisRecente)}` : "sync automática"}
+      {maisRecente
+        ? `${rotuloModulo ? rotuloModulo + ": " : ""}dados de ${absoluto(maisRecente)}`
+        : "sync automática"}
       {` · próxima ~${prox}`}
     </span>
   );

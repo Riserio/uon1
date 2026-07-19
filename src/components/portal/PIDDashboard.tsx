@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency, formatPercent, calcPercent } from "@/lib/formatters";
-import { classificarSituacao } from "@/lib/situacaoVeiculo";
 import {
   DollarSign,
   Car,
@@ -525,7 +524,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   // Contagem SEMPRE ATUAL de placas a partir da base ativa (mesma fonte do
   // Estudo de Base) — garante que Indicadores e Estudo de Base batem o mesmo
   // número (ex.: 4909 ativas) e alimenta o card de Inadimplentes.
-  const [baseCounts, setBaseCounts] = useState<{ ativas: number; inadimplentes: number } | null>(null);
   // Janela dos GRÁFICOS (independente do mês dos cards). 999 = tudo.
   const [chartRange, setChartRange] = useState<number>(12);
   // Modo do gráfico da frota: 'mes' (histórico mensal) ou 'dia' (snapshot diário)
@@ -690,51 +688,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [corretoraId, ano, mes, todoPeriodo, initialized]);
 
-  // Conta placas ATIVAS e INADIMPLENTES direto da base ativa (estudo_base_registros),
-  // a mesma fonte usada pelo Estudo de Base. Assim os números batem e ficam sempre atuais.
-  useEffect(() => {
-    let cancelado = false;
-    const fetchBaseCounts = async () => {
-      if (!corretoraId) { setBaseCounts(null); return; }
-      try {
-        const { data: imp } = await supabase
-          .from("estudo_base_importacoes")
-          .select("id")
-          .eq("ativo", true)
-          .eq("corretora_id", corretoraId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!imp?.id) { if (!cancelado) setBaseCounts(null); return; }
-
-        let ativas = 0, inadimplentes = 0, offset = 0;
-        const PAGE = 1000;
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-          const { data: batch, error } = await supabase
-            .from("estudo_base_registros")
-            .select("situacao_veiculo")
-            .eq("importacao_id", imp.id)
-            .range(offset, offset + PAGE - 1);
-          if (error) break;
-          if (!batch || batch.length === 0) break;
-          for (const r of batch) {
-            const cat = classificarSituacao((r as { situacao_veiculo?: string | null }).situacao_veiculo);
-            if (cat === "ativo") ativas++;
-            else if (cat === "inadimplente") inadimplentes++;
-          }
-          if (batch.length < PAGE) break;
-          offset += PAGE;
-          if (offset >= 200000) break;
-        }
-        if (!cancelado) setBaseCounts({ ativas, inadimplentes });
-      } catch {
-        if (!cancelado) setBaseCounts(null);
-      }
-    };
-    fetchBaseCounts();
-    return () => { cancelado = true; };
-  }, [corretoraId]);
 
   // Inadimplentes do mês corrente.
   //
@@ -983,8 +936,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     return parseInt(ano) === now.getFullYear() && parseInt(mes) === now.getMonth() + 1;
   }, [todoPeriodo, ano, mes]);
 
-  const placasAtivasView =
-    baseCounts && isPeriodoAtual ? baseCounts.ativas : dadosAtual?.placas_ativas;
+  // Fonte unica: pid_operacional, a mesma do grafico. Antes o card contava
+  // LINHAS de estudo_base_registros e o grafico contava PLACAS distintas —
+  // 4.794 contra 4.757, e a variacao exibia "+37 (+0,8%)" de crescimento que
+  // eram so os registros duplicados que a API manda entre paginas.
+  const placasAtivasView = dadosAtual?.placas_ativas;
   const inadimplentesView =
     isPeriodoAtual && cobrancaInad != null ? cobrancaInad : dadosAtual?.inadimplentes;
 

@@ -1,6 +1,7 @@
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import PIDDashboard from "@/components/portal/PIDDashboard";
 import PIDHistorico from "@/components/portal/PIDHistorico";
+import SyncStatusHint from "@/components/portal/SyncStatusHint";
 import PIDImportacao from "@/components/portal/PIDImportacao";
 import EstudoBaseConteudo from "@/components/estudo-base/EstudoBaseConteudo";
 import { GerenciarUsuariosCorretoraDialog } from "@/components/GerenciarUsuariosCorretoraDialog";
@@ -58,6 +59,17 @@ export default function PID() {
                 </button>
               )}
             </div>
+            {/* Carimbo em TODAS as telas do PID, no modulo da aba ativa: cada
+                uma olha uma importacao diferente e elas sincronizam em momentos
+                distintos, entao a data sem o modulo induziria a erro. */}
+            {selectedAssociacao && (
+              <div className="flex justify-end pr-1">
+                <SyncStatusHint
+                  corretoraId={selectedAssociacao}
+                  modulo={activeTab === "estudo-base" ? "placas" : undefined}
+                />
+              </div>
+            )}
           </div>
           {/* Tab contents */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>

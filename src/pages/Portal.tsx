@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import PIDDashboard from "@/components/portal/PIDDashboard";
 import PIDHistorico from "@/components/portal/PIDHistorico";
+import SyncStatusHint from "@/components/portal/SyncStatusHint";
 import EstudoBaseConteudo from "@/components/estudo-base/EstudoBaseConteudo";
 import { GestaoAssociacaoKanban } from "@/components/gestao-associacao/GestaoAssociacaoKanban";
 import PortalHeader from "@/components/portal/PortalHeader";
@@ -310,6 +311,11 @@ export default function Portal() {
                 );
               })}
             </TabsList>
+          </div>
+          {/* Mesmo carimbo do PID: a associacao precisa saber de quando e o dado
+              antes de comparar com o que ela ve no SGA. */}
+          <div className="flex justify-center -mt-2">
+            <SyncStatusHint corretoraId={corretora.id} />
           </div>
           <TabsContent value="dashboard" className="space-y-4 mt-0"><PIDDashboard corretoraId={corretora.id} /></TabsContent>
           <TabsContent value="estudo-base" className="space-y-4 mt-0"><EstudoBaseConteudo corretoraId={corretora.id} hideImport /></TabsContent>
