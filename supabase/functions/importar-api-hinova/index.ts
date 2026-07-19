@@ -428,7 +428,9 @@ serve(async (req) => {
         let repetidos = 0;
         for (const v of veiculos) {
           const pl = String(v?.placa ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-          const chave = pl || `sem-placa:${unicos.length}`;
+          // 0km ainda nao emplacado: a identidade e o chassi.
+          const ch = String(v?.chassi ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+          const chave = pl || ch || `sem-id:${unicos.length}`;
           if (vistos.has(chave)) { repetidos++; continue; }
           vistos.add(chave);
           unicos.push(v);
@@ -541,6 +543,10 @@ serve(async (req) => {
           nome: g(v, "nome_associado", "nome", "associado_nome") as string | null,
           cpf: g(v, "cpf", "cpf_cnpj", "documento") as string | null,
           placa: g(v, "placa") as string | null,
+          // Veiculo 0km entra na base sem placa (ainda nao emplacado) e so tem
+          // chassi. Sem guardar o chassi, esses registros ficam sem identidade e
+          // caem fora de qualquer contagem distinta.
+          chassi: g(v, "chassi") as string | null,
           modelo_veiculo: g(v, "modelo", "modelo_veiculo", "descricao_modelo") as string | null,
           marca_veiculo: g(v, "marca", "montadora", "fabricante") as string | null,
           ano_veiculo:
@@ -564,6 +570,7 @@ serve(async (req) => {
         const assocE = assocMap.get(String(g(v, "codigo_associado") ?? ""));
         return {
           placa: g(v, "placa") as string | null,
+          chassi: g(v, "chassi") as string | null,
           tipo_veiculo: g(v, "tipo_veiculo", "tipo", "especie") as string | null,
           montadora: g(v, "montadora", "marca", "fabricante") as string | null,
           modelo: g(v, "modelo", "modelo_veiculo") as string | null,
