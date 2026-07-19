@@ -107,6 +107,15 @@ function useMenuItems() {
 // ---------------- SIDEBAR CONTENT ----------------
 
 function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: boolean; onNavigate?: () => void; onExpandir?: () => void }) {
+  // Ao expandir por clique num icone, a sidebar inteira aparece de uma vez e o
+  // grupo que a pessoa pediu se perde no meio dos outros. O destaque temporario
+  // diz "e este aqui" e some sozinho, sem virar estado permanente.
+  const [destaque, setDestaque] = useState<ModuloGrupo | null>(null);
+  useEffect(() => {
+    if (!destaque) return;
+    const t = setTimeout(() => setDestaque(null), 2200);
+    return () => clearTimeout(t);
+  }, [destaque]);
   const { signOut, userRole } = useAuth();
   const { canView } = useMenuPermissionsForRole(userRole);
   const { isDesabilitado } = useModulosDesabilitados();
@@ -212,7 +221,11 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
             const totalBadge = groupItems.reduce((acc, i) => acc + (i.badge ?? 0), 0);
             return (
             <div key={group.key}>
-              {gi > 0 && <div className="mx-3 my-2 border-t border-sidebar-border" />}
+              {/* Recolhida, cada grupo ja e um icone isolado: a linha entre eles
+                  vira ruido e picota a coluna. Expandida, ela separa blocos de
+                  texto, onde ainda ajuda. */}
+              {gi > 0 && !collapsed && <div className="mx-3 my-2 border-t border-sidebar-border" />}
+              {gi > 0 && collapsed && <div className="h-1.5" />}
               {collapsed && (
                 <div className="px-2">
                   <button
@@ -226,6 +239,7 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
                           return next;
                         });
                       }
+                      setDestaque(group.key);
                       onExpandir?.();
                     }}
                     title={group.label}
@@ -245,7 +259,11 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
               {!collapsed && group.key !== "inicio" && (
                 <button
                   onClick={() => alternarGrupo(group.key)}
-                  className="w-full flex items-center justify-between gap-2 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                  className={`w-full flex items-center justify-between gap-2 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-all duration-300 ${
+                    destaque === group.key
+                      ? "text-primary bg-primary/10 rounded-md scale-[1.02]"
+                      : "text-muted-foreground/60 hover:text-muted-foreground"
+                  }`}
                   aria-expanded={aberto}
                 >
                   <span className="flex items-center gap-1.5">
