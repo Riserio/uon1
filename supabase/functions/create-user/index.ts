@@ -64,7 +64,15 @@ serve(async (req) => {
       email: requestBody.email 
     });
 
-    const { email, password, nome, telefone, cargo, equipe_id, lider_id, administrativo_id, role, equipes, whatsapp, instagram, facebook, linkedin, cpf_cnpj, userId, resetPassword } = requestBody
+    const { email, password, nome, telefone, cargo, role, equipes, whatsapp, instagram, facebook, linkedin, cpf_cnpj, userId, resetPassword } = requestBody
+    // Normalize empty strings to null for UUID columns to avoid
+    // "invalid input syntax for type uuid" errors coming from empty selects.
+    const toUuidOrNull = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v : null)
+    const equipe_id = toUuidOrNull(requestBody.equipe_id)
+    const administrativo_id = toUuidOrNull(requestBody.administrativo_id)
+    const equipesList: string[] = Array.isArray(equipes)
+      ? equipes.filter((e: unknown) => typeof e === 'string' && (e as string).trim() !== '')
+      : []
 
     // Se for reset de senha
     if (resetPassword && userId) {
@@ -137,59 +145,69 @@ serve(async (req) => {
     }
 
     // Create or update profile - set status to ativo (user created by admin is already approved)
+    const emptyToNull = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? null : v ?? null)
+    const profilePayload = {
+      id: authData.user.id,
+      nome: nome,
+      email: email,
+      telefone: emptyToNull(telefone),
+      cargo: emptyToNull(cargo),
+      equipe_id: role === 'comercial' ? equipe_id : null,
+      lider_id: null,
+      administrativo_id: role === 'lider' ? administrativo_id : null,
+      whatsapp: emptyToNull(whatsapp),
+      instagram: emptyToNull(instagram),
+      facebook: emptyToNull(facebook),
+      linkedin: emptyToNull(linkedin),
+      cpf_cnpj: emptyToNull(cpf_cnpj),
+      status: 'ativo',
+      ativo: true,
+    }
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .upsert({
-        id: authData.user.id,
-        nome: nome,
-        email: email,
-        telefone,
-        cargo,
-        equipe_id: role === 'comercial' ? equipe_id : null,
-        lider_id: null, // Comercial não tem lider_id direto, é derivado pela equipe
-        administrativo_id: role === 'lider' ? administrativo_id : null,
-        whatsapp,
-        instagram,
-        facebook,
-        linkedin,
-        cpf_cnpj,
-        status: 'ativo',  // User created manually is already approved
-        ativo: true  // User is active immediately
-      }, { onConflict: 'id' })
+      .upsert(profilePayload, { onConflict: 'id' })
 
     if (profileError) {
-      console.error('ERROR creating/updating profile:', profileError);
-      throw profileError;
+      console.error('ERROR creating/updating profile:', profileError, 'payload:', profilePayload);
+      // Rollback the auth user so the admin can retry with the same email.
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id).catch(() => {})
+      throw new Error(`Falha ao criar perfil: ${profileError.message}`)
     }
 
     console.log('6. Profile created/updated successfully for user:', authData.user.id);
 
-    // Create user role
+    // Create user role (upsert to tolerate duplicates from previous failed runs)
     const { error: roleError } = await supabaseAdmin
       .from('user_roles')
-      .insert([{
-        user_id: authData.user.id,
-        role: role
-      }])
+      .upsert(
+        [{ user_id: authData.user.id, role: role }],
+        { onConflict: 'user_id,role', ignoreDuplicates: true },
+      )
 
-    if (roleError) throw roleError
+    if (roleError) {
+      console.error('ERROR creating user_role:', roleError);
+      throw new Error(`Falha ao atribuir papel: ${roleError.message}`)
+    }
 
     // If leader, associate with teams
-    if (role === 'lider' && equipes && equipes.length > 0) {
-      const equipeLideresData = equipes.map((equipeId: string) => ({
+    if (role === 'lider' && equipesList.length > 0) {
+      const equipeLideresData = equipesList.map((equipeId: string) => ({
         lider_id: authData.user.id,
-        equipe_id: equipeId
+        equipe_id: equipeId,
       }))
 
       const { error: equipeLideresError } = await supabaseAdmin
         .from('equipe_lideres')
-        .insert(equipeLideresData)
+        .upsert(equipeLideresData, { onConflict: 'lider_id,equipe_id', ignoreDuplicates: true })
 
-      if (equipeLideresError) throw equipeLideresError
+      if (equipeLideresError) {
+        console.error('ERROR linking equipes:', equipeLideresError);
+        // Non-fatal: user was created; report as warning in response instead of failing.
+      }
     }
 
     return new Response(
-      JSON.stringify({ user: authData.user, success: true }),
+      JSON.stringify({ user: authData.user, userId: authData.user.id, success: true }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

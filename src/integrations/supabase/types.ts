@@ -919,6 +919,7 @@ export type Database = {
       cadastro_registros: {
         Row: {
           ano_veiculo: string | null
+          chassi: string | null
           cidade: string | null
           cooperativa: string | null
           cpf: string | null
@@ -939,6 +940,7 @@ export type Database = {
         }
         Insert: {
           ano_veiculo?: string | null
+          chassi?: string | null
           cidade?: string | null
           cooperativa?: string | null
           cpf?: string | null
@@ -959,6 +961,7 @@ export type Database = {
         }
         Update: {
           ano_veiculo?: string | null
+          chassi?: string | null
           cidade?: string | null
           cooperativa?: string | null
           cpf?: string | null
@@ -3087,6 +3090,7 @@ export type Database = {
           bairro: string | null
           boleto_fisico: string | null
           categoria: string | null
+          chassi: string | null
           cidade_veiculo: string | null
           combustivel: string | null
           cooperativa: string | null
@@ -3129,6 +3133,7 @@ export type Database = {
           bairro?: string | null
           boleto_fisico?: string | null
           categoria?: string | null
+          chassi?: string | null
           cidade_veiculo?: string | null
           combustivel?: string | null
           cooperativa?: string | null
@@ -3171,6 +3176,7 @@ export type Database = {
           bairro?: string | null
           boleto_fisico?: string | null
           categoria?: string | null
+          chassi?: string | null
           cidade_veiculo?: string | null
           combustivel?: string | null
           cooperativa?: string | null
@@ -5982,6 +5988,7 @@ export type Database = {
           boletos_cancelados: number | null
           boletos_emitidos: number | null
           boletos_liquidados: number | null
+          boletos_vencidos: number | null
           cadastros_realizados: number | null
           cancelamentos: number | null
           churn: number | null
@@ -6048,6 +6055,7 @@ export type Database = {
           updated_by: string | null
           valor_boletos_abertos: number | null
           valor_boletos_cancelados: number | null
+          valor_boletos_vencidos: number | null
           veiculos_rastreados: number | null
         }
         Insert: {
@@ -6066,6 +6074,7 @@ export type Database = {
           boletos_cancelados?: number | null
           boletos_emitidos?: number | null
           boletos_liquidados?: number | null
+          boletos_vencidos?: number | null
           cadastros_realizados?: number | null
           cancelamentos?: number | null
           churn?: number | null
@@ -6132,6 +6141,7 @@ export type Database = {
           updated_by?: string | null
           valor_boletos_abertos?: number | null
           valor_boletos_cancelados?: number | null
+          valor_boletos_vencidos?: number | null
           veiculos_rastreados?: number | null
         }
         Update: {
@@ -6150,6 +6160,7 @@ export type Database = {
           boletos_cancelados?: number | null
           boletos_emitidos?: number | null
           boletos_liquidados?: number | null
+          boletos_vencidos?: number | null
           cadastros_realizados?: number | null
           cancelamentos?: number | null
           churn?: number | null
@@ -6216,6 +6227,7 @@ export type Database = {
           updated_by?: string | null
           valor_boletos_abertos?: number | null
           valor_boletos_cancelados?: number | null
+          valor_boletos_vencidos?: number | null
           veiculos_rastreados?: number | null
         }
         Relationships: [
@@ -6257,6 +6269,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      placas_ativas_referencia: {
+        Row: {
+          ano: number
+          corretora_id: string
+          fonte: string
+          mes: number
+          observacao: string | null
+          placas_ativas: number
+          registrado_em: string
+        }
+        Insert: {
+          ano: number
+          corretora_id: string
+          fonte?: string
+          mes: number
+          observacao?: string | null
+          placas_ativas: number
+          registrado_em?: string
+        }
+        Update: {
+          ano?: number
+          corretora_id?: string
+          fonte?: string
+          mes?: number
+          observacao?: string | null
+          placas_ativas?: number
+          registrado_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "placas_ativas_referencia_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       platform_settings: {
         Row: {
@@ -7954,18 +8004,21 @@ export type Database = {
       }
       veiculo_snapshot_diario: {
         Row: {
+          chassi: string | null
           corretora_id: string
           data: string
           placa: string
           situacao: string | null
         }
         Insert: {
+          chassi?: string | null
           corretora_id: string
           data: string
           placa: string
           situacao?: string | null
         }
         Update: {
+          chassi?: string | null
           corretora_id?: string
           data?: string
           placa?: string
@@ -9445,6 +9498,7 @@ export type Database = {
       calcular_dashboard_cobranca: {
         Args: {
           p_cooperativa?: string
+          p_criterio?: string
           p_dia_vencimento?: number
           p_importacao_ids: string[]
           p_mes_referencia?: string
@@ -9670,6 +9724,7 @@ export type Database = {
       get_dashboard_cobranca_cached: {
         Args: {
           p_cooperativa?: string
+          p_criterio?: string
           p_dia_vencimento?: number
           p_force_refresh?: boolean
           p_importacao_ids: string[]
