@@ -275,6 +275,28 @@ serve(async (req) => {
       y -= 12;
     };
 
+    // ----- Base (abre o relatorio) -----
+    // Placas ativas e o denominador de tudo que vem depois: inadimplencia,
+    // faturamento e eventos so se interpretam sabendo sobre quantas placas
+    // incidem. No fim da pagina 2 a leitura ja tinha acontecido sem essa
+    // referencia — e no celular quase ninguem chegava la.
+    drawTableSection("Base", [
+      { label: "Total de placas ativas", value: placasAtivas.toLocaleString("pt-BR") },
+    ]);
+
+    // ----- Cadastros do mês (por cooperativa) -----
+    {
+      const rowsCad: Row[] = cadastrosPorCoop.length > 0
+        ? cadastrosPorCoop.map((c) => ({ label: c.coop, value: `${c.qtd.toLocaleString("pt-BR")} placas` }))
+        : [{ label: "Nenhum cadastro no mês", value: "0 placas" }];
+      rowsCad.push({
+        label: "Total",
+        value: `${cadastrosTotalMes.toLocaleString("pt-BR")} placas`,
+        color: ORANGE,
+      });
+      drawTableSection("Cadastros do mês (por cooperativa)", rowsCad);
+    }
+
     // ----- Financeiro -----
     if (modulos.cobranca) {
       drawTableSection("Financeiro", [
@@ -319,24 +341,6 @@ serve(async (req) => {
         { label: "Maior inadimplência", value: String(dados.cob_coop_maior_inadimplencia ?? "-") },
         { label: "Menor inadimplência", value: String(dados.cob_coop_menor_inadimplencia ?? "-"), color: GREEN_SUCCESS },
       ]);
-    }
-
-    // ----- Base -----
-    drawTableSection("Base", [
-      { label: "Total de placas ativas", value: placasAtivas.toLocaleString("pt-BR") },
-    ]);
-
-    // ----- Cadastros do mês (por cooperativa) -----
-    {
-      const rowsCad: Row[] = cadastrosPorCoop.length > 0
-        ? cadastrosPorCoop.map((c) => ({ label: c.coop, value: `${c.qtd.toLocaleString("pt-BR")} placas` }))
-        : [{ label: "Nenhum cadastro no mês", value: "0 placas" }];
-      rowsCad.push({
-        label: "Total",
-        value: `${cadastrosTotalMes.toLocaleString("pt-BR")} placas`,
-        color: ORANGE,
-      });
-      drawTableSection("Cadastros do mês (por cooperativa)", rowsCad);
     }
 
     // ----- Rodapé discreto (sem botão) na última página -----
