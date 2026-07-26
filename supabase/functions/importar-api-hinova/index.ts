@@ -721,6 +721,7 @@ serve(async (req) => {
           cadastro: cadastro.length,
           estudo_base: eb.length,
           agregacao,
+          debug: { veiculo: veicDebug, associado: assocDebug },
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
