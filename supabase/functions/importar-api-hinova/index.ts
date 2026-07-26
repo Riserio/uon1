@@ -492,11 +492,42 @@ serve(async (req) => {
       };
       const assocMap = new Map<
         string,
-        { cidade: string | null; estado: string | null; sexo: string | null; estado_civil: string | null; idade: number | null }
+        { cidade: string | null; estado: string | null; sexo: string | null; estado_civil: string | null; idade: number | null; cpf: string | null; cooperativa: string | null; regional: string | null }
       >();
       // Debug do endpoint de associado (para confirmar contrato/campos reais da Hinova)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const assocDebug: any = { tentativas: [], amostra_keys: null, total: 0 };
+      // Debug do endpoint de veiculo (chaves cruas do primeiro item) — usado
+      // para diagnosticar mudanças no contrato da Hinova sem novo deploy.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const veicDebug: any = { amostra_keys: veiculos[0] ? Object.keys(veiculos[0]) : null, total: veiculos.length };
+
+      // Lookup tolerante a variacoes de header (acentos, camelCase, snake_case,
+      // barras/espacos). Ex.: "CPF/CNPJ", "CPF do Associado", "Associação".
+      const normKey = (k: string) =>
+        k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pick = (o: any, ...keys: string[]): any => {
+        if (!o || typeof o !== "object") return null;
+        const wanted = new Set(keys.map(normKey));
+        for (const rawKey of Object.keys(o)) {
+          if (wanted.has(normKey(rawKey))) {
+            const v = o[rawKey];
+            if (v !== null && v !== undefined && String(v).trim() !== "") return v;
+          }
+        }
+        // objetos aninhados comuns
+        for (const nested of ["veiculo", "associado", "dados", "dados_associado"]) {
+          if (o[nested] && typeof o[nested] === "object") {
+            const r = pick(o[nested], ...keys);
+            if (r !== null && r !== undefined && String(r).trim() !== "") return r;
+          }
+        }
+        return null;
+      };
+      const CPF_KEYS = ["cpf", "cpf_cnpj", "cpfcnpj", "cpf_associado", "cpfdoassociado", "documento", "numero_documento", "nr_cpf", "nrcpf", "cpf_titular"];
+      const COOP_KEYS = ["cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome", "cooperativa_descricao", "associacao", "nome_associacao", "descricao_associacao"];
+      const REG_KEYS = ["regional", "nome_regional", "descricao_regional", "regional_nome", "regional_descricao", "regional_associado", "regional_veiculo"];
       try {
         // /listar/associado passou a exigir paginação (mesma mudança do /listar/veiculo).
         // Percorre as páginas de cada código de situação configurado.
@@ -524,6 +555,9 @@ serve(async (req) => {
                   sexo: normalizaSexo(a.sexo ?? a.sexo_associado),
                   estado_civil: (a.estado_civil ?? a.estado_civil_associado ?? null) as string | null,
                   idade: int(a.idade) ?? idadeFromNascimento(a.data_nascimento ?? a.nascimento ?? a.data_nascimento_associado),
+                  cpf: (pick(a, ...CPF_KEYS) as string | null) ?? null,
+                  cooperativa: nomeDe(pick(a, ...COOP_KEYS)),
+                  regional: nomeDe(pick(a, ...REG_KEYS)),
                 });
             }
             atot = Math.min(Number(aj?.numero_paginas) || 1, 20);
@@ -541,7 +575,7 @@ serve(async (req) => {
         const assocC = assocMap.get(String(g(v, "codigo_associado") ?? ""));
         return {
           nome: g(v, "nome_associado", "nome", "associado_nome") as string | null,
-          cpf: g(v, "cpf", "cpf_cnpj", "documento") as string | null,
+          cpf: ((pick(v, ...CPF_KEYS) as string | null) || assocC?.cpf || null),
           placa: g(v, "placa") as string | null,
           // Veiculo 0km entra na base sem placa (ainda nao emplacado) e so tem
           // chassi. Sem guardar o chassi, esses registros ficam sem identidade e
@@ -554,8 +588,8 @@ serve(async (req) => {
               ? String(g(v, "ano_modelo", "ano_fabricacao", "ano"))
               : null,
           situacao: g(v, "situacao", "situacao_veiculo", "descricao_situacao", "status") as string | null,
-          regional: nomeDe(g(v, "regional", "nome_regional", "descricao_regional", "regional_nome", "regional_descricao")),
-          cooperativa: nomeDe(g(v, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome", "cooperativa_descricao")),
+          regional: nomeDe(pick(v, ...REG_KEYS)) || assocC?.regional || null,
+          cooperativa: nomeDe(pick(v, ...COOP_KEYS)) || assocC?.cooperativa || null,
           data_cadastro: dateISO(g(v, "data_cadastro", "data_contrato")),
           data_adesao: dateISO(g(v, "data_adesao", "data_contrato")),
           valor_protegido: num(g(v, "valor_protegido", "valor_fipe_protegido", "valor_fipe")),
@@ -583,8 +617,8 @@ serve(async (req) => {
           data_contrato: dateISO(g(v, "data_contrato", "data_adesao", "data_cadastro")),
           valor_protegido: num(g(v, "valor_protegido", "valor_fipe_protegido")),
           valor_fipe: num(g(v, "valor_fipe", "valor_protegido")),
-          cooperativa: nomeDe(g(v, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome", "cooperativa_descricao")),
-          regional: nomeDe(g(v, "regional", "nome_regional", "descricao_regional", "regional_nome", "regional_descricao")),
+          cooperativa: nomeDe(pick(v, ...COOP_KEYS)) || assocE?.cooperativa || null,
+          regional: nomeDe(pick(v, ...REG_KEYS)) || assocE?.regional || null,
           situacao_veiculo: g(v, "situacao_veiculo", "situacao", "descricao_situacao", "status") as string | null,
           cidade_veiculo: (g(v, "cidade", "cidade_veiculo") as string | null) || assocE?.cidade || null,
           estado: (g(v, "estado", "uf") as string | null) || assocE?.estado || null,
@@ -687,6 +721,7 @@ serve(async (req) => {
           cadastro: cadastro.length,
           estudo_base: eb.length,
           agregacao,
+          debug: { veiculo: veicDebug, associado: assocDebug },
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );

@@ -1,82 +1,47 @@
-## Objetivo
-Permitir escolher o **estilo visual** do formulário ao criar/editar: **Google Forms** (atual), **Typeform** (uma pergunta por vez, tela cheia) e **Sinistro** (formulário de análise antifraude com tipo, score, red flags, nexo causal).
+## Contexto (confirmado)
 
-## Escopo
+Arquivo único envolvido: `supabase/functions/importar-api-hinova/index.ts` — é ele que gera as importações `API base DD/MM/AAAA` em `cadastro_registros`/`estudo_base_registros` a partir do endpoint `/listar/veiculo` da Hinova, complementado pelo `/listar/associado` (só usado hoje para `cidade`, `estado`, `sexo`, `estado_civil`, `idade`).
 
-### 1. Schema (migration)
-- Adicionar coluna `estilo` na tabela `formularios`:
-  - `text not null default 'google_forms'`
-  - valores aceitos: `'google_forms' | 'typeform' | 'sinistro'`
-- Regerar `types.ts` (automático).
+O mapeamento das três colunas quebradas está aqui (helper `g()` na linha 458 — busca chave por chave no objeto raiz e depois em `o.veiculo` / `o.associado`):
 
-### 2. Editor (`FormularioEditor.tsx`)
-- Novo seletor **Estilo do formulário** no topo (3 cards visuais: Google Forms / Typeform / Sinistro).
-- Para `google_forms` e `typeform`: editor de perguntas atual continua igual (mesmo schema de `formulario_perguntas`). A diferença é apenas a **renderização pública**.
-- Para `sinistro`: o formulário é **predefinido** (gerado pelo prompt enviado) — esconde o editor de perguntas e mostra um aviso "Formulário de Análise de Sinistro — estrutura fixa, configurável apenas título/descrição/branding".
+- `cpf` (linha 544): `g(v, "cpf", "cpf_cnpj", "documento")`
+- `regional` (linhas 557 e 587): `g(v, "regional", "nome_regional", "descricao_regional", "regional_nome", "regional_descricao")`
+- `cooperativa` (linhas 558 e 586): idem com aliases de cooperativa
 
-### 3. Renderização pública (`FormularioPublico.tsx`)
-Roteamento por `estilo`:
-- `google_forms` → layout atual (cards empilhados).
-- `typeform` → componente novo `FormularioTypeform`:
-  - Tela cheia, uma pergunta por vez
-  - Botões "Anterior" / "Próximo" / Enter para avançar
-  - Barra de progresso no topo (% perguntas respondidas)
-  - Fundo no `cor_tema`, tipografia grande
-  - Validação por pergunta antes de avançar
-  - Mantém máscaras já implementadas (placa, CPF, CNPJ, CEP, telefone)
-- `sinistro` → componente novo `FormularioSinistro` implementando exatamente a especificação do prompt:
-  - Header fixo `bg-stone-900` com **logo Vangard + título "Formulário de Análise"** + score em tempo real (substitui o badge "SINISTRO")
-  - `TipoSinistroSelector` (7 tipos)
-  - 12 seções colapsáveis condicionais (`SECOES_POR_TIPO`, `BLOCOS_POR_TIPO`)
-  - `RedFlagItem` com cálculo de `scoreRisco`
-  - `NexoStep` (6 passos)
-  - `ScoreAntifraude` com níveis Baixo/Atenção/Alto/Crítico
-  - Submissão grava em `formulario_respostas` como JSON único (mesma tabela), preservando o pipeline atual.
+`nome`, `placa`, `cidade`, `estado`, `situacao` continuam sendo lidas do mesmo `v` e continuam preenchidas em produção — ou seja, o payload de `/listar/veiculo` continua chegando. O que mudou é que **essas três colunas específicas deixaram de vir dentro do objeto do veículo** (ou passaram a vir só na resposta de `/listar/associado`, ou com nomes que não estão na lista de aliases). É uma hipótese consistente com o corte temporal 10/07 → 13/07.
 
-### 4. Branding Vangard no estilo Sinistro
-- Header usa o `BrandingCompartilhamento` já existente:
-  - `og_titulo` (default "Vangard") como subtítulo
-  - `og_imagem_url` (default logo Vangard) como logo no header
-- Acessível em qualquer domínio; quando acessado via `vangard.uon1.com.br`, mostra branding da gestora.
+Diagnóstico não 100% confirmado: não temos como reproduzir a chamada crua aqui. Por isso o plano trata a causa provável **e** deixa evidência salva para confirmar/ajustar sem novo deploy.
 
-### 5. Listagem (`Formularios.tsx`)
-- Mostrar badge do estilo ("Google Forms" / "Typeform" / "Sinistro") em cada card.
+## Mudança (escopo mínimo, só mapeamento)
 
-## Estrutura de arquivos
+Editar apenas `supabase/functions/importar-api-hinova/index.ts`, seção da importação de base (aprox. linhas 470–600). Nada fora disso.
 
-```text
-src/
-├── pages/
-│   ├── FormularioEditor.tsx          (editar: + seletor de estilo)
-│   ├── FormularioPublico.tsx         (editar: roteia por estilo)
-│   └── Formularios.tsx               (editar: badge de estilo)
-├── components/formularios/
-│   ├── FormularioGoogleForms.tsx     (extraído do publico atual)
-│   ├── FormularioTypeform.tsx        (novo)
-│   └── sinistro/
-│       ├── FormularioSinistro.tsx    (orquestrador + estado global)
-│       ├── Header.tsx
-│       ├── TipoSinistroSelector.tsx
-│       ├── SecaoFormulario.tsx
-│       ├── CampoForm.tsx
-│       ├── RadioGroup.tsx
-│       ├── CheckGroup.tsx
-│       ├── RedFlagItem.tsx
-│       ├── ScoreAntifraude.tsx
-│       ├── NexoStep.tsx
-│       ├── constants.ts              (SECOES_POR_TIPO, BLOCOS_POR_TIPO, RED_FLAGS)
-│       └── sections/S01..S12.tsx
-└── supabase/migrations/<timestamp>_formularios_estilo.sql
-```
+1. **Enriquecer `assocMap` com `cpf`, `cooperativa` e `regional`** vindos de `/listar/associado`, aceitando os mesmos aliases usados no veículo mais aliases típicos do endpoint de associado:
+   - CPF: `cpf`, `cpf_cnpj`, `cpf_associado`, `documento`, `numero_documento`, `nr_cpf`.
+   - Cooperativa: `cooperativa`, `nome_cooperativa`, `descricao_cooperativa`, `cooperativa_nome`, `cooperativa_descricao`, `associacao`, `nome_associacao`, `descricao_associacao`.
+   - Regional: `regional`, `nome_regional`, `descricao_regional`, `regional_nome`, `regional_descricao`, `regional_associado`.
+   - Aplicar `nomeDe(...)` em cooperativa/regional (mantém compatibilidade com objeto `{codigo, descricao}`).
 
-## Pontos técnicos
-- Estilo Sinistro grava `respostas` como JSON (mapa chave→valor + `_score` + `_redFlags`) em `formulario_respostas.respostas` (jsonb).
-- Sem novas tabelas, sem mudança nas policies (a única alteração de schema é a coluna `estilo`).
-- Mantém máscaras já implementadas para todos os estilos.
-- Submit do Sinistro reaproveita a mesma edge function / insert atual.
+2. **Lookup tolerante a variações** — introduzir um helper local `pick(obj, ...keys)` que normaliza chave por `key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "")` e testa contra as chaves do objeto normalizadas do mesmo jeito. Isso cobre variações reais que já vimos noutros pontos da API (`CPF/CNPJ`, `CPF do Associado`, `Associação`, acentos, camelCase, snake_case). Usar esse helper nas leituras dessas três colunas tanto no veículo quanto no associado.
 
-## Fora do escopo
-- Editor visual para Sinistro (estrutura é fixa, conforme pedido).
-- Mudanças no PDF de respostas — o existente continua funcional para Google/Typeform; Sinistro também usa o mesmo `pdfExporter` com fallback genérico.
+3. **Fallback no map do cadastro/estudo de base** — para cada linha, se o campo vier vazio do `v`, cair para o valor guardado no `assocMap` (mesmo padrão que hoje já é usado para `cidade`/`estado`):
+   ```
+   cpf: pickCpf(v) || assocC?.cpf || null,
+   cooperativa: nomeDe(pickCoop(v)) || assocC?.cooperativa || null,
+   regional: nomeDe(pickReg(v)) || assocC?.regional || null,
+   ```
+   Aplicar nos dois mapeadores (`cadastro` e `eb`).
 
-Confirma para implementar?
+4. **Evidência para confirmar hipótese sem novo deploy** — a função já mantém `assocDebug.amostra_keys` com as chaves cruas do primeiro associado. Estender para também guardar `veicDebug.amostra_keys` (chaves do primeiro veículo) e incluir os dois no JSON de resposta atual (`assocDebug` já é logado internamente; expor `veicDebug` do mesmo jeito). Assim a próxima chamada da função mostra exatamente que nomes a API está devolvendo hoje e a gente confirma quais aliases faltavam.
+
+Nada mais é tocado: sem migrations, sem mudar RLS, sem reprocessar importações antigas, sem alterar Cobrança/MGF/Eventos.
+
+## Deploy
+
+- Redeployar só `importar-api-hinova`.
+- Não roda migration, não roda db push.
+- Depois do deploy, forçar uma importação de base de qualquer associação e conferir em `cadastro_registros` (importação nova `API base DD/MM/AAAA`) se `cpf`, `cooperativa` e `regional` voltaram a preencher — e, se ainda houver campo vazio, ler `veicDebug.amostra_keys` / `assocDebug.amostra_keys` da resposta para ampliar aliases.
+
+## Resposta ao usuário ao fim
+
+Reportar: arquivo alterado (`supabase/functions/importar-api-hinova/index.ts`), causa (Hinova deixou de mandar essas 3 chaves dentro do objeto do veículo — o parser só olhava o veículo, e o associado só era consultado para cidade/estado/demografia), diff resumido (helper de lookup normalizado + aliases ampliados + fallback via `assocMap` para CPF/coop/regional + amostra de chaves na resposta para diagnóstico contínuo). Deixar registrado que registros antigos (13/07 em diante) continuam NULL — o novo mapeamento passa a valer para as próximas importações; não vamos reescrever dados já gravados.
