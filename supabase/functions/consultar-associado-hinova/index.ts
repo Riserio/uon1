@@ -9,18 +9,18 @@ const corsHeaders = {
 /**
  * Consulta AO VIVO no SGA da Hinova.
  *
- * Antes esta funcao varria a base inteira de cada associacao (/listar/veiculo com
- * body vazio = 10k+ placas x 15 associacoes) e filtrava em memoria. Era lenta e cara.
- * Agora usa os endpoints direcionados, validados contra a API de producao:
+ * placa -> GET  /veiculo/buscar/{placa}/placa
+ * cpf   -> GET  /associado/buscar/{cpf}
+ * nome  -> a Hinova NAO expoe busca por nome. Resolvemos o nome na base local
+ *          para descobrir placa/CPF e ai sim consultamos a API ao vivo.
  *
- *   placa -> GET  /veiculo/buscar/{placa}/placa      (funciona)
- *   cpf   -> GET  /associado/buscar/{cpf}            (funciona)
- *   nome  -> a Hinova NAO expoe busca por nome. Resolvemos o nome na base local
- *            para descobrir placa/CPF e ai sim consultamos a API ao vivo.
+ * DIRECIONAMENTO (novo): antes de sair perguntando pra TODAS as associacoes,
+ * usamos a base local (cadastro_registros da importacao ativa) como indice para
+ * descobrir qual associacao e dona daquele CPF/placa e consultar SO ela. Se a
+ * base local nao souber (associado novo/ainda nao importado), cai no fallback e
+ * consulta todas. Isso mantem a busca rapida mesmo com dezenas/centenas de SGAs.
  *
- * Detalhes (boletos, MGF, eventos) so sao buscados NA associacao que deu match.
- *
- * Body: { placa?: string, cpf?: string, nome?: string, meses?: number }
+ * Body: { placa?: string, cpf?: string, nome?: string, meses?: number, debug?: boolean }
  * Requer JWT do app.
  */
 
@@ -54,54 +54,83 @@ const arrOf = (j: any, ...keys: string[]): any[] => {
   return [];
 };
 
+/**
+ * Leitura tolerante a variacoes de nome de campo (acentos, camelCase, snake_case,
+ * barras/espacos) e a objetos aninhados. Ex.: "CPF/CNPJ", "descricao_marca".
+ */
+const normKey = (k: string) =>
+  k.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "").replace(/[^a-z0-9]/g, "");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pick = (o: any, ...keys: string[]): any => {
+  if (!o || typeof o !== "object") return null;
+  const want = new Set(keys.map(normKey));
+  for (const rk of Object.keys(o)) {
+    if (want.has(normKey(rk))) {
+      const v = o[rk];
+      if (v !== null && v !== undefined && String(v).trim() !== "") return v;
+    }
+  }
+  for (const nested of ["veiculo", "associado", "dados", "dados_associado", "dados_veiculo"]) {
+    if (o[nested] && typeof o[nested] === "object") {
+      const r = pick(o[nested], ...keys);
+      if (r !== null && r !== undefined && String(r).trim() !== "") return r;
+    }
+  }
+  return null;
+};
+
 /** O endpoint de veiculo devolve um registro achatado com veiculo + associado juntos. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mapVeiculo = (v: any) => ({
-  placa: v?.placa ?? null,
-  chassi: v?.chassi ?? null,
-  tipo: v?.tipo ?? null,
-  categoria: v?.categoria ?? null,
-  marca: v?.marca ?? null,
-  modelo: v?.modelo ?? null,
-  cor: v?.cor ?? v?.codigo_cor ?? null,
-  combustivel: v?.combustivel ?? v?.codigo_combustivel ?? null,
-  ano_fabricacao: v?.ano_fabricacao ?? null,
-  ano_modelo: v?.ano_modelo ?? null,
-  renavam: v?.renavam ?? null,
-  km: v?.km ?? null,
-  valor_fipe: v?.valor_fipe ?? null,
-  valor_protegido: v?.valor_fipe_protegido ?? null,
-  participacao: v?.participacao ?? null,
-  situacao: v?.descricao_situacao ?? v?.situacao_veiculo ?? null,
-  dia_vencimento: v?.dia_vencimento ?? null,
-  mes_referente: v?.mes_referente ?? null,
-  regional: v?.regional ?? v?.codigo_regional ?? null,
-  cooperativa: v?.cooperativa ?? v?.codigo_cooperativa ?? null,
-  codigo_veiculo: v?.codigo_veiculo ?? null,
+  placa: pick(v, "placa") ?? null,
+  chassi: pick(v, "chassi") ?? null,
+  tipo: pick(v, "tipo", "tipo_veiculo", "descricao_tipo") ?? null,
+  categoria: pick(v, "categoria", "descricao_categoria") ?? null,
+  marca: pick(v, "marca", "descricao_marca", "nome_marca", "montadora", "fabricante") ?? null,
+  modelo: pick(v, "modelo", "descricao_modelo", "nome_modelo", "modelo_veiculo") ?? null,
+  cor: pick(v, "cor", "descricao_cor", "codigo_cor") ?? null,
+  combustivel: pick(v, "combustivel", "descricao_combustivel", "codigo_combustivel") ?? null,
+  ano_fabricacao: pick(v, "ano_fabricacao", "ano") ?? null,
+  ano_modelo: pick(v, "ano_modelo") ?? null,
+  renavam: pick(v, "renavam") ?? null,
+  km: pick(v, "km", "quilometragem") ?? null,
+  valor_fipe: pick(v, "valor_fipe") ?? null,
+  valor_protegido: pick(v, "valor_fipe_protegido", "valor_protegido") ?? null,
+  participacao: pick(v, "participacao") ?? null,
+  situacao: pick(v, "descricao_situacao", "situacao_veiculo", "situacao", "status") ?? null,
+  dia_vencimento: pick(v, "dia_vencimento") ?? null,
+  mes_referente: pick(v, "mes_referente") ?? null,
+  regional: pick(v, "regional", "nome_regional", "descricao_regional", "codigo_regional") ?? null,
+  cooperativa: pick(v, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "codigo_cooperativa") ?? null,
+  codigo_veiculo: pick(v, "codigo_veiculo") ?? null,
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mapAssociado = (v: any) => {
-  const tel = (ddd: any, num: any) => (num ? `${ddd ? "(" + ddd + ") " : ""}${num}` : null);
+  const ddd = pick(v, "ddd");
+  const tel = pick(v, "telefone");
+  const dddCel = pick(v, "ddd_celular");
+  const cel = pick(v, "telefone_celular", "celular");
+  const fmtTel = (d: any, n: any) => (n ? `${d ? "(" + d + ") " : ""}${n}` : null);
   return {
-    nome: v?.nome ?? v?.nome_associado ?? null,
-    cpf: v?.cpf ?? v?.cpf_cnpj ?? null,
-    rg: v?.rg ?? null,
-    email: v?.email ?? null,
-    telefone: tel(v?.ddd, v?.telefone),
-    celular: tel(v?.ddd_celular, v?.telefone_celular),
-    cidade: v?.cidade ?? null,
-    estado: v?.estado ?? null,
-    bairro: v?.bairro ?? null,
-    logradouro: v?.logradouro ?? null,
-    cep: v?.cep ?? null,
-    regional: v?.regional ?? v?.codigo_regional ?? null,
-    cooperativa: v?.cooperativa ?? v?.codigo_cooperativa ?? null,
-    situacao: v?.descricao_situacao ?? null,
-    data_cadastro: v?.data_cadastro ?? null,
-    data_contrato: v?.data_contrato ?? null,
-    codigo_associado: v?.codigo_associado ?? null,
-    voluntario: v?.nome_voluntario ?? null,
+    nome: pick(v, "nome", "nome_associado", "nome_completo", "razao_social") ?? null,
+    cpf: pick(v, "cpf", "cpf_cnpj", "cpf_associado", "documento", "numero_documento") ?? null,
+    rg: pick(v, "rg") ?? null,
+    email: pick(v, "email") ?? null,
+    telefone: fmtTel(ddd, tel),
+    celular: fmtTel(dddCel, cel),
+    cidade: pick(v, "cidade", "cidade_associado") ?? null,
+    estado: pick(v, "estado", "uf") ?? null,
+    bairro: pick(v, "bairro") ?? null,
+    logradouro: pick(v, "logradouro", "endereco") ?? null,
+    cep: pick(v, "cep") ?? null,
+    regional: pick(v, "regional", "nome_regional", "descricao_regional", "codigo_regional") ?? null,
+    cooperativa: pick(v, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "codigo_cooperativa") ?? null,
+    situacao: pick(v, "descricao_situacao", "situacao", "situacao_associado") ?? null,
+    data_cadastro: pick(v, "data_cadastro") ?? null,
+    data_contrato: pick(v, "data_contrato") ?? null,
+    codigo_associado: pick(v, "codigo_associado") ?? null,
+    voluntario: pick(v, "nome_voluntario", "voluntario") ?? null,
   };
 };
 
@@ -130,8 +159,6 @@ serve(async (req) => {
     const cpf = onlyDigits(body.cpf);
     const nome = String(body.nome ?? "").trim();
     const meses = Math.min(Math.max(Number(body.meses) || 12, 1), 24);
-    // debug=true anexa o payload cru do 1o veiculo/boleto, para conferir nomes de campo
-    // da API sem ter que adivinhar no importador.
     const debug = body.debug === true;
 
     if (!placa && !cpf && !nome) {
@@ -157,7 +184,6 @@ serve(async (req) => {
      * contra a base local (cadastro) para obter placas, e cada placa vira uma
      * consulta direcionada ao vivo — restrita a associacao onde o nome bateu.
      */
-    // corretora_id -> placas a consultar. Vazio = consultar a associacao inteira pelo criterio direto.
     const placasPorCorretora = new Map<string, Set<string>>();
     let nomeSemMatchLocal = false;
     if (nome && !placa && !cpf) {
@@ -177,6 +203,32 @@ serve(async (req) => {
       }
       nomeSemMatchLocal = placasPorCorretora.size === 0;
     }
+
+    /**
+     * DIRECIONAMENTO por CPF/placa: usa a base local como indice para descobrir a(s)
+     * associacao(oes) dona(s) e consultar SO ela(s). Se nao achar nada local, cai no
+     * fallback (consulta todas). Escala para muitas associacoes sem perder resultado.
+     */
+    const corretorasDirecionadas = new Set<string>();
+    if (cpf || placa) {
+      let q = supabase
+        .from("cadastro_registros")
+        .select("cadastro_importacoes!inner(corretora_id, ativo)")
+        .eq("cadastro_importacoes.ativo", true)
+        .limit(50);
+      if (cpf) q = q.eq("cpf", cpf);
+      else if (placa) q = q.ilike("placa", placa);
+      const { data: locais } = await q;
+      for (const l of (locais || [])) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cid = (l as any).cadastro_importacoes?.corretora_id;
+        if (cid) corretorasDirecionadas.add(cid);
+      }
+    }
+    const direcionado = corretorasDirecionadas.size > 0;
+    const alvosParaConsultar = direcionado
+      ? alvos.filter((c) => corretorasDirecionadas.has(c.corretora_id))
+      : alvos;
 
     const consultar = async (c: typeof alvos[number]) => {
       const base = (c.api_base_url || "https://api.hinova.com.br/api/sga/v2").replace(/\/$/, "");
@@ -207,7 +259,19 @@ serve(async (req) => {
         if (placa) {
           achados = arrOf(await fetchJson(`${base}/veiculo/buscar/${placa}/placa`, { method: "GET", headers: H }));
         } else if (cpf) {
-          achados = arrOf(await fetchJson(`${base}/associado/buscar/${cpf}`, { method: "GET", headers: H }));
+          // A resposta de /associado/buscar/{cpf} vem como o ASSOCIADO com um array
+          // `veiculos` dentro. O arrOf antigo desembrulhava para os veiculos e perdia
+          // os campos do associado (nome/cpf/cidade). Aqui preservamos o associado e o
+          // anexamos em cada veiculo (__assoc) para o card exibir tudo.
+          const aj = await fetchJson(`${base}/associado/buscar/${cpf}`, { method: "GET", headers: H });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const assocObj: any = Array.isArray(aj) ? (aj[0] || null) : (aj?.associado || aj || null);
+          const veics = arrOf(aj, "veiculos");
+          if (veics.length > 0) {
+            achados = veics.map((v: any) => ({ ...v, __assoc: assocObj }));
+          } else if (assocObj && (pick(assocObj, "cpf", "cpf_cnpj", "documento") || pick(assocObj, "nome", "nome_associado"))) {
+            achados = [{ __assoc: assocObj }];
+          }
         } else if (nome) {
           const placasLocais = placasPorCorretora.get(c.corretora_id);
           if (!placasLocais || placasLocais.size === 0) {
@@ -224,9 +288,13 @@ serve(async (req) => {
         // ---- 2) So aqui (deu match) buscamos os detalhes ----
         const hoje = new Date();
         const inicio = addDays(hoje, -30 * meses);
-        const placasAchadas = new Set(achados.map((v) => normPlaca(v?.placa)).filter(Boolean));
-        const cpfsAchados = new Set(achados.map((v) => onlyDigits(v?.cpf)).filter(Boolean));
-        const codsAssoc = new Set(achados.map((v) => String(v?.codigo_associado ?? "")).filter(Boolean));
+        const placasAchadas = new Set(achados.map((v) => normPlaca(v?.placa ?? v?.__assoc?.placa)).filter(Boolean));
+        const cpfsAchados = new Set(
+          achados.map((v) => onlyDigits(v?.cpf ?? v?.__assoc?.cpf ?? v?.__assoc?.cpf_cnpj)).filter(Boolean),
+        );
+        const codsAssoc = new Set(
+          achados.map((v) => String(v?.codigo_associado ?? v?.__assoc?.codigo_associado ?? "")).filter(Boolean),
+        );
 
         const buscarBoletos = async () => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -336,11 +404,12 @@ serve(async (req) => {
         ]);
 
         for (const v of achados) {
+          const assocSrc = (v && v.__assoc) ? v.__assoc : v;
           resultados.push({
             associacao: nomeAssoc,
             sga_url: c.hinova_url ?? null,
             veiculo: debug ? { ...mapVeiculo(v), _raw: v } : mapVeiculo(v),
-            associado: mapAssociado(v),
+            associado: debug ? { ...mapAssociado(assocSrc), _raw: assocSrc } : mapAssociado(assocSrc),
             boletos,
             eventos,
             mgf,
@@ -354,8 +423,8 @@ serve(async (req) => {
       return { status, resultados };
     };
 
-    // Todas as associacoes em paralelo (antes era sequencial: ~10s -> ~2s)
-    const saidas = await Promise.all(alvos.map(consultar));
+    // Consulta so as associacoes direcionadas (ou todas, no fallback), em paralelo.
+    const saidas = await Promise.all(alvosParaConsultar.map(consultar));
     const resultados = saidas.flatMap((s) => s.resultados);
     const apis_ativas = saidas.map((s) => s.status).sort((a, b) => a.associacao.localeCompare(b.associacao));
 
@@ -363,6 +432,10 @@ serve(async (req) => {
       success: true,
       origem: "api",
       criterio: { placa: placa || null, cpf: cpf || null, nome: nome || null },
+      // Direcionamento: quantas associacoes foram realmente consultadas e se veio do indice local.
+      direcionado,
+      associacoes_consultadas: alvosParaConsultar.length,
+      associacoes_ativas: alvos.length,
       aviso: nome && nomeSemMatchLocal
         ? "A API da Hinova nao permite busca por nome. Nenhum cadastro local bateu com esse nome, entao nao houve o que consultar ao vivo. Tente por placa ou CPF."
         : (nome ? "A API da Hinova nao permite busca por nome: o nome foi resolvido na base local e as placas encontradas foram consultadas ao vivo." : null),
