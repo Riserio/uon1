@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,15 @@ interface ApiStatus {
   cobranca: { status: string | null; erro: string | null; origem: string | null };
   eventos: { status: string | null; erro: string | null; origem: string | null };
   mgf: { status: string | null; erro: string | null; origem: string | null };
+}
+
+// Estado dos detalhes (boletos/eventos/MGF) carregados SOB DEMANDA por resultado.
+interface DetalheState {
+  loading: boolean;
+  carregado: boolean;
+  boletos: any[];
+  eventos: any[];
+  mgf: any[];
 }
 
 const fmtMoeda = (v: any) =>
@@ -113,6 +122,10 @@ export default function SGABusca() {
     aviso?: string | null;
   } | null>(null);
 
+  // Detalhes carregados sob demanda (por índice de resultado).
+  const [detalhes, setDetalhes] = useState<Record<number, DetalheState>>({});
+  const carregandoRef = useRef<Set<number>>(new Set());
+
   // Logos das associações (corretoras) para exibir no cabeçalho do resultado
   const [logos, setLogos] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -144,14 +157,18 @@ export default function SGABusca() {
     }
     setLoading(true);
     setResult(null);
+    setDetalhes({});
+    carregandoRef.current.clear();
     try {
-      // Consulta AO VIVO na API da Hinova (antes isso batia numa RPC que so lia
-      // tabelas locais, por isso a tela nunca achava quem nao estava na base importada).
+      // Busca RÁPIDA: só o card (associado + veículo). Boletos/Eventos/MGF são
+      // caros na Hinova e agora carregam sob demanda (quando o usuário abre a
+      // seção), evitando a espera longa no resultado inicial.
       const { data, error } = await supabase.functions.invoke("consultar-associado-hinova", {
         body: {
           placa: tipo === "placa" ? t : undefined,
           cpf: tipo === "cpf" ? t.replace(/\D/g, "") : undefined,
           nome: tipo === "nome" ? t : undefined,
+          detalhes: false,
         },
       });
       if (error) throw error;
@@ -165,6 +182,51 @@ export default function SGABusca() {
       setResult({ total: 0, resultados: [], apis_ativas: [] });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Carrega Boletos/Eventos/MGF de UM resultado, ao vivo na Hinova, só quando
+  // o usuário abre alguma dessas seções. Uma chamada preenche as três.
+  const carregarDetalhes = async (i: number, d: Resultado) => {
+    if (detalhes[i]?.carregado || carregandoRef.current.has(i)) return;
+    carregandoRef.current.add(i);
+    setDetalhes((prev) => ({
+      ...prev,
+      [i]: { loading: true, carregado: false, boletos: [], eventos: [], mgf: [] },
+    }));
+    try {
+      const cpfDigits = d.associado?.cpf ? String(d.associado.cpf).replace(/\D/g, "") : "";
+      const placa = d.veiculo?.placa ? String(d.veiculo.placa) : "";
+      const body: Record<string, any> = { detalhes: true };
+      if (cpfDigits) body.cpf = cpfDigits;
+      else if (placa) body.placa = placa;
+      const { data, error } = await supabase.functions.invoke("consultar-associado-hinova", { body });
+      if (error) throw error;
+      const r = data as any;
+      const match =
+        (r?.resultados || []).find(
+          (x: any) =>
+            String(x.veiculo?.placa || "").toUpperCase() === String(d.veiculo?.placa || "").toUpperCase() &&
+            String(x.associacao || "") === String(d.associacao || ""),
+        ) || (r?.resultados || [])[0];
+      setDetalhes((prev) => ({
+        ...prev,
+        [i]: {
+          loading: false,
+          carregado: true,
+          boletos: match?.boletos || [],
+          eventos: match?.eventos || [],
+          mgf: match?.mgf || [],
+        },
+      }));
+    } catch (e) {
+      toast.error("Não foi possível carregar os detalhes.");
+      setDetalhes((prev) => ({
+        ...prev,
+        [i]: { loading: false, carregado: true, boletos: [], eventos: [], mgf: [] },
+      }));
+    } finally {
+      carregandoRef.current.delete(i);
     }
   };
 
@@ -195,6 +257,7 @@ export default function SGABusca() {
                     setTipo(t.id);
                     setTermo("");
                     setResult(null);
+                    setDetalhes({});
                   }}
                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                     tipo === t.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground hover:bg-muted/70"
@@ -252,8 +315,9 @@ export default function SGABusca() {
             </div>
           ) : (
             result.resultados.map((d, i) => {
-              const mgfFiltrado = (d.mgf || []).filter((m: any) => dentroDosUltimos12Meses(m.vencimento));
-              const eventosFiltrados = (d.eventos || []).filter((e: any) => dentroDosUltimos12Meses(e.data));
+              const det = detalhes[i];
+              const mgfFiltrado = (det?.mgf || []).filter((m: any) => dentroDosUltimos12Meses(m.vencimento));
+              const eventosFiltrados = (det?.eventos || []).filter((e: any) => dentroDosUltimos12Meses(e.data));
               const logoUrl =
                 logos[
                   String(d.associacao || "")
@@ -357,7 +421,9 @@ export default function SGABusca() {
                     <ListTable
                       titulo="Boletos / Cobrança"
                       icon={<Receipt className="h-4 w-4" />}
-                      rows={d.boletos}
+                      rows={det?.boletos || []}
+                      loading={det?.loading}
+                      onOpen={() => carregarDetalhes(i, d)}
                       collapsible
                       defaultOpen={false}
                       cols={[
@@ -372,6 +438,8 @@ export default function SGABusca() {
                       titulo="Eventos / Vistorias (SGA)"
                       icon={<ShieldAlert className="h-4 w-4" />}
                       rows={eventosFiltrados}
+                      loading={det?.loading}
+                      onOpen={() => carregarDetalhes(i, d)}
                       subtitulo="últimos 12 meses"
                       collapsible
                       defaultOpen={false}
@@ -389,6 +457,8 @@ export default function SGABusca() {
                       titulo="Lançamentos Financeiros (MGF)"
                       icon={<DollarSign className="h-4 w-4" />}
                       rows={mgfFiltrado}
+                      loading={det?.loading}
+                      onOpen={() => carregarDetalhes(i, d)}
                       subtitulo="últimos 12 meses"
                       collapsible
                       defaultOpen={false}
@@ -454,6 +524,8 @@ function ListTable({
   subtitulo,
   collapsible,
   defaultOpen,
+  onOpen,
+  loading,
 }: {
   titulo: string;
   icon: React.ReactNode;
@@ -462,6 +534,8 @@ function ListTable({
   subtitulo?: string;
   collapsible?: boolean;
   defaultOpen?: boolean;
+  onOpen?: () => void;
+  loading?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? true);
   const header = (
@@ -469,8 +543,7 @@ function ListTable({
       {icon}
       {titulo}{" "}
       <span className="text-xs text-muted-foreground font-normal">
-        ({rows.length}
-        {subtitulo ? ` • ${subtitulo}` : ""})
+        {loading ? "(carregando…)" : `(${rows.length}${subtitulo ? ` • ${subtitulo}` : ""})`}
       </span>
       {collapsible && (
         <ChevronDown
@@ -479,35 +552,38 @@ function ListTable({
       )}
     </div>
   );
-  const content =
-    rows.length === 0 ? (
-      <p className="px-3 py-3 text-xs text-muted-foreground">Sem registros.</p>
-    ) : (
-      <div className="overflow-x-auto max-h-72">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-card">
-            <tr className="text-left text-muted-foreground">
+  const content = loading ? (
+    <p className="px-3 py-3 text-xs text-muted-foreground flex items-center gap-2">
+      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando ao vivo no SGA…
+    </p>
+  ) : rows.length === 0 ? (
+    <p className="px-3 py-3 text-xs text-muted-foreground">Sem registros.</p>
+  ) : (
+    <div className="overflow-x-auto max-h-72">
+      <table className="w-full text-xs">
+        <thead className="sticky top-0 bg-card">
+          <tr className="text-left text-muted-foreground">
+            {cols.map((c) => (
+              <th key={c.h} className="px-3 py-2 font-medium whitespace-nowrap">
+                {c.h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} className={`border-t border-border/50 ${i % 2 ? "bg-muted/20" : ""}`}>
               {cols.map((c) => (
-                <th key={c.h} className="px-3 py-2 font-medium whitespace-nowrap">
-                  {c.h}
-                </th>
+                <td key={c.h} className="px-3 py-1.5 whitespace-nowrap">
+                  {c.r(row)}
+                </td>
               ))}
             </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i} className={`border-t border-border/50 ${i % 2 ? "bg-muted/20" : ""}`}>
-                {cols.map((c) => (
-                  <td key={c.h} className="px-3 py-1.5 whitespace-nowrap">
-                    {c.r(row)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
   if (!collapsible) {
     return (
       <div className="rounded-lg border overflow-hidden">
@@ -517,7 +593,14 @@ function ListTable({
     );
   }
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border overflow-hidden">
+    <Collapsible
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) onOpen?.();
+      }}
+      className="rounded-lg border overflow-hidden"
+    >
       <CollapsibleTrigger asChild>
         <button type="button" className="w-full text-left">
           {header}
