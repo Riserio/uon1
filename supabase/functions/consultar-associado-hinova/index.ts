@@ -218,24 +218,41 @@ serve(async (req) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const localPorCpf = new Map<string, any>();
     if (cpf || placa) {
+      // Busca em TODAS as importacoes (nao so a ativa): assim, se a base ativa
+      // perdeu algum campo (ex.: cooperativa/regional vindo NULL), ele ainda e
+      // recuperado de uma importacao anterior que o tinha.
       let q = supabase
         .from("cadastro_registros")
-        .select("nome, cpf, placa, chassi, marca_veiculo, modelo_veiculo, ano_veiculo, situacao, regional, cooperativa, cidade, estado, valor_protegido, data_cadastro, data_adesao, cadastro_importacoes!inner(corretora_id, ativo)")
-        .eq("cadastro_importacoes.ativo", true)
-        .limit(50);
+        .select("nome, cpf, placa, chassi, marca_veiculo, modelo_veiculo, ano_veiculo, situacao, regional, cooperativa, cidade, estado, valor_protegido, data_cadastro, data_adesao, cadastro_importacoes!inner(corretora_id, ativo, created_at)")
+        .limit(300);
       if (cpf) q = q.eq("cpf", cpf);
       else if (placa) q = q.ilike("placa", placa);
       const { data: locais } = await q;
-      for (const l of (locais || [])) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const cid = (l as any).cadastro_importacoes?.corretora_id;
-        if (cid) corretorasDirecionadas.add(cid);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const pk = normPlaca((l as any).placa);
-        if (pk) localPorPlaca.set(pk, l);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ck = onlyDigits((l as any).cpf);
-        if (ck) localPorCpf.set(ck, l);
+      // Ordena: base ATIVA primeiro, depois a mais recente. O merge abaixo pega o
+      // primeiro valor nao-nulo de cada campo nessa ordem (ativa/recente vence).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ordenados = ((locais || []) as any[]).slice().sort((a, b) => {
+        const aa = a.cadastro_importacoes?.ativo ? 1 : 0;
+        const bb = b.cadastro_importacoes?.ativo ? 1 : 0;
+        if (aa !== bb) return bb - aa;
+        return String(b.cadastro_importacoes?.created_at || "").localeCompare(String(a.cadastro_importacoes?.created_at || ""));
+      });
+      const CAMPOS = ["nome", "cpf", "placa", "chassi", "marca_veiculo", "modelo_veiculo", "ano_veiculo", "situacao", "regional", "cooperativa", "cidade", "estado", "valor_protegido", "data_cadastro", "data_adesao"];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mergeInto = (map: Map<string, any>, key: string, row: any) => {
+        if (!key) return;
+        const cur = map.get(key) || {};
+        for (const f of CAMPOS) {
+          if ((cur[f] == null || cur[f] === "") && row[f] != null && row[f] !== "") cur[f] = row[f];
+        }
+        map.set(key, cur);
+      };
+      for (const l of ordenados) {
+        const cid = l.cadastro_importacoes?.corretora_id;
+        // Direcionamento so considera a base ATIVA (onde o registro esta hoje).
+        if (cid && l.cadastro_importacoes?.ativo) corretorasDirecionadas.add(cid);
+        mergeInto(localPorPlaca, normPlaca(l.placa), l);
+        mergeInto(localPorCpf, onlyDigits(l.cpf), l);
       }
     }
     const direcionado = corretorasDirecionadas.size > 0;
@@ -433,6 +450,8 @@ serve(async (req) => {
             veic.cooperativa = veic.cooperativa ?? loc.cooperativa ?? null;
             veic.valor_protegido = veic.valor_protegido ?? loc.valor_protegido ?? null;
             veic.situacao = veic.situacao ?? loc.situacao ?? null;
+            veic.cidade = veic.cidade ?? loc.cidade ?? null;
+            veic.estado = veic.estado ?? loc.estado ?? null;
             assoc.nome = assoc.nome ?? loc.nome ?? null;
             assoc.cpf = assoc.cpf ?? loc.cpf ?? null;
             assoc.cidade = assoc.cidade ?? loc.cidade ?? null;
