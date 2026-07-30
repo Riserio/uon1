@@ -292,7 +292,15 @@ export default function SGABusca() {
       {loading && (
         <div className="text-center py-12 text-muted-foreground">
           <Loader2 className="h-7 w-7 mx-auto animate-spin mb-2" />
-          Consultando o SGA nas associações...
+          <LoadingSteps
+            steps={[
+              "Buscando na base de dados…",
+              "Localizando a associação…",
+              "Consultando o SGA (status ao vivo)…",
+              "Informações encontradas — organizando…",
+              "Preparando para exibir…",
+            ]}
+          />
         </div>
       )}
 
@@ -423,6 +431,12 @@ export default function SGABusca() {
                       icon={<Receipt className="h-4 w-4" />}
                       rows={det?.boletos || []}
                       loading={det?.loading}
+                      loadingSteps={[
+                        `Conectando ao SGA da ${d.associacao}…`,
+                        "Baixando boletos…",
+                        "Filtrando por período…",
+                        "Organizando…",
+                      ]}
                       onOpen={() => carregarDetalhes(i, d)}
                       collapsible
                       defaultOpen={false}
@@ -439,6 +453,12 @@ export default function SGABusca() {
                       icon={<ShieldAlert className="h-4 w-4" />}
                       rows={eventosFiltrados}
                       loading={det?.loading}
+                      loadingSteps={[
+                        `Conectando ao SGA da ${d.associacao}…`,
+                        "Baixando eventos/vistorias…",
+                        "Filtrando últimos 12 meses…",
+                        "Organizando…",
+                      ]}
                       onOpen={() => carregarDetalhes(i, d)}
                       subtitulo="últimos 12 meses"
                       collapsible
@@ -458,6 +478,12 @@ export default function SGABusca() {
                       icon={<DollarSign className="h-4 w-4" />}
                       rows={mgfFiltrado}
                       loading={det?.loading}
+                      loadingSteps={[
+                        `Conectando ao SGA da ${d.associacao}…`,
+                        "Baixando lançamentos (MGF)…",
+                        "Filtrando últimos 12 meses…",
+                        "Organizando…",
+                      ]}
                       onOpen={() => carregarDetalhes(i, d)}
                       subtitulo="últimos 12 meses"
                       collapsible
@@ -481,6 +507,26 @@ export default function SGABusca() {
       )}
     </div>
   );
+}
+
+// Mostra uma sequencia de mensagens de progresso (avanca no tempo e trava na
+// ultima), pra dar sensacao de andamento durante a espera do SGA.
+function LoadingSteps({
+  steps,
+  intervalMs = 1400,
+  className = "text-sm",
+}: {
+  steps: string[];
+  intervalMs?: number;
+  className?: string;
+}) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    setIdx(0);
+    const id = setInterval(() => setIdx((i) => (i < steps.length - 1 ? i + 1 : i)), intervalMs);
+    return () => clearInterval(id);
+  }, [steps.join("|"), intervalMs]);
+  return <span className={className}>{steps[idx]}</span>;
 }
 
 function KeyValueTable({
@@ -526,6 +572,7 @@ function ListTable({
   defaultOpen,
   onOpen,
   loading,
+  loadingSteps,
 }: {
   titulo: string;
   icon: React.ReactNode;
@@ -536,6 +583,7 @@ function ListTable({
   defaultOpen?: boolean;
   onOpen?: () => void;
   loading?: boolean;
+  loadingSteps?: string[];
 }) {
   const [open, setOpen] = useState(defaultOpen ?? true);
   const header = (
@@ -554,7 +602,12 @@ function ListTable({
   );
   const content = loading ? (
     <p className="px-3 py-3 text-xs text-muted-foreground flex items-center gap-2">
-      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando ao vivo no SGA…
+      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      {loadingSteps && loadingSteps.length > 0 ? (
+        <LoadingSteps steps={loadingSteps} className="text-xs" />
+      ) : (
+        "Carregando ao vivo no SGA…"
+      )}
     </p>
   ) : rows.length === 0 ? (
     <p className="px-3 py-3 text-xs text-muted-foreground">Sem registros.</p>
