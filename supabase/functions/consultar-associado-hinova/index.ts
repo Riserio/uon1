@@ -210,10 +210,17 @@ serve(async (req) => {
      * fallback (consulta todas). Escala para muitas associacoes sem perder resultado.
      */
     const corretorasDirecionadas = new Set<string>();
+    // Dados da base local (importacao ativa) para ENRIQUECER o resultado do SGA:
+    // preenchem os campos que a API ao vivo nao devolve (marca, modelo, ano,
+    // regional, cooperativa, cidade...). Indexados por placa e por CPF.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const localPorPlaca = new Map<string, any>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const localPorCpf = new Map<string, any>();
     if (cpf || placa) {
       let q = supabase
         .from("cadastro_registros")
-        .select("cadastro_importacoes!inner(corretora_id, ativo)")
+        .select("nome, cpf, placa, chassi, marca_veiculo, modelo_veiculo, ano_veiculo, situacao, regional, cooperativa, cidade, estado, valor_protegido, data_cadastro, data_adesao, cadastro_importacoes!inner(corretora_id, ativo)")
         .eq("cadastro_importacoes.ativo", true)
         .limit(50);
       if (cpf) q = q.eq("cpf", cpf);
@@ -223,6 +230,12 @@ serve(async (req) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cid = (l as any).cadastro_importacoes?.corretora_id;
         if (cid) corretorasDirecionadas.add(cid);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pk = normPlaca((l as any).placa);
+        if (pk) localPorPlaca.set(pk, l);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ck = onlyDigits((l as any).cpf);
+        if (ck) localPorCpf.set(ck, l);
       }
     }
     const direcionado = corretorasDirecionadas.size > 0;
@@ -405,11 +418,36 @@ serve(async (req) => {
 
         for (const v of achados) {
           const assocSrc = (v && v.__assoc) ? v.__assoc : v;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const veic: any = mapVeiculo(v);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const assoc: any = mapAssociado(assocSrc);
+          // ENRIQUECIMENTO: preenche SO os campos vazios com a base local importada.
+          // O SGA e a fonte ao vivo (status); a base local completa o que a API nao traz.
+          const loc = localPorPlaca.get(normPlaca(veic.placa)) || localPorCpf.get(onlyDigits(assoc.cpf)) || null;
+          if (loc) {
+            veic.marca = veic.marca ?? loc.marca_veiculo ?? null;
+            veic.modelo = veic.modelo ?? loc.modelo_veiculo ?? null;
+            if (veic.ano_modelo == null && veic.ano_fabricacao == null && loc.ano_veiculo != null) veic.ano_modelo = loc.ano_veiculo;
+            veic.regional = veic.regional ?? loc.regional ?? null;
+            veic.cooperativa = veic.cooperativa ?? loc.cooperativa ?? null;
+            veic.valor_protegido = veic.valor_protegido ?? loc.valor_protegido ?? null;
+            veic.situacao = veic.situacao ?? loc.situacao ?? null;
+            assoc.nome = assoc.nome ?? loc.nome ?? null;
+            assoc.cpf = assoc.cpf ?? loc.cpf ?? null;
+            assoc.cidade = assoc.cidade ?? loc.cidade ?? null;
+            assoc.estado = assoc.estado ?? loc.estado ?? null;
+            assoc.regional = assoc.regional ?? loc.regional ?? null;
+            assoc.cooperativa = assoc.cooperativa ?? loc.cooperativa ?? null;
+            assoc.situacao = assoc.situacao ?? loc.situacao ?? null;
+            assoc.data_cadastro = assoc.data_cadastro ?? loc.data_cadastro ?? null;
+          }
           resultados.push({
             associacao: nomeAssoc,
             sga_url: c.hinova_url ?? null,
-            veiculo: debug ? { ...mapVeiculo(v), _raw: v } : mapVeiculo(v),
-            associado: debug ? { ...mapAssociado(assocSrc), _raw: assocSrc } : mapAssociado(assocSrc),
+            origem_dados: loc ? "sga+local" : "sga",
+            veiculo: debug ? { ...veic, _raw: v } : veic,
+            associado: debug ? { ...assoc, _raw: assocSrc } : assoc,
             boletos,
             eventos,
             mgf,
