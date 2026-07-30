@@ -21,6 +21,8 @@ import {
   CheckCircle2,
   XCircle,
   ChevronDown,
+  RefreshCw,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -230,6 +232,12 @@ export default function SGABusca() {
     }
   };
 
+  // Dispara a consulta ao vivo avisando que pode demorar.
+  const consultarAoVivo = (i: number, d: Resultado) => {
+    toast.info("Consultando ao vivo no SGA — pode levar até ~1 min. Pode continuar aguardando.", { duration: 6000 });
+    carregarDetalhes(i, d);
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <PageHeader
@@ -324,8 +332,13 @@ export default function SGABusca() {
           ) : (
             result.resultados.map((d, i) => {
               const det = detalhes[i];
-              const mgfFiltrado = (det?.mgf || []).filter((m: any) => dentroDosUltimos12Meses(m.vencimento));
-              const eventosFiltrados = (det?.eventos || []).filter((e: any) => dentroDosUltimos12Meses(e.data));
+              const aoVivo = !!det?.carregado;
+              const fonteLabel = aoVivo ? "ao vivo (SGA)" : "do banco";
+              const boletosRows = aoVivo ? det!.boletos || [] : d.boletos || [];
+              const eventosBase = aoVivo ? det!.eventos || [] : d.eventos || [];
+              const mgfBase = aoVivo ? det!.mgf || [] : d.mgf || [];
+              const mgfFiltrado = mgfBase.filter((m: any) => dentroDosUltimos12Meses(m.vencimento));
+              const eventosFiltrados = eventosBase.filter((e: any) => dentroDosUltimos12Meses(e.data));
               const logoUrl =
                 logos[
                   String(d.associacao || "")
@@ -429,7 +442,7 @@ export default function SGABusca() {
                     <ListTable
                       titulo="Boletos / Cobrança"
                       icon={<Receipt className="h-4 w-4" />}
-                      rows={det?.boletos || []}
+                      rows={boletosRows}
                       loading={det?.loading}
                       loadingSteps={[
                         `Conectando ao SGA da ${d.associacao}…`,
@@ -437,7 +450,9 @@ export default function SGABusca() {
                         "Filtrando por período…",
                         "Organizando…",
                       ]}
-                      onOpen={() => carregarDetalhes(i, d)}
+                      sourceLabel={fonteLabel}
+                      onAoVivo={aoVivo ? undefined : () => consultarAoVivo(i, d)}
+                      aoVivoLoading={det?.loading}
                       collapsible
                       defaultOpen={false}
                       cols={[
@@ -459,7 +474,9 @@ export default function SGABusca() {
                         "Filtrando últimos 12 meses…",
                         "Organizando…",
                       ]}
-                      onOpen={() => carregarDetalhes(i, d)}
+                      sourceLabel={fonteLabel}
+                      onAoVivo={aoVivo ? undefined : () => consultarAoVivo(i, d)}
+                      aoVivoLoading={det?.loading}
                       subtitulo="últimos 12 meses"
                       collapsible
                       defaultOpen={false}
@@ -484,7 +501,9 @@ export default function SGABusca() {
                         "Filtrando últimos 12 meses…",
                         "Organizando…",
                       ]}
-                      onOpen={() => carregarDetalhes(i, d)}
+                      sourceLabel={fonteLabel}
+                      onAoVivo={aoVivo ? undefined : () => consultarAoVivo(i, d)}
+                      aoVivoLoading={det?.loading}
                       subtitulo="últimos 12 meses"
                       collapsible
                       defaultOpen={false}
@@ -573,6 +592,9 @@ function ListTable({
   onOpen,
   loading,
   loadingSteps,
+  sourceLabel,
+  onAoVivo,
+  aoVivoLoading,
 }: {
   titulo: string;
   icon: React.ReactNode;
@@ -584,6 +606,9 @@ function ListTable({
   onOpen?: () => void;
   loading?: boolean;
   loadingSteps?: string[];
+  sourceLabel?: string;
+  onAoVivo?: () => void;
+  aoVivoLoading?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? true);
   const header = (
@@ -609,33 +634,56 @@ function ListTable({
         "Carregando ao vivo no SGA…"
       )}
     </p>
-  ) : rows.length === 0 ? (
-    <p className="px-3 py-3 text-xs text-muted-foreground">Sem registros.</p>
   ) : (
-    <div className="overflow-x-auto max-h-72">
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-card">
-          <tr className="text-left text-muted-foreground">
-            {cols.map((c) => (
-              <th key={c.h} className="px-3 py-2 font-medium whitespace-nowrap">
-                {c.h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className={`border-t border-border/50 ${i % 2 ? "bg-muted/20" : ""}`}>
-              {cols.map((c) => (
-                <td key={c.h} className="px-3 py-1.5 whitespace-nowrap">
-                  {c.r(row)}
-                </td>
+    <>
+      {(sourceLabel || onAoVivo) && (
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-muted/20 border-b border-border/50 text-[11px]">
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <Database className="h-3 w-3" />
+            Fonte: <span className="font-semibold text-foreground">{sourceLabel || "—"}</span>
+          </span>
+          {onAoVivo && (
+            <button
+              type="button"
+              onClick={onAoVivo}
+              disabled={aoVivoLoading}
+              className="inline-flex items-center gap-1 text-primary hover:underline disabled:opacity-50"
+            >
+              {aoVivoLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              Consultar ao vivo no SGA
+            </button>
+          )}
+        </div>
+      )}
+      {rows.length === 0 ? (
+        <p className="px-3 py-3 text-xs text-muted-foreground">Sem registros.</p>
+      ) : (
+        <div className="overflow-x-auto max-h-72">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-card">
+              <tr className="text-left text-muted-foreground">
+                {cols.map((c) => (
+                  <th key={c.h} className="px-3 py-2 font-medium whitespace-nowrap">
+                    {c.h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} className={`border-t border-border/50 ${i % 2 ? "bg-muted/20" : ""}`}>
+                  {cols.map((c) => (
+                    <td key={c.h} className="px-3 py-1.5 whitespace-nowrap">
+                      {c.r(row)}
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
   if (!collapsible) {
     return (
