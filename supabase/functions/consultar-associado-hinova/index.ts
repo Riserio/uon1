@@ -498,6 +498,66 @@ serve(async (req) => {
     const resultados = saidas.flatMap((s) => s.resultados);
     const apis_ativas = saidas.map((s) => s.status).sort((a, b) => a.associacao.localeCompare(b.associacao));
 
+    // Detalhes "DO BANCO": no modo card (detalhes=false), preenche
+    // boletos/eventos/MGF com o que ja temos importado localmente (instantaneo).
+    // A tela mostra isso rotulado como "do banco" e oferece um botao para
+    // atualizar ao vivo no SGA sob demanda. No modo detalhes=true, os dados ja
+    // vem ao vivo (buscados na Hinova pelo consultar()).
+    if (!detalhes) {
+      await Promise.all(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        resultados.map(async (res: any) => {
+          res.origem_detalhes = "banco";
+          const placaR = normPlaca(res?.veiculo?.placa);
+          if (!placaR) return;
+          const [bl, ev, mg] = await Promise.all([
+            supabase
+              .from("cobranca_boletos_ativos")
+              .select("data_vencimento, valor, situacao, data_pagamento")
+              .ilike("placas", `%${placaR}%`)
+              .limit(100),
+            supabase
+              .from("sga_eventos_ativos")
+              .select("data_evento, tipo_evento, motivo_evento, situacao_evento, protocolo, valor_reparo")
+              .ilike("placa", placaR)
+              .limit(100),
+            supabase
+              .from("mgf_dados_ativos")
+              .select("data_vencimento, operacao, descricao, valor, situacao_pagamento")
+              .ilike("placa", placaR)
+              .limit(100),
+          ]);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          res.boletos = (bl.data || []).map((b: any) => ({
+            vencimento: b.data_vencimento,
+            valor: b.valor,
+            situacao: b.situacao,
+            pagamento: b.data_pagamento,
+          }));
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          res.eventos = (ev.data || []).map((e: any) => ({
+            data: e.data_evento,
+            tipo: e.tipo_evento,
+            motivo: e.motivo_evento,
+            situacao: e.situacao_evento,
+            protocolo: e.protocolo,
+            valor_reparo: e.valor_reparo,
+          }));
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          res.mgf = (mg.data || []).map((m: any) => ({
+            vencimento: m.data_vencimento,
+            operacao: m.operacao,
+            descricao: m.descricao,
+            valor: m.valor,
+            situacao: m.situacao_pagamento,
+          }));
+        }),
+      );
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      resultados.forEach((res: any) => (res.origem_detalhes = "sga"));
+    }
+
     return new Response(JSON.stringify({
       success: true,
       origem: "api",
