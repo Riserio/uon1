@@ -160,6 +160,10 @@ serve(async (req) => {
     const nome = String(body.nome ?? "").trim();
     const meses = Math.min(Math.max(Number(body.meses) || 12, 1), 24);
     const debug = body.debug === true;
+    // detalhes=false (padrao): retorna SO o card (associado + veiculo), rapido.
+    // detalhes=true: busca tambem boletos/eventos/MGF (sob demanda, quando o
+    // usuario abre a secao na tela). Evita 30-60s de espera no card inicial.
+    const detalhes = body.detalhes === true;
 
     if (!placa && !cpf && !nome) {
       return new Response(JSON.stringify({ success: false, message: "Informe placa, CPF ou nome" }), {
@@ -424,14 +428,23 @@ serve(async (req) => {
           return out;
         };
 
-        const [boletos, eventos, mgf] = await Promise.all([
-          buscarBoletos().then((r) => { status.cobranca.status = "sucesso"; return r; })
-            .catch((e) => { status.cobranca.status = "erro"; status.cobranca.erro = String(e?.message ?? e); return []; }),
-          buscarEventos().then((r) => { status.eventos.status = "sucesso"; return r; })
-            .catch((e) => { status.eventos.status = "erro"; status.eventos.erro = String(e?.message ?? e); return []; }),
-          buscarMgf().then((r) => { status.mgf.status = "sucesso"; return r; })
-            .catch((e) => { status.mgf.status = "erro"; status.mgf.erro = String(e?.message ?? e); return []; }),
-        ]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let boletos: any[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let eventos: any[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let mgf: any[] = [];
+        // So busca os detalhes (caros: varrem meses na Hinova) quando pedidos.
+        if (detalhes) {
+          [boletos, eventos, mgf] = await Promise.all([
+            buscarBoletos().then((r) => { status.cobranca.status = "sucesso"; return r; })
+              .catch((e) => { status.cobranca.status = "erro"; status.cobranca.erro = String(e?.message ?? e); return []; }),
+            buscarEventos().then((r) => { status.eventos.status = "sucesso"; return r; })
+              .catch((e) => { status.eventos.status = "erro"; status.eventos.erro = String(e?.message ?? e); return []; }),
+            buscarMgf().then((r) => { status.mgf.status = "sucesso"; return r; })
+              .catch((e) => { status.mgf.status = "erro"; status.mgf.erro = String(e?.message ?? e); return []; }),
+          ]);
+        }
 
         for (const v of achados) {
           const assocSrc = (v && v.__assoc) ? v.__assoc : v;
