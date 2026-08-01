@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings } from "lucide-react";
+import { Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODULE_CONFIG, PortalModule } from "@/lib/portalModules";
 import { usePortalFavoritos } from "@/hooks/usePortalFavoritos";
 import { usePortalCarouselOptional } from "@/contexts/PortalCarouselContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import PortalMobileSettingsSheet from "./PortalMobileSettingsSheet";
 
 type Corretora = {
@@ -25,11 +26,14 @@ type Props = {
   force?: boolean;
 };
 
-// Barra flutuante estilo Instagram, responsiva: compacta e centralizada no
-// mobile (4 favoritos + Ajustes), mais larga e distribuída no desktop, onde
-// por padrão exibe TODOS os módulos disponíveis — mas segue editável (o
-// usuário pode ocultar alguns pelo botão de Configurações). As duas listas
-// são independentes (chaves distintas no localStorage).
+// Cor de destaque (laranja da marca) usada no item ativo.
+const ACCENT = "#FF6B1A";
+
+// Barra flutuante moderna estilo "pill": só ícones, item ativo num círculo
+// laranja preenchido, tooltip com o nome ao passar o mouse, e um botão de
+// sair separado por um divisor. Responsiva: mobile mostra os favoritos
+// (default = primeiros 4), desktop mostra todos os módulos disponíveis
+// (editável pelo botão de Configurações). As duas listas são independentes.
 export default function PortalMobileNav({
   corretora,
   currentModule,
@@ -43,9 +47,6 @@ export default function PortalMobileNav({
   const navigate = useNavigate();
   const carousel = usePortalCarouselOptional();
   const assocKey = corretora.slug || corretora.id;
-  // Mobile: 4 favoritos (default = primeiros 4). Desktop: todos os módulos
-  // por padrão, editável, sem limite. Os dois hooks rodam sempre (nada de
-  // hook condicional); só a lista usada muda conforme o tamanho de tela.
   const mobileFav = usePortalFavoritos(corretora.id, availableModules);
   const desktopNav = usePortalFavoritos(corretora.id, availableModules, {
     storageKeyPrefix: "portal-nav-desktop",
@@ -66,23 +67,55 @@ export default function PortalMobileNav({
     }
   };
 
+  // Botão-ícone com tooltip. Círculo preenchido em laranja quando ativo.
+  const IconButton = ({
+    label,
+    active,
+    danger,
+    onClick,
+    children,
+  }: {
+    label: string;
+    active?: boolean;
+    danger?: boolean;
+    onClick: () => void;
+    children: React.ReactNode;
+  }) => (
+    <Tooltip delayDuration={120}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={label}
+          aria-current={active ? "page" : undefined}
+          className="shrink-0 rounded-full transition-transform active:scale-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B1A]/50"
+        >
+          <span
+            className={cn(
+              "flex items-center justify-center h-11 w-11 rounded-full transition-all duration-200",
+              active
+                ? "text-white shadow-md"
+                : danger
+                  ? "text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+            style={active ? { backgroundColor: ACCENT, boxShadow: `0 6px 16px -4px ${ACCENT}66` } : undefined}
+          >
+            {children}
+          </span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={8}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+
   return (
     <>
-      {/* Mobile: pill compacta e centralizada, com botões de largura fixa
-          (w-14) para não estourar a tela. Desktop: barra mais larga, com
-          max-width sensato, distribuindo os 5 itens ao longo da largura
-          disponível sem colar nas bordas. */}
-      {/* pointer-events-none no container só serve pra caso alguma página
-          coloque um overlay full-screen — os botões dentro do <nav> reativam
-          eventos com pointer-events-auto. isolate cria stacking context próprio
-          pra que nenhuma section com z-index dentro das páginas fique acima. */}
-      {/* Fundo 100% opaco (sem transparência/blur): com bg-card/95 + blur, o
-          conteúdo da página (ex.: as abas Financeiro/Permanência) passando
-          atrás durante o scroll ficava visível por trás da pill, dando a
-          impressão de uma segunda barra colada/vazamento. */}
       <nav
-        className="fixed bottom-3 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border/70 shadow-[0_8px_30px_-6px_rgba(0,0,0,0.18)] px-2 md:px-3 lg:px-5 flex items-center justify-center md:justify-between gap-0.5 md:gap-1.5 lg:gap-3 w-fit max-w-[calc(100vw-1.5rem)] md:w-full md:max-w-4xl lg:max-w-5xl pointer-events-auto"
-        style={{ paddingTop: "0.4rem", paddingBottom: "0.4rem" }}
+        className="fixed bottom-4 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border/70 shadow-[0_10px_30px_-8px_rgba(0,0,0,0.22)] px-2.5 py-2 flex items-center gap-1 w-fit max-w-[calc(100vw-1.5rem)] pointer-events-auto"
+        style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))" }}
       >
         {favoritos.map((mod) => {
           const cfg = MODULE_CONFIG[mod];
@@ -90,43 +123,21 @@ export default function PortalMobileNav({
           const Icon = cfg.icon;
           const isActive = mod === currentModule;
           return (
-            <button
-              key={mod}
-              onClick={() => handleNav(mod)}
-              aria-current={isActive ? "page" : undefined}
-              className="group flex flex-col items-center justify-center gap-1 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1 landscape:py-0.5 rounded-2xl transition-transform active:scale-90"
-            >
-              <span
-                className={cn(
-                  "flex items-center justify-center h-9 w-9 rounded-xl transition-all duration-200",
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground group-hover:bg-muted group-hover:text-foreground"
-                )}
-              >
-                <Icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "scale-110")} />
-              </span>
-              <span
-                className={cn(
-                  "text-[9px] md:text-[11px] leading-none truncate max-w-[52px] md:max-w-[8rem] transition-colors",
-                  isActive ? "font-medium text-primary" : "font-medium text-muted-foreground"
-                )}
-              >
-                {cfg.shortLabel}
-              </span>
-            </button>
+            <IconButton key={mod} label={cfg.label} active={isActive} onClick={() => handleNav(mod)}>
+              <Icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "scale-105")} />
+            </IconButton>
           );
         })}
 
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="group flex flex-col items-center justify-center gap-1 w-14 md:w-auto md:flex-1 md:max-w-[10rem] shrink-0 py-1 landscape:py-0.5 rounded-2xl transition-transform active:scale-90"
-        >
-          <span className="flex items-center justify-center h-9 w-9 rounded-xl text-muted-foreground transition-all duration-200 group-hover:bg-muted group-hover:text-foreground">
-            <Settings className="h-5 w-5" />
-          </span>
-          <span className="text-[9px] md:text-[11px] font-medium leading-none text-muted-foreground">Ajustes</span>
-        </button>
+        <IconButton label="Configurações" onClick={() => setSettingsOpen(true)}>
+          <Settings className="h-5 w-5" />
+        </IconButton>
+
+        <span className="mx-1 h-6 w-px bg-border shrink-0" aria-hidden="true" />
+
+        <IconButton label="Sair" danger onClick={onLogout}>
+          <LogOut className="h-5 w-5" />
+        </IconButton>
       </nav>
 
       <PortalMobileSettingsSheet
