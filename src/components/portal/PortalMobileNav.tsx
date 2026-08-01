@@ -114,8 +114,8 @@ export default function PortalMobileNav({
   return (
     <>
       <nav
-        className="fixed bottom-4 inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border/70 shadow-[0_10px_30px_-8px_rgba(0,0,0,0.22)] px-2.5 py-2 flex items-center gap-1 w-fit max-w-[calc(100vw-1.5rem)] pointer-events-auto"
-        style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))" }}
+        className="fixed inset-x-0 mx-auto z-[100] isolate rounded-full bg-card border border-border/70 shadow-[0_10px_30px_-8px_rgba(0,0,0,0.22)] px-2.5 py-2 flex items-center gap-1 w-fit max-w-[calc(100vw-1.5rem)] pointer-events-auto"
+        style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
       >
         {favoritos.map((mod) => {
           const cfg = MODULE_CONFIG[mod];
