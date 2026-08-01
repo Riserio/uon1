@@ -96,8 +96,8 @@ export default function PortalMobileNav({
               active
                 ? "text-white shadow-md"
                 : danger
-                  ? "text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ? "text-[#6D5BD0] hover:bg-destructive/10 hover:text-destructive"
+                  : "text-[#6D5BD0] hover:bg-[#6D5BD0]/10",
             )}
             style={active ? { backgroundColor: ACCENT, boxShadow: `0 6px 16px -4px ${ACCENT}66` } : undefined}
           >
