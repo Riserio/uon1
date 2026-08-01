@@ -7,12 +7,15 @@ const corsHeaders = {
 };
 
 /**
- * RESUMO GERAL consolidado (Eventos + Cobrança + MGF) em UMA mensagem.
+ * RESUMO GERAL consolidado (Base + Eventos + Cobrança + MGF) em UMA mensagem.
  *
  * TAGS DISPONÍVEIS em `dados` (para usar no variable_map dos agendamentos):
  *
  * — Gerais —
  *   nome_associacao, data_geracao
+ *
+ * — Base (placas ativas + cadastros do mês) —
+ *   base_placas_ativas, base_cadastros_mes
  *
  * — Eventos (fonte: gerar-resumo-eventos, por DATA DE CADASTRO no mês) —
  *   ev_mes_referencia, ev_total, ev_colisao, ev_vidros, ev_furto_roubo,
@@ -73,6 +76,7 @@ serve(async (req) => {
 
     const fmtBRL = (v: number) =>
       new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0);
+    const fmtInt = (v: number) => new Intl.NumberFormat("pt-BR").format(v || 0);
 
     // Chama um gerador existente; retorna null se falhar (seção é omitida)
     const invocar = async (fn: string): Promise<any | null> => {
@@ -155,12 +159,59 @@ serve(async (req) => {
       console.warn("[gerar-resumo-geral] MGF indisponível:", e);
     }
 
+    // ===== BASE (placas ativas + cadastros do mês) — abre o resumo, como no PDF =====
+    let basePlacasAtivas = 0;
+    let baseCadastrosMes = 0;
+    try {
+      const { data: pidRow } = await supabase
+        .from("pid_operacional")
+        .select("placas_ativas")
+        .eq("corretora_id", corretora_id)
+        .order("ano", { ascending: false })
+        .order("mes", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      basePlacasAtivas = Number((pidRow as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
+
+      const { data: impBase } = await supabase
+        .from("estudo_base_importacoes")
+        .select("id")
+        .eq("corretora_id", corretora_id)
+        .eq("ativo", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (impBase?.id) {
+        const anoAtual = now.getUTCFullYear();
+        const mesAtual = now.getUTCMonth() + 1;
+        const primeiroDia = `${anoAtual}-${pad(mesAtual)}-01`;
+        const proxAno = mesAtual === 12 ? anoAtual + 1 : anoAtual;
+        const proxMes = mesAtual === 12 ? 1 : mesAtual + 1;
+        const primeiroDiaProx = `${proxAno}-${pad(proxMes)}-01`;
+        const { count } = await supabase
+          .from("estudo_base_registros")
+          .select("*", { count: "exact", head: true })
+          .eq("importacao_id", impBase.id)
+          .gte("data_contrato", primeiroDia)
+          .lt("data_contrato", primeiroDiaProx);
+        baseCadastrosMes = Number(count || 0);
+      }
+    } catch (e) {
+      console.warn("[gerar-resumo-geral] Base indisponível:", e);
+    }
+
     if (!ev && !cob && !mgf) {
       throw new Error("Nenhum módulo com dados disponíveis para esta associação");
     }
 
     // ===== Montagem da mensagem consolidada (seções sem dados são omitidas) =====
     const secoes: string[] = [];
+
+    // Base sempre abre o resumo (como no PDF).
+    secoes.push(`📊 *BASE*
+
+              🚗 Placas ativas: *${fmtInt(basePlacasAtivas)}*
+              🆕 Cadastros do mês: *${fmtInt(baseCadastrosMes)}*`);
 
     if (ev) {
       secoes.push(`📊 *EVENTOS NO MÊS* (${ev.mes_referencia})
@@ -208,6 +259,9 @@ serve(async (req) => {
     const dados: Record<string, any> = {
       nome_associacao: nomeAssociacao,
       data_geracao: dataGeracao,
+      // Base (abre o resumo, como no PDF)
+      base_placas_ativas: fmtInt(basePlacasAtivas),
+      base_cadastros_mes: fmtInt(baseCadastrosMes),
       // Eventos
       ev_mes_referencia: ev?.mes_referencia ?? "-",
       ev_total: ev?.total_eventos ?? "-",
@@ -251,7 +305,7 @@ serve(async (req) => {
         success: true,
         resumo,
         dados,
-        modulos_incluidos: { eventos: !!ev, cobranca: !!cob, mgf: !!mgf },
+        modulos_incluidos: { base: true, eventos: !!ev, cobranca: !!cob, mgf: !!mgf },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
