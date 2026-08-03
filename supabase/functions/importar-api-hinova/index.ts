@@ -492,7 +492,7 @@ serve(async (req) => {
       };
       const assocMap = new Map<
         string,
-        { cidade: string | null; estado: string | null; sexo: string | null; estado_civil: string | null; idade: number | null; cpf: string | null; cooperativa: string | null; regional: string | null }
+        { cidade: string | null; estado: string | null; sexo: string | null; estado_civil: string | null; idade: number | null; cpf: string | null; cooperativa: string | null; regional: string | null; nome: string | null }
       >();
       // Debug do endpoint de associado (para confirmar contrato/campos reais da Hinova)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
