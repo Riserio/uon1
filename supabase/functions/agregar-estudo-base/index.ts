@@ -111,7 +111,7 @@ serve(async (req) => {
     while (true) {
       const { data, error } = await supabase
         .from("estudo_base_registros")
-        .select("tipo_veiculo, categoria, valor_protegido, valor_fipe, situacao_veiculo, voluntario, data_contrato")
+        .select("tipo_veiculo, categoria, valor_protegido, valor_fipe, situacao_veiculo, voluntario, data_contrato, placa, chassi")
         .eq("importacao_id", imp.id)
         .range(offset, offset + PAGE - 1);
       if (error) throw error;
@@ -134,6 +134,10 @@ serve(async (req) => {
     // responsável pelo veículo) + data_contrato.
     const voluntariosAtivos = new Set<string>();
     const voluntariosNovosNoMes = new Set<string>();
+    // Fallback por veículo (placa/chassi): quando a API da Hinova não devolve o
+    // nome do voluntário, total_associados/cadastros_realizados ficavam zerados.
+    const veiculosAtivos = new Set<string>();
+    const veiculosNovosNoMes = new Set<string>();
 
     for (const r of rows) {
       totalGeral++; // total inclui TODAS as situacoes importadas
@@ -148,18 +152,22 @@ serve(async (req) => {
       if (vEf > 0) { a.protegido++; a.valorTotal += vEf; }
       if (vProt > 0) a.valorProt += vProt;
 
+      const dentroDoMes = (d?: string | null) => !!d && d >= inicioMesStr && d < fimMesStr;
+      const chaveVeic = String(r.placa || r.chassi || "").trim().toUpperCase();
+      if (chaveVeic) {
+        veiculosAtivos.add(chaveVeic);
+        if (dentroDoMes(r.data_contrato)) veiculosNovosNoMes.add(chaveVeic);
+      }
+
       const voluntario = (r.voluntario || "").trim();
       if (voluntario) {
         voluntariosAtivos.add(voluntario);
-        const dataContrato: string | null = r.data_contrato;
-        if (dataContrato && dataContrato >= inicioMesStr && dataContrato < fimMesStr) {
-          voluntariosNovosNoMes.add(voluntario);
-        }
+        if (dentroDoMes(r.data_contrato)) voluntariosNovosNoMes.add(voluntario);
       }
     }
 
-    const totalAssociados = voluntariosAtivos.size;
-    const cadastrosRealizados = voluntariosNovosNoMes.size;
+    const totalAssociados = voluntariosAtivos.size || veiculosAtivos.size;
+    const cadastrosRealizados = voluntariosNovosNoMes.size || veiculosNovosNoMes.size;
 
     // Inadimplentes do MÊS CORRENTE via Cobrança: boletos JÁ VENCIDOS e ainda em
     // aberto, por placa distinta. Só calcula/gera quando o mês de referência é o
