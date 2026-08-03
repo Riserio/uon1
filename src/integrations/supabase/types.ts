@@ -9867,6 +9867,7 @@ export type Database = {
         | { Args: { p_corretora_id: string; p_full?: boolean }; Returns: Json }
       importar_mgf_api: { Args: { p_corretora_id: string }; Returns: Json }
       importar_tudo_api_todas: { Args: never; Returns: Json }
+      is_equipe_interna: { Args: { _user_id: string }; Returns: boolean }
       jsonb_object_keys_count: { Args: { j: Json }; Returns: number }
       kpis_cobranca_sga: {
         Args: { p_corretora_id: string; p_mes_referencia?: string }
