@@ -528,6 +528,14 @@ serve(async (req) => {
       const CPF_KEYS = ["cpf", "cpf_cnpj", "cpfcnpj", "cpf_associado", "cpfdoassociado", "documento", "numero_documento", "nr_cpf", "nrcpf", "cpf_titular"];
       const COOP_KEYS = ["cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome", "cooperativa_descricao", "associacao", "nome_associacao", "descricao_associacao"];
       const REG_KEYS = ["regional", "nome_regional", "descricao_regional", "regional_nome", "regional_descricao", "regional_associado", "regional_veiculo"];
+      // "Voluntário" = associado responsável pelo veículo. A Hinova mudou o
+      // nome desse campo no /listar/veiculo, o que zerava total_associados e
+      // cadastros_realizados no PID.
+      const VOL_KEYS = [
+        "voluntario", "nome_voluntario", "descricao_voluntario", "voluntario_nome",
+        "nome_associado", "associado", "associado_nome", "nome_do_associado",
+        "nome", "titular", "nome_titular", "proprietario", "nome_proprietario",
+      ];
       try {
         // /listar/associado passou a exigir paginação (mesma mudança do /listar/veiculo).
         // Percorre as páginas de cada código de situação configurado.
@@ -558,6 +566,7 @@ serve(async (req) => {
                   cpf: (pick(a, ...CPF_KEYS) as string | null) ?? null,
                   cooperativa: nomeDe(pick(a, ...COOP_KEYS)),
                   regional: nomeDe(pick(a, ...REG_KEYS)),
+                  nome: nomeDe(pick(a, "nome", "nome_associado", "razao_social", "nome_completo")),
                 });
             }
             atot = Math.min(Number(aj?.numero_paginas) || 1, 20);
@@ -622,7 +631,12 @@ serve(async (req) => {
           situacao_veiculo: g(v, "situacao_veiculo", "situacao", "descricao_situacao", "status") as string | null,
           cidade_veiculo: (g(v, "cidade", "cidade_veiculo") as string | null) || assocE?.cidade || null,
           estado: (g(v, "estado", "uf") as string | null) || assocE?.estado || null,
-          voluntario: g(v, "voluntario") as string | null,
+          // fallback em cascata: campo do veículo → nome do associado → código
+          // do associado (garante contagem distinta mesmo sem nome).
+          voluntario:
+            (nomeDe(pick(v, ...VOL_KEYS)) as string | null) ||
+            assocE?.nome ||
+            (g(v, "codigo_associado") ? `#${g(v, "codigo_associado")}` : null),
           // Demografia do associado (Sexo / Estado Civil / Faixa Etária no BI)
           sexo: normalizaSexo(g(v, "sexo", "sexo_associado")) || assocE?.sexo || null,
           estado_civil: (g(v, "estado_civil", "estado_civil_associado") as string | null) || assocE?.estado_civil || null,
