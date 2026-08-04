@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from "react-router-dom";
 import BIPageHeader from "./BIPageHeader";
+import BaseAssociacaoCard from "./BaseAssociacaoCard";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { BILayoutProvider, useBILayout } from "@/contexts/BILayoutContext";
 
@@ -14,6 +15,10 @@ const moduleMap: Record<string, BIModule> = {
   '/cadastro-insights': 'cadastro',
   '/acompanhamento-eventos': 'acompanhamento-eventos',
 };
+
+// Módulos que exibem o card "Base da associação" acima dos filtros.
+// Acompanhamento e Ouvidoria ficam de fora (não são telas de análise da base).
+const MODULOS_COM_BASE: BIModule[] = ['indicadores', 'eventos', 'mgf', 'cobranca'];
 
 const titleMap: Record<BIModule, { title: string; subtitle: string }> = {
   indicadores: { title: 'BI - Indicadores', subtitle: 'Visão consolidada dos indicadores operacionais, financeiros e de sinistros' },
@@ -56,6 +61,7 @@ function BILayoutInner() {
 
   const currentModule: BIModule = isAdminView ? 'admin' : (moduleMap[location.pathname] || 'indicadores');
   const info = isAdminView ? titleMap.admin : titleMap[currentModule];
+  const mostrarBase = !isAdminView && MODULOS_COM_BASE.includes(currentModule);
 
   return (
     <div className="min-h-screen bg-background">
@@ -76,6 +82,15 @@ function BILayoutInner() {
           fileName={headerDynamic.modulo === currentModule ? headerDynamic.fileName : undefined}
         />
       </div>
+
+      {/* Base da associação: contexto comum a todos os BIs de análise, exibido
+          ACIMA dos filtros de cada página. Fonte única (RPCs no banco), então o
+          número é o mesmo em Indicadores, Eventos, MGF e Cobrança. */}
+      {mostrarBase && (
+        <div className="container mx-auto px-4 sm:px-6 pt-2">
+          <BaseAssociacaoCard corretoraId={selectedAssociacao} />
+        </div>
+      )}
 
       {/* key força remount completo da página do módulo sempre que a
           associação selecionada mudar (inclusive ao entrar/sair da Visão
