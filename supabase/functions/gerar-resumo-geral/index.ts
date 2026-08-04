@@ -163,23 +163,15 @@ serve(async (req) => {
     let basePlacasAtivas = 0;
     let baseCadastrosMes = 0;
     try {
-      // Pega o registro mais recente que NÃO seja de um mês futuro — a tabela
-      // pode conter linhas de meses à frente (agregações projetadas), e usar
-      // "o maior ano/mês" fazia o resumo mostrar um número fora da referência.
-      const anoHoje = now.getUTCFullYear();
-      const mesHoje = now.getUTCMonth() + 1;
       const { data: pidRow } = await supabase
         .from("pid_operacional")
-        .select("placas_ativas, ano, mes")
+        .select("placas_ativas")
         .eq("corretora_id", corretora_id)
-        .lte("ano", anoHoje)
         .order("ano", { ascending: false })
         .order("mes", { ascending: false })
-        .limit(12);
-      const candidatos = ((pidRow || []) as { placas_ativas?: number; ano: number; mes: number }[]).filter(
-        (r) => r.ano < anoHoje || r.mes <= mesHoje,
-      );
-      basePlacasAtivas = Number(candidatos[0]?.placas_ativas ?? 0);
+        .limit(1)
+        .maybeSingle();
+      basePlacasAtivas = Number((pidRow as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
 
       const { data: impBase } = await supabase
         .from("estudo_base_importacoes")
@@ -190,19 +182,34 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
       if (impBase?.id) {
-        const anoAtual = now.getUTCFullYear();
-        const mesAtual = now.getUTCMonth() + 1;
-        const primeiroDia = `${anoAtual}-${pad(mesAtual)}-01`;
-        const proxAno = mesAtual === 12 ? anoAtual + 1 : anoAtual;
-        const proxMes = mesAtual === 12 ? 1 : mesAtual + 1;
-        const primeiroDiaProx = `${proxAno}-${pad(proxMes)}-01`;
-        const { count } = await supabase
+        // Mês de referência = o mês MAIS RECENTE com cadastros na base.
+        // (Antes usava o mês do calendário — rodando em agosto, contava agosto e
+        // dava 0, mesmo o relatório sendo de julho. Agora acompanha o dado.)
+        const { data: ultimo } = await supabase
           .from("estudo_base_registros")
-          .select("*", { count: "exact", head: true })
+          .select("data_contrato")
           .eq("importacao_id", impBase.id)
-          .gte("data_contrato", primeiroDia)
-          .lt("data_contrato", primeiroDiaProx);
-        baseCadastrosMes = Number(count || 0);
+          .not("data_contrato", "is", null)
+          .order("data_contrato", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const refStr = (ultimo as { data_contrato?: string } | null)?.data_contrato;
+        if (refStr) {
+          const ref = new Date(refStr + "T00:00:00Z");
+          const ry = ref.getUTCFullYear();
+          const rm = ref.getUTCMonth() + 1;
+          const primeiroDia = `${ry}-${pad(rm)}-01`;
+          const proxAno = rm === 12 ? ry + 1 : ry;
+          const proxMes = rm === 12 ? 1 : rm + 1;
+          const primeiroDiaProx = `${proxAno}-${pad(proxMes)}-01`;
+          const { count } = await supabase
+            .from("estudo_base_registros")
+            .select("*", { count: "exact", head: true })
+            .eq("importacao_id", impBase.id)
+            .gte("data_contrato", primeiroDia)
+            .lt("data_contrato", primeiroDiaProx);
+          baseCadastrosMes = Number(count || 0);
+        }
       }
     } catch (e) {
       console.warn("[gerar-resumo-geral] Base indisponível:", e);
