@@ -13,13 +13,6 @@ const corsHeaders = {
 // e devolve uma URL pública + nome de arquivo prontos para anexar como
 // header.document num template da Meta (WhatsApp).
 //
-// Layout "clean e moderno" aprovado pelo usuário: fundo branco, logo real da
-// Vangard (/images/vangard-logo.png) no cabeçalho, seções em formato de
-// tabela (linha + borda inferior) em vez de cards, acento laranja único.
-// Rodapé discreto (uma linha pequena e cinza) com a assinatura da Vangard —
-// sem botão. Pagina automaticamente (cabeçalho compacto repetido) quando o
-// conteúdo passa de uma página. "Referência" = data de emissão do relatório.
-//
 // Reaproveita o mesmo agregador de dados já usado na mensagem de texto
 // (gerar-resumo-geral), então o conteúdo do PDF é sempre consistente com o
 // que já é enviado por WhatsApp/telas do BI — sem duplicar lógica de cálculo.
@@ -71,8 +64,7 @@ serve(async (req) => {
     const dados: Record<string, any> = resumoJson.dados || {};
     const modulos = resumoJson.modulos_incluidos || {};
 
-    // ----- Data de emissão (São Paulo, UTC-3) — usada no cabeçalho, no card
-    // "Referência" e no nome do arquivo/caminho no Storage. -----
+    // ----- Data de emissão (São Paulo, UTC-3) -----
     const nowSP = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const pad2 = (n: number) => String(n).padStart(2, "0");
     const dataEmissao = `${pad2(nowSP.getUTCDate())}/${pad2(nowSP.getUTCMonth() + 1)}/${nowSP.getUTCFullYear()}`;
@@ -83,9 +75,6 @@ serve(async (req) => {
     let cadastrosPorCoop: { coop: string; qtd: number }[] = [];
     let cadastrosTotalMes = 0;
     try {
-      // Placas ativas: usa o valor AGREGADO (pid_operacional.placas_ativas),
-      // mesma fonte do KPI do dashboard (isAtivo: exclui inadimplente/inativo).
-      // Evita count ad-hoc que inflava o número.
       const { data: pidRow } = await supabase
         .from("pid_operacional")
         .select("placas_ativas")
@@ -96,10 +85,6 @@ serve(async (req) => {
         .maybeSingle();
       placasAtivas = Number((pidRow as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
 
-      // Cadastros do mês por cooperativa: veículos com data_contrato dentro do
-      // mês corrente, na base ativa. (Depende de data_contrato preenchido — só
-      // é gravado a partir do fix recente do importador; meses/bases antigas
-      // podem vir sem data e portanto zerados.)
       const { data: impBase } = await supabase
         .from("estudo_base_importacoes")
         .select("id")
@@ -109,28 +94,43 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
       if (impBase?.id) {
-        const anoAtual = nowSP.getUTCFullYear();
-        const mesAtual = nowSP.getUTCMonth() + 1;
-        const primeiroDia = `${anoAtual}-${pad2(mesAtual)}-01`;
-        const proxAno = mesAtual === 12 ? anoAtual + 1 : anoAtual;
-        const proxMes = mesAtual === 12 ? 1 : mesAtual + 1;
-        const primeiroDiaProx = `${proxAno}-${pad2(proxMes)}-01`;
-        const { data: novos } = await supabase
+        // Mês de referência = o mês MAIS RECENTE com cadastros na base.
+        // (Antes usava o mês do calendário — rodando em agosto, contava agosto
+        // e dava 0, mesmo o relatório sendo de julho. Agora acompanha o dado.)
+        const { data: ultimo } = await supabase
           .from("estudo_base_registros")
-          .select("cooperativa, data_contrato")
+          .select("data_contrato")
           .eq("importacao_id", impBase.id)
-          .gte("data_contrato", primeiroDia)
-          .lt("data_contrato", primeiroDiaProx)
-          .limit(50000);
-        const mapa = new Map<string, number>();
-        (novos || []).forEach((r: any) => {
-          const coop = ((r.cooperativa || "").toString().trim()) || "Sem cooperativa";
-          mapa.set(coop, (mapa.get(coop) || 0) + 1);
-        });
-        cadastrosPorCoop = [...mapa.entries()]
-          .map(([coop, qtd]) => ({ coop, qtd }))
-          .sort((a, b) => b.qtd - a.qtd);
-        cadastrosTotalMes = cadastrosPorCoop.reduce((acc, c) => acc + c.qtd, 0);
+          .not("data_contrato", "is", null)
+          .order("data_contrato", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const refStr = (ultimo as { data_contrato?: string } | null)?.data_contrato;
+        if (refStr) {
+          const ref = new Date(refStr + "T00:00:00Z");
+          const anoAtual = ref.getUTCFullYear();
+          const mesAtual = ref.getUTCMonth() + 1;
+          const primeiroDia = `${anoAtual}-${pad2(mesAtual)}-01`;
+          const proxAno = mesAtual === 12 ? anoAtual + 1 : anoAtual;
+          const proxMes = mesAtual === 12 ? 1 : mesAtual + 1;
+          const primeiroDiaProx = `${proxAno}-${pad2(proxMes)}-01`;
+          const { data: novos } = await supabase
+            .from("estudo_base_registros")
+            .select("cooperativa, data_contrato")
+            .eq("importacao_id", impBase.id)
+            .gte("data_contrato", primeiroDia)
+            .lt("data_contrato", primeiroDiaProx)
+            .limit(50000);
+          const mapa = new Map<string, number>();
+          (novos || []).forEach((r: any) => {
+            const coop = (r.cooperativa || "").toString().trim() || "Sem cooperativa";
+            mapa.set(coop, (mapa.get(coop) || 0) + 1);
+          });
+          cadastrosPorCoop = [...mapa.entries()]
+            .map(([coop, qtd]) => ({ coop, qtd }))
+            .sort((a, b) => b.qtd - a.qtd);
+          cadastrosTotalMes = cadastrosPorCoop.reduce((acc, c) => acc + c.qtd, 0);
+        }
       }
     } catch (e) {
       console.warn("[gerar-pdf-resumo-geral] Falha ao buscar base/cadastros:", e);
@@ -145,8 +145,6 @@ serve(async (req) => {
     const marginX = 48;
     let y = 841.89;
 
-    // Logo real da Vangard — busca o PNG estático do próprio app e embute no PDF.
-    // Se falhar (rede indisponível etc.), cai para um wordmark em texto.
     let logoImage: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
     try {
       const logoRes = await fetch(LOGO_URL);
@@ -185,7 +183,7 @@ serve(async (req) => {
       drawText(text, xRight - w, yy, { size, font, color: opts.color });
     };
 
-    // ----- Cabeçalho: logo à esquerda, título à direita, linha de baixo -----
+    // ----- Cabeçalho -----
     const topPad = 50;
     y -= topPad;
 
@@ -200,10 +198,7 @@ serve(async (req) => {
     }
 
     drawTextRight("Resumo executivo", width - marginX, y - 20, { size: 22, font: fontBold, color: BLACK });
-    drawTextRight(dataEmissao, width - marginX, y - 36, {
-      size: 11,
-      color: GRAY_TEXT,
-    });
+    drawTextRight(dataEmissao, width - marginX, y - 36, { size: 11, color: GRAY_TEXT });
     drawTextRight(`Gerado em ${dados.data_geracao || "-"}`, width - marginX, y - 50, {
       size: 9,
       color: GRAY_TEXT,
@@ -213,7 +208,7 @@ serve(async (req) => {
     page.drawRectangle({ x: marginX, y: y - 2, width: width - marginX * 2, height: 2, color: rgb(236 / 255, 236 / 255, 236 / 255) });
     y -= 30;
 
-    // ----- Cards de contexto: Operação | Referência (data de emissão) -----
+    // ----- Cards de contexto: Operação | Referência -----
     const cardW = (width - marginX * 2 - 16) / 2;
     const cardH = 54;
     const drawInfoCard = (x: number, label: string, value: string) => {
@@ -233,7 +228,7 @@ serve(async (req) => {
     drawInfoCard(marginX + cardW + 16, "Referência", dataEmissao);
     y -= cardH + 28;
 
-    // ----- Paginação: cabeçalho compacto repetido nas páginas seguintes -----
+    // ----- Paginação -----
     const PAGE_H = 841.89;
     const drawHeaderCompacto = () => {
       let hy = PAGE_H - 50;
@@ -257,7 +252,7 @@ serve(async (req) => {
       if (y - necessario < 70) novaPagina();
     };
 
-    // ----- Helper: seção em formato de tabela (título com barra + linhas) -----
+    // ----- Helper: seção em formato de tabela -----
     type Row = { label: string; value: string; color?: ReturnType<typeof rgb> };
     const drawTableSection = (title: string, rows: Row[]) => {
       garantirEspaco(30 + rows.length * 26 + 12);
@@ -276,10 +271,6 @@ serve(async (req) => {
     };
 
     // ----- Base (abre o relatorio) -----
-    // Placas ativas e o denominador de tudo que vem depois: inadimplencia,
-    // faturamento e eventos so se interpretam sabendo sobre quantas placas
-    // incidem. No fim da pagina 2 a leitura ja tinha acontecido sem essa
-    // referencia — e no celular quase ninguem chegava la.
     drawTableSection("Base", [
       { label: "Total de placas ativas", value: placasAtivas.toLocaleString("pt-BR") },
     ]);
@@ -343,7 +334,7 @@ serve(async (req) => {
       ]);
     }
 
-    // ----- Rodapé discreto (sem botão) na última página -----
+    // ----- Rodapé -----
     {
       const fy = 44;
       page.drawRectangle({
@@ -361,7 +352,7 @@ serve(async (req) => {
       );
     }
 
-    // ----- Numeração de páginas (1/N ... N/N), centralizada no rodapé -----
+    // ----- Numeração de páginas -----
     const paginas = pdfDoc.getPages();
     const totalPag = paginas.length;
     const carimboDataHora = `Gerado em ${dados.data_geracao || dataEmissao}`;
@@ -369,7 +360,6 @@ serve(async (req) => {
       const rotulo = `${i + 1}/${totalPag}`;
       const w = fontRegular.widthOfTextAtSize(rotulo, 8);
       pg.drawText(rotulo, { x: (width - w) / 2, y: 26, size: 8, font: fontRegular, color: GRAY_MUTED });
-      // Data/hora de geração à direita, no rodapé de cada página.
       const dw = fontRegular.widthOfTextAtSize(carimboDataHora, 7.5);
       pg.drawText(carimboDataHora, { x: width - marginX - dw, y: 26, size: 7.5, font: fontRegular, color: GRAY_MUTED });
     });
