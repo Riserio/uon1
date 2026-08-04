@@ -13,6 +13,14 @@ const corsHeaders = {
  * há mais que `api_intervalo_horas` (default 24h). Respeita `dias_agendados`
  * (0=dom .. 6=sab, em horário de Brasília) quando preenchido.
  * Body { forcar: true } ignora intervalo/dias e força a importação.
+ *
+ * LOG (integracao_sync_log): toda TENTATIVA real de importação passa a ser
+ * registrada — sucesso e, principalmente, FALHA com a mensagem devolvida pela
+ * API. Antes o módulo "base" falhava em silêncio: o cron marcava "succeeded"
+ * (porque a chamada HTTP respondia 200) e nenhuma importação nova entrava, sem
+ * deixar rastro em lugar nenhum. Foi assim que a base de 3 associações ficou
+ * parada em 02/08/2026 sem ninguém perceber. Os "pulados" (fora de horário,
+ * dedup) NÃO são logados, para o log conter só o que interessa investigar.
  */
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -20,6 +28,29 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceKey);
+
+  // Grava uma linha no log de integração. Nunca deixa um erro de log derrubar
+  // a importação em si.
+  const logSync = async (
+    corretoraId: string,
+    sucesso: boolean,
+    total?: number | null,
+    mensagem?: string | null,
+    detalhe?: unknown,
+  ) => {
+    try {
+      await supabase.from("integracao_sync_log").insert({
+        corretora_id: corretoraId,
+        modulo: "base",
+        sucesso,
+        total: typeof total === "number" ? total : null,
+        mensagem: mensagem ? String(mensagem).slice(0, 500) : null,
+        detalhe: detalhe ? (detalhe as Record<string, unknown>) : null,
+      });
+    } catch (e) {
+      console.error("[SchedulerBase] falha ao gravar log:", e);
+    }
+  };
 
   let forcar = false;
   try {
@@ -102,14 +133,25 @@ serve(async (req) => {
           body: JSON.stringify({ corretora_id: c.corretora_id, modulo: "base" }),
         });
         const j = await r.json().catch(() => null);
+        const ok = !!j?.success;
+        const msg = ok ? null : (j?.message ?? `HTTP ${r.status} sem mensagem`);
         resultados.push({
           corretora_id: c.corretora_id,
-          ok: !!j?.success,
+          ok,
           total: j?.total,
-          erro: j?.success ? undefined : j?.message,
+          erro: ok ? undefined : msg,
+        });
+        // Registra a tentativa (sucesso e falha) para dar rastro ao que antes
+        // era silencioso.
+        await logSync(c.corretora_id, ok, j?.total ?? null, msg, {
+          http_status: r.status,
+          endpoint: j?.endpoint ?? null,
+          tentativas: j?.tentativas ?? null,
         });
       } catch (e) {
-        resultados.push({ corretora_id: c.corretora_id, ok: false, erro: String((e as Error)?.message || e) });
+        const msg = String((e as Error)?.message || e);
+        resultados.push({ corretora_id: c.corretora_id, ok: false, erro: msg });
+        await logSync(c.corretora_id, false, null, msg, { excecao: true });
       }
     }
 
