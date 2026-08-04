@@ -70,11 +70,16 @@ export default function BaseAssociacaoCard({
           p_corretora_id: corretoraId,
           p_mes_referencia: mesReferencia || null,
         } as never);
-        if (!cancelado && !error) setBase(data as unknown as BaseInfo);
+        const baseData = data as unknown as BaseInfo | null;
+        if (!cancelado && !error) setBase(baseData);
 
+        // Sem mês explícito, usa o mês de referência que a própria base
+        // devolveu (o mais recente com dados). Sem isso a contagem de 0km caía
+        // no acumulado da base inteira (38) em vez do que entrou no mês (1).
+        const mesZk = mesReferencia || baseData?.mes_referencia || null;
         const { data: zk, error: zkErr } = await supabase.rpc("contar_veiculos_zero_km", {
           p_corretora_id: corretoraId,
-          p_mes_referencia: mesReferencia || null,
+          p_mes_referencia: mesZk,
         } as never);
         if (!cancelado && !zkErr) setZeroKm(zk as unknown as ZeroKm);
       } catch (e) {
@@ -101,17 +106,35 @@ export default function BaseAssociacaoCard({
               </span>
             )}
           </div>
-          {/* Mobile: grade de 3 colunas (não estoura a largura). Desktop: linha. */}
-          <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-6">
+          {/* Mobile: grade de 2 colunas (não estoura a largura). Desktop: linha.
+              Os 0km ficam agrupados dentro de "placas ativas", já que são parte
+              do mesmo total — e não como um número solto ao lado. */}
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-6">
             <div className="flex items-center gap-2 min-w-0">
               <span className="hidden sm:flex items-center justify-center h-9 w-9 rounded-full bg-primary/10 shrink-0">
                 <Car className="h-4 w-4 text-primary" />
               </span>
               <div className="min-w-0">
-                <div className="text-base sm:text-lg font-bold tracking-tight tabular-nums leading-none">
-                  {(base.placas_ativas ?? 0).toLocaleString("pt-BR")}
+                <div className="flex items-center gap-1">
+                  <span className="text-base sm:text-lg font-bold tracking-tight tabular-nums leading-none">
+                    {(base.placas_ativas ?? 0).toLocaleString("pt-BR")}
+                  </span>
+                  {zeroKm && (
+                    <HelpTip
+                      text={
+                        `Total de veículos ativos da associação no mês (mesma fonte do Estudo de Base). ` +
+                        `Inclui ${(zeroKm.zero_km_total ?? 0).toLocaleString("pt-BR")} veículos 0km / ainda não emplacados` +
+                        `${(zeroKm.zero_km_mes ?? 0) > 0 ? `, sendo ${(zeroKm.zero_km_mes ?? 0).toLocaleString("pt-BR")} que entraram neste mês` : ""}. ` +
+                        `Eles estão protegidos e contam no total, mas ainda não têm placa cadastrada.`
+                      }
+                    />
+                  )}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5 truncate">placas ativas</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                  placas ativas
+                  {zeroKm && (zeroKm.zero_km_total ?? 0) > 0 &&
+                    ` · inclui ${(zeroKm.zero_km_total ?? 0).toLocaleString("pt-BR")} 0km`}
+                </div>
               </div>
             </div>
 
@@ -127,24 +150,6 @@ export default function BaseAssociacaoCard({
               </div>
             </div>
 
-            {zeroKm && (
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="hidden sm:flex items-center justify-center h-9 w-9 rounded-full bg-sky-500/10 shrink-0">
-                  <Car className="h-4 w-4 text-sky-600" />
-                </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1">
-                    {/* Segue o filtro: mostra os 0km que entraram NO MÊS, não o
-                        acumulado da base (antes exibia 38 em qualquer mês). */}
-                    <span className="text-base sm:text-lg font-bold tracking-tight tabular-nums leading-none">
-                      {(zeroKm.zero_km_mes ?? 0).toLocaleString("pt-BR")}
-                    </span>
-                    <HelpTip text="Veículos 0km / ainda não emplacados que entraram no mês selecionado. Eles estão protegidos e contam no total de veículos, mas ainda não têm placa cadastrada." />
-                  </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5 truncate">0km / sem placa</div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </CardContent>
