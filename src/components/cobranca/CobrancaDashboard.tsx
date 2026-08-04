@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, DollarSign, AlertCircle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Settings, TrendingDown, Scale, Car, UserPlus, Info } from "lucide-react";
+import { TrendingUp, DollarSign, AlertCircle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Settings, TrendingDown, Scale, Car, UserPlus, Info, AlertTriangle } from "lucide-react";
 // Tooltip do design system — aliased para não colidir com o Tooltip do recharts
 // (usado nos gráficos abaixo). O TooltipProvider global vive no App.tsx.
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -128,6 +128,12 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   // lógica (placas do PID mais recente; cadastros do último mês com dado na
   // base do estudo). Fica no painel de cobrança como contexto da associação.
   const [baseInfo, setBaseInfo] = useState<{ placas_ativas: number; cadastros_mes: number; mes_referencia: string | null } | null>(null);
+
+  // Alerta de boletos duplicados: mesma cobrança (mesmo dedup_key = placa +
+  // vencimento + valor) aparecendo com nosso_numero diferente (2ª via não
+  // cancelada). O painel conta por nosso_numero, então conta as duas e infla
+  // os totais. Este alerta apenas SINALIZA — não altera nenhum número.
+  const [dupInfo, setDupInfo] = useState<{ total_atual: number; grupos_duplicados: number; boletos_excedentes: number; total_sem_duplicatas: number } | null>(null);
 
 
   // Carregar configuração de inadimplência do banco
@@ -315,7 +321,7 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!corretoraId) { setKpisSga(null); return; }
+      if (!corretoraId) { setKpisSga(null); setDupInfo(null); return; }
       try {
         const { data: imps } = await supabase
           .from("cobranca_importacoes")
@@ -323,14 +329,20 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           .eq("ativo", true)
           .eq("corretora_id", corretoraId);
         const ids = (imps || []).map((i: any) => i.id);
-        if (!ids.length) { if (!cancelled) setKpisSga(null); return; }
+        if (!ids.length) { if (!cancelled) { setKpisSga(null); setDupInfo(null); } return; }
         const { data, error } = await supabase.rpc("calcular_kpis_cobranca_sga", {
           p_importacao_ids: ids,
           p_mes_referencia: mesReferencia || null,
         } as any);
         if (!cancelled && !error) setKpisSga(data as any);
+        // Alerta de duplicidade (mesma cobrança com nosso_numero diferente).
+        const { data: dup, error: dupErr } = await supabase.rpc("detectar_boletos_duplicados", {
+          p_importacao_ids: ids,
+          p_mes_referencia: mesReferencia || null,
+        } as any);
+        if (!cancelled && !dupErr) setDupInfo(dup as any);
       } catch (e) {
-        console.error("Erro ao carregar KPIs SGA (comparativo):", e);
+        console.error("Erro ao carregar KPIs SGA / duplicidade:", e);
       }
     })();
     return () => { cancelled = true; };
@@ -496,6 +508,41 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">cadastros do mês</div>
                   </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Alerta de boletos duplicados (2ª via com nosso número diferente).
+          Apenas informativo — não altera nenhum número do painel. */}
+      {dupInfo && (dupInfo.boletos_excedentes ?? 0) > 0 && (
+        <Card className="rounded-2xl border-amber-500/40 bg-amber-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <span className="flex items-center justify-center h-9 w-9 rounded-full bg-amber-500/15 shrink-0 mt-0.5">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm font-semibold text-amber-700">
+                    {(dupInfo.boletos_excedentes ?? 0).toLocaleString("pt-BR")} boletos duplicados neste mês
+                  </span>
+                  <HelpTip text="Duplicidade = a mesma cobrança (mesma placa, vencimento e valor) aparecendo com dois 'nosso número' diferentes — típico de 2ª via emitida sem cancelar a anterior. Como o painel conta pelo nosso número, ele conta as duas, o que infla os totais. Este aviso só sinaliza; não altera nenhum número exibido." />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 leading-snug">
+                  {(dupInfo.grupos_duplicados ?? 0).toLocaleString("pt-BR")} cobranças aparecem mais de uma vez com o
+                  mesmo <strong>placa, vencimento e valor</strong>, porém com <strong>nosso número diferente</strong>.
+                  Podem inflar os totais e a inadimplência deste mês.
+                </p>
+                <div className="flex items-center gap-x-5 gap-y-1 mt-2 text-xs flex-wrap">
+                  <span className="text-muted-foreground">
+                    No painel hoje: <strong className="text-foreground">{(dupInfo.total_atual ?? 0).toLocaleString("pt-BR")}</strong> boletos
+                  </span>
+                  <span className="text-muted-foreground">
+                    Sem as duplicatas: <strong className="text-emerald-600">{(dupInfo.total_sem_duplicatas ?? 0).toLocaleString("pt-BR")}</strong> boletos
+                  </span>
                 </div>
               </div>
             </div>
