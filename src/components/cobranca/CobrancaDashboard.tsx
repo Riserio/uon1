@@ -6,7 +6,10 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, DollarSign, AlertCircle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Settings, TrendingDown } from "lucide-react";
+import { TrendingUp, DollarSign, AlertCircle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Settings, TrendingDown, Info, Scale, Car, UserPlus } from "lucide-react";
+// Tooltip do design system — aliased para não colidir com o Tooltip do recharts
+// (usado nos gráficos abaixo). O TooltipProvider global vive no App.tsx.
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InadimplenciaReferenciaConfigDialog } from "./InadimplenciaReferenciaConfigDialog";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -38,6 +41,8 @@ interface KpisSga {
   percentualInadimplencia: number;
   qtdeAbertosTotal: number; totalAbertoTotal: number;
   qtdeSemProrrogacao: number; // boletos de veiculos que ja tinham debito anterior
+  qtdeEmitidosTotal?: number; // emitidos do mes sem o filtro SGA
+  percentualInadimplenciaTotal?: number; // inadimplencia "bruta" (com prorrogacao)
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
@@ -88,6 +93,19 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   // Serialized keys for stable useMemo deps (avoid new Map reference triggering re-renders)
   const [configVersion, setConfigVersion] = useState(0);
   const [historicoVersion, setHistoricoVersion] = useState(0);
+
+  // Comparativo SGA × Bruto ("com prorrogação"). Vem da RPC
+  // `calcular_kpis_cobranca_sga`, que numa única chamada devolve os dois
+  // números: o do Critério SGA (que a associação confere) e o bruto
+  // (carteira inteira, inclusive quem arrasta débito de meses anteriores).
+  // É a mesma fonte do resumo do WhatsApp — mantém painel e resumo iguais.
+  const [kpisSga, setKpisSga] = useState<KpisSga | null>(null);
+
+  // Card "Base": placas ativas + cadastros do mês. Espelha exatamente o topo
+  // do resumo/PDF — usa a RPC `resumo_base_corretora`, que reproduz a mesma
+  // lógica (placas do PID mais recente; cadastros do último mês com dado na
+  // base do estudo). Fica no painel de cobrança como contexto da associação.
+  const [baseInfo, setBaseInfo] = useState<{ placas_ativas: number; cadastros_mes: number; mes_referencia: string | null } | null>(null);
 
 
   // Carregar configuração de inadimplência do banco
@@ -269,6 +287,52 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
     loadInadimplenciaHistorico();
   }, [corretoraId, mesReferencia]);
 
+  // Comparativo SGA × Bruto: uma chamada leve, independente do seletor de
+  // critério da página (sempre mostra os DOIS números lado a lado). Busca
+  // as importações ativas da associação e delega o cálculo ao banco.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!corretoraId) { setKpisSga(null); return; }
+      try {
+        const { data: imps } = await supabase
+          .from("cobranca_importacoes")
+          .select("id")
+          .eq("ativo", true)
+          .eq("corretora_id", corretoraId);
+        const ids = (imps || []).map((i: any) => i.id);
+        if (!ids.length) { if (!cancelled) setKpisSga(null); return; }
+        const { data, error } = await supabase.rpc("calcular_kpis_cobranca_sga", {
+          p_importacao_ids: ids,
+          p_mes_referencia: mesReferencia || null,
+        } as any);
+        if (!cancelled && !error) setKpisSga(data as any);
+      } catch (e) {
+        console.error("Erro ao carregar KPIs SGA (comparativo):", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [corretoraId, mesReferencia]);
+
+  // Card Base: uma chamada leve por associação (placas ativas + cadastros
+  // do mês). Independe do mês selecionado nos filtros — sempre mostra a
+  // foto mais recente da base, igual ao resumo.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!corretoraId) { setBaseInfo(null); return; }
+      try {
+        const { data, error } = await supabase.rpc("resumo_base_corretora", {
+          p_corretora_id: corretoraId,
+        } as any);
+        if (!cancelled && !error) setBaseInfo(data as any);
+      } catch (e) {
+        console.error("Erro ao carregar Base da associação:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [corretoraId]);
+
   // Gerar histórico retroativo quando os stats carregam
   useEffect(() => {
     if (stats?.totalBoletos > 0 && corretoraId && mesReferencia && !retroativoGeradoRef.current) {
@@ -374,6 +438,48 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
 
   return (
     <div className="space-y-3 w-full max-w-full overflow-x-hidden min-w-0">
+      {/* Card Base — placas ativas + cadastros do mês (espelha o topo do resumo/PDF) */}
+      {baseInfo && (
+        <Card className="rounded-2xl border-border/40">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">Base da associação</span>
+                {baseInfo.mes_referencia && (
+                  <span className="text-[11px] text-muted-foreground">
+                    ref. {baseInfo.mes_referencia.split("-").reverse().join("/")}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center h-9 w-9 rounded-full bg-primary/10 shrink-0">
+                    <Car className="h-4 w-4 text-primary" />
+                  </span>
+                  <div>
+                    <div className="text-lg font-bold tracking-tight tabular-nums leading-none">
+                      {(baseInfo.placas_ativas ?? 0).toLocaleString("pt-BR")}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">placas ativas</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center h-9 w-9 rounded-full bg-emerald-500/10 shrink-0">
+                    <UserPlus className="h-4 w-4 text-emerald-600" />
+                  </span>
+                  <div>
+                    <div className="text-lg font-bold tracking-tight tabular-nums leading-none">
+                      {(baseInfo.cadastros_mes ?? 0).toLocaleString("pt-BR")}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">cadastros do mês</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* KPI Cards */}
       {/* Duas leituras do mesmo mes, ambas conferidas contra o SGA:
           - "Criterio SGA" (padrao): reproduz o Relatorio de Boletos com o
@@ -421,18 +527,42 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
 
       <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
         {[
-          { label: "Boletos Emitidos", unidade: "boletos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
-          { label: "Boletos Pagos", unidade: "boletos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
-          { label: "Em Aberto", unidade: "boletos", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
+          { label: "Boletos Emitidos", unidade: "boletos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20", info: undefined as string | undefined },
+          { label: "Boletos Pagos", unidade: "boletos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20", info: undefined },
+          { label: "Em Aberto", unidade: "boletos", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20", info: undefined },
           // Vencidos x Em Aberto: em mes fechado sao iguais (tudo ja venceu). No
           // mes corrente separam quem esta em atraso de verdade de quem so tem
           // conta a vencer — jul/26 tinha 1.538 em aberto e apenas 160 vencidos.
-          { label: "Vencidos", unidade: "boletos", value: (stats.qtdeVencidosMes ?? 0).toLocaleString('pt-BR'), sub: formatCurrency(stats.totalVencidoMes ?? 0), cls: "text-orange-600 bg-orange-500/5 border-orange-500/20" },
-          { label: "Inadimplência", unidade: null, value: formatPercent(stats.percentualInadimplencia), sub: criterio === "sga" ? "critério do SGA" : "em aberto / emitido", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
-        ].map(({ label, unidade, value, sub, cls }) => (
+          { label: "Vencidos", unidade: "boletos", value: (stats.qtdeVencidosMes ?? 0).toLocaleString('pt-BR'), sub: formatCurrency(stats.totalVencidoMes ?? 0), cls: "text-orange-600 bg-orange-500/5 border-orange-500/20", info: undefined },
+          {
+            label: "Inadimplência",
+            unidade: null,
+            value: formatPercent(stats.percentualInadimplencia),
+            sub: criterio === "sga" ? "critério do SGA" : "em aberto / emitido",
+            cls: "text-amber-600 bg-amber-500/5 border-amber-500/20",
+            info:
+              criterio === "sga"
+                ? "Critério SGA: em aberto ÷ emitidos, excluindo veículos que já arrastavam boleto em aberto de meses anteriores (janela de 6 meses). É o número que a associação confere no Relatório de Boletos — e o mesmo que sai no resumo do WhatsApp."
+                : "Cobrança total: todos os boletos em aberto do mês ÷ emitidos, sem filtro. Inclui veículos com débito antigo — fica mais alto que o critério SGA.",
+          },
+        ].map(({ label, unidade, value, sub, cls, info }) => (
           <Card key={label} className={`rounded-2xl border ${cls}`}>
             <CardContent className="p-4">
-              <div className={`text-[11px] font-medium mb-1 ${cls.split(" ")[0]}`}>{label}</div>
+              <div className={`flex items-center gap-1 text-[11px] font-medium mb-1 ${cls.split(" ")[0]}`}>
+                <span>{label}</span>
+                {info && (
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" aria-label={`Sobre: ${label}`} className="inline-flex items-center">
+                        <Info className="h-3 w-3 opacity-60 hover:opacity-100 transition-opacity" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[260px] text-xs leading-snug">
+                      {info}
+                    </TooltipContent>
+                  </UITooltip>
+                )}
+              </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xl font-bold tracking-tight">{value}</span>
                 {/* A unidade explicita evita a comparacao errada entre cards:
@@ -450,6 +580,63 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           </Card>
         ))}
       </div>
+
+      {/* Comparativo: Critério SGA × Bruto (com prorrogação).
+          Explica de onde vem a diferença entre o número do relatório da
+          associação (SGA) e a carteira inteira — e por que o resumo do
+          WhatsApp usa o SGA. Independe do seletor acima: mostra os dois. */}
+      {kpisSga && (kpisSga.qtdeAbertosTotal ?? 0) >= 0 && (
+        <Card className="rounded-2xl border-border/40">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Scale className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">Critério SGA × Bruto</span>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" aria-label="Sobre o comparativo" className="inline-flex items-center">
+                    <Info className="h-3.5 w-3.5 text-muted-foreground/70 hover:text-muted-foreground transition-colors" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[280px] text-xs leading-snug">
+                  O SGA não conta em duplicidade o veículo que arrasta boleto em aberto de
+                  meses anteriores; o bruto conta a carteira inteira. A diferença entre os
+                  dois são justamente os boletos "arrastados". O resumo do WhatsApp usa o
+                  critério SGA — por isso bate com este painel.
+                </TooltipContent>
+              </UITooltip>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                <div className="text-[11px] font-medium text-emerald-600 mb-1">Critério SGA</div>
+                <div className="text-xl font-bold tracking-tight text-emerald-600">
+                  {formatPercent(kpisSga.percentualInadimplencia)}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {(kpisSga.qtdeAbertos ?? 0).toLocaleString('pt-BR')} em aberto · o que a associação confere
+                </div>
+              </div>
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                <div className="text-[11px] font-medium text-amber-600 mb-1">Bruto (com prorrogação)</div>
+                <div className="text-xl font-bold tracking-tight text-amber-600">
+                  {formatPercent(kpisSga.percentualInadimplenciaTotal ?? 0)}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {(kpisSga.qtdeAbertosTotal ?? 0).toLocaleString('pt-BR')} em aberto · carteira inteira
+                </div>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-muted/30 p-3">
+                <div className="text-[11px] font-medium text-muted-foreground mb-1">Arrastados</div>
+                <div className="text-xl font-bold tracking-tight text-foreground">
+                  {(kpisSga.qtdeSemProrrogacao ?? 0).toLocaleString('pt-BR')}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  boletos de veículos com débito de meses anteriores
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Boletos por Dia de Vencimento Veículo */}
       {(() => {
