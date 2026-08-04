@@ -133,7 +133,7 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   // vencimento + valor) aparecendo com nosso_numero diferente (2ª via não
   // cancelada). O painel conta por nosso_numero, então conta as duas e infla
   // os totais. Este alerta apenas SINALIZA — não altera nenhum número.
-  const [dupInfo, setDupInfo] = useState<{ total_atual: number; grupos_duplicados: number; boletos_excedentes: number; total_sem_duplicatas: number } | null>(null);
+  const [dupInfo, setDupInfo] = useState<{ total_atual: number; grupos_duplicados: number; boletos_excedentes: number; excedentes_abertos: number; grupos_com_pago: number; total_sem_duplicatas: number } | null>(null);
 
 
   // Carregar configuração de inadimplência do banco
@@ -534,8 +534,16 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
                 <p className="text-xs text-muted-foreground mt-1 leading-snug">
                   {(dupInfo.grupos_duplicados ?? 0).toLocaleString("pt-BR")} cobranças aparecem mais de uma vez com o
                   mesmo <strong>placa, vencimento e valor</strong>, porém com <strong>nosso número diferente</strong>.
-                  Podem inflar os totais e a inadimplência deste mês.
                 </p>
+                {(dupInfo.excedentes_abertos ?? 0) > 0 && (
+                  <p className="text-xs mt-1.5 leading-snug text-amber-700">
+                    ⚠️ <strong>{(dupInfo.excedentes_abertos ?? 0).toLocaleString("pt-BR")}</strong> dessas vias duplicadas
+                    estão com status <strong>ABERTO</strong> — inflando diretamente a inadimplência do mês
+                    {(dupInfo.grupos_com_pago ?? 0) > 0 && (
+                      <> (em {(dupInfo.grupos_com_pago ?? 0).toLocaleString("pt-BR")} casos a outra via já foi paga)</>
+                    )}.
+                  </p>
+                )}
                 <div className="flex items-center gap-x-5 gap-y-1 mt-2 text-xs flex-wrap">
                   <span className="text-muted-foreground">
                     No painel hoje: <strong className="text-foreground">{(dupInfo.total_atual ?? 0).toLocaleString("pt-BR")}</strong> boletos
