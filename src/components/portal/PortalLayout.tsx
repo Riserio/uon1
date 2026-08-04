@@ -8,6 +8,7 @@ import PortalMobileNav from "./PortalMobileNav";
 import PortalOrientationGuard from "./PortalOrientationGuard";
 import PortalSplash from "./PortalSplash";
 import PortalPageWrapper from "./PortalPageWrapper";
+import BaseAssociacaoCard from "@/components/bi/BaseAssociacaoCard";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
@@ -24,6 +25,10 @@ const moduleMap: Record<string, PortalModule> = {
   '/portal/acompanhamento-eventos': 'acompanhamento-eventos',
   '/portal/ouvidoria': 'ouvidoria',
 };
+
+// Módulos que exibem o card "Base da associação" acima dos filtros.
+// Acompanhamento e Ouvidoria ficam de fora (não são telas de análise da base).
+const MODULOS_COM_BASE: PortalModule[] = ['indicadores', 'eventos', 'mgf', 'cobranca'];
 
 export default function PortalLayout() {
   const location = useLocation();
@@ -132,6 +137,7 @@ export default function PortalLayout() {
   }
 
   const currentModule: PortalModule = moduleMap[location.pathname] || 'indicadores';
+  const mostrarBase = MODULOS_COM_BASE.includes(currentModule);
 
   const availableModules: PortalModule[] = [
     ...(corretora.modulos_bi.includes('indicadores') ? ['indicadores'] as const : []),
@@ -200,6 +206,14 @@ export default function PortalLayout() {
           }
         >
           <PortalPageWrapper>
+            {/* Base da associação: mesmo card do BI interno, acima dos filtros.
+                Fonte única (RPCs no banco), então o parceiro vê exatamente o
+                mesmo número que a administradora. */}
+            {mostrarBase && (
+              <div className="container mx-auto px-3 sm:px-4 pt-3">
+                <BaseAssociacaoCard corretoraId={corretora.id} />
+              </div>
+            )}
             <Outlet context={{ corretora, corretorasDisponiveis }} />
           </PortalPageWrapper>
         </div>
