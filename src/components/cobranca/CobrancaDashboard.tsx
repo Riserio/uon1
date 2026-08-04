@@ -136,6 +136,16 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   const [dupInfo, setDupInfo] = useState<{ total_atual: number; grupos_duplicados: number; boletos_excedentes: number; grupos_com_pago: number; total_sem_duplicatas: number } | null>(null);
   const [dupOpen, setDupOpen] = useState(false);
 
+  // Saúde da integração: há quantos dias a base/cobrança não recebe dado novo,
+  // e qual foi o último erro registrado (integracao_sync_log). Serve para que
+  // uma importação parada NÃO passe despercebida — foi o que aconteceu quando
+  // a base de 3 associações ficou congelada por dias sem nenhum aviso.
+  const [statusSync, setStatusSync] = useState<{
+    base_ultima: string | null; base_dias: number | null;
+    cobranca_ultima: string | null; cobranca_dias: number | null;
+    ultimo_erro: { modulo: string; mensagem: string; quando: string } | null;
+  } | null>(null);
+
 
   // Carregar configuração de inadimplência do banco
   const loadInadimplenciaConfig = async () => {
@@ -362,6 +372,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           p_mes_referencia: mesReferencia || null,
         } as any);
         if (!cancelled && !error) setBaseInfo(data as any);
+        const { data: st, error: stErr } = await supabase.rpc("status_importacoes_corretora", {
+          p_corretora_id: corretoraId,
+        } as any);
+        if (!cancelled && !stErr) setStatusSync(st as any);
       } catch (e) {
         console.error("Erro ao carregar Base da associação:", e);
       }
@@ -511,6 +525,63 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
                     <div className="text-[10px] text-muted-foreground mt-0.5">cadastros do mês</div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Alerta de integração parada: base/cobrança sem dado novo há dias, ou
+          último erro registrado no log. Vermelho a partir de 3 dias. */}
+      {statusSync && (((statusSync.base_dias ?? 0) >= 2) || ((statusSync.cobranca_dias ?? 0) >= 2) || statusSync.ultimo_erro) && (
+        <Card
+          className={`rounded-2xl ${
+            (statusSync.base_dias ?? 0) >= 3 || (statusSync.cobranca_dias ?? 0) >= 3 || statusSync.ultimo_erro
+              ? "border-red-500/40 bg-red-500/5"
+              : "border-amber-500/40 bg-amber-500/5"
+          }`}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle
+                className={`h-4 w-4 shrink-0 mt-0.5 ${
+                  (statusSync.base_dias ?? 0) >= 3 || (statusSync.cobranca_dias ?? 0) >= 3 || statusSync.ultimo_erro
+                    ? "text-red-600"
+                    : "text-amber-600"
+                }`}
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm font-semibold">Importação desatualizada</span>
+                  <HelpTip text="Compara a data do último dado importado com hoje. Se a base ou a cobrança param de receber dados, os números do painel congelam sem aviso — este alerta existe para isso não passar despercebido. O erro exibido vem do log de integração (integracao_sync_log)." />
+                </div>
+                <div className="flex items-center gap-x-5 gap-y-1 mt-1.5 text-xs flex-wrap">
+                  {statusSync.base_dias != null && (
+                    <span className="text-muted-foreground">
+                      Base:{" "}
+                      <strong className={statusSync.base_dias >= 2 ? "text-red-600" : "text-foreground"}>
+                        {statusSync.base_dias === 0 ? "hoje" : `há ${statusSync.base_dias} dia(s)`}
+                      </strong>
+                    </span>
+                  )}
+                  {statusSync.cobranca_dias != null && (
+                    <span className="text-muted-foreground">
+                      Cobrança:{" "}
+                      <strong className={statusSync.cobranca_dias >= 2 ? "text-red-600" : "text-foreground"}>
+                        {statusSync.cobranca_dias === 0 ? "hoje" : `há ${statusSync.cobranca_dias} dia(s)`}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+                {statusSync.ultimo_erro && (
+                  <p className="text-xs text-red-700 mt-1.5 leading-snug">
+                    Último erro ({statusSync.ultimo_erro.modulo}):{" "}
+                    <span className="font-medium">{statusSync.ultimo_erro.mensagem}</span>
+                  </p>
+                )}
+                <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
+                  Cadastros e placas do mês podem aparecer desatualizados até a próxima importação bem-sucedida.
+                </p>
               </div>
             </div>
           </CardContent>
