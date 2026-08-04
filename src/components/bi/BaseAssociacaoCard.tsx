@@ -90,59 +90,58 @@ export default function BaseAssociacaoCard({
 
   return (
     <Card className="rounded-2xl border-border/40">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-1.5">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-sm font-semibold">Base da associação</span>
-            <HelpTip text="Placas ativas: total de veículos ativos da associação no mês (mesma fonte do Estudo de Base, já incluindo os 0km). Cadastros do mês: novos contratos com data de contrato dentro do mês. 0km: veículos protegidos ainda sem placa." />
+            <HelpTip text="Todos os números seguem o mês selecionado no filtro. Placas ativas: veículos ativos da associação no mês (mesma fonte do Estudo de Base, já incluindo os 0km). Cadastros do mês: novos contratos com data de contrato dentro do mês. 0km: veículos protegidos ainda sem placa que entraram no mês." />
             {base.mes_referencia && (
               <span className="text-[11px] text-muted-foreground">
                 ref. {base.mes_referencia.split("-").reverse().join("/")}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-6 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="flex items-center justify-center h-9 w-9 rounded-full bg-primary/10 shrink-0">
+          {/* Mobile: grade de 3 colunas (não estoura a largura). Desktop: linha. */}
+          <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-6">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="hidden sm:flex items-center justify-center h-9 w-9 rounded-full bg-primary/10 shrink-0">
                 <Car className="h-4 w-4 text-primary" />
               </span>
-              <div>
-                <div className="text-lg font-bold tracking-tight tabular-nums leading-none">
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-bold tracking-tight tabular-nums leading-none">
                   {(base.placas_ativas ?? 0).toLocaleString("pt-BR")}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">placas ativas</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5 truncate">placas ativas</div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="flex items-center justify-center h-9 w-9 rounded-full bg-emerald-500/10 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="hidden sm:flex items-center justify-center h-9 w-9 rounded-full bg-emerald-500/10 shrink-0">
                 <UserPlus className="h-4 w-4 text-emerald-600" />
               </span>
-              <div>
-                <div className="text-lg font-bold tracking-tight tabular-nums leading-none">
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-bold tracking-tight tabular-nums leading-none">
                   {(base.cadastros_mes ?? 0).toLocaleString("pt-BR")}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">cadastros do mês</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5 truncate">cadastros do mês</div>
               </div>
             </div>
 
-            {zeroKm && (zeroKm.zero_km_total ?? 0) > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="flex items-center justify-center h-9 w-9 rounded-full bg-sky-500/10 shrink-0">
+            {zeroKm && (
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="hidden sm:flex items-center justify-center h-9 w-9 rounded-full bg-sky-500/10 shrink-0">
                   <Car className="h-4 w-4 text-sky-600" />
                 </span>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-1">
-                    <span className="text-lg font-bold tracking-tight tabular-nums leading-none">
-                      {(zeroKm.zero_km_total ?? 0).toLocaleString("pt-BR")}
+                    {/* Segue o filtro: mostra os 0km que entraram NO MÊS, não o
+                        acumulado da base (antes exibia 38 em qualquer mês). */}
+                    <span className="text-base sm:text-lg font-bold tracking-tight tabular-nums leading-none">
+                      {(zeroKm.zero_km_mes ?? 0).toLocaleString("pt-BR")}
                     </span>
-                    <HelpTip text="Veículos 0km / ainda não emplacados: estão protegidos e contam no total de veículos, mas não têm placa cadastrada. O número entre parênteses é quanto entrou no mês." />
+                    <HelpTip text="Veículos 0km / ainda não emplacados que entraram no mês selecionado. Eles estão protegidos e contam no total de veículos, mas ainda não têm placa cadastrada." />
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">
-                    0km / sem placa
-                    {(zeroKm.zero_km_mes ?? 0) > 0 &&
-                      ` (${(zeroKm.zero_km_mes ?? 0).toLocaleString("pt-BR")} no mês)`}
-                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 truncate">0km / sem placa</div>
                 </div>
               </div>
             )}
