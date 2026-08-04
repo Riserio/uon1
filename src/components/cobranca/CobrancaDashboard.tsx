@@ -496,10 +496,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
 
   return (
     <div className="space-y-3 w-full max-w-full overflow-x-hidden min-w-0">
-      {/* Card Base movido para o BILayout (aparece acima dos filtros em todos
-          os BIs). Mantido aqui apenas para o acesso via Portal do Parceiro,
-          que não passa pelo BILayout. */}
-      {isPortalAccess && baseInfo && (
+      {/* Card Base removido daqui: agora é renderizado uma única vez pelo
+          BILayout (BI interno) e pelo PortalLayout (portal do parceiro),
+          sempre ACIMA dos filtros e com a mesma fonte de dados. */}
+      {false && baseInfo && (
         <Card className="rounded-2xl border-border/40">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-4 flex-wrap">
