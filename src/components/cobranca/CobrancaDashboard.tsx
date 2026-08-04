@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, DollarSign, AlertCircle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Settings, TrendingDown, Info, Scale, Car, UserPlus } from "lucide-react";
+import { TrendingUp, DollarSign, AlertCircle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Settings, TrendingDown, Scale, Car, UserPlus, Info } from "lucide-react";
 // Tooltip do design system — aliased para não colidir com o Tooltip do recharts
 // (usado nos gráficos abaixo). O TooltipProvider global vive no App.tsx.
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -81,6 +81,28 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false, isPercent =
   }
   return null;
 };
+
+// Ícone de ajuda discreto ("i" dentro do círculo) com tooltip explicando de onde vem o número
+// e como é calculado. Usado em todos os cards para tirar as dúvidas
+// recorrentes sobre a origem dos valores. O TooltipProvider global está no
+// App.tsx, então funciona em qualquer card sem provider local.
+const HelpTip = ({ text }: { text: string }) => (
+  <UITooltip>
+    <TooltipTrigger asChild>
+      <button
+        type="button"
+        aria-label="Como este número é calculado"
+        onClick={(e) => e.preventDefault()}
+        className="inline-flex items-center text-muted-foreground/50 hover:text-muted-foreground transition-colors align-middle"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+    </TooltipTrigger>
+    <TooltipContent side="top" className="max-w-[280px] text-xs leading-snug">
+      {text}
+    </TooltipContent>
+  </UITooltip>
+);
 
 export default function CobrancaDashboard({ stats, loading, corretoraId, mesReferencia, isPortalAccess, criterio = "sga", onCriterioChange }: CobrancaDashboardProps) {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
@@ -443,8 +465,9 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
         <Card className="rounded-2xl border-border/40">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <span className="text-sm font-semibold">Base da associação</span>
+                <HelpTip text="Placas ativas: total de placas ativas no indicador operacional (PID) mais recente da associação. Cadastros do mês: novos contratos com data no último mês disponível na base do estudo. São os mesmos números que abrem o resumo/PDF." />
                 {baseInfo.mes_referencia && (
                   <span className="text-[11px] text-muted-foreground">
                     ref. {baseInfo.mes_referencia.split("-").reverse().join("/")}
@@ -527,13 +550,25 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
 
       <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
         {[
-          { label: "Boletos Emitidos", unidade: "boletos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20", info: undefined as string | undefined },
-          { label: "Boletos Pagos", unidade: "boletos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20", info: undefined },
-          { label: "Em Aberto", unidade: "boletos", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20", info: undefined },
+          {
+            label: "Boletos Emitidos", unidade: "boletos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20",
+            info: "Quantidade de boletos com vencimento no mês de referência, já sem cancelados/excluídos e sem duplicados (dedup por nº do boleto). No Critério SGA também exclui veículos que arrastavam boleto em aberto de meses anteriores. O valor abaixo é a soma dos valores desses boletos.",
+          },
+          {
+            label: "Boletos Pagos", unidade: "boletos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20",
+            info: "Boletos do mês com situação BAIXADO (pagos/liquidados). O valor abaixo é o total recebido desses boletos.",
+          },
+          {
+            label: "Em Aberto", unidade: "boletos", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20",
+            info: "Boletos do mês ainda não pagos (situação ABERTO). Conta BOLETOS — não veículos. O valor abaixo é o total em aberto.",
+          },
           // Vencidos x Em Aberto: em mes fechado sao iguais (tudo ja venceu). No
           // mes corrente separam quem esta em atraso de verdade de quem so tem
           // conta a vencer — jul/26 tinha 1.538 em aberto e apenas 160 vencidos.
-          { label: "Vencidos", unidade: "boletos", value: (stats.qtdeVencidosMes ?? 0).toLocaleString('pt-BR'), sub: formatCurrency(stats.totalVencidoMes ?? 0), cls: "text-orange-600 bg-orange-500/5 border-orange-500/20", info: undefined },
+          {
+            label: "Vencidos", unidade: "boletos", value: (stats.qtdeVencidosMes ?? 0).toLocaleString('pt-BR'), sub: formatCurrency(stats.totalVencidoMes ?? 0), cls: "text-orange-600 bg-orange-500/5 border-orange-500/20",
+            info: "Boletos em aberto cujo vencimento já passou. Num mês já fechado, é igual a 'Em Aberto' (tudo já venceu); no mês corrente, mostra só os que realmente atrasaram, separando-os das contas ainda a vencer.",
+          },
           {
             label: "Inadimplência",
             unidade: null,
@@ -542,26 +577,15 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
             cls: "text-amber-600 bg-amber-500/5 border-amber-500/20",
             info:
               criterio === "sga"
-                ? "Critério SGA: em aberto ÷ emitidos, excluindo veículos que já arrastavam boleto em aberto de meses anteriores (janela de 6 meses). É o número que a associação confere no Relatório de Boletos — e o mesmo que sai no resumo do WhatsApp."
-                : "Cobrança total: todos os boletos em aberto do mês ÷ emitidos, sem filtro. Inclui veículos com débito antigo — fica mais alto que o critério SGA.",
+                ? "Em aberto ÷ emitidos, pelo Critério SGA: exclui veículos que já arrastavam boleto em aberto de meses anteriores (janela de 6 meses). É o número que a associação confere no Relatório de Boletos — e o mesmo que sai no resumo do WhatsApp."
+                : "Em aberto ÷ emitidos, sem filtro (cobrança total). Inclui veículos com débito antigo — por isso fica mais alto que o Critério SGA. Veja o card 'Critério SGA × Bruto' para os dois lado a lado.",
           },
         ].map(({ label, unidade, value, sub, cls, info }) => (
           <Card key={label} className={`rounded-2xl border ${cls}`}>
             <CardContent className="p-4">
               <div className={`flex items-center gap-1 text-[11px] font-medium mb-1 ${cls.split(" ")[0]}`}>
                 <span>{label}</span>
-                {info && (
-                  <UITooltip>
-                    <TooltipTrigger asChild>
-                      <button type="button" aria-label={`Sobre: ${label}`} className="inline-flex items-center">
-                        <Info className="h-3 w-3 opacity-60 hover:opacity-100 transition-opacity" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[260px] text-xs leading-snug">
-                      {info}
-                    </TooltipContent>
-                  </UITooltip>
-                )}
+                {info && <HelpTip text={info} />}
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xl font-bold tracking-tight">{value}</span>
@@ -588,26 +612,17 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
       {kpisSga && (kpisSga.qtdeAbertosTotal ?? 0) >= 0 && (
         <Card className="rounded-2xl border-border/40">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-1.5 mb-3">
               <Scale className="h-4 w-4 text-primary" />
               <span className="text-sm font-semibold">Critério SGA × Bruto</span>
-              <UITooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" aria-label="Sobre o comparativo" className="inline-flex items-center">
-                    <Info className="h-3.5 w-3.5 text-muted-foreground/70 hover:text-muted-foreground transition-colors" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[280px] text-xs leading-snug">
-                  O SGA não conta em duplicidade o veículo que arrasta boleto em aberto de
-                  meses anteriores; o bruto conta a carteira inteira. A diferença entre os
-                  dois são justamente os boletos "arrastados". O resumo do WhatsApp usa o
-                  critério SGA — por isso bate com este painel.
-                </TooltipContent>
-              </UITooltip>
+              <HelpTip text='O SGA não conta em duplicidade o veículo que arrasta boleto em aberto de meses anteriores; o bruto conta a carteira inteira. A diferença entre os dois são justamente os boletos "arrastados". O resumo do WhatsApp usa o Critério SGA — por isso bate com este painel.' />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-                <div className="text-[11px] font-medium text-emerald-600 mb-1">Critério SGA</div>
+                <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-600 mb-1">
+                  <span>Critério SGA</span>
+                  <HelpTip text="Em aberto ÷ emitidos, excluindo veículos que já tinham boleto em aberto nos 6 meses anteriores. É o número do Relatório de Boletos que a associação confere." />
+                </div>
                 <div className="text-xl font-bold tracking-tight text-emerald-600">
                   {formatPercent(kpisSga.percentualInadimplencia)}
                 </div>
@@ -616,7 +631,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
                 </div>
               </div>
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
-                <div className="text-[11px] font-medium text-amber-600 mb-1">Bruto (com prorrogação)</div>
+                <div className="flex items-center gap-1 text-[11px] font-medium text-amber-600 mb-1">
+                  <span>Bruto (com prorrogação)</span>
+                  <HelpTip text="Em aberto ÷ emitidos considerando TODOS os boletos do mês, inclusive os de veículos que arrastam débito antigo. Fica mais alto que o SGA." />
+                </div>
                 <div className="text-xl font-bold tracking-tight text-amber-600">
                   {formatPercent(kpisSga.percentualInadimplenciaTotal ?? 0)}
                 </div>
@@ -625,7 +643,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
                 </div>
               </div>
               <div className="rounded-xl border border-border/50 bg-muted/30 p-3">
-                <div className="text-[11px] font-medium text-muted-foreground mb-1">Arrastados</div>
+                <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground mb-1">
+                  <span>Arrastados</span>
+                  <HelpTip text="Boletos em aberto de veículos que já vinham devendo de meses anteriores. É exatamente a diferença entre o bruto e o SGA (o que o SGA deixa de contar para não duplicar o mesmo inadimplente)." />
+                </div>
                 <div className="text-xl font-bold tracking-tight text-foreground">
                   {(kpisSga.qtdeSemProrrogacao ?? 0).toLocaleString('pt-BR')}
                 </div>
@@ -661,9 +682,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
         return (
           <Card className="rounded-2xl overflow-hidden border-border/40">
             <CardHeader className="pb-0 pt-4 px-5">
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
                 <Calendar className="h-4 w-4 text-primary" />
-                Boletos por Dia de Vencimento
+                <span>Boletos por Dia de Vencimento</span>
+                <HelpTip text="Distribui os boletos do mês pelo dia de vencimento do veículo, com quantos foram pagos e quantos seguem em aberto. 'Avulsos' são os dias fora do ciclo de cobrança da associação (baixo volume: menos de 5% do total do mês). A 'Taxa' é pagos ÷ emitidos do dia." />
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -799,7 +821,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
-              <CardTitle className="text-sm font-semibold">Inadimplência por Dia</CardTitle>
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <span>Inadimplência por Dia</span>
+                <HelpTip text="Evolução da inadimplência ao longo do mês, acumulada dia a dia. Real = medido (em aberto ÷ emitidos até o dia). Referência = a meta configurável (botão 'Referência'). Histórico = o snapshot de um dia anterior, para comparar a evolução." />
+              </CardTitle>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               {/* Legenda inline */}
@@ -880,7 +905,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
         <CardHeader className="pb-2 pt-4 px-5">
           <div className="flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-primary" />
-            <CardTitle className="text-sm font-semibold">Arrecadação: Vencimentos vs Pagamentos</CardTitle>
+            <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+              <span>Arrecadação: Vencimentos vs Pagamentos</span>
+              <HelpTip text="Por dia do mês: 'Vencimentos' é o valor que vencia naquele dia (projetado); 'Recebido' é o valor efetivamente pago (por data de pagamento). Ajuda a ver a defasagem entre o que vence e o que entra." />
+            </CardTitle>
           </div>
         </CardHeader>
         <CardContent className="px-4 pb-4">
@@ -911,7 +939,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           <CardHeader className="pb-1 pt-4 px-5">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <CardTitle className="text-sm font-semibold">Menor Inadimplência — Regional</CardTitle>
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <span>Menor Inadimplência — Regional</span>
+                <HelpTip text="% = boletos em aberto ÷ total de boletos da regional, só para regionais com pelo menos 5 boletos (evita % distorcido de grupos muito pequenos). Respeita o critério (SGA/total) e os filtros ativos." />
+              </CardTitle>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
@@ -939,7 +970,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           <CardHeader className="pb-1 pt-4 px-5">
             <div className="flex items-center gap-2">
               <TrendingDown className="h-4 w-4 text-red-600" />
-              <CardTitle className="text-sm font-semibold">Maior Inadimplência — Regional</CardTitle>
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <span>Maior Inadimplência — Regional</span>
+                <HelpTip text="% = boletos em aberto ÷ total de boletos da regional, só para regionais com pelo menos 5 boletos (evita % distorcido de grupos muito pequenos). O 'x/y' ao lado é abertos/total. Respeita o critério (SGA/total) e os filtros." />
+              </CardTitle>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
@@ -968,7 +1002,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           <CardHeader className="pb-1 pt-4 px-5">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <CardTitle className="text-sm font-semibold">Menor Inadimplência — Cooperativa</CardTitle>
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <span>Menor Inadimplência — Cooperativa</span>
+                <HelpTip text="% = boletos em aberto ÷ total de boletos da cooperativa, só para cooperativas com pelo menos 5 boletos (evita % distorcido de grupos muito pequenos). Respeita o critério (SGA/total) e os filtros ativos." />
+              </CardTitle>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
@@ -996,7 +1033,10 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           <CardHeader className="pb-1 pt-4 px-5">
             <div className="flex items-center gap-2">
               <TrendingDown className="h-4 w-4 text-red-600" />
-              <CardTitle className="text-sm font-semibold">Maior Inadimplência — Cooperativa</CardTitle>
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <span>Maior Inadimplência — Cooperativa</span>
+                <HelpTip text="% = boletos em aberto ÷ total de boletos da cooperativa, só para cooperativas com pelo menos 5 boletos (evita % distorcido de grupos muito pequenos). O 'x/y' ao lado é abertos/total. Respeita o critério (SGA/total) e os filtros." />
+              </CardTitle>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
@@ -1028,7 +1068,12 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           { title: "Regionais — Mais Abertos", data: stats.regionaisAbertosData || [], isGreen: false },
         ].map(({ title, data, isGreen }) => (
           <Card key={title} className="rounded-2xl border-border/40">
-            <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
+            <CardHeader className="pb-1 pt-4 px-5">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <span>{title}</span>
+                <HelpTip text="Ranking pelo valor em R$: 'Mais Pagos/Pagas' = maior valor recebido; 'Mais Abertos/Abertas' = maior valor em aberto. O 'bol.' ao lado é a quantidade de boletos do grupo. Respeita o critério e os filtros ativos." />
+              </CardTitle>
+            </CardHeader>
             <CardContent className="px-4 pb-4">
               <div className="space-y-2 max-h-[220px] overflow-y-auto">
                 {data.slice(0, 10).map((item: any, i: number) => {
@@ -1058,7 +1103,12 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           { title: "Cooperativas — Mais Abertas", data: stats.cooperativasAbertosData || [], isGreen: false },
         ].map(({ title, data, isGreen }) => (
           <Card key={title} className="rounded-2xl border-border/40">
-            <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
+            <CardHeader className="pb-1 pt-4 px-5">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+                <span>{title}</span>
+                <HelpTip text="Ranking pelo valor em R$: 'Mais Pagos/Pagas' = maior valor recebido; 'Mais Abertos/Abertas' = maior valor em aberto. O 'bol.' ao lado é a quantidade de boletos do grupo. Respeita o critério e os filtros ativos." />
+              </CardTitle>
+            </CardHeader>
             <CardContent className="px-4 pb-4">
               <div className="space-y-2 max-h-[220px] overflow-y-auto">
                 {data.slice(0, 10).map((item: any, i: number) => {
