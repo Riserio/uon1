@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, DollarSign, AlertCircle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Settings, TrendingDown, Scale, Car, UserPlus, Info, AlertTriangle } from "lucide-react";
+import { TrendingUp, DollarSign, AlertCircle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, Settings, TrendingDown, Scale, Car, UserPlus, Info, AlertTriangle } from "lucide-react";
 // Tooltip do design system — aliased para não colidir com o Tooltip do recharts
 // (usado nos gráficos abaixo). O TooltipProvider global vive no App.tsx.
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -133,7 +133,8 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   // vencimento + valor) aparecendo com nosso_numero diferente (2ª via não
   // cancelada). O painel conta por nosso_numero, então conta as duas e infla
   // os totais. Este alerta apenas SINALIZA — não altera nenhum número.
-  const [dupInfo, setDupInfo] = useState<{ total_atual: number; grupos_duplicados: number; boletos_excedentes: number; excedentes_abertos: number; grupos_com_pago: number; total_sem_duplicatas: number } | null>(null);
+  const [dupInfo, setDupInfo] = useState<{ total_atual: number; grupos_duplicados: number; boletos_excedentes: number; grupos_com_pago: number; total_sem_duplicatas: number } | null>(null);
+  const [dupOpen, setDupOpen] = useState(false);
 
 
   // Carregar configuração de inadimplência do banco
@@ -358,6 +359,7 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
       try {
         const { data, error } = await supabase.rpc("resumo_base_corretora", {
           p_corretora_id: corretoraId,
+          p_mes_referencia: mesReferencia || null,
         } as any);
         if (!cancelled && !error) setBaseInfo(data as any);
       } catch (e) {
@@ -365,7 +367,7 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
       }
     })();
     return () => { cancelled = true; };
-  }, [corretoraId]);
+  }, [corretoraId, mesReferencia]);
 
   // Gerar histórico retroativo quando os stats carregam
   useEffect(() => {
@@ -479,7 +481,7 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-semibold">Base da associação</span>
-                <HelpTip text="Placas ativas: total de placas ativas no indicador operacional (PID) mais recente da associação. Cadastros do mês: novos contratos com data no último mês disponível na base do estudo. São os mesmos números que abrem o resumo/PDF." />
+                <HelpTip text="Segue o mês selecionado no filtro. Placas ativas: total de placas ativas da associação no indicador operacional (PID) desse mês. Cadastros do mês: novos contratos com data de contrato dentro do mês, na base do estudo. São os mesmos números que abrem o resumo/PDF." />
                 {baseInfo.mes_referencia && (
                   <span className="text-[11px] text-muted-foreground">
                     ref. {baseInfo.mes_referencia.split("-").reverse().join("/")}
@@ -519,41 +521,43 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           Apenas informativo — não altera nenhum número do painel. */}
       {dupInfo && (dupInfo.boletos_excedentes ?? 0) > 0 && (
         <Card className="rounded-2xl border-amber-500/40 bg-amber-500/5">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <span className="flex items-center justify-center h-9 w-9 rounded-full bg-amber-500/15 shrink-0 mt-0.5">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <CardContent className="p-0">
+            {/* Colapsado por padrão: só o ícone e a quantidade. */}
+            <button
+              type="button"
+              onClick={() => setDupOpen((o) => !o)}
+              className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-amber-500/5 transition-colors rounded-2xl"
+            >
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <span className="text-sm font-semibold text-amber-700">
+                {(dupInfo.boletos_excedentes ?? 0).toLocaleString("pt-BR")} boletos duplicados neste mês
               </span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-sm font-semibold text-amber-700">
-                    {(dupInfo.boletos_excedentes ?? 0).toLocaleString("pt-BR")} boletos duplicados neste mês
-                  </span>
-                  <HelpTip text="Duplicidade = a mesma cobrança (mesma placa, vencimento e valor) aparecendo com dois 'nosso número' diferentes — típico de 2ª via emitida sem cancelar a anterior. Como o painel conta pelo nosso número, ele conta as duas, o que infla os totais. Este aviso só sinaliza; não altera nenhum número exibido." />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1 leading-snug">
-                  {(dupInfo.grupos_duplicados ?? 0).toLocaleString("pt-BR")} cobranças aparecem mais de uma vez com o
-                  mesmo <strong>placa, vencimento e valor</strong>, porém com <strong>nosso número diferente</strong>.
+              <ChevronDown
+                className={`h-4 w-4 text-amber-600/70 ml-auto shrink-0 transition-transform duration-200 ${dupOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {dupOpen && (
+              <div className="px-4 pb-4 pt-0 pl-10">
+                <p className="text-xs text-muted-foreground leading-snug">
+                  Contamos apenas as vias <strong>em aberto</strong> — as duplicatas já pagas não afetam a
+                  inadimplência. São {(dupInfo.grupos_duplicados ?? 0).toLocaleString("pt-BR")} cobranças com a mesma{" "}
+                  <strong>placa, vencimento e valor</strong>, porém com <strong>nosso número diferente</strong> (2ª via
+                  emitida sem cancelar a anterior)
+                  {(dupInfo.grupos_com_pago ?? 0) > 0 && (
+                    <> — em {(dupInfo.grupos_com_pago ?? 0).toLocaleString("pt-BR")} casos a outra via já foi paga</>
+                  )}
+                  .
                 </p>
-                {(dupInfo.excedentes_abertos ?? 0) > 0 && (
-                  <p className="text-xs mt-1.5 leading-snug text-amber-700">
-                    ⚠️ <strong>{(dupInfo.excedentes_abertos ?? 0).toLocaleString("pt-BR")}</strong> dessas vias duplicadas
-                    estão com status <strong>ABERTO</strong> — inflando diretamente a inadimplência do mês
-                    {(dupInfo.grupos_com_pago ?? 0) > 0 && (
-                      <> (em {(dupInfo.grupos_com_pago ?? 0).toLocaleString("pt-BR")} casos a outra via já foi paga)</>
-                    )}.
-                  </p>
-                )}
                 <div className="flex items-center gap-x-5 gap-y-1 mt-2 text-xs flex-wrap">
                   <span className="text-muted-foreground">
                     No painel hoje: <strong className="text-foreground">{(dupInfo.total_atual ?? 0).toLocaleString("pt-BR")}</strong> boletos
                   </span>
                   <span className="text-muted-foreground">
-                    Sem as duplicatas: <strong className="text-emerald-600">{(dupInfo.total_sem_duplicatas ?? 0).toLocaleString("pt-BR")}</strong> boletos
+                    Sem as duplicatas em aberto: <strong className="text-emerald-600">{(dupInfo.total_sem_duplicatas ?? 0).toLocaleString("pt-BR")}</strong> boletos
                   </span>
                 </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       )}
