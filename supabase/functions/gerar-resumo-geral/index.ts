@@ -163,15 +163,23 @@ serve(async (req) => {
     let basePlacasAtivas = 0;
     let baseCadastrosMes = 0;
     try {
+      // Pega o registro mais recente que NÃO seja de um mês futuro — a tabela
+      // pode conter linhas de meses à frente (agregações projetadas), e usar
+      // "o maior ano/mês" fazia o resumo mostrar um número fora da referência.
+      const anoHoje = now.getUTCFullYear();
+      const mesHoje = now.getUTCMonth() + 1;
       const { data: pidRow } = await supabase
         .from("pid_operacional")
-        .select("placas_ativas")
+        .select("placas_ativas, ano, mes")
         .eq("corretora_id", corretora_id)
+        .lte("ano", anoHoje)
         .order("ano", { ascending: false })
         .order("mes", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      basePlacasAtivas = Number((pidRow as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
+        .limit(12);
+      const candidatos = ((pidRow || []) as { placas_ativas?: number; ano: number; mes: number }[]).filter(
+        (r) => r.ano < anoHoje || r.mes <= mesHoje,
+      );
+      basePlacasAtivas = Number(candidatos[0]?.placas_ativas ?? 0);
 
       const { data: impBase } = await supabase
         .from("estudo_base_importacoes")
