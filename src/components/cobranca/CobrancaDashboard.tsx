@@ -135,6 +135,9 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
   // os totais. Este alerta apenas SINALIZA — não altera nenhum número.
   const [dupInfo, setDupInfo] = useState<{ total_atual: number; grupos_duplicados: number; boletos_excedentes: number; grupos_com_pago: number; total_sem_duplicatas: number } | null>(null);
   const [dupOpen, setDupOpen] = useState(false);
+  // Veículos 0km / não emplacados: entram no total de veículos (são protegidos),
+  // mas não têm placa — por isso são acompanhados à parte.
+  const [zeroKm, setZeroKm] = useState<{ total_veiculos: number; zero_km_total: number; zero_km_mes: number } | null>(null);
 
   // Saúde da integração: há quantos dias a base/cobrança não recebe dado novo,
   // e qual foi o último erro registrado (integracao_sync_log). Serve para que
@@ -376,6 +379,11 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           p_corretora_id: corretoraId,
         } as any);
         if (!cancelled && !stErr) setStatusSync(st as any);
+        const { data: zk, error: zkErr } = await supabase.rpc("contar_veiculos_zero_km", {
+          p_corretora_id: corretoraId,
+          p_mes_referencia: mesReferencia || null,
+        } as any);
+        if (!cancelled && !zkErr) setZeroKm(zk as any);
       } catch (e) {
         console.error("Erro ao carregar Base da associação:", e);
       }
@@ -525,6 +533,25 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
                     <div className="text-[10px] text-muted-foreground mt-0.5">cadastros do mês</div>
                   </div>
                 </div>
+                {zeroKm && (zeroKm.zero_km_total ?? 0) > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center h-9 w-9 rounded-full bg-sky-500/10 shrink-0">
+                      <Car className="h-4 w-4 text-sky-600" />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-lg font-bold tracking-tight tabular-nums leading-none">
+                          {(zeroKm.zero_km_total ?? 0).toLocaleString("pt-BR")}
+                        </span>
+                        <HelpTip text="Veículos 0km / ainda não emplacados: estão protegidos e contam no total de veículos, mas não têm placa cadastrada. O número menor entre parênteses é quanto entrou no mês selecionado." />
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        0km / sem placa
+                        {(zeroKm.zero_km_mes ?? 0) > 0 && ` (${(zeroKm.zero_km_mes ?? 0).toLocaleString("pt-BR")} no mês)`}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
