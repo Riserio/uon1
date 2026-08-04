@@ -209,8 +209,11 @@ export default function PortalLayout() {
             {/* Base da associação: mesmo card do BI interno, acima dos filtros.
                 Fonte única (RPCs no banco), então o parceiro vê exatamente o
                 mesmo número que a administradora. */}
+            {/* Sem `container mx-auto`: o conteúdo das páginas do portal ocupa
+                a largura total da tela, então o card precisa acompanhar — com
+                o container ele ficava mais estreito e desalinhado dos cards. */}
             {mostrarBase && (
-              <div className="container mx-auto px-3 sm:px-4 pt-3">
+              <div className="px-3 sm:px-4 pt-3">
                 <BaseAssociacaoCard corretoraId={corretora.id} />
               </div>
             )}
