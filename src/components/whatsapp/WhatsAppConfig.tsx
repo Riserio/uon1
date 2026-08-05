@@ -351,11 +351,8 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
       </Card>
 
       {/* Sub-tabs */}
-      <Tabs defaultValue="conexao" className="space-y-4">
+      <Tabs defaultValue="envios" className="space-y-4">
         <TabsList className="rounded-full bg-muted/40 backdrop-blur p-1">
-          <TabsTrigger value="conexao" className="rounded-full gap-1.5">
-            <Phone className="h-3.5 w-3.5" /> Conexão & Números
-          </TabsTrigger>
           <TabsTrigger value="envios" className="rounded-full gap-1.5">
             <Zap className="h-3.5 w-3.5" /> Envios Automáticos
           </TabsTrigger>
@@ -367,106 +364,8 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
           </TabsTrigger>
         </TabsList>
 
-        {/* === CONEXÃO === */}
-        <TabsContent value="conexao">
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Phone className="h-4 w-4" /> Números de Destino
-              </CardTitle>
-              <CardDescription>
-                Todos os números abaixo recebem os resumos automáticos configurados nesta associação.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-2">
-                {phoneNumbers.map((phone, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-green-100 text-green-700 text-xs font-bold shrink-0 dark:bg-green-900 dark:text-green-300">
-                      {index + 1}
-                    </div>
-                    <Input
-                      placeholder="(XX) XXXXX-XXXX"
-                      value={phone.number}
-                      onChange={(e) => updatePhoneNumber(index, 'number', formatPhone(e.target.value))}
-                      className="flex-1"
-                      maxLength={16}
-                    />
-                    <Input
-                      placeholder="Nome (opcional)"
-                      value={phone.label}
-                      onChange={(e) => updatePhoneNumber(index, 'label', e.target.value)}
-                      className="flex-1"
-                    />
-                    {phoneNumbers.length > 1 && (
-                      <Button variant="ghost" size="icon" onClick={() => removePhoneNumber(index)} className="shrink-0 text-destructive hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <Button variant="outline" size="sm" onClick={addPhoneNumber} className="gap-1">
-                <Plus className="h-3.5 w-3.5" /> Adicionar número
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         {/* === ENVIOS AUTOMÁTICOS === */}
         <TabsContent value="envios" className="space-y-4">
-          {/* Post-import triggers */}
-          <Collapsible>
-            <Card className="rounded-2xl">
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer select-none [&[data-state=open]_svg.chev]:rotate-180">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="space-y-1.5">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Zap className="h-4 w-4 text-amber-500" /> Disparo após importação
-                      </CardTitle>
-                      <CardDescription>
-                        Quando a importação de BI terminar, dispara o fluxo de automação selecionado.
-                      </CardDescription>
-                    </div>
-                    <ChevronDown className="chev h-4 w-4 text-muted-foreground transition-transform shrink-0" />
-                  </div>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-3">
-              {([
-                { key: 'cobranca', label: 'Resumo de Cobrança', toggle: 'envio_automatico_cobranca', flow: 'fluxo_cobranca_id' },
-                { key: 'eventos', label: 'Resumo de Eventos', toggle: 'envio_automatico_eventos', flow: 'fluxo_eventos_id' },
-                { key: 'mgf', label: 'Resumo MGF', toggle: 'envio_automatico_mgf', flow: 'fluxo_mgf_id' },
-              ] as const).map((row) => {
-                const checked = (config as any)[row.toggle] as boolean;
-                const flowId = (config as any)[row.flow] as string;
-                return (
-                  <div key={row.key} className="rounded-xl border bg-muted/30 p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="font-medium">{row.label}</Label>
-                      <Switch
-                        checked={checked}
-                        onCheckedChange={(v) => setConfig({ ...config, [row.toggle]: v } as any)}
-                      />
-                    </div>
-                    {checked && (
-                      <Select value={flowId} onValueChange={(v) => setConfig({ ...config, [row.flow]: v } as any)}>
-                        <SelectTrigger><SelectValue placeholder="Selecione o fluxo..." /></SelectTrigger>
-                        <SelectContent>
-                          {flows.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-                );
-              })}
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-
           {/* Scheduled templates */}
           {selectedCorretora && <WhatsAppTemplateSchedules corretoraId={selectedCorretora} />}
         </TabsContent>
