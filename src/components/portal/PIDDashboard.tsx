@@ -41,18 +41,14 @@ import {
   Legend,
   ComposedChart,
 } from "recharts";
-
 interface PIDDashboardProps {
   corretoraId?: string;
 }
-
 const mesesNome = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-
 /* =====================================================================
  * Formatação compartilhada
  * ===================================================================== */
 type ValueFormat = "number" | "percent" | "currency" | "decimal";
-
 const fmtValue = (v: number, format: ValueFormat): string => {
   switch (format) {
     case "currency":
@@ -69,7 +65,6 @@ const fmtValue = (v: number, format: ValueFormat): string => {
       return (v || 0).toLocaleString("pt-BR");
   }
 };
-
 const fmtAxis = (v: number, format: ValueFormat): string => {
   switch (format) {
     case "currency":
@@ -82,7 +77,6 @@ const fmtAxis = (v: number, format: ValueFormat): string => {
       return Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toLocaleString("pt-BR");
   }
 };
-
 /** Moeda compacta para KPIs (evita estourar o card): R$ 954,4 mil / R$ 1,2 mi */
 const formatCurrencyCompact = (v: number): string => {
   const abs = Math.abs(v || 0);
@@ -90,11 +84,9 @@ const formatCurrencyCompact = (v: number): string => {
   if (abs >= 100_000) return `R$ ${(v / 1_000).toFixed(1).replace(".", ",")} mil`;
   return formatCurrency(v || 0);
 };
-
 const EmptyChart = () => (
   <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Sem dados disponíveis</div>
 );
-
 /* =====================================================================
  * Tooltip base (mesmo padrão visual para todos os gráficos)
  * ===================================================================== */
@@ -138,7 +130,6 @@ const DefaultTooltipContent = ({
     </div>
   );
 };
-
 const PermanenciaTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload || !payload.length) return null;
   const entradaItem = payload.find((p: any) => p.dataKey === "entrada");
@@ -185,7 +176,6 @@ const PermanenciaTooltip = ({ active, payload, label }: any) => {
     </div>
   );
 };
-
 /* =====================================================================
  * Componentes genéricos de gráfico — garantem visual 100% consistente
  * e eliminam repetição de código.
@@ -201,7 +191,6 @@ interface ChartCardProps {
   /** Conteúdo opcional à direita do cabeçalho (ex.: toggle Mês/Dia) */
   headerRight?: React.ReactNode;
 }
-
 const ChartCard = ({ title, subtitle, height = 260, children, hasData, accentColor = "#64748b", headerRight }: ChartCardProps) => (
   <Card className="rounded-xl border-border/60 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
     <CardHeader className="pb-1 pt-4 px-4">
@@ -220,7 +209,6 @@ const ChartCard = ({ title, subtitle, height = 260, children, hasData, accentCol
     </CardContent>
   </Card>
 );
-
 /** Label de valor exibido apenas no último ponto — mantém o gráfico limpo. */
 const lastPointLabel =
   (dataLength: number, color: string, format: ValueFormat) =>
@@ -233,7 +221,6 @@ const lastPointLabel =
       </text>
     );
   };
-
 /**
  * Corta os meses iniciais em que a(s) série(s) exibida(s) ainda não tinham
  * dado. Em "todo período" as linhas antigas do PID existem só com
@@ -245,7 +232,6 @@ const trimLeadingEmpty = (data: any[], keys: string[]) => {
   const first = data.findIndex((d) => keys.some((k) => Math.abs(Number(d?.[k] ?? 0)) > 0));
   return first <= 0 ? data : data.slice(first);
 };
-
 interface SingleSeriesChartProps {
   data: any[];
   dataKey: string;
@@ -254,7 +240,6 @@ interface SingleSeriesChartProps {
   kind: "line" | "bar";
   format?: ValueFormat;
 }
-
 /** Gráfico de uma série só: sem legenda (o título do card já identifica). */
 const SingleSeriesChart = ({ data: rawData, dataKey, name, color, kind, format = "number" }: SingleSeriesChartProps) => {
   const data = useMemo(() => trimLeadingEmpty(rawData, [dataKey]), [rawData, dataKey]);
@@ -315,13 +300,11 @@ const SingleSeriesChart = ({ data: rawData, dataKey, name, color, kind, format =
     </ResponsiveContainer>
   );
 };
-
 interface MultiSeries {
   dataKey: string;
   name: string;
   color: string;
 }
-
 interface MultiSeriesChartProps {
   data: any[];
   series: MultiSeries[];
@@ -329,7 +312,6 @@ interface MultiSeriesChartProps {
   format?: ValueFormat;
   showTotal?: boolean;
 }
-
 /** Gráfico com poucas séries (2 a 4), com legenda compacta. */
 const MultiSeriesChart = ({ data: rawData, series, kind, format = "number", showTotal = false }: MultiSeriesChartProps) => {
   const data = useMemo(
@@ -392,7 +374,6 @@ const MultiSeriesChart = ({ data: rawData, series, kind, format = "number", show
     </ResponsiveContainer>
   );
 };
-
 /* =====================================================================
  * Indicador de variação vs mês anterior
  * ===================================================================== */
@@ -401,7 +382,6 @@ interface VariationIndicatorProps {
   previous: number | null | undefined;
   format?: "number" | "currency" | "percent";
 }
-
 const VariationIndicator = ({ current, previous, format = "number" }: VariationIndicatorProps) => {
   if (previous === null || previous === undefined) {
     return (
@@ -442,12 +422,10 @@ const VariationIndicator = ({ current, previous, format = "number" }: VariationI
     </div>
   );
 };
-
 /* =====================================================================
  * Card de KPI padronizado
  * ===================================================================== */
 type KpiAccent = "blue" | "green" | "emerald" | "purple" | "cyan" | "amber" | "red" | "rose";
-
 const accentClasses: Record<KpiAccent, string> = {
   blue: "bg-gradient-to-br from-blue-500/10 to-transparent border-blue-500/20",
   green: "bg-gradient-to-br from-green-500/10 to-transparent border-green-500/20",
@@ -458,7 +436,6 @@ const accentClasses: Record<KpiAccent, string> = {
   red: "bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20",
   rose: "bg-gradient-to-br from-rose-500/10 to-transparent border-rose-500/20",
 };
-
 interface KpiCardProps {
   icon: React.ReactNode;
   label: string;
@@ -477,7 +454,6 @@ interface KpiCardProps {
    */
   unidade?: string;
 }
-
 const KpiCard = ({ icon, label, value, fullValue, accent, badge, variation, valueClassName, unidade }: KpiCardProps) => (
   <Card className={`${accentClasses[accent]} shadow-sm min-w-0`}>
     <CardContent className="p-4">
@@ -509,7 +485,6 @@ const KpiCard = ({ icon, label, value, fullValue, accent, badge, variation, valu
     </CardContent>
   </Card>
 );
-
 /* =====================================================================
  * Componente principal
  * ===================================================================== */
@@ -536,15 +511,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [ultimoMesComDados, setUltimoMesComDados] = useState<{ ano: string; mes: string } | null>(null);
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
   const [periodoOpen, setPeriodoOpen] = useState(false);
-
   // Slot acima das abas (definido em PID.tsx) onde a barra de período é projetada
   useEffect(() => {
     setFilterSlot(document.getElementById("pid-filters-slot"));
   }, []);
-
   const currentYear = new Date().getFullYear();
   const anos = Array.from({ length: 6 }, (_, i) => (currentYear + 1 - i).toString());
-
   const mesesOptions = [
     { value: "1", label: "Janeiro" },
     { value: "2", label: "Fevereiro" },
@@ -559,7 +531,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     { value: "11", label: "Novembro" },
     { value: "12", label: "Dezembro" },
   ];
-
   const fetchMostRecentPeriod = async () => {
     if (!corretoraId) return;
     try {
@@ -571,7 +542,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         .order("mes", { ascending: false })
         .limit(12);
       if (error) throw error;
-
       // Nunca considerar meses FUTUROS como período atual (o backfill de
       // faturamento cria linhas de meses à frente com boletos a vencer).
       // O Indicadores deve sempre mostrar o mês corrente.
@@ -581,7 +551,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       const naoFuturos = (results || []).filter(
         (r) => r.ano < curY || (r.ano === curY && r.mes <= curM),
       );
-
       if (naoFuturos.length > 0) {
         // Regra: usa o MÊS CORRENTE quando tem dados; se o mês atual ainda não
         // tem importação/dados, cai para o mês mais recente com dados (mês
@@ -617,7 +586,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       setInitialized(true);
     }
   };
-
   const handleTodoPeriodoToggle = () => {
     if (todoPeriodo) {
       if (ultimoMesComDados) {
@@ -627,7 +595,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     }
     setTodoPeriodo(!todoPeriodo);
   };
-
   const fetchDados = async () => {
     if (!corretoraId) return;
     setLoading(true);
@@ -674,21 +641,17 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     if (corretoraId && !initialized) {
       fetchMostRecentPeriod();
     }
   }, [corretoraId]);
-
   useEffect(() => {
     if (corretoraId && initialized) {
       fetchDados();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [corretoraId, ano, mes, todoPeriodo, initialized]);
-
-
   // Inadimplentes do mês corrente.
   //
   // Antes esta tela contava sozinha as placas com boleto vencido e em aberto,
@@ -719,7 +682,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     fetchCobrancaInad();
     return () => { cancelado = true; };
   }, [corretoraId]);
-
   // Snapshot diário da frota (tabela pid_placas_diario) para o modo "Dia".
   useEffect(() => {
     let cancelado = false;
@@ -751,7 +713,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     fetchFrotaDia();
     return () => { cancelado = true; };
   }, [corretoraId]);
-
   const chartData = useMemo(() => {
     // Nada de mes futuro: boleto e emitido antes de vencer, entao existiam
     // linhas de ago/26 e set/26 no pid_operacional — "placas ativas" e
@@ -882,16 +843,27 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       };
     });
   }, [dadosAno, todoPeriodo, chartRange]);
-
   const permanenciaSeries = useMemo(() => {
     if (!dadosAno || !dadosAno.length) return [];
-    return dadosAno.map((d, index) => {
+    // Mesma regra dos demais gráficos: sem meses futuros e respeitando o
+    // seletor "Gráficos" (chartRange). Antes percorria o histórico inteiro
+    // (desde 2016), então o gráfico ignorava a janela escolhida.
+    const hoje = new Date();
+    const anoAtual = hoje.getFullYear();
+    const mesAtual = hoje.getMonth() + 1;
+    const ateHoje = dadosAno.filter(
+      (d: any) => d.ano < anoAtual || (d.ano === anoAtual && d.mes <= mesAtual),
+    );
+    const serie = chartRange >= 999 ? ateHoje : ateHoje.slice(-chartRange);
+    return serie.map((d, index) => {
       const entrada = (d.cadastros_realizados || 0) + (d.reativacao || 0);
       const perdas = (d.cancelamentos || 0) + (d.inadimplentes || 0);
       const saldo = entrada - perdas;
       let variacao = 0;
       if (index > 0) {
-        const prev = dadosAno[index - 1];
+        // Compara com o mês anterior DENTRO da série já filtrada — usando o
+        // array original, o primeiro ponto saía com variação errada.
+        const prev = serie[index - 1];
         const prevEntrada = (prev.cadastros_realizados || 0) + (prev.reativacao || 0);
         const prevPerdas = (prev.cancelamentos || 0) + (prev.inadimplentes || 0);
         const prevSaldo = prevEntrada - prevPerdas;
@@ -902,8 +874,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       const mesLabel = todoPeriodo ? `${mesesNome[d.mes - 1]}/${String(d.ano).slice(-2)}` : mesesNome[d.mes - 1];
       return { mes: mesLabel, entrada, perdas, saldo, variacao_permanencia: variacao };
     });
-  }, [dadosAno, todoPeriodo]);
-
+  }, [dadosAno, todoPeriodo, chartRange]);
   const mediasConsolidadas = useMemo(() => {
     if (!todoPeriodo || !dadosAno || dadosAno.length === 0) return null;
     const count = dadosAno.length;
@@ -917,7 +888,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       percentual_inadimplencia_financeira: avg("percentual_inadimplencia_financeira"),
     };
   }, [todoPeriodo, dadosAno]);
-
   const mesAtualLabel = useMemo(() => {
     if (todoPeriodo) {
       if (dadosAtual) return mesesNome[dadosAtual.mes - 1];
@@ -926,7 +896,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     const mesIndex = parseInt(mes) - 1;
     return mesesNome[mesIndex] || "";
   }, [todoPeriodo, mes, dadosAtual]);
-
   // Considera "período atual" quando o mês/ano selecionado é o corrente (ou "Todo
   // Período"). Só nesse caso sobrepomos a contagem viva da base às placas ativas
   // e inadimplentes, para exibir sempre o número atual (ex.: 4909 ativas).
@@ -935,7 +904,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     const now = new Date();
     return parseInt(ano) === now.getFullYear() && parseInt(mes) === now.getMonth() + 1;
   }, [todoPeriodo, ano, mes]);
-
   // Fonte unica: pid_operacional, a mesma do grafico. Antes o card contava
   // LINHAS de estudo_base_registros e o grafico contava PLACAS distintas —
   // 4.794 contra 4.757, e a variacao exibia "+37 (+0,8%)" de crescimento que
@@ -943,9 +911,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const placasAtivasView = dadosAtual?.placas_ativas;
   const inadimplentesView =
     isPeriodoAtual && cobrancaInad != null ? cobrancaInad : dadosAtual?.inadimplentes;
-
   const hasData = chartData.length > 0;
-
   // Spinner de tela cheia apenas no PRIMEIRO carregamento.
   // Nas trocas de período, o conteúdo permanece visível com leve esmaecimento (transição suave).
   if (loading && !dadosAtual) {
@@ -955,11 +921,9 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       </div>
     );
   }
-
   const periodoResumo = todoPeriodo
     ? "Todo Período"
     : `${mesesOptions.find((m) => m.value === mes)?.label || ""} · ${ano}`;
-
   const filterBar = (
     <Card className="bg-card/50 backdrop-blur border-border/50 overflow-hidden">
       {/* Header - sempre visível */}
@@ -1046,14 +1010,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       )}
     </Card>
   );
-
   return (
     <div
       className={`space-y-6 transition-opacity duration-300 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}
     >
       {/* Barra de período: projetada acima das abas quando o slot existe; senão, renderiza aqui */}
       {filterSlot ? createPortal(filterBar, filterSlot) : filterBar}
-
       {!dadosAtual ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -1198,7 +1160,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               }
             />
           </div>
-
           {/* ============ Abas por tema ============ */}
           <Tabs defaultValue="visao-geral" className="space-y-4">
             {/* Barra de navegação das abas + range de gráficos.
@@ -1241,7 +1202,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </Select>
               </div>
             </div>
-
             {/* ---------- VISÃO GERAL: só o essencial ---------- */}
             <TabsContent value="visao-geral" className="space-y-4">
               {/* Frota protegida — gráfico principal em largura total, com modo Mês/Dia */}
@@ -1344,7 +1304,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </ChartCard>
               </div>
             </TabsContent>
-
             {/* ---------- BASE DE ASSOCIADOS ---------- */}
             <TabsContent value="base" className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1434,7 +1393,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </ChartCard>
               </div>
             </TabsContent>
-
             {/* ---------- FINANCEIRO ---------- */}
             <TabsContent value="financeiro" className="space-y-4">
               {/* Gráficos principais em destaque */}
@@ -1594,7 +1552,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </ChartCard>
               </div>
             </TabsContent>
-
             {/* ---------- PERMANÊNCIA ---------- */}
             <TabsContent value="permanencia" className="space-y-4">
               <ChartCard
