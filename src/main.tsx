@@ -31,6 +31,11 @@ window.addEventListener("error", (e) => handleChunkError(e?.message));
 window.addEventListener("unhandledrejection", (e: any) =>
   handleChunkError(e?.reason?.message || String(e?.reason || ""))
 );
+// Vite dispara esse evento quando um chunk dinâmico não carrega (deploy novo
+// com index.html em cache apontando pra hashes antigos).
+window.addEventListener("vite:preloadError", () =>
+  handleChunkError("Failed to fetch dynamically imported module")
+);
 
 installRealtimeVisibilityPause();
 
@@ -42,10 +47,18 @@ installRealtimeVisibilityPause();
 // API existe.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      // Falha silenciosa: o app funciona normalmente sem SW, só perde o
-      // sinal extra de "instalável" em alguns navegadores.
-    });
+    // Limpa caches antigos deixados por versões anteriores do SW, que
+    // serviam chunks obsoletos e quebravam o import de módulos ES.
+    if ("caches" in window) {
+      caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
+    }
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((reg) => reg.update().catch(() => {}))
+      .catch(() => {
+        // Falha silenciosa: o app funciona normalmente sem SW, só perde o
+        // sinal extra de "instalável" em alguns navegadores.
+      });
   });
 }
 
