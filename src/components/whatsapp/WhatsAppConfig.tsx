@@ -351,11 +351,8 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
       </Card>
 
       {/* Sub-tabs */}
-      <Tabs defaultValue="conexao" className="space-y-4">
+      <Tabs defaultValue="envios" className="space-y-4">
         <TabsList className="rounded-full bg-muted/40 backdrop-blur p-1">
-          <TabsTrigger value="conexao" className="rounded-full gap-1.5">
-            <Phone className="h-3.5 w-3.5" /> Conexão & Números
-          </TabsTrigger>
           <TabsTrigger value="envios" className="rounded-full gap-1.5">
             <Zap className="h-3.5 w-3.5" /> Envios Automáticos
           </TabsTrigger>
