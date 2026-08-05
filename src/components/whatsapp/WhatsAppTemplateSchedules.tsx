@@ -27,6 +27,13 @@ interface Schedule {
   template_language: string;
   data_source: DataSource;
   recipients: string[];
+  /**
+   * Nome de cada destinatário, no formato { "(31) 99999-9999": "Maria" }.
+   * Fica numa coluna à parte de propósito: o runner de envio lê `recipients`
+   * como está, então o rótulo é puramente para identificação na tela e nada
+   * quebra se estiver vazio ou se um número não tiver nome.
+   */
+  recipient_labels?: Record<string, string> | null;
   frequency: Frequency;
   day_of_week: number | null;
   day_of_month: number | null;
@@ -61,6 +68,7 @@ const emptySchedule = (corretora_id: string): Schedule => ({
   template_language: "pt_BR",
   data_source: "resumo_eventos",
   recipients: [""],
+  recipient_labels: {},
   frequency: "daily",
   day_of_week: 1,
   day_of_month: 1,
@@ -74,6 +82,10 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editing, setEditing] = useState<Schedule | null>(null);
+  // Nomes em array paralelo ao de telefones: o telefone ainda está sendo
+  // digitado (e mudando) enquanto o nome é preenchido, então usar o número como
+  // chave durante a edição faria o nome "pular" a cada tecla. Vira mapa só ao salvar.
+  const [nomes, setNomes] = useState<string[]>([""]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -112,10 +124,13 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
 
   const openNew = () => {
     setEditing(emptySchedule(corretoraId));
+    setNomes([""]);
     setOpenDialog(true);
   };
   const openEdit = (s: Schedule) => {
-    setEditing({ ...s, recipients: s.recipients?.length ? s.recipients : [""] });
+    const recipients = s.recipients?.length ? s.recipients : [""];
+    setEditing({ ...s, recipients });
+    setNomes(recipients.map((r) => s.recipient_labels?.[r] || ""));
     setOpenDialog(true);
   };
 
@@ -123,8 +138,16 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
     if (!editing) return;
     if (!editing.name.trim()) return toast.error("Dê um nome ao agendamento");
     if (!editing.template_name) return toast.error("Selecione um template");
-    const recipients = editing.recipients.map((r) => r.trim()).filter(Boolean);
-    if (recipients.length === 0) return toast.error("Informe pelo menos um destinatário");
+
+    // Filtra telefone e nome JUNTOS, para o nome não desalinhar quando alguém
+    // deixa uma linha de telefone em branco no meio da lista.
+    const pares = editing.recipients
+      .map((r, i) => ({ numero: (r || "").trim(), nome: (nomes[i] || "").trim() }))
+      .filter((p) => p.numero);
+    if (pares.length === 0) return toast.error("Informe pelo menos um destinatário");
+
+    const recipients = pares.map((p) => p.numero);
+    const recipient_labels = Object.fromEntries(pares.filter((p) => p.nome).map((p) => [p.numero, p.nome]));
 
     setSaving(true);
     const payload: any = {
@@ -134,6 +157,7 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
       template_language: editing.template_language || "pt_BR",
       data_source: editing.data_source,
       recipients,
+      recipient_labels,
       frequency: editing.frequency,
       day_of_week: editing.frequency === "weekly" ? editing.day_of_week : null,
       day_of_month: editing.frequency === "monthly" ? editing.day_of_month : null,
@@ -202,13 +226,32 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
     r[i] = formatPhone(v);
     setEditing({ ...editing, recipients: r });
   };
-  const addRecipient = () => editing && setEditing({ ...editing, recipients: [...editing.recipients, ""] });
-  const rmRecipient = (i: number) =>
-    editing &&
-    setEditing({
-      ...editing,
-      recipients: editing.recipients.length > 1 ? editing.recipients.filter((_, idx) => idx !== i) : editing.recipients,
-    });
+  const updNome = (i: number, v: string) => {
+    const n = [...nomes];
+    n[i] = v;
+    setNomes(n);
+  };
+  const addRecipient = () => {
+    if (!editing) return;
+    setEditing({ ...editing, recipients: [...editing.recipients, ""] });
+    setNomes([...nomes, ""]);
+  };
+  const rmRecipient = (i: number) => {
+    if (!editing || editing.recipients.length <= 1) return;
+    setEditing({ ...editing, recipients: editing.recipients.filter((_, idx) => idx !== i) });
+    setNomes(nomes.filter((_, idx) => idx !== i));
+  };
+
+  /** "Maria, João e mais 2" — identifica sem estourar a linha. */
+  const resumoDestinatarios = (s: Schedule) => {
+    const total = s.recipients?.length || 0;
+    if (total === 0) return "nenhum";
+    const comNome = (s.recipients || []).map((r) => s.recipient_labels?.[r]).filter(Boolean) as string[];
+    if (comNome.length === 0) return `${total}`;
+    const mostra = comNome.slice(0, 2).join(", ");
+    const resto = total - Math.min(comNome.length, 2);
+    return resto > 0 ? `${mostra} e mais ${resto}` : mostra;
+  };
 
   const fmtDate = (s?: string | null) =>
     s ? new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "—";
@@ -258,7 +301,7 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
                     <Badge variant="outline">{SOURCE_LABEL[s.data_source]}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {freqLabel(s)} · Destinatários: {s.recipients?.length || 0}
+                    {freqLabel(s)} · Para: {resumoDestinatarios(s)}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Próximo: {fmtDate(s.next_run_at)} · Último: {fmtDate(s.last_run_at)}
@@ -291,7 +334,7 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
       </CardContent>
 
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing?.id ? "Editar agendamento" : "Novo agendamento"}</DialogTitle>
           </DialogHeader>
@@ -441,10 +484,21 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
                     Adicionar
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground mb-2">
+                  O nome é só para você identificar quem recebe — não vai na mensagem.
+                </p>
                 <div className="space-y-2">
                   {editing.recipients.map((r, i) => (
                     <div key={i} className="flex gap-2">
                       <Input
+                        className="flex-1 min-w-0"
+                        placeholder="Nome (ex: Miriam — financeiro)"
+                        value={nomes[i] || ""}
+                        onChange={(e) => updNome(i, e.target.value)}
+                        maxLength={40}
+                      />
+                      <Input
+                        className="w-[150px] shrink-0"
                         placeholder="(XX) XXXXX-XXXX"
                         value={r}
                         onChange={(e) => updRecipient(i, e.target.value)}

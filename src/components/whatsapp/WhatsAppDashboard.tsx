@@ -54,7 +54,7 @@ interface MetaAnalytics {
   analytics: { phone_numbers: string[]; data_points: Array<{ start: number; end: number; sent: number; delivered: number }> } | null;
 }
 
-interface AssocCount { name: string; total: number; cobranca: number; eventos: number; mgf: number; manual: number }
+interface AssocCount { name: string; total: number; cobranca: number; eventos: number; mgf: number; geral: number; manual: number }
 
 const PERIOD_OPTIONS = [
   { value: '7', label: 'Últimos 7 dias' },
@@ -64,7 +64,7 @@ const PERIOD_OPTIONS = [
 ];
 
 const PIE_COLORS = ['#8b5cf6', '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
-const BAR_COLORS = ['#8b5cf6', '#22c55e', '#3b82f6', '#f59e0b'];
+const BAR_COLORS = ['#8b5cf6', '#22c55e', '#3b82f6', '#f59e0b', '#06b6d4'];
 
 const MODULO_LABEL: Record<string, string> = {
   cobranca: 'Cobrança', eventos: 'Eventos', mgf: 'MGF', manual: 'Manual', geral: 'Resumo geral',
@@ -275,11 +275,25 @@ export default function WhatsAppDashboard() {
               {modulePieData.length > 0 ? (
                 <div className="h-[260px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
+                    {/* Rótulo fora da fatia era cortado pela borda do card
+                        ("umo geral: 43"). Percentual dentro + legenda embaixo
+                        resolve sem depender da largura disponível. */}
                     <PieChart>
-                      <Pie data={modulePieData} cx="50%" cy="45%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                      <Pie
+                        data={modulePieData}
+                        cx="50%"
+                        cy="45%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={3}
+                        dataKey="value"
+                        labelLine={false}
+                        label={({ percent }) => (percent > 0.08 ? `${Math.round(percent * 100)}%` : '')}
+                      >
                         {modulePieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Pie>
-                      <RechartsTooltip />
+                      <RechartsTooltip formatter={(v: any, n: any) => [`${v} envio(s)`, n]} />
+                      <Legend verticalAlign="bottom" height={36} iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -327,6 +341,10 @@ export default function WhatsAppDashboard() {
                     <Bar dataKey="cobranca" name="Cobrança" stackId="a" fill={BAR_COLORS[0]} radius={0} />
                     <Bar dataKey="eventos" name="Eventos" stackId="a" fill={BAR_COLORS[1]} radius={0} />
                     <Bar dataKey="mgf" name="MGF" stackId="a" fill={BAR_COLORS[2]} radius={0} />
+                    {/* Resumo geral é envio automático e tinha virado "Manual"
+                        no gráfico — a VALECAR aparecia com 24 manuais que na
+                        verdade eram o consolidado diário. */}
+                    <Bar dataKey="geral" name="Resumo geral" stackId="a" fill={BAR_COLORS[4]} radius={0} />
                     <Bar dataKey="manual" name="Manual" stackId="a" fill={BAR_COLORS[3]} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
