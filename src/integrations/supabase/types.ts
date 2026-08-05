@@ -3983,6 +3983,39 @@ export type Database = {
           },
         ]
       }
+      integracao_sync_log: {
+        Row: {
+          corretora_id: string
+          created_at: string
+          detalhe: Json | null
+          id: string
+          mensagem: string | null
+          modulo: string
+          sucesso: boolean
+          total: number | null
+        }
+        Insert: {
+          corretora_id: string
+          created_at?: string
+          detalhe?: Json | null
+          id?: string
+          mensagem?: string | null
+          modulo: string
+          sucesso: boolean
+          total?: number | null
+        }
+        Update: {
+          corretora_id?: string
+          created_at?: string
+          detalhe?: Json | null
+          id?: string
+          mensagem?: string | null
+          modulo?: string
+          sucesso?: boolean
+          total?: number | null
+        }
+        Relationships: []
+      }
       jornada_config: {
         Row: {
           created_at: string
@@ -9173,6 +9206,7 @@ export type Database = {
           last_status: string | null
           name: string
           next_run_at: string | null
+          recipient_labels: Json
           recipients: string[]
           send_time: string
           template_language: string
@@ -9195,6 +9229,7 @@ export type Database = {
           last_status?: string | null
           name: string
           next_run_at?: string | null
+          recipient_labels?: Json
           recipients?: string[]
           send_time?: string
           template_language?: string
@@ -9217,6 +9252,7 @@ export type Database = {
           last_status?: string | null
           name?: string
           next_run_at?: string | null
+          recipient_labels?: Json
           recipients?: string[]
           send_time?: string
           template_language?: string
@@ -9460,14 +9496,19 @@ export type Database = {
         Args: { target_profile_id: string; viewer_id: string }
         Returns: boolean
       }
-      agendar_importacao_hinova_async: {
-        Args: {
-          p_corretora_id: string
-          p_execucao_id: string
-          p_modulo: string
-        }
-        Returns: string
-      }
+      agendar_importacao_hinova_async:
+        | {
+            Args: { p_corretora_id: string; p_modulo: string }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_corretora_id: string
+              p_execucao_id: string
+              p_modulo: string
+            }
+            Returns: string
+          }
       agregar_estudo_base: {
         Args: { p_corretora_id: string; p_data_referencia?: string }
         Returns: Json
@@ -9652,6 +9693,10 @@ export type Database = {
         Args: { p_cpf?: string; p_nome?: string; p_placa?: string }
         Returns: Json
       }
+      contar_veiculos_zero_km: {
+        Args: { p_corretora_id: string; p_mes_referencia?: string }
+        Returns: Json
+      }
       criar_ouvidoria_registro_publico: {
         Args: {
           p_anonimo: boolean
@@ -9673,6 +9718,14 @@ export type Database = {
       }
       derivar_indicadores: {
         Args: { p_corretora_id: string; p_meses?: number }
+        Returns: Json
+      }
+      derivar_movimentacao_base: {
+        Args: { p_corretora_id?: string }
+        Returns: Json
+      }
+      detectar_boletos_duplicados: {
+        Args: { p_importacao_ids: string[]; p_mes_referencia?: string }
         Returns: Json
       }
       enqueue_recurrent_backfills: {
@@ -10004,7 +10057,14 @@ export type Database = {
       }
       listar_push_assinantes: { Args: never; Returns: Json }
       marcar_git_fallback_desativado: { Args: never; Returns: undefined }
+      processar_backfill_cobranca: { Args: never; Returns: Json }
       reset_email_rate_limits: { Args: never; Returns: undefined }
+      resumo_base_corretora:
+        | { Args: { p_corretora_id: string }; Returns: Json }
+        | {
+            Args: { p_corretora_id: string; p_mes_referencia?: string }
+            Returns: Json
+          }
       set_detran_mg_senha: {
         Args: { p_corretora_id: string; p_senha: string }
         Returns: undefined
@@ -10017,6 +10077,11 @@ export type Database = {
         Args: { _corretora_id: string }
         Returns: string
       }
+      status_backfill_cobranca: { Args: never; Returns: Json }
+      status_importacoes_corretora: {
+        Args: { p_corretora_id: string }
+        Returns: Json
+      }
       user_can_access_fluxo: {
         Args: { _fluxo_id: string; _require_edit?: boolean; _user_id: string }
         Returns: boolean
@@ -10024,6 +10089,10 @@ export type Database = {
       user_can_access_menu: {
         Args: { _menu_item: string; _require_edit?: boolean; _user_id: string }
         Returns: boolean
+      }
+      whatsapp_metricas: {
+        Args: { p_corretora_id?: string; p_dias?: number }
+        Returns: Json
       }
     }
     Enums: {

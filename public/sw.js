@@ -22,8 +22,9 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener("fetch", (event) => {
-  // Pass-through puro: sem cache, sempre busca da rede. Mantém o app
-  // sempre atualizado após cada deploy, mesmo com o service worker ativo.
-  event.respondWith(fetch(event.request));
+self.addEventListener("fetch", () => {
+  // Sem respondWith: deixamos o navegador tratar a requisição normalmente.
+  // Interceptar com fetch(event.request) reempacota a requisição e pode
+  // quebrar o carregamento de módulos ES (erro "Importing a module script
+  // failed" / tela branca). O service worker existe só pra instalabilidade.
 });
