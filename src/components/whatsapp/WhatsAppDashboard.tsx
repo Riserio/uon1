@@ -7,16 +7,41 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Badge } from '@/components/ui/badge';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Info, TrendingUp, TrendingDown, MessageCircle, AlertTriangle, DollarSign, Building2, FileText } from 'lucide-react';
+import { Info, TrendingUp, TrendingDown, MessageCircle, AlertTriangle, DollarSign, Building2, Users } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend,
   Tooltip as RechartsTooltip,
 } from 'recharts';
 
-interface LocalStats {
-  sent: number; delivered: number; read: number; failed: number;
-  received: number; templates: number; freeWindow: number; automated: number;
+/**
+ * Dashboard do WhatsApp.
+ *
+ * FONTE DOS NÚMEROS: whatsapp_historico, via RPC whatsapp_metricas.
+ * Antes os KPIs saíam de whatsapp_messages, que guarda a CONVERSA (quase só
+ * mensagens recebidas) — por isso a tela mostrava 6 mensagens e 0% de entrega
+ * enquanto havia 43 envios, 86% de entrega e 62% de leitura no mesmo período.
+ * whatsapp_messages continua alimentando só o que é de conversa (recebidas).
+ */
+
+interface Metricas {
+  periodo_dias: number;
+  total: number;
+  entregues: number;
+  lidas: number;
+  falhas: number;
+  pendentes: number;
+  destinatarios: number;
+  taxa_entrega: number;
+  taxa_leitura: number;
+  taxa_falha: number;
+  custo_usd: number;
+  custo_por_mensagem: number;
+  por_modulo: Array<{ modulo: string; total: number; entregues: number; falhas: number }>;
+  por_dia: Array<{ dia: string; total: number; entregues: number; falhas: number }>;
+  por_associacao: AssocCount[];
+  por_status: Record<string, number>;
+  top_erros: Array<{ erro: string; total: number }>;
 }
 
 interface ConvDataPoint {
@@ -29,7 +54,6 @@ interface MetaAnalytics {
   analytics: { phone_numbers: string[]; data_points: Array<{ start: number; end: number; sent: number; delivered: number }> } | null;
 }
 
-interface TemplateCount { name: string; value: number }
 interface AssocCount { name: string; total: number; cobranca: number; eventos: number; mgf: number; manual: number }
 
 const PERIOD_OPTIONS = [
@@ -42,25 +66,17 @@ const PERIOD_OPTIONS = [
 const PIE_COLORS = ['#8b5cf6', '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 const BAR_COLORS = ['#8b5cf6', '#22c55e', '#3b82f6', '#f59e0b'];
 
-// Estimated costs per category (USD) – Meta pricing Q1 2026 BR
-const COST_PER_CATEGORY: Record<string, number> = {
-  SERVICE: 0,
-  MARKETING: 0.0625,
-  UTILITY: 0.0080,
-  AUTHENTICATION: 0.0315,
-  AUTHENTICATION_INTERNATIONAL: 0.0630,
-  MARKETING_LITE: 0.0350,
+const MODULO_LABEL: Record<string, string> = {
+  cobranca: 'Cobrança', eventos: 'Eventos', mgf: 'MGF', manual: 'Manual', geral: 'Resumo geral',
 };
 
 export default function WhatsAppDashboard() {
   const [period, setPeriod] = useState('7');
   const [loading, setLoading] = useState(true);
-  const [localStats, setLocalStats] = useState<LocalStats>({ sent: 0, delivered: 0, read: 0, failed: 0, received: 0, templates: 0, freeWindow: 0, automated: 0 });
-  const [historicoStats, setHistoricoStats] = useState({ total: 0, cobranca: 0, eventos: 0, mgf: 0, manual: 0 });
+  const [metricas, setMetricas] = useState<Metricas | null>(null);
+  const [recebidas, setRecebidas] = useState(0);
   const [metaData, setMetaData] = useState<MetaAnalytics | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
-  const [dailyData, setDailyData] = useState<Array<{ date: string; enviadas: number; entregues: number; lidas: number; recebidas: number; falhas: number }>>([]);
-  const [templateStats, setTemplateStats] = useState<TemplateCount[]>([]);
   const [assocStats, setAssocStats] = useState<AssocCount[]>([]);
 
   const dateRange = useMemo(() => {
@@ -72,7 +88,7 @@ export default function WhatsAppDashboard() {
   const periodLabel = useMemo(() => {
     const end = new Date();
     const start = subDays(end, parseInt(period));
-    return `${format(start, "dd MMM", { locale: ptBR })} – ${format(end, "dd MMM yyyy", { locale: ptBR })}`;
+    return `${format(start, 'dd MMM', { locale: ptBR })} – ${format(end, 'dd MMM yyyy', { locale: ptBR })}`;
   }, [period]);
 
   useEffect(() => {
@@ -80,72 +96,21 @@ export default function WhatsAppDashboard() {
       setLoading(true);
       setMetaError(null);
 
-      const [msgsRes, histRes] = await Promise.all([
-        supabase.from('whatsapp_messages').select('direction, status, type, sent_by, created_at, template_name')
-          .gte('created_at', dateRange.start).lte('created_at', dateRange.end),
-        supabase.from('whatsapp_historico').select('tipo, status, created_at, template_id, corretora_id, corretoras:corretora_id(nome), whatsapp_templates:template_id(nome)')
-          .gte('created_at', dateRange.start).lte('created_at', dateRange.end),
+      // Tudo agregado no banco: o select do Supabase corta em 1.000 linhas por
+      // padrão, e era por isso que 90 dias mostravam exatamente 1000 mensagens.
+      // Só a contagem de recebidas usa select, e com head:true (sem trazer linha).
+      const [rpcRes, recebRes] = await Promise.all([
+        supabase.rpc('whatsapp_metricas' as never, { p_dias: parseInt(period), p_corretora_id: null } as never),
+        supabase.from('whatsapp_messages').select('id', { count: 'exact', head: true })
+          .eq('direction', 'in').gte('created_at', dateRange.start).lte('created_at', dateRange.end),
       ]);
 
-      const msgs = msgsRes.data || [];
-      const hist = histRes.data as any[] || [];
+      const dados = rpcRes.error ? null : (rpcRes.data as unknown as Metricas);
+      if (dados) setMetricas(dados);
+      setRecebidas(recebRes.count || 0);
+      setAssocStats(dados?.por_associacao ?? []);
 
-      const outbound = msgs.filter(m => m.direction === 'out');
-      const inbound = msgs.filter(m => m.direction === 'in');
-
-      setLocalStats({
-        sent: outbound.length, delivered: outbound.filter(m => m.status === 'delivered' || m.status === 'read').length,
-        read: outbound.filter(m => m.status === 'read').length, failed: outbound.filter(m => m.status === 'failed').length,
-        received: inbound.length, templates: outbound.filter(m => m.type === 'template').length,
-        freeWindow: outbound.filter(m => m.type === 'text').length, automated: outbound.filter(m => !m.sent_by).length,
-      });
-
-      setHistoricoStats({
-        total: hist.length, cobranca: hist.filter(h => h.tipo === 'cobranca').length,
-        eventos: hist.filter(h => h.tipo === 'eventos').length, mgf: hist.filter(h => h.tipo === 'mgf').length,
-        manual: hist.filter(h => h.tipo === 'manual').length,
-      });
-
-      // Template stats from whatsapp_messages (template_name) + historico
-      const tplMap: Record<string, number> = {};
-      outbound.filter(m => m.type === 'template' && m.template_name).forEach(m => {
-        const n = m.template_name!;
-        tplMap[n] = (tplMap[n] || 0) + 1;
-      });
-      hist.filter(h => h.whatsapp_templates?.nome).forEach((h: any) => {
-        const n = h.whatsapp_templates.nome;
-        tplMap[n] = (tplMap[n] || 0) + 1;
-      });
-      setTemplateStats(Object.entries(tplMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
-
-      // Association stats
-      const assocMap: Record<string, AssocCount> = {};
-      hist.forEach((h: any) => {
-        const cName = h.corretoras?.nome || 'Sem associação';
-        if (!assocMap[cName]) assocMap[cName] = { name: cName, total: 0, cobranca: 0, eventos: 0, mgf: 0, manual: 0 };
-        assocMap[cName].total++;
-        if (h.tipo === 'cobranca') assocMap[cName].cobranca++;
-        else if (h.tipo === 'eventos') assocMap[cName].eventos++;
-        else if (h.tipo === 'mgf') assocMap[cName].mgf++;
-        else assocMap[cName].manual++;
-      });
-      setAssocStats(Object.values(assocMap).sort((a, b) => b.total - a.total));
-
-      // Daily chart
-      const dayMap: Record<string, { enviadas: number; entregues: number; lidas: number; recebidas: number; falhas: number }> = {};
-      msgs.forEach(m => {
-        const day = format(new Date(m.created_at), 'dd/MM');
-        if (!dayMap[day]) dayMap[day] = { enviadas: 0, entregues: 0, lidas: 0, recebidas: 0, falhas: 0 };
-        if (m.direction === 'out') {
-          dayMap[day].enviadas++;
-          if (m.status === 'delivered' || m.status === 'read') dayMap[day].entregues++;
-          if (m.status === 'read') dayMap[day].lidas++;
-          if (m.status === 'failed') dayMap[day].falhas++;
-        } else { dayMap[day].recebidas++; }
-      });
-      setDailyData(Object.entries(dayMap).map(([date, vals]) => ({ date, ...vals })));
-
-      // Meta API
+      // Meta API: enriquece com o custo real por conversa quando disponível.
       try {
         const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
         const { data: { session } } = await supabase.auth.getSession();
@@ -162,9 +127,8 @@ export default function WhatsAppDashboard() {
       setLoading(false);
     };
     fetchAll();
-  }, [dateRange]);
+  }, [dateRange, period]);
 
-  // Conversation categories from Meta
   const convByCategory = useMemo(() => {
     if (!metaData?.conversation_analytics?.data?.[0]?.data_points) return [];
     const catMap: Record<string, { count: number; cost: number }> = {};
@@ -174,39 +138,34 @@ export default function WhatsAppDashboard() {
       catMap[cat].count += dp.conversation || 0;
       catMap[cat].cost += dp.cost || 0;
     });
-    return Object.entries(catMap).map(([name, { count, cost }]) => ({ name: translateCategory(name), rawName: name, value: count, cost })).filter(c => c.value > 0);
+    return Object.entries(catMap)
+      .map(([name, { count, cost }]) => ({ name: translateCategory(name), value: count, cost }))
+      .filter(c => c.value > 0);
   }, [metaData]);
 
-  const totalConversations = convByCategory.reduce((s, c) => s + c.value, 0);
   const totalCostMeta = convByCategory.reduce((s, c) => s + c.cost, 0);
+  const custoExibido = totalCostMeta > 0 ? totalCostMeta : (metricas?.custo_usd ?? 0);
+  const custoViaMeta = totalCostMeta > 0;
 
-  // Estimated cost from local data (fallback)
-  const estimatedCost = useMemo(() => {
-    const templateCost = localStats.templates * COST_PER_CATEGORY.UTILITY;
-    return templateCost;
-  }, [localStats]);
+  const modulePieData = (metricas?.por_modulo ?? [])
+    .map(m => ({ name: MODULO_LABEL[m.modulo] || m.modulo, value: m.total }))
+    .filter(d => d.value > 0);
 
-  const totalMessages = localStats.sent + localStats.received;
-  const deliveryRate = localStats.sent > 0 ? Math.round((localStats.delivered / localStats.sent) * 100) : 0;
-  const readRate = localStats.sent > 0 ? Math.round((localStats.read / localStats.sent) * 100) : 0;
-  const displayCost = totalCostMeta > 0 ? totalCostMeta : estimatedCost;
-
-  const modulePieData = [
-    { name: 'Cobrança', value: historicoStats.cobranca },
-    { name: 'Eventos', value: historicoStats.eventos },
-    { name: 'MGF', value: historicoStats.mgf },
-    { name: 'Manual', value: historicoStats.manual },
-  ].filter(d => d.value > 0);
+  const dailyData = (metricas?.por_dia ?? []).map(d => ({
+    date: d.dia, enviadas: d.total, entregues: d.entregues, falhas: d.falhas ?? 0,
+  }));
 
   if (loading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-48" />
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
         <Skeleton className="h-64" />
       </div>
     );
   }
+
+  const m = metricas;
 
   return (
     <TooltipProvider>
@@ -218,8 +177,8 @@ export default function WhatsAppDashboard() {
             <p className="text-xs text-muted-foreground">{periodLabel}</p>
           </div>
           <div className="flex items-center gap-2">
-            {metaData && <Badge variant="outline" className="text-xs gap-1 text-green-600 border-green-300"><span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />Meta API</Badge>}
-            {metaError && <Badge variant="outline" className="text-xs gap-1 text-yellow-600 border-yellow-300"><AlertTriangle className="h-3 w-3" />Dados locais</Badge>}
+            {custoViaMeta && <Badge variant="outline" className="text-xs gap-1 text-green-600 border-green-300"><span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />Custo via Meta</Badge>}
+            {metaError && <Badge variant="outline" className="text-xs gap-1 text-yellow-600 border-yellow-300"><AlertTriangle className="h-3 w-3" />Custo estimado</Badge>}
             <Select value={period} onValueChange={setPeriod}>
               <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
               <SelectContent>{PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
@@ -228,13 +187,63 @@ export default function WhatsAppDashboard() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <KPICard label="Total mensagens" value={totalMessages} icon={<MessageCircle className="h-4 w-4" />} />
-          <KPICard label="Taxa entrega" value={`${deliveryRate}%`} icon={<TrendingUp className="h-4 w-4" />} color={deliveryRate >= 90 ? 'text-green-600' : 'text-yellow-600'} />
-          <KPICard label="Taxa leitura" value={`${readRate}%`} icon={<TrendingUp className="h-4 w-4" />} color={readRate >= 50 ? 'text-green-600' : 'text-muted-foreground'} />
-          <KPICard label="Falhas" value={localStats.failed} icon={<TrendingDown className="h-4 w-4" />} color={localStats.failed > 0 ? 'text-destructive' : 'text-green-600'} />
-          <KPICard label="Custo estimado" value={`$${displayCost.toFixed(2)}`} icon={<DollarSign className="h-4 w-4" />} subtitle={totalCostMeta > 0 ? 'via Meta API' : 'estimativa local'} />
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          <KPICard label="Mensagens enviadas" value={m?.total ?? 0} icon={<MessageCircle className="h-4 w-4" />} subtitle={`${recebidas} recebida(s)`} />
+          <KPICard label="Taxa entrega" value={`${m?.taxa_entrega ?? 0}%`} icon={<TrendingUp className="h-4 w-4" />} color={(m?.taxa_entrega ?? 0) >= 90 ? 'text-green-600' : 'text-yellow-600'} subtitle={`${m?.entregues ?? 0} entregues`} />
+          <KPICard label="Taxa leitura" value={`${m?.taxa_leitura ?? 0}%`} icon={<TrendingUp className="h-4 w-4" />} color={(m?.taxa_leitura ?? 0) >= 50 ? 'text-green-600' : 'text-muted-foreground'} subtitle={`${m?.lidas ?? 0} lidas · sobre as entregues`} />
+          <KPICard label="Falhas" value={m?.falhas ?? 0} icon={<TrendingDown className="h-4 w-4" />} color={(m?.falhas ?? 0) > 0 ? 'text-destructive' : 'text-green-600'} subtitle={`${m?.taxa_falha ?? 0}% do total`} />
+          <KPICard label="Destinatários" value={m?.destinatarios ?? 0} icon={<Users className="h-4 w-4" />} subtitle="números distintos" />
+          <KPICard
+            label="Custo do período"
+            value={`$${custoExibido.toFixed(2)}`}
+            icon={<DollarSign className="h-4 w-4" />}
+            subtitle={custoViaMeta ? 'cobrança real da Meta' : `estimado · $${(m?.custo_por_mensagem ?? 0).toFixed(4)}/msg`}
+          />
         </div>
+
+        {/* Falhas em destaque: erro recorrente costuma ser bloqueio de conta,
+            não problema de número — e isso precisa saltar aos olhos. */}
+        {m && m.top_erros.length > 0 && (
+          <Card className="rounded-2xl border-destructive/30 bg-destructive/5">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <h4 className="text-sm font-semibold text-destructive">Motivos das falhas no período</h4>
+                  <div className="mt-2 space-y-1">
+                    {m.top_erros.map((e, i) => (
+                      <div key={i} className="flex items-center justify-between gap-3 text-xs">
+                        <span className="text-muted-foreground truncate">{e.erro}</span>
+                        <span className="font-semibold text-destructive tabular-nums shrink-0">{e.total}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Custo por categoria (Meta) */}
+        {convByCategory.length > 0 && (
+          <Card className="rounded-2xl">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <h4 className="text-sm font-semibold text-foreground">Conversas e custo por categoria (Meta)</h4>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {convByCategory.map((c) => (
+                  <div key={c.name} className="rounded-xl border border-border/50 p-3">
+                    <div className="text-[11px] text-muted-foreground">{c.name}</div>
+                    <div className="text-lg font-bold tabular-nums">{c.value.toLocaleString('pt-BR')}</div>
+                    <div className="text-[10px] text-muted-foreground">conversas · ${c.cost.toFixed(2)}</div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Row 1: Area chart + Module pie */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -254,7 +263,7 @@ export default function WhatsAppDashboard() {
                     <RechartsTooltip contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }} />
                     <Legend />
                     <Area type="monotone" dataKey="enviadas" name="Enviadas" stroke="hsl(var(--primary))" fill="url(#gSent)" strokeWidth={2} />
-                    <Area type="monotone" dataKey="recebidas" name="Recebidas" stroke="#22c55e" fill="url(#gRecv)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="entregues" name="Entregues" stroke="#22c55e" fill="url(#gRecv)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -279,10 +288,10 @@ export default function WhatsAppDashboard() {
           </Card>
         </div>
 
-        {/* Row 2: Bar chart full width */}
+        {/* Row 2: entregues por dia */}
         <Card className="rounded-2xl">
           <CardContent className="p-5">
-            <h4 className="text-sm font-semibold text-foreground mb-4">Status de entrega por dia</h4>
+            <h4 className="text-sm font-semibold text-foreground mb-4">Enviadas x entregues por dia</h4>
             <div className="h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dailyData}>
@@ -291,16 +300,15 @@ export default function WhatsAppDashboard() {
                   <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
                   <RechartsTooltip contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }} />
                   <Legend />
+                  <Bar dataKey="enviadas" name="Enviadas" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="entregues" name="Entregues" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="lidas" name="Lidas" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="falhas" name="Falhas" fill="#ef4444" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
-        {/* Row 3: Association breakdown full width */}
+        {/* Row 3: Association breakdown */}
         <Card className="rounded-2xl">
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-4">
@@ -327,24 +335,26 @@ export default function WhatsAppDashboard() {
           </CardContent>
         </Card>
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <MetricCard title="Todas as mensagens" total={totalMessages}>
-            <MetricRow color="bg-primary" label="Enviadas" value={localStats.sent} tooltip="Total enviadas" />
-            <MetricRow color="bg-green-500" label="Entregues" value={localStats.delivered} tooltip="Confirmadas" />
-            <MetricRow color="bg-blue-500" label="Lidas" value={localStats.read} tooltip="Lidas" />
-            <MetricRow color="bg-muted-foreground" label="Recebidas" value={localStats.received} tooltip="Recebidas" />
+        {/* Resumo por status */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MetricCard title="Situação das mensagens" total={m?.total ?? 0}>
+            <MetricRow color="bg-green-500" label="Entregues" value={m?.entregues ?? 0} tooltip="Confirmadas pelo WhatsApp (inclui as lidas)" />
+            <MetricRow color="bg-blue-500" label="Lidas" value={m?.lidas ?? 0} tooltip="O destinatário abriu a mensagem" />
+            <MetricRow color="bg-muted-foreground" label="Aguardando confirmação" value={m?.pendentes ?? 0} tooltip="Enviadas, sem retorno de entrega ainda" />
+            <MetricRow color="bg-destructive" label="Falhas" value={m?.falhas ?? 0} tooltip="Rejeitadas pela Meta ou pelo número de destino" />
           </MetricCard>
-          <MetricCard title="Mensagens entregues" total={localStats.delivered}>
-            <MetricRow color="bg-green-500" label="Serviço (janela 24h)" value={localStats.freeWindow} tooltip="Gratuitas" />
-            <MetricRow color="bg-orange-500" label="Templates" value={localStats.templates} tooltip="Cobrados" />
-          </MetricCard>
-          <MetricCard title="Automação vs Manual" total={localStats.sent}>
-            <MetricRow color="bg-violet-500" label="Automatizadas" value={localStats.automated} tooltip="Sem operador" />
-            <MetricRow color="bg-sky-500" label="Manuais" value={localStats.sent - localStats.automated} tooltip="Por operador" />
-            <MetricRow color="bg-destructive" label="Falhas" value={localStats.failed} tooltip="Erros" />
+          <MetricCard title="Custo do período" total={Number(custoExibido.toFixed(2))}>
+            <MetricRow color="bg-violet-500" label="Custo médio por mensagem" value={Number((m?.custo_por_mensagem ?? 0).toFixed(4))} tooltip="Custo total dividido pelas mensagens do período" />
+            <MetricRow color="bg-sky-500" label="Mensagens cobradas" value={(m?.total ?? 0) - (m?.falhas ?? 0)} tooltip="Falha não é cobrada pela Meta" />
+            <MetricRow color="bg-muted-foreground" label="Destinatários distintos" value={m?.destinatarios ?? 0} tooltip="Números diferentes alcançados" />
           </MetricCard>
         </div>
+
+        <p className="text-[11px] text-muted-foreground">
+          {custoViaMeta
+            ? 'Custo obtido diretamente da API da Meta (cobrança por conversa de 24h).'
+            : 'Custo estimado pela tabela de preços da Meta para o Brasil por categoria de mensagem. Quando a API de analytics estiver acessível, o valor real substitui a estimativa automaticamente.'}
+        </p>
       </div>
     </TooltipProvider>
   );
@@ -386,7 +396,7 @@ function MetricRow({ color, label, value, tooltip }: { color: string; label: str
         <span className="text-muted-foreground">{label}</span>
         <Tooltip>
           <TooltipTrigger asChild><Info className="h-3 w-3 text-muted-foreground/60 cursor-help" /></TooltipTrigger>
-          <TooltipContent side="top" className="max-w-[200px] text-xs">{tooltip}</TooltipContent>
+          <TooltipContent side="top" className="max-w-[220px] text-xs">{tooltip}</TooltipContent>
         </Tooltip>
       </div>
       <span className="font-medium text-foreground">{value}</span>
