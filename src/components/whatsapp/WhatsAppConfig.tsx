@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { MessageCircle, Save, Clock, CheckCircle, XCircle, Plus, Trash2, Phone, Zap, RotateCcw, Bell } from 'lucide-react';
+import { MessageCircle, Save, Clock, XCircle, Plus, Trash2, Phone, Zap, RotateCcw, Bell } from 'lucide-react';
 import { ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
