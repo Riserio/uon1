@@ -160,17 +160,44 @@ serve(async (req) => {
     }
 
     // ===== BASE (placas ativas + cadastros do mês) — abre o resumo, como no PDF =====
+    //
+    // O mês da Base tem de ser O MESMO do restante do relatório. Rodando em
+    // 05/08, a cobrança referencia JULHO (regra: até o dia 6 usa o mês anterior,
+    // porque o mês recém-fechado ainda está liquidando), mas a Base pegava "o
+    // mês mais recente com dado" e trazia AGOSTO. O resultado era um relatório
+    // dizendo "Julho/2026" com 4.804 placas e 11 cadastros de agosto ao lado de
+    // R$ 793 mil de julho.
     let basePlacasAtivas = 0;
     let baseCadastrosMes = 0;
     try {
-      const { data: pidRow } = await supabase
+      // cob.mes_referencia pode vir como "Julho/2026" ou "2026-07".
+      const MESES_PT = ["janeiro","fevereiro","março","abril","maio","junho",
+                        "julho","agosto","setembro","outubro","novembro","dezembro"];
+      const refDoRelatorio = (): { ano: number; mes: number } | null => {
+        const raw = String(cob?.mes_referencia ?? ev?.mes_referencia ?? "").trim();
+        if (!raw) return null;
+        const iso = raw.match(/^(\d{4})-(\d{2})$/);
+        if (iso) return { ano: Number(iso[1]), mes: Number(iso[2]) };
+        const br = raw.match(/^([A-Za-zçÇãÃéÉ]+)\s*\/\s*(\d{4})$/);
+        if (br) {
+          const idx = MESES_PT.indexOf(br[1].toLowerCase());
+          if (idx >= 0) return { ano: Number(br[2]), mes: idx + 1 };
+        }
+        return null;
+      };
+      const alvo = refDoRelatorio();
+
+      // Placas ativas do mês de referência; sem referência, cai no mais recente.
+      let pidQuery = supabase
         .from("pid_operacional")
         .select("placas_ativas")
-        .eq("corretora_id", corretora_id)
-        .order("ano", { ascending: false })
-        .order("mes", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq("corretora_id", corretora_id);
+      if (alvo) {
+        pidQuery = pidQuery.eq("ano", alvo.ano).eq("mes", alvo.mes);
+      } else {
+        pidQuery = pidQuery.order("ano", { ascending: false }).order("mes", { ascending: false });
+      }
+      const { data: pidRow } = await pidQuery.limit(1).maybeSingle();
       basePlacasAtivas = Number((pidRow as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
 
       const { data: impBase } = await supabase
@@ -182,22 +209,27 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
       if (impBase?.id) {
-        // Mês de referência = o mês MAIS RECENTE com cadastros na base.
-        // (Antes usava o mês do calendário — rodando em agosto, contava agosto e
-        // dava 0, mesmo o relatório sendo de julho. Agora acompanha o dado.)
-        const { data: ultimo } = await supabase
-          .from("estudo_base_registros")
-          .select("data_contrato")
-          .eq("importacao_id", impBase.id)
-          .not("data_contrato", "is", null)
-          .order("data_contrato", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const refStr = (ultimo as { data_contrato?: string } | null)?.data_contrato;
-        if (refStr) {
-          const ref = new Date(refStr + "T00:00:00Z");
-          const ry = ref.getUTCFullYear();
-          const rm = ref.getUTCMonth() + 1;
+        // Sem mês de referência (relatório avulso), usa o mês MAIS RECENTE com
+        // cadastros — nunca o mês do calendário, que em dia 1 daria zero.
+        let ry = alvo?.ano ?? 0;
+        let rm = alvo?.mes ?? 0;
+        if (!alvo) {
+          const { data: ultimo } = await supabase
+            .from("estudo_base_registros")
+            .select("data_contrato")
+            .eq("importacao_id", impBase.id)
+            .not("data_contrato", "is", null)
+            .order("data_contrato", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const refStr = (ultimo as { data_contrato?: string } | null)?.data_contrato;
+          if (refStr) {
+            const ref = new Date(refStr + "T00:00:00Z");
+            ry = ref.getUTCFullYear();
+            rm = ref.getUTCMonth() + 1;
+          }
+        }
+        if (ry && rm) {
           const primeiroDia = `${ry}-${pad(rm)}-01`;
           const proxAno = rm === 12 ? ry + 1 : ry;
           const proxMes = rm === 12 ? 1 : rm + 1;
