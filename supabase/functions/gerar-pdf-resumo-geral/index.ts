@@ -75,14 +75,36 @@ serve(async (req) => {
     let cadastrosPorCoop: { coop: string; qtd: number }[] = [];
     let cadastrosTotalMes = 0;
     try {
-      const { data: pidRow } = await supabase
+      // A Base tem de referenciar O MESMO mês do resto do relatório. Rodando em
+      // 05/08 a cobrança referencia JULHO (até o dia 6 usa o mês anterior), mas
+      // a Base pegava "o mês mais recente com dado" e trazia AGOSTO — saía um
+      // PDF de "Julho/2026" com placas e cadastros de agosto.
+      const MESES_PT = ["janeiro","fevereiro","março","abril","maio","junho",
+                        "julho","agosto","setembro","outubro","novembro","dezembro"];
+      const refDoRelatorio = (): { ano: number; mes: number } | null => {
+        const raw = String(dados?.cob_mes_referencia ?? dados?.ev_mes_referencia ?? "").trim();
+        if (!raw || raw === "-") return null;
+        const iso = raw.match(/^(\d{4})-(\d{2})$/);
+        if (iso) return { ano: Number(iso[1]), mes: Number(iso[2]) };
+        const br = raw.match(/^([A-Za-zçÇãÃéÉ]+)\s*\/\s*(\d{4})$/);
+        if (br) {
+          const idx = MESES_PT.indexOf(br[1].toLowerCase());
+          if (idx >= 0) return { ano: Number(br[2]), mes: idx + 1 };
+        }
+        return null;
+      };
+      const alvo = refDoRelatorio();
+
+      let pidQuery = supabase
         .from("pid_operacional")
         .select("placas_ativas")
-        .eq("corretora_id", corretora_id)
-        .order("ano", { ascending: false })
-        .order("mes", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq("corretora_id", corretora_id);
+      if (alvo) {
+        pidQuery = pidQuery.eq("ano", alvo.ano).eq("mes", alvo.mes);
+      } else {
+        pidQuery = pidQuery.order("ano", { ascending: false }).order("mes", { ascending: false });
+      }
+      const { data: pidRow } = await pidQuery.limit(1).maybeSingle();
       placasAtivas = Number((pidRow as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
 
       const { data: impBase } = await supabase
@@ -94,22 +116,27 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
       if (impBase?.id) {
-        // Mês de referência = o mês MAIS RECENTE com cadastros na base.
-        // (Antes usava o mês do calendário — rodando em agosto, contava agosto
-        // e dava 0, mesmo o relatório sendo de julho. Agora acompanha o dado.)
-        const { data: ultimo } = await supabase
-          .from("estudo_base_registros")
-          .select("data_contrato")
-          .eq("importacao_id", impBase.id)
-          .not("data_contrato", "is", null)
-          .order("data_contrato", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const refStr = (ultimo as { data_contrato?: string } | null)?.data_contrato;
-        if (refStr) {
-          const ref = new Date(refStr + "T00:00:00Z");
-          const anoAtual = ref.getUTCFullYear();
-          const mesAtual = ref.getUTCMonth() + 1;
+        // Sem mês de referência (PDF avulso), usa o mês MAIS RECENTE com
+        // cadastros — nunca o mês do calendário, que no dia 1 daria zero.
+        let anoAtual = alvo?.ano ?? 0;
+        let mesAtual = alvo?.mes ?? 0;
+        if (!alvo) {
+          const { data: ultimo } = await supabase
+            .from("estudo_base_registros")
+            .select("data_contrato")
+            .eq("importacao_id", impBase.id)
+            .not("data_contrato", "is", null)
+            .order("data_contrato", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const refStr = (ultimo as { data_contrato?: string } | null)?.data_contrato;
+          if (refStr) {
+            const ref = new Date(refStr + "T00:00:00Z");
+            anoAtual = ref.getUTCFullYear();
+            mesAtual = ref.getUTCMonth() + 1;
+          }
+        }
+        if (anoAtual && mesAtual) {
           const primeiroDia = `${anoAtual}-${pad2(mesAtual)}-01`;
           const proxAno = mesAtual === 12 ? anoAtual + 1 : anoAtual;
           const proxMes = mesAtual === 12 ? 1 : mesAtual + 1;
