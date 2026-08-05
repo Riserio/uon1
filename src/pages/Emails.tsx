@@ -15,7 +15,6 @@ import {
   Trash2,
   Save,
   FileText,
-  History,
   Settings,
   Target,
   AlertTriangle,
@@ -44,7 +43,6 @@ import { WhatsAppConfig } from "@/components/whatsapp/WhatsAppConfig";
 import { WhatsAppNotificacaoGlobal } from "@/components/whatsapp/WhatsAppNotificacaoGlobal";
 import { WhatsAppTemplates } from "@/components/whatsapp/WhatsAppTemplates";
 import { WhatsAppEnvioManual } from "@/components/whatsapp/WhatsAppEnvioManual";
-import { WhatsAppHistorico } from "@/components/whatsapp/WhatsAppHistorico";
 import WhatsAppDashboard from "@/components/whatsapp/WhatsAppDashboard";
 import { WhatsAppSetupGuide } from "@/components/whatsapp/WhatsAppSetupGuide";
 
@@ -713,10 +711,6 @@ export default function Emails() {
                   <Bot className="h-3.5 w-3.5" />
                   Automações
                 </TabsTrigger>
-                <TabsTrigger value="historico" className="gap-1.5">
-                  <History className="h-3.5 w-3.5" />
-                  Histórico
-                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="dashboard">
@@ -734,9 +728,6 @@ export default function Emails() {
               </TabsContent>
               <TabsContent value="automacoes">
                 <WhatsAppFlows embedded />
-              </TabsContent>
-              <TabsContent value="historico">
-                <WhatsAppHistorico />
               </TabsContent>
             </Tabs>
           </TabsContent>
