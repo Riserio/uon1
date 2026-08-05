@@ -7,7 +7,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Badge } from '@/components/ui/badge';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Info, TrendingUp, TrendingDown, MessageCircle, AlertTriangle, DollarSign, Building2, Users } from 'lucide-react';
+import { Info, TrendingUp, TrendingDown, MessageCircle, AlertTriangle, DollarSign, Building2, Users, History, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { WhatsAppHistorico } from './WhatsAppHistorico';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend,
@@ -373,6 +375,37 @@ export default function WhatsAppDashboard() {
             ? 'Custo obtido diretamente da API da Meta (cobrança por conversa de 24h).'
             : 'Custo estimado pela tabela de preços da Meta para o Brasil por categoria de mensagem. Quando a API de analytics estiver acessível, o valor real substitui a estimativa automaticamente.'}
         </p>
+
+        {/* Histórico no fim da Visão Geral, recolhido. Fica fechado por padrão
+            porque é consulta pontual, não leitura diária — e, como o Collapsible
+            só monta o conteúdo ao abrir, a lista e a assinatura de realtime não
+            pesam em quem só quer ver os indicadores. */}
+        <Collapsible>
+          <Card className="rounded-2xl overflow-hidden">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="w-full flex items-center gap-2.5 px-5 py-4 text-left hover:bg-muted/40 transition-colors [&[data-state=open]_svg.chev]:rotate-180"
+              >
+                <span className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <History className="h-4 w-4 text-primary" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">Histórico de envios</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Últimas mensagens enviadas, com status de entrega e conteúdo
+                  </span>
+                </span>
+                <ChevronDown className="chev h-4 w-4 text-muted-foreground transition-transform shrink-0" />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-5 pb-5 pt-1 border-t border-border/50">
+                <WhatsAppHistorico embedded />
+              </div>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       </div>
     </TooltipProvider>
   );

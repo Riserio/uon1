@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,14 +31,20 @@ interface HistoricoItem {
   corretoras?: { nome: string } | null;
 }
 
-export function WhatsAppHistorico() {
+/**
+ * `embedded`: usado quando o histórico aparece DENTRO de outra seção (hoje, no
+ * fim da Visão Geral, dentro de um colapso). Nesse modo ele não desenha o
+ * próprio Card nem o título — senão ficaria um cabeçalho "Histórico de Envios"
+ * logo abaixo do cabeçalho do colapso, dizendo a mesma coisa duas vezes.
+ */
+export function WhatsAppHistorico({ embedded = false }: { embedded?: boolean }) {
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState<HistoricoItem | null>(null);
   const {
     currentPage, itemsPerPage, paginatedItems, totalPages, totalItems,
     handlePageChange, handleItemsPerPageChange,
-  } = usePagination(historico, 15);
+  } = usePagination(historico, embedded ? 10 : 15);
 
   useEffect(() => {
     loadHistorico();
@@ -60,7 +66,7 @@ export function WhatsAppHistorico() {
 
   const loadHistorico = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('whatsapp_historico')
       .select(`
         *,
@@ -126,14 +132,129 @@ export function WhatsAppHistorico() {
         return <Badge className="bg-orange-100 text-orange-800">Eventos</Badge>;
       case 'mgf':
         return <Badge className="bg-purple-100 text-purple-800">MGF</Badge>;
+      case 'geral':
+        return <Badge className="bg-violet-100 text-violet-800">Resumo geral</Badge>;
       default:
         return <Badge variant="secondary">Manual</Badge>;
     }
   };
 
+  const lista = (
+    <>
+      {historico.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>Nenhuma mensagem enviada ainda</p>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3">
+            {paginatedItems.map((item) => (
+              <div
+                key={item.id}
+                className="border border-border/60 rounded-xl p-4 hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="font-medium">
+                        {item.corretoras?.nome || 'Associação não encontrada'}
+                      </span>
+                      {getTipoBadge(item.tipo)}
+                      {getStatusBadge(item.status, item.status_entrega)}
+                    </div>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p className="flex items-center gap-1">
+                        <MessageCircle className="h-3 w-3" />
+                        {item.telefone_destino}
+                      </p>
+                      <p className="line-clamp-2">{item.mensagem}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedMessage(item)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Ver
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            itemsPerPage={itemsPerPage}
+            totalItems={totalItems}
+            onPageChange={handlePageChange}
+            onItemsPerPageChange={handleItemsPerPageChange}
+          />
+        </>
+      )}
+    </>
+  );
+
+  const detalhe = (
+    <Dialog open={!!selectedMessage} onOpenChange={() => setSelectedMessage(null)}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Detalhes da Mensagem</DialogTitle>
+        </DialogHeader>
+        {selectedMessage && (
+          <div className="space-y-4">
+            <div className="flex gap-2 flex-wrap">
+              {getTipoBadge(selectedMessage.tipo)}
+              {getStatusBadge(selectedMessage.status, selectedMessage.status_entrega)}
+            </div>
+            <div className="grid gap-2 text-sm">
+              <div>
+                <strong>Associação:</strong> {selectedMessage.corretoras?.nome}
+              </div>
+              <div>
+                <strong>Telefone:</strong> {selectedMessage.telefone_destino}
+              </div>
+              <div>
+                <strong>Data:</strong>{' '}
+                {format(new Date(selectedMessage.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              </div>
+            </div>
+            <div className="border rounded-lg p-4 bg-muted/50">
+              <strong className="block mb-2">Mensagem:</strong>
+              <pre className="whitespace-pre-wrap font-sans text-sm">
+                {selectedMessage.mensagem}
+              </pre>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        <div className="flex justify-end mb-3">
+          <Button variant="outline" size="sm" onClick={loadHistorico} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+        </div>
+        {lista}
+        {detalhe}
+      </>
+    );
+  }
+
   return (
     <>
-      <Card>
+      <Card className="rounded-2xl">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -151,100 +272,9 @@ export function WhatsAppHistorico() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          {historico.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhuma mensagem enviada ainda</p>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-3">
-                {paginatedItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="font-medium">
-                            {item.corretoras?.nome || 'Associação não encontrada'}
-                          </span>
-                          {getTipoBadge(item.tipo)}
-                          {getStatusBadge(item.status, item.status_entrega)}
-                        </div>
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          <p className="flex items-center gap-1">
-                            <MessageCircle className="h-3 w-3" />
-                            {item.telefone_destino}
-                          </p>
-                          <p className="line-clamp-2">{item.mensagem}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedMessage(item)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          Ver
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                itemsPerPage={itemsPerPage}
-                totalItems={totalItems}
-                onPageChange={handlePageChange}
-                onItemsPerPageChange={handleItemsPerPageChange}
-              />
-            </>
-          )}
-        </CardContent>
+        <CardContent>{lista}</CardContent>
       </Card>
-
-      <Dialog open={!!selectedMessage} onOpenChange={() => setSelectedMessage(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalhes da Mensagem</DialogTitle>
-          </DialogHeader>
-          {selectedMessage && (
-            <div className="space-y-4">
-              <div className="flex gap-2 flex-wrap">
-                {getTipoBadge(selectedMessage.tipo)}
-                {getStatusBadge(selectedMessage.status, selectedMessage.status_entrega)}
-              </div>
-              <div className="grid gap-2 text-sm">
-                <div>
-                  <strong>Associação:</strong> {selectedMessage.corretoras?.nome}
-                </div>
-                <div>
-                  <strong>Telefone:</strong> {selectedMessage.telefone_destino}
-                </div>
-                <div>
-                  <strong>Data:</strong>{' '}
-                  {format(new Date(selectedMessage.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                </div>
-              </div>
-              <div className="border rounded-lg p-4 bg-muted/50">
-                <strong className="block mb-2">Mensagem:</strong>
-                <pre className="whitespace-pre-wrap font-sans text-sm">
-                  {selectedMessage.mensagem}
-                </pre>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {detalhe}
     </>
   );
 }
