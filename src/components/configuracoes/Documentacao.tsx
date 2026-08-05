@@ -3,15 +3,23 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Layers, Database, Workflow, Calculator, Plug, Shield, AlertTriangle,
-  Search, Info, OctagonAlert, FileDown,
+  Search, Info, OctagonAlert, FileDown, DownloadCloud,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CAPITULOS, ATUALIZADO_EM, type DocBloco, type DocCapitulo } from "@/content/documentacao";
+import DocumentacaoImportacaoSGA from "./DocumentacaoImportacaoSGA";
 
 const ICONES = {
   layers: Layers, database: Database, workflow: Workflow,
   calculator: Calculator, plug: Plug, shield: Shield, alert: AlertTriangle,
 } as const;
+
+/**
+ * Capítulo "vivo": em vez de texto fixo, renderiza um componente que consulta o
+ * estado real da importação. Fica logo abaixo de "Integração com o SGA", que é
+ * onde a integração é explicada — aqui se acompanha o que ela está fazendo.
+ */
+const CAP_IMPORTACAO = "importacao-sga";
 
 const ALERTA = {
   info: { cls: "border-blue-500/30 bg-blue-500/5", icon: Info, cor: "text-blue-600" },
@@ -125,7 +133,24 @@ export default function Documentacao() {
     () => (termo ? CAPITULOS.filter((c) => textoDe(c).includes(termo)) : CAPITULOS),
     [termo],
   );
-  const atual = capitulos.find((c) => c.id === capAtivo) ?? capitulos[0];
+
+  // Itens do menu = capítulos da documentação + o capítulo vivo de Importação,
+  // inserido logo DEPOIS de "Integração com o SGA". Se a busca esconder esse
+  // capítulo, o item de importação também some (segue o mesmo filtro).
+  const itensMenu = useMemo(() => {
+    const base = capitulos.map((c) => ({ id: c.id, titulo: c.titulo, icone: ICONES[c.icone] }));
+    const importacaoCasaComBusca =
+      !termo || "importação sga histórico backfill importacao".includes(termo);
+    if (!importacaoCasaComBusca) return base;
+
+    const item = { id: CAP_IMPORTACAO, titulo: "Importação SGA", icone: DownloadCloud };
+    const idx = capitulos.findIndex((c) => c.titulo.toLowerCase().includes("integra"));
+    if (idx === -1) return [...base, item];
+    return [...base.slice(0, idx + 1), item, ...base.slice(idx + 1)];
+  }, [capitulos, termo]);
+
+  const mostrandoImportacao = capAtivo === CAP_IMPORTACAO;
+  const atual = mostrandoImportacao ? null : (capitulos.find((c) => c.id === capAtivo) ?? capitulos[0]);
 
   const exportar = () => {
     const linhas: string[] = [`# Documentação do sistema`, `Atualizado em ${ATUALIZADO_EM}`, ""];
@@ -183,16 +208,16 @@ export default function Documentacao() {
         </div>
       </div>
 
-      {capitulos.length === 0 ? (
+      {itensMenu.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/60 py-12 text-center">
           <p className="text-sm text-muted-foreground">Nada encontrado para "{busca}".</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[230px_minmax(0,1fr)] gap-5">
           <div className="space-y-1">
-            {capitulos.map((c) => {
-              const Icon = ICONES[c.icone];
-              const ativo = atual?.id === c.id;
+            {itensMenu.map((c) => {
+              const Icon = c.icone;
+              const ativo = mostrandoImportacao ? c.id === CAP_IMPORTACAO : atual?.id === c.id;
               return (
                 <button
                   key={c.id}
@@ -209,15 +234,19 @@ export default function Documentacao() {
           </div>
 
           <div className="space-y-6 min-w-0">
-            {atual?.secoes.map((s) => (
-              <div key={s.id} className="rounded-2xl border border-border/50 bg-card p-5 sm:p-6 space-y-4">
-                <div>
-                  <h3 className="font-semibold">{s.titulo}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">{s.resumo}</p>
+            {mostrandoImportacao ? (
+              <DocumentacaoImportacaoSGA />
+            ) : (
+              atual?.secoes.map((s) => (
+                <div key={s.id} className="rounded-2xl border border-border/50 bg-card p-5 sm:p-6 space-y-4">
+                  <div>
+                    <h3 className="font-semibold">{s.titulo}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">{s.resumo}</p>
+                  </div>
+                  {s.blocos.map((b, i) => <Bloco key={i} b={b} />)}
                 </div>
-                {s.blocos.map((b, i) => <Bloco key={i} b={b} />)}
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       )}
