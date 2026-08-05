@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
+import { getVistoriaClient } from "@/integrations/supabase/vistoriaClient";
 import { toast } from "sonner";
 import { Camera, CheckCircle2, Upload, ArrowRight, ArrowLeft, FileText, Film, Image as ImageIcon } from "lucide-react";
 import SignaturePad from "@/components/SignaturePad";
@@ -68,7 +69,7 @@ export default function VistoriaPublica() {
 
   const loadVistoria = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await getVistoriaClient(token)
         .from("vistorias")
         .select("*")
         .eq("link_token", token)
@@ -193,7 +194,7 @@ export default function VistoriaPublica() {
       const croquiUrl = croqui ? await uploadDataUrl(croqui, "croqui") : null;
 
       // Atualizar vistoria
-      const { error: updateError } = await supabase
+      const { error: updateError } = await getVistoriaClient(token)
         .from("vistorias")
         .update({
           ...formData,

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { getVistoriaClient } from "@/integrations/supabase/vistoriaClient";
 import { toast } from "sonner";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import {
@@ -163,7 +164,7 @@ export default function VistoriaPublicaCaptura() {
 
   const loadVistoria = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await getVistoriaClient(token)
         .from("vistorias")
         .select("*, corretoras(nome, logo_url)")
         .eq("link_token", token)
@@ -494,7 +495,7 @@ export default function VistoriaPublicaCaptura() {
         throw insertError;
       }
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await getVistoriaClient(token)
         .from("vistorias")
         .update({ status: "concluida" })
         .eq("id", vistoria.id);

@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { MessageCircle, Save, Clock, CheckCircle, XCircle, Plus, Trash2, Phone, Zap, RotateCcw, Bell } from 'lucide-react';
+import { MessageCircle, Save, Clock, XCircle, Plus, Trash2, Phone, Zap, RotateCcw, Bell } from 'lucide-react';
 import { ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -328,23 +328,13 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
             </div>
           </div>
 
-          {(config.ultimo_erro_envio || config.ultimo_envio_automatico) && (
+          {config.ultimo_erro_envio && (
             <div className="mt-4">
-              {config.ultimo_erro_envio ? (
-                <Alert variant="destructive">
-                  <XCircle className="h-4 w-4" />
-                  <AlertTitle>Último erro</AlertTitle>
-                  <AlertDescription>{config.ultimo_erro_envio}</AlertDescription>
-                </Alert>
-              ) : (
-                <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <AlertTitle className="text-green-800 dark:text-green-200">Último envio bem-sucedido</AlertTitle>
-                  <AlertDescription className="text-green-700 dark:text-green-300">
-                    {new Date(config.ultimo_envio_automatico!).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
-                  </AlertDescription>
-                </Alert>
-              )}
+              <Alert variant="destructive">
+                <XCircle className="h-4 w-4" />
+                <AlertTitle>Último erro</AlertTitle>
+                <AlertDescription>{config.ultimo_erro_envio}</AlertDescription>
+              </Alert>
             </div>
           )}
         </CardContent>
