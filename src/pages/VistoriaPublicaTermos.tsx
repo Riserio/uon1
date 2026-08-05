@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { getVistoriaClient } from "@/integrations/supabase/vistoriaClient";
 import { toast } from "sonner";
 import {
   CheckCircle2,
@@ -66,7 +67,7 @@ export default function VistoriaPublicaTermos() {
 
   const loadData = async () => {
     try {
-      const { data: vistoriaData, error: vistoriaError } = await supabase
+      const { data: vistoriaData, error: vistoriaError } = await getVistoriaClient(token)
         .from("vistorias")
         .select("*, corretoras(nome, logo_url)")
         .eq("link_token", token)
@@ -147,7 +148,7 @@ export default function VistoriaPublicaTermos() {
     setSubmitting(true);
     try {
       // Verificar se já está finalizada
-      const { data: checkVistoria } = await supabase
+      const { data: checkVistoria } = await getVistoriaClient(token)
         .from("vistorias")
         .select("status, completed_at")
         .eq("id", vistoria.id)
@@ -197,7 +198,7 @@ export default function VistoriaPublicaTermos() {
         }
       }
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await getVistoriaClient(token)
         .from("vistorias")
         .update({
           assinatura_url: assinaturaUrl,
@@ -214,7 +215,7 @@ export default function VistoriaPublicaTermos() {
       }
 
       // Verificar se foi salvo corretamente
-      const { data: verificacao, error: errorVerif } = await supabase
+      const { data: verificacao, error: errorVerif } = await getVistoriaClient(token)
         .from("vistorias")
         .select("id, status, completed_at")
         .eq("id", vistoria.id)

@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { getVistoriaClient } from "@/integrations/supabase/vistoriaClient";
 import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCircle, MapPin, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -168,7 +169,7 @@ export default function VistoriaPublicaFormulario() {
 
   const loadVistoria = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await getVistoriaClient(token)
         .from("vistorias")
         .select("*, corretoras(nome, logo_url)")
         .eq("link_token", token)
@@ -435,7 +436,7 @@ export default function VistoriaPublicaFormulario() {
         valorFipe: payload.veiculo_valor_fipe,
       });
 
-      const { error: updateError } = await supabase.from("vistorias").update(payload).eq("id", vistoria.id);
+      const { error: updateError } = await getVistoriaClient(token).from("vistorias").update(payload).eq("id", vistoria.id);
 
       if (updateError) {
         console.error("Erro ao atualizar vistoria:", updateError);
@@ -463,7 +464,7 @@ export default function VistoriaPublicaFormulario() {
           });
       }
 
-      const { data: verificacao, error: errorVerificacao } = await supabase
+      const { data: verificacao, error: errorVerificacao } = await getVistoriaClient(token)
         .from("vistorias")
         .select("id, cliente_nome, cliente_cpf")
         .eq("id", vistoria.id)
