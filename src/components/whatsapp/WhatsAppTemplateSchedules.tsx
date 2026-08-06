@@ -408,6 +408,18 @@ export function WhatsAppTemplateSchedules({ corretoraId }: Props) {
                     Cadastre e aprove templates na aba Templates (Meta WhatsApp Business).
                   </p>
                 )}
+                {/* Origem e template têm de casar: cada origem produz um conjunto
+                    específico de variáveis, na ordem do template. Um agendamento
+                    de Eventos apontando para o template geral mandou os 8 campos
+                    de evento nos slots do relatório consolidado — a mensagem saiu
+                    com "Valor em aberto: BELO HORIZONTE". */}
+                {editing.template_name && !SOURCE_PATTERN[editing.data_source].test(editing.template_name) && (
+                  <p className="text-xs text-amber-600 mt-1 leading-snug">
+                    ⚠️ O template <strong>{editing.template_name}</strong> não parece ser o desta origem. As variáveis
+                    são preenchidas na ordem do template — se não corresponderem, a mensagem sai com os valores
+                    trocados. Confirme antes de salvar.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
