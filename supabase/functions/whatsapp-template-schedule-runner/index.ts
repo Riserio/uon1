@@ -109,15 +109,17 @@ const DEFAULT_MAPS: Record<string, string[]> = {
   resumo_geral: [
     "nome_associacao", // {{1}} nome da associação
     "cob_mes_referencia", // {{2}} período/mês de referência
-    "cob_faturamento_esperado", // {{3}} faturamento previsto
-    "cob_faturamento_recebido", // {{4}} faturamento recebido
-    "cob_total_aberto", // {{5}} valor em aberto
-    "cob_total_gerados", // {{6}} boletos gerados
-    "cob_total_baixados", // {{7}} boletos baixados
-    "cob_percentual_inadimplencia", // {{8}} inadimplência
-    "ev_total", // {{9}} total de eventos
-    "cob_coop_maior_inadimplencia", // {{10}} maior inadimplência
-    "ev_cidade_top", // {{11}} cidade com mais eventos
+    "base_placas_ativas", // {{3}} placas ativas (quantidade)
+    "base_cadastros_mes", // {{4}} cadastros do mês (quantidade)
+    "cob_faturamento_esperado", // {{5}} faturamento previsto
+    "cob_faturamento_recebido", // {{6}} faturamento recebido
+    "cob_total_aberto", // {{7}} valor em aberto
+    "cob_total_gerados", // {{8}} boletos gerados
+    "cob_total_baixados", // {{9}} boletos baixados
+    "cob_percentual_inadimplencia", // {{10}} inadimplência
+    "ev_total", // {{11}} total de eventos
+    "cob_coop_maior_inadimplencia", // {{12}} maior inadimplência
+    "ev_cidade_top", // {{13}} cidade com mais eventos
   ],
 };
 
