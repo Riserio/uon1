@@ -9728,6 +9728,7 @@ export type Database = {
         Args: { p_importacao_ids: string[]; p_mes_referencia?: string }
         Returns: Json
       }
+      enfileirar_cobranca_recente_diario: { Args: never; Returns: Json }
       enqueue_recurrent_backfills: {
         Args: never
         Returns: {
