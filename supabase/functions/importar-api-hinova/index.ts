@@ -429,6 +429,44 @@ serve(async (req) => {
       let veiculos: any[] | null = null;
       let endpointOk: string | null = null;
       const tentativas: string[] = [];
+      // A Hinova IGNORA o parametro de pagina em POST /listar/veiculo: ela
+      // informa numero_paginas > 1 mas sempre devolve a MESMA primeira pagina
+      // (teto de 5.000 registros). Resultado: associacoes com 20 mil placas
+      // ficavam travadas em 5 mil. O unico filtro que a API honra e o
+      // codigo_cooperativa — entao fatiamos a base por cooperativa, o que
+      // devolve cada fatia inteira e, somadas, a base completa.
+      const dominiosBase = await carregarDominiosHinova(base, H);
+      const codigosCooperativa = Array.from(dominiosBase.cooperativa.keys());
+      const buscar = async (payload: Record<string, unknown>, rotulo: string): Promise<boolean> => {
+        try {
+          const r = await fetch(`${base}/listar/veiculo`, {
+            method: "POST",
+            headers: H,
+            body: JSON.stringify(payload),
+          });
+          const j = await r.json().catch(() => null);
+          const arr = extrairArray(j);
+          tentativas.push(`POST /listar/veiculo ${rotulo} → ${r.status}${arr ? ` (${arr.length})` : ""}`);
+          if (!r.ok || !arr) return false;
+          veiculos = (veiculos || []).concat(arr);
+          endpointOk = "POST /listar/veiculo";
+          return true;
+        } catch (_e) {
+          tentativas.push(`POST /listar/veiculo ${rotulo} → erro`);
+          return false;
+        }
+      };
+      if (codigosCooperativa.length > 0) {
+        for (const cod of codigosSituacao) {
+          for (const coop of codigosCooperativa) {
+            await buscar(
+              { codigo_situacao: cod, codigo_cooperativa: String(coop) },
+              `situacao=${cod} coop=${coop}`,
+            );
+          }
+        }
+      }
+      if (veiculos === null) {
       for (const cod of codigosSituacao) {
         let pagina = 1;
         let totalPaginas = 1;
@@ -454,6 +492,7 @@ serve(async (req) => {
             break;
           }
         }
+      }
       }
 
       // A API repete registros entre as paginas: KM PV e EXCLUSIVE vinham com
