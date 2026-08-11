@@ -202,6 +202,47 @@ function nomeDe(v: unknown): string | null {
   return s;
 }
 
+/**
+ * Tabelas de domínio da Hinova (código -> nome).
+ *
+ * O /listar/veiculo, /listar/associado e o MGF devolvem SOMENTE
+ * `codigo_cooperativa` / `codigo_regional` — nunca o nome. Sem esse lookup a
+ * base inteira ficava "Sem cooperativa" nos rankings, no resumo do WhatsApp e
+ * no PDF executivo. Os endpoints corretos são GET /listar/<dominio>/todos.
+ */
+export type DominiosHinova = { cooperativa: Map<string, string>; regional: Map<string, string> };
+
+async function carregarDominiosHinova(base: string, H: Record<string, string>): Promise<DominiosHinova> {
+  const carregar = async (path: string, codeKey: string): Promise<Map<string, string>> => {
+    const map = new Map<string, string>();
+    try {
+      const r = await fetch(`${base}/listar/${path}/todos`, { method: "GET", headers: H });
+      const j = await r.json().catch(() => null);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const arr: any[] = Array.isArray(j) ? j : Array.isArray((j as any)?.[path + "s"]) ? (j as any)[path + "s"] : [];
+      for (const it of arr) {
+        const code = String(it?.[codeKey] ?? it?.codigo ?? "").trim();
+        const nome = nomeDe(it?.nome ?? it?.descricao ?? it?.razao_social);
+        if (code && nome) map.set(code, nome);
+      }
+    } catch (e) {
+      console.error(`[dominios] falha ao carregar ${path}:`, e);
+    }
+    return map;
+  };
+  const [cooperativa, regional] = await Promise.all([
+    carregar("cooperativa", "codigo_cooperativa"),
+    carregar("regional", "codigo_regional"),
+  ]);
+  console.log(`[dominios] cooperativas=${cooperativa.size} regionais=${regional.size}`);
+  return { cooperativa, regional };
+}
+
+const nomeDominio = (map: Map<string, string>, codigo: unknown): string | null => {
+  const c = String(codigo ?? "").trim();
+  return c ? map.get(c) ?? null : null;
+};
+
 async function mergeIncremental(
   supabase: AnyRow,
   table: string,
@@ -536,6 +577,16 @@ serve(async (req) => {
         "nome_associado", "associado", "associado_nome", "nome_do_associado",
         "nome", "titular", "nome_titular", "proprietario", "nome_proprietario",
       ];
+      // Lookups código -> nome (cooperativa/regional). Sem isso a Hinova só
+      // devolve os códigos e a base fica 100% "Sem cooperativa".
+      const dominios = await carregarDominiosHinova(base, H);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const coopNome = (o: any): string | null =>
+        nomeDe(pick(o, ...COOP_KEYS)) || nomeDominio(dominios.cooperativa, o?.codigo_cooperativa);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const regNome = (o: any): string | null =>
+        nomeDe(pick(o, ...REG_KEYS)) || nomeDominio(dominios.regional, o?.codigo_regional);
+
       try {
         // /listar/associado passou a exigir paginação (mesma mudança do /listar/veiculo).
         // Percorre as páginas de cada código de situação configurado.
@@ -564,8 +615,8 @@ serve(async (req) => {
                   estado_civil: (a.estado_civil ?? a.estado_civil_associado ?? null) as string | null,
                   idade: int(a.idade) ?? idadeFromNascimento(a.data_nascimento ?? a.nascimento ?? a.data_nascimento_associado),
                   cpf: (pick(a, ...CPF_KEYS) as string | null) ?? null,
-                  cooperativa: nomeDe(pick(a, ...COOP_KEYS)),
-                  regional: nomeDe(pick(a, ...REG_KEYS)),
+                  cooperativa: coopNome(a),
+                  regional: regNome(a),
                   nome: nomeDe(pick(a, "nome", "nome_associado", "razao_social", "nome_completo")),
                 });
             }
@@ -597,8 +648,8 @@ serve(async (req) => {
               ? String(g(v, "ano_modelo", "ano_fabricacao", "ano"))
               : null,
           situacao: g(v, "situacao", "situacao_veiculo", "descricao_situacao", "status") as string | null,
-          regional: nomeDe(pick(v, ...REG_KEYS)) || assocC?.regional || null,
-          cooperativa: nomeDe(pick(v, ...COOP_KEYS)) || assocC?.cooperativa || null,
+          regional: regNome(v) || assocC?.regional || null,
+          cooperativa: coopNome(v) || assocC?.cooperativa || null,
           data_cadastro: dateISO(g(v, "data_cadastro", "data_contrato")),
           data_adesao: dateISO(g(v, "data_adesao", "data_contrato")),
           valor_protegido: num(g(v, "valor_protegido", "valor_fipe_protegido", "valor_fipe")),
@@ -626,8 +677,8 @@ serve(async (req) => {
           data_contrato: dateISO(g(v, "data_contrato", "data_adesao", "data_cadastro")),
           valor_protegido: num(g(v, "valor_protegido", "valor_fipe_protegido")),
           valor_fipe: num(g(v, "valor_fipe", "valor_protegido")),
-          cooperativa: nomeDe(pick(v, ...COOP_KEYS)) || assocE?.cooperativa || null,
-          regional: nomeDe(pick(v, ...REG_KEYS)) || assocE?.regional || null,
+          cooperativa: coopNome(v) || assocE?.cooperativa || null,
+          regional: regNome(v) || assocE?.regional || null,
           situacao_veiculo: g(v, "situacao_veiculo", "situacao", "descricao_situacao", "status") as string | null,
           cidade_veiculo: (g(v, "cidade", "cidade_veiculo") as string | null) || assocE?.cidade || null,
           estado: (g(v, "estado", "uf") as string | null) || assocE?.estado || null,
@@ -895,6 +946,8 @@ serve(async (req) => {
       const inicioM = body.data_inicio ? parseBR(body.data_inicio) || addDays(fimM, -janelaDias) : addDays(fimM, -janelaDias);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows: any[] = [];
+      // Lookups código -> nome: o MGF só traz codigo_cooperativa/codigo_regional.
+      const dominiosM = await carregarDominiosHinova(base, H);
       const PAGE = 1000;
       let inicioPag = 0,
         paginas = 0;
@@ -985,8 +1038,12 @@ serve(async (req) => {
               // vêm) ficavam de fora — por isso Veículo/Cooperativa/Regional
               // apareciam vazios na tela. Testamos os nomes de campo mais
               // prováveis, tanto na parcela (P) quanto no lançamento (L).
-              cooperativa: nomeDe(pickNome(P, L, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome")),
-              regional: nomeDe(pickNome(P, L, "regional", "nome_regional", "descricao_regional", "regional_nome")),
+              cooperativa:
+                nomeDe(pickNome(P, L, "cooperativa", "nome_cooperativa", "descricao_cooperativa", "cooperativa_nome")) ||
+                nomeDominio(dominiosM.cooperativa, L.codigo_cooperativa ?? P.codigo_cooperativa),
+              regional:
+                nomeDe(pickNome(P, L, "regional", "nome_regional", "descricao_regional", "regional_nome")) ||
+                nomeDominio(dominiosM.regional, L.codigo_regional ?? P.codigo_regional),
               associado: pickNome(P, L, "associado", "nome_associado", "cliente"),
               veiculo_evento: pickNome(P, L, "placa", "veiculo", "placa_veiculo", "veiculo_evento", "placa_evento"),
               placa: pickNome(P, L, "placa", "placa_veiculo", "veiculo"),
