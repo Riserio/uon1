@@ -9908,6 +9908,7 @@ export type Database = {
         Returns: boolean
       }
       hinova_dateiso: { Args: { t: string }; Returns: string }
+      hinova_jsonb: { Args: { p_text: string }; Returns: Json }
       hinova_num: { Args: { t: string }; Returns: number }
       importar_base_api: { Args: { p_corretora_id: string }; Returns: Json }
       importar_base_api_todas: { Args: never; Returns: Json }
