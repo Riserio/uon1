@@ -618,7 +618,7 @@ serve(async (req) => {
       ];
       // Lookups código -> nome (cooperativa/regional). Sem isso a Hinova só
       // devolve os códigos e a base fica 100% "Sem cooperativa".
-      const dominios = await carregarDominiosHinova(base, H);
+      const dominios = dominiosBase;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const coopNome = (o: any): string | null =>
         nomeDe(pick(o, ...COOP_KEYS)) || nomeDominio(dominios.cooperativa, o?.codigo_cooperativa);
