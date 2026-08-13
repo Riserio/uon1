@@ -33,7 +33,7 @@ export interface DocCapitulo {
   secoes: DocSecao[];
 }
 
-export const ATUALIZADO_EM = "05/08/2026";
+export const ATUALIZADO_EM = "13/08/2026";
 
 export const CAPITULOS: DocCapitulo[] = [
   /* ================================================================== */
