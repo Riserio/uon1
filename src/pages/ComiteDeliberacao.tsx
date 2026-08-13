@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
+import { useSinistroPerguntas, calcularPesoRespostas, calcularProgresso, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
 import { PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA } from '@/constants/perguntasComite';
 import { Save, FileDown, ArrowLeft, Gavel, CheckCircle2, XCircle, HelpCircle, AlertTriangle } from 'lucide-react';
 import { exportDeliberacaoPDF } from '@/utils/pdfDeliberacao';
@@ -453,9 +453,11 @@ export default function ComiteDeliberacao() {
     Object.entries(respostas).filter(([k]) => perguntaIds.has(k))
   );
 
-  const totalPerguntas = perguntasDb.length;
-  const perguntasRespondidas = Object.keys(respostasFiltradas).filter(k => respostasFiltradas[k]).length;
-  const percentualPreenchido = totalPerguntas > 0 ? Math.round((perguntasRespondidas / totalPerguntas) * 100) : 0;
+  // Progresso conta apenas obrigatórias: as opcionais (inclusive condicionais
+  // do tipo "Caso sim, descreva:") no denominador seguravam o questionário
+  // abaixo de 100% mesmo com tudo o que se aplica preenchido.
+  const progresso = calcularProgresso(respostasFiltradas, perguntasDb);
+  const percentualPreenchido = progresso.percentual;
 
   const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = calcularPesoRespostas(respostasFiltradas, perguntasDb);
 
@@ -546,10 +548,29 @@ export default function ComiteDeliberacao() {
         <CardContent className="pt-4">
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span>Progresso do Questionário</span>
-              <span>{perguntasRespondidas}/{totalPerguntas} ({percentualPreenchido}%)</span>
+              <span>Progresso do Questionário (obrigatórias)</span>
+              <span>
+                {progresso.respondidasObrigatorias}/{progresso.totalObrigatorias} ({percentualPreenchido}%)
+                {progresso.totalOpcionais > 0 && (
+                  <span className="text-muted-foreground">
+                    {' '}· +{progresso.respondidasOpcionais}/{progresso.totalOpcionais} opcionais
+                  </span>
+                )}
+              </span>
             </div>
             <Progress value={percentualPreenchido} className="h-2" />
+            {progresso.pendentes.length > 0 && (
+              <details className="pt-1">
+                <summary className="text-xs text-amber-600 cursor-pointer">
+                  Faltam {progresso.pendentes.length} obrigatória(s) — ver quais
+                </summary>
+                <ul className="mt-2 text-xs space-y-1 list-disc list-inside text-muted-foreground">
+                  {progresso.pendentes.map((p) => (
+                    <li key={p.id}>{p.pergunta}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
           {pesoTotal > 0 && (
             <div className="mt-4 space-y-2">
