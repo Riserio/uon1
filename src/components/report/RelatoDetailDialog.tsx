@@ -4,14 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Archive, ArchiveRestore, Save, Loader2, FileText, Download, ExternalLink } from "lucide-react";
+import {
+  Archive, ArchiveRestore, Save, Loader2, FileText, Download, ExternalLink,
+  Wrench, CheckCircle2, XCircle, Clock,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface Anexo { nome: string; path: string; tamanho: number; tipo: string }
 interface Relato {
   id: string;
+  protocolo: string | null;
   titulo: string;
   descricao: string;
   categoria: string;
@@ -25,6 +30,12 @@ interface Relato {
   resolvido_em: string | null;
   diagnostico: any;
   anexos: Anexo[] | any;
+  instrucao_correcao: string | null;
+  aprovado_em: string | null;
+  validacao: string | null;
+  validacao_em: string | null;
+  validacao_comentario: string | null;
+  vezes_adiado: number | null;
 }
 
 interface Props {
@@ -37,6 +48,7 @@ interface Props {
 const STATUS_OPTS = [
   { v: "aberto",      l: "Aberto" },
   { v: "em_analise",  l: "Em análise" },
+  { v: "aprovado",    l: "Aprovado para correção" },
   { v: "em_correcao", l: "Em correção / andamento" },
   { v: "resolvido",   l: "Resolvido / concluído" },
   { v: "fechado",     l: "Fechado" },
@@ -45,6 +57,7 @@ const STATUS_OPTS = [
 export function RelatoDetailDialog({ relato, open, onOpenChange, onSaved }: Props) {
   const [status, setStatus] = useState("aberto");
   const [previsao, setPrevisao] = useState<string>("");
+  const [instrucao, setInstrucao] = useState<string>("");
   const [salvando, setSalvando] = useState(false);
   const [anexosUrls, setAnexosUrls] = useState<{ nome: string; url: string; tipo: string }[]>([]);
 
@@ -52,6 +65,7 @@ export function RelatoDetailDialog({ relato, open, onOpenChange, onSaved }: Prop
     if (!relato) return;
     setStatus(relato.status || "aberto");
     setPrevisao(relato.previsao_entrega || "");
+    setInstrucao(relato.instrucao_correcao || "");
   }, [relato?.id]);
 
   useEffect(() => {
@@ -73,13 +87,40 @@ export function RelatoDetailDialog({ relato, open, onOpenChange, onSaved }: Prop
   const salvar = async () => {
     setSalvando(true);
     try {
-      const patch: any = { status, previsao_entrega: previsao || null };
-      if (status === "resolvido" && !relato.resolvido_em) patch.resolvido_em = new Date().toISOString();
+      // resolvido_em, desarquivamento e reinício do ciclo de validação são
+      // resolvidos por gatilho no banco — aqui só mandamos a intenção.
+      const patch: any = {
+        status,
+        previsao_entrega: previsao || null,
+        instrucao_correcao: instrucao.trim() || null,
+      };
       const { error } = await (supabase as any).from("bug_reports").update(patch).eq("id", relato.id);
       if (error) throw error;
-      toast.success("Relato atualizado");
+      toast.success(
+        status === "resolvido"
+          ? "Marcado como corrigido. Quem reportou será avisado no próximo acesso."
+          : "Relato atualizado",
+      );
       onSaved();
     } catch (e: any) { toast.error(e?.message || "Falha ao salvar"); }
+    finally { setSalvando(false); }
+  };
+
+  const aprovarParaCorrecao = async () => {
+    if (!instrucao.trim()) {
+      toast.error("Escreva a instrução do que deve ser corrigido.");
+      return;
+    }
+    setSalvando(true);
+    try {
+      const { error } = await (supabase as any).rpc("bug_report_aprovar", {
+        p_id: relato.id, p_instrucao: instrucao.trim(),
+      });
+      if (error) throw error;
+      setStatus("aprovado");
+      toast.success((relato.protocolo ?? "Chamado") + " entrou na fila de correção.");
+      onSaved();
+    } catch (e: any) { toast.error(e?.message || "Falha ao aprovar"); }
     finally { setSalvando(false); }
   };
 
@@ -100,6 +141,9 @@ export function RelatoDetailDialog({ relato, open, onOpenChange, onSaved }: Prop
       <DialogContent className="max-w-5xl w-[95vw] max-h-[92vh] p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/50 shrink-0">
           <DialogTitle className="flex items-center gap-2 flex-wrap">
+            {relato.protocolo && (
+              <Badge variant="outline" className="font-mono text-[11px]">{relato.protocolo}</Badge>
+            )}
             {relato.titulo}
             <Badge variant="outline" className="capitalize">{relato.categoria.replace("_", " ")}</Badge>
             <Badge variant="outline" className="capitalize">{relato.severidade}</Badge>
@@ -111,6 +155,44 @@ export function RelatoDetailDialog({ relato, open, onOpenChange, onSaved }: Prop
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {/* Resultado da validação de quem reportou */}
+          {relato.validacao === "reprovado" && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3.5 flex items-start gap-2.5">
+              <XCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-red-600">Correção reprovada por quem reportou</p>
+                <p className="text-sm text-muted-foreground">
+                  {relato.validacao_comentario || "O usuário informou que o erro persiste."}
+                  {relato.validacao_em && (
+                    <> · {new Date(relato.validacao_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+          {relato.validacao === "confirmado" && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 flex items-start gap-2.5">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                <span className="font-semibold text-emerald-600">Correção confirmada pelo usuário</span>
+                {relato.validacao_em && (
+                  <> em {new Date(relato.validacao_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</>
+                )}
+                . O chamado foi arquivado automaticamente.
+              </p>
+            </div>
+          )}
+          {relato.status === "resolvido" && !relato.validacao && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 flex items-start gap-2.5">
+              <Clock className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                <span className="font-semibold text-amber-600">Aguardando o usuário confirmar.</span>{" "}
+                O aviso aparece para quem reportou a cada acesso
+                {(relato.vezes_adiado ?? 0) > 0 && <> — já adiado {relato.vezes_adiado}×</>}.
+              </p>
+            </div>
+          )}
+
           <div className="grid gap-4 md:grid-cols-2">
           <div>
             <Label className="text-xs text-muted-foreground">Descrição</Label>
@@ -147,6 +229,34 @@ export function RelatoDetailDialog({ relato, open, onOpenChange, onSaved }: Prop
               </p>
             )}
           </div>
+          </div>
+
+          {/* Comando de correção: vira fila priorizada de trabalho */}
+          <div className="rounded-xl border border-border/60 bg-muted/30 p-4 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <Wrench className="h-4 w-4 text-primary" />
+              <Label className="font-semibold">Instrução de correção</Label>
+              {relato.aprovado_em && (
+                <Badge variant="outline" className="text-[11px]">
+                  aprovado em {new Date(relato.aprovado_em).toLocaleDateString("pt-BR")}
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Descreva o que deve ser feito. Ao aprovar, o chamado entra na fila de correção com este texto.
+            </p>
+            <Textarea
+              value={instrucao}
+              onChange={(e) => setInstrucao(e.target.value)}
+              rows={3}
+              placeholder="Ex.: recalcular a inadimplência usando o critério SGA também no PDF do resumo."
+            />
+            <Button
+              size="sm" variant="secondary" onClick={aprovarParaCorrecao}
+              disabled={salvando} className="gap-1.5"
+            >
+              <Wrench className="h-3.5 w-3.5" /> Aprovar para correção
+            </Button>
           </div>
 
           <div>
