@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSinistroPerguntas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
+import { useSinistroPerguntas, calcularProgresso, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
 import { Save, ExternalLink, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -32,6 +32,7 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [respostas, setRespostas] = useState<Record<string, string>>({});
+  const [mostrarPendentes, setMostrarPendentes] = useState(false);
 
   // Usar perguntas do banco de dados
   const tipoSinistro = vistoriaData?.tipo_sinistro || '';
@@ -145,7 +146,20 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
         if (error) throw error;
       }
 
-      toast.success('Entrevista salva com sucesso');
+      // Salvar nunca é bloqueado; apontamos quais obrigatórias faltam.
+      const pend = calcularProgresso(respostasFiltradas, perguntasDb).pendentes;
+      if (pend.length > 0) {
+        setMostrarPendentes(true);
+        toast.warning(
+          `Salvo, mas faltam ${pend.length} pergunta(s) obrigatória(s): ` +
+            pend.slice(0, 3).map((p) => p.pergunta).join(' · ') +
+            (pend.length > 3 ? ` e mais ${pend.length - 3}` : ''),
+          { duration: 9000 },
+        );
+      } else {
+        setMostrarPendentes(false);
+        toast.success('Entrevista salva — todas as obrigatórias preenchidas');
+      }
       onUpdate?.();
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -233,9 +247,10 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
     Object.entries(respostas).filter(([k]) => perguntaIds.has(k))
   );
 
-  const perguntasRespondidas = Object.keys(respostasFiltradas).filter(k => respostasFiltradas[k]).length;
-  const totalPerguntas = perguntasDb.length;
-  const percentualPreenchido = totalPerguntas > 0 ? Math.round((perguntasRespondidas / totalPerguntas) * 100) : 0;
+  // Progresso conta apenas obrigatórias — opcionais e condicionais no
+  // denominador travavam o formulário abaixo de 100% sem nada faltando.
+  const progresso = calcularProgresso(respostasFiltradas, perguntasDb);
+  const percentualPreenchido = progresso.percentual;
 
   if (loading || loadingPerguntas) {
     return (
@@ -250,9 +265,14 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
       {/* Header com progresso */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Badge variant="outline">
-            {perguntasRespondidas}/{totalPerguntas} respondidas ({percentualPreenchido}%)
+          <Badge variant={progresso.pendentes.length === 0 ? 'default' : 'outline'}>
+            {progresso.respondidasObrigatorias}/{progresso.totalObrigatorias} obrigatórias ({percentualPreenchido}%)
           </Badge>
+          {progresso.totalOpcionais > 0 && (
+            <Badge variant="outline" className="text-muted-foreground">
+              +{progresso.respondidasOpcionais}/{progresso.totalOpcionais} opcionais
+            </Badge>
+          )}
         </div>
         <div className="flex gap-2">
           <Button
@@ -270,6 +290,22 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
           </Button>
         </div>
       </div>
+
+      {/* Obrigatórias que faltam, listadas após tentar salvar */}
+      {mostrarPendentes && progresso.pendentes.length > 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="py-3">
+            <p className="text-sm font-medium text-amber-600 mb-2">
+              Faltam {progresso.pendentes.length} pergunta(s) obrigatória(s)
+            </p>
+            <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
+              {progresso.pendentes.map((p) => (
+                <li key={p.id}>{p.pergunta}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Perguntas do banco agrupadas por categoria */}
       <ScrollArea className="h-[600px] pr-4">
