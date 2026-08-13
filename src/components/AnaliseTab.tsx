@@ -10,7 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
+import { useSinistroPerguntas, calcularPesoRespostas, calcularProgresso, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
 import { Save, ExternalLink, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -34,6 +34,7 @@ export function AnaliseTab({ atendimentoId, tipoSinistro, vistoriaData, onUpdate
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [respostas, setRespostas] = useState<Record<string, string>>({});
+  const [mostrarPendentes, setMostrarPendentes] = useState(false);
   
   const tipoFinal = tipoSinistro || vistoriaData?.tipo_sinistro || '';
   const { categorias, perguntas, loading: loadingPerguntas } = useSinistroPerguntas(tipoFinal);
@@ -115,7 +116,21 @@ export function AnaliseTab({ atendimentoId, tipoSinistro, vistoriaData, onUpdate
         if (error) throw error;
       }
 
-      toast.success('Análise salva com sucesso');
+      // Salvar nunca é bloqueado (perder o preenchimento seria pior), mas
+      // dizemos exatamente quais obrigatórias ficaram de fora.
+      const pend = calcularProgresso(respostas, perguntas).pendentes;
+      if (pend.length > 0) {
+        setMostrarPendentes(true);
+        toast.warning(
+          `Salvo, mas faltam ${pend.length} pergunta(s) obrigatória(s): ` +
+            pend.slice(0, 3).map((p) => p.pergunta).join(' · ') +
+            (pend.length > 3 ? ` e mais ${pend.length - 3}` : ''),
+          { duration: 9000 },
+        );
+      } else {
+        setMostrarPendentes(false);
+        toast.success('Análise salva — todas as obrigatórias preenchidas');
+      }
       onUpdate?.();
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -123,7 +138,7 @@ export function AnaliseTab({ atendimentoId, tipoSinistro, vistoriaData, onUpdate
     } finally {
       setSaving(false);
     }
-  }, [atendimentoId, respostas, onUpdate]);
+  }, [atendimentoId, respostas, perguntas, onUpdate]);
 
   const handleRespostaChange = (perguntaId: string, valor: string) => {
     setRespostas(prev => ({
@@ -212,10 +227,11 @@ export function AnaliseTab({ atendimentoId, tipoSinistro, vistoriaData, onUpdate
     );
   };
 
-  // Calcular estatísticas
-  const perguntasRespondidas = Object.keys(respostas).filter(k => respostas[k]).length;
-  const totalPerguntas = perguntas.length;
-  const percentualPreenchido = totalPerguntas > 0 ? Math.round((perguntasRespondidas / totalPerguntas) * 100) : 0;
+  // Progresso conta apenas obrigatórias — as opcionais (inclusive as
+  // condicionais do tipo "Caso sim, descreva:") apareciam no denominador e
+  // travavam o formulário em 94% mesmo estando tudo o que se aplica preenchido.
+  const progresso = calcularProgresso(respostas, perguntas);
+  const percentualPreenchido = progresso.percentual;
   
   const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = calcularPesoRespostas(respostas, perguntas);
 
@@ -267,9 +283,15 @@ export function AnaliseTab({ atendimentoId, tipoSinistro, vistoriaData, onUpdate
       {/* Header com progresso e pesos */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4">
-          <Badge variant="outline">
-            {perguntasRespondidas}/{totalPerguntas} respondidas ({percentualPreenchido}%)
+          <Badge variant={progresso.pendentes.length === 0 ? 'default' : 'outline'}>
+            {progresso.respondidasObrigatorias}/{progresso.totalObrigatorias} obrigatórias ({percentualPreenchido}%)
           </Badge>
+
+          {progresso.totalOpcionais > 0 && (
+            <Badge variant="outline" className="text-muted-foreground">
+              +{progresso.respondidasOpcionais}/{progresso.totalOpcionais} opcionais
+            </Badge>
+          )}
           
           {maxPossivel > 0 && (
             <div className="flex items-center gap-2">
@@ -303,6 +325,23 @@ export function AnaliseTab({ atendimentoId, tipoSinistro, vistoriaData, onUpdate
           </Button>
         </div>
       </div>
+
+      {/* Obrigatórias que faltam, listadas após tentar salvar */}
+      {mostrarPendentes && progresso.pendentes.length > 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="py-3">
+            <div className="flex items-center gap-2 text-amber-600 font-medium mb-2">
+              <AlertTriangle className="h-4 w-4" />
+              Faltam {progresso.pendentes.length} pergunta(s) obrigatória(s)
+            </div>
+            <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
+              {progresso.pendentes.map((p) => (
+                <li key={p.id}>{p.pergunta}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Alertas */}
       {alertas.length > 0 && (
