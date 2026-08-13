@@ -30,11 +30,19 @@ interface BugReport {
   resolvido_em: string | null;
   user_id: string;
   user_email: string | null;
+  protocolo: string | null;
+  instrucao_correcao: string | null;
+  aprovado_em: string | null;
+  validacao: string | null;
+  validacao_em: string | null;
+  validacao_comentario: string | null;
+  vezes_adiado: number | null;
 }
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
   aberto:       { label: "Aberto",        className: "bg-blue-500/15 text-blue-600 border-blue-500/30" },
   em_analise:   { label: "Em análise",    className: "bg-amber-500/15 text-amber-600 border-amber-500/30" },
+  aprovado:     { label: "Aprovado",      className: "bg-indigo-500/15 text-indigo-600 border-indigo-500/30" },
   em_correcao: { label: "Em correção",   className: "bg-purple-500/15 text-purple-600 border-purple-500/30" },
   resolvido:    { label: "Resolvido",     className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" },
   fechado:      { label: "Fechado",       className: "bg-muted text-muted-foreground border-border" },
@@ -227,8 +235,17 @@ export default function ReportarProblema() {
   useEffect(() => { rodarDiagnostico(); }, []);
 
   const contagem = useMemo(() => {
-    const c: Record<string, number> = { total: relatos.length, aberto: 0, em_analise: 0, em_correcao: 0, resolvido: 0 };
-    relatos.forEach(r => { c[r.status] = (c[r.status] || 0) + 1; });
+    const c: Record<string, number> = {
+      total: relatos.length, aberto: 0, em_analise: 0, aprovado: 0,
+      em_correcao: 0, resolvido: 0, reprovado: 0, aguardando: 0,
+    };
+    relatos.forEach(r => {
+      c[r.status] = (c[r.status] || 0) + 1;
+      // Reprovado = o usuário testou e disse que o erro continua.
+      if (r.validacao === "reprovado") c.reprovado++;
+      // Aguardando = corrigido, mas ainda sem confirmação de quem reportou.
+      if (r.status === "resolvido" && !r.validacao && !r.arquivado) c.aguardando++;
+    });
     return c;
   }, [relatos]);
 
@@ -306,13 +323,15 @@ export default function ReportarProblema() {
         </div>
 
         {/* Cards de resumo */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
           {[
             { k: "total",       l: "Total",         c: "text-foreground" },
             { k: "aberto",      l: "Abertos",       c: "text-blue-600" },
             { k: "em_analise",  l: "Em análise",    c: "text-amber-600" },
             { k: "em_correcao", l: "Em correção",   c: "text-purple-600" },
             { k: "resolvido",   l: "Resolvidos",    c: "text-emerald-600" },
+            { k: "aguardando",  l: "Aguardando teste", c: "text-amber-600" },
+            { k: "reprovado",   l: "Reprovados",    c: "text-red-600" },
           ].map(x => (
             <Card key={x.k} className="rounded-2xl bg-muted/40 backdrop-blur">
               <CardContent className="p-4">
@@ -362,10 +381,23 @@ export default function ReportarProblema() {
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="space-y-1 min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
+                            {r.protocolo && (
+                              <Badge variant="outline" className="font-mono text-[11px]">{r.protocolo}</Badge>
+                            )}
                             <span className="font-semibold truncate">{r.titulo}</span>
                             <Badge variant="outline" className={SEV_STYLES[r.severidade] || ""}>{r.severidade}</Badge>
                             <Badge variant="outline" className="capitalize">{r.categoria.replace("_", " ")}</Badge>
                             {r.arquivado && <Badge variant="outline" className="bg-muted">Arquivado</Badge>}
+                            {r.validacao === "reprovado" && (
+                              <Badge variant="outline" className="bg-red-500/15 text-red-600 border-red-500/30">
+                                Correção reprovada
+                              </Badge>
+                            )}
+                            {r.status === "resolvido" && !r.validacao && !r.arquivado && (
+                              <Badge variant="outline" className="bg-amber-500/15 text-amber-600 border-amber-500/30">
+                                Aguardando teste
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{r.descricao}</p>
                           <p className="text-xs text-muted-foreground">
