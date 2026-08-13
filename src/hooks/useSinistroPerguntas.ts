@@ -161,3 +161,52 @@ export function calcularPesoRespostas(
     alertas
   };
 }
+
+
+export interface ProgressoQuestionario {
+  totalObrigatorias: number;
+  respondidasObrigatorias: number;
+  pendentes: SinistroPergunta[];
+  percentual: number;
+  totalOpcionais: number;
+  respondidasOpcionais: number;
+}
+
+/**
+ * Progresso do questionário contando SOMENTE as perguntas obrigatórias.
+ *
+ * Antes o cálculo usava perguntas.length, incluindo as opcionais — entre elas
+ * as condicionais ("Caso sim, descreva:", "Se não, qual a situação atual do
+ * veículo?"), que só fazem sentido quando a resposta anterior foi sim. Quem
+ * preenchia tudo o que se aplicava travava em 94% e ficava sem saber o que
+ * faltava. As opcionais seguem contadas, porém à parte.
+ *
+ * Devolve também a lista de pendentes, para a tela poder dizer QUAIS faltam
+ * em vez de só mostrar um número.
+ */
+export function calcularProgresso(
+  respostas: Record<string, string>,
+  perguntas: SinistroPergunta[],
+): ProgressoQuestionario {
+  const respondida = (p: SinistroPergunta) => {
+    const v = respostas[p.id];
+    return typeof v === 'string' ? v.trim() !== '' : v !== undefined && v !== null;
+  };
+
+  const obrigatorias = perguntas.filter((p) => p.obrigatoria);
+  const opcionais = perguntas.filter((p) => !p.obrigatoria);
+  const pendentes = obrigatorias.filter((p) => !respondida(p));
+  const respondidasObrigatorias = obrigatorias.length - pendentes.length;
+
+  return {
+    totalObrigatorias: obrigatorias.length,
+    respondidasObrigatorias,
+    pendentes,
+    percentual:
+      obrigatorias.length > 0
+        ? Math.round((respondidasObrigatorias / obrigatorias.length) * 100)
+        : 100,
+    totalOpcionais: opcionais.length,
+    respondidasOpcionais: opcionais.filter(respondida).length,
+  };
+}
