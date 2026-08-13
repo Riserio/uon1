@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
- import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings, RefreshCw, SearchCheck } from "lucide-react";
+ import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings, RefreshCw, SearchCheck, FileSpreadsheet } from "lucide-react";
 import { ClaimCard, Claim } from "@/components/ClaimCard";
 import { AcompanhamentoSinistroDialog } from "@/components/AcompanhamentoSinistroDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,6 +20,7 @@ import { ptBR } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from "recharts";
 import { openWhatsApp } from "@/utils/whatsapp";
 import { PageHeader } from "@/components/ui/page-header";
+import { exportAnalisesXLSX } from "@/utils/exportAnalisesXLSX";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--destructive))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
@@ -62,6 +63,23 @@ export default function Sinistros() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [acompanhamentoClaim, setAcompanhamentoClaim] = useState<Claim | null>(null);
   const [tipoVistoriaFilter, setTipoVistoriaFilter] = useState<TipoVistoriaFilter>("todas");
+  const [exportandoAnalises, setExportandoAnalises] = useState(false);
+
+  // Planilha das análises: uma linha por placa, uma coluna por pergunta.
+  // Respeita o filtro de associação já escolhido na tela.
+  const handleExportarAnalises = async () => {
+    try {
+      setExportandoAnalises(true);
+      const n = await exportAnalisesXLSX({
+        corretoraId: selectedCorretora !== "all" ? selectedCorretora : null,
+      });
+      toast.success(`Planilha gerada com ${n} análise(s).`);
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível gerar a planilha");
+    } finally {
+      setExportandoAnalises(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === "vistorias") loadVistorias();
@@ -209,6 +227,16 @@ export default function Sinistros() {
         subtitle="Gestão integrada de vistorias de sinistros e reativações"
         actions={
           <>
+            <Button
+              onClick={handleExportarAnalises}
+              disabled={exportandoAnalises}
+              variant="outline"
+              className="rounded-xl gap-1.5"
+              title="Planilha com uma linha por placa e uma coluna por pergunta"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              {exportandoAnalises ? "Gerando..." : "Planilha de análises"}
+            </Button>
             <Button onClick={() => navigate("/vistorias/nova/manual")} className="rounded-xl gap-1.5 shadow-sm">
               <Plus className="h-4 w-4" /> Abertura Manual
             </Button>
