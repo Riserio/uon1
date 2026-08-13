@@ -228,6 +228,7 @@ if (typeof window !== 'undefined') {
 }
 
 import { ErrorReportPrompt } from "@/components/report/ErrorReportPrompt";
+import AvisosCorrecao from "@/components/report/AvisosCorrecao";
 
 const App = () => (
   <BrowserRouter>
@@ -238,6 +239,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <ErrorReportPrompt />
+            <AvisosCorrecao />
             <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
             <Routes>
               {/* Portal PID Routes */}
