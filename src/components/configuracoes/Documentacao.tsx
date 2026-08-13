@@ -7,7 +7,21 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CAPITULOS, ATUALIZADO_EM, type DocBloco, type DocCapitulo } from "@/content/documentacao";
+import { CAPITULO_SINCRONIZACAO } from "@/content/documentacao-sincronizacao";
 import DocumentacaoImportacaoSGA from "./DocumentacaoImportacaoSGA";
+
+/**
+ * Capítulos exibidos = os de documentacao.ts + "Sincronização e Importação",
+ * inserido logo depois de "Integração com o SGA" (é a continuação natural do
+ * assunto). Mantido em arquivo próprio porque essa área mudou de arquitetura
+ * em 13/08/2026 e tende a continuar mudando.
+ */
+const TODOS_CAPITULOS: DocCapitulo[] = (() => {
+  const idx = CAPITULOS.findIndex((c) => c.titulo.toLowerCase().includes("integra"));
+  return idx === -1
+    ? [...CAPITULOS, CAPITULO_SINCRONIZACAO]
+    : [...CAPITULOS.slice(0, idx + 1), CAPITULO_SINCRONIZACAO, ...CAPITULOS.slice(idx + 1)];
+})();
 
 const ICONES = {
   layers: Layers, database: Database, workflow: Workflow,
@@ -125,12 +139,12 @@ function textoDe(cap: DocCapitulo): string {
 }
 
 export default function Documentacao() {
-  const [capAtivo, setCapAtivo] = useState(CAPITULOS[0].id);
+  const [capAtivo, setCapAtivo] = useState(TODOS_CAPITULOS[0].id);
   const [busca, setBusca] = useState("");
 
   const termo = busca.trim().toLowerCase();
   const capitulos = useMemo(
-    () => (termo ? CAPITULOS.filter((c) => textoDe(c).includes(termo)) : CAPITULOS),
+    () => (termo ? TODOS_CAPITULOS.filter((c) => textoDe(c).includes(termo)) : TODOS_CAPITULOS),
     [termo],
   );
 
@@ -154,7 +168,7 @@ export default function Documentacao() {
 
   const exportar = () => {
     const linhas: string[] = [`# Documentação do sistema`, `Atualizado em ${ATUALIZADO_EM}`, ""];
-    for (const c of CAPITULOS) {
+    for (const c of TODOS_CAPITULOS) {
       linhas.push(`## ${c.titulo}`, "");
       for (const s of c.secoes) {
         linhas.push(`### ${s.titulo}`, `_${s.resumo}_`, "");
