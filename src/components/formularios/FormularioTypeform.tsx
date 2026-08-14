@@ -28,8 +28,14 @@ import {
   maskCidade,
   maskDia,
   maskMes,
+  maskHora,
+  validarCampo,
 } from "@/components/formularios/masks";
 import { ESTADOS_BR } from "@/components/formularios/estados";
+import { SelectBuscavel } from "@/components/formularios/SelectBuscavel";
+
+// Acima disso a lista vira campo de busca — rolar procurando cansa e induz erro.
+const LIMITE_BUSCA = 8;
 
 export default function FormularioTypeform({ form }: { form: any }) {
   const [valores, setValores] = useState<Record<string, any>>({});
@@ -74,11 +80,17 @@ export default function FormularioTypeform({ form }: { form: any }) {
 
   const validarAtual = (): boolean => {
     if (!perguntaAtual) return true;
-    if (!perguntaAtual.obrigatorio) return true;
     const v = valores[perguntaAtual.id];
     const vazio = v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
-    if (vazio) {
+    if (perguntaAtual.obrigatorio && vazio) {
       toast.error("Esta pergunta é obrigatória");
+      return false;
+    }
+    // Formato (CPF, placa, telefone...) barra o avanço mesmo em campo opcional:
+    // dado meio digitado é pior que campo vazio, porque passa despercebido.
+    const erro = validarCampo(perguntaAtual.tipo, v);
+    if (erro) {
+      toast.error(erro);
       return false;
     }
     return true;
@@ -210,7 +222,13 @@ export default function FormularioTypeform({ form }: { form: any }) {
             {perguntaAtual.descricao && <p className="text-sm text-muted-foreground">{perguntaAtual.descricao}</p>}
           </div>
         </div>
-        <div className="pl-7">{renderInputBig(perguntaAtual, valores, setValores, cor)}</div>
+        <div className="pl-7 space-y-2">
+          {renderInputBig(perguntaAtual, valores, setValores, cor)}
+          {(() => {
+            const erro = validarCampo(perguntaAtual.tipo, valores[perguntaAtual.id]);
+            return erro ? <p className="text-sm text-destructive">{erro}</p> : null;
+          })()}
+        </div>
         <div className="flex items-center justify-between pl-7 pt-4">
           <Button type="button" variant="ghost" onClick={voltar} disabled={step <= 1} className="gap-1">
             <ArrowLeft className="h-4 w-4" /> Voltar
@@ -248,6 +266,8 @@ function renderInputBig(p: any, valores: Record<string, any>, setValores: (v: an
       return <Input autoFocus type="number" value={v} onChange={(e) => set(e.target.value)} placeholder="Digite um número..." className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
     case "data":
       return <Input autoFocus type="date" value={v} onChange={(e) => set(e.target.value)} className={underline} style={focusStyle} />;
+    case "hora":
+      return <Input autoFocus inputMode="numeric" value={v} onChange={(e) => set(maskHora(e.target.value))} placeholder="HH:MM" maxLength={5} className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
     case "email":
       return <Input autoFocus type="email" value={v} onChange={(e) => set(e.target.value)} placeholder="nome@email.com" className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
     case "telefone":
@@ -270,12 +290,14 @@ function renderInputBig(p: any, valores: Record<string, any>, setValores: (v: an
       return <Input autoFocus inputMode="numeric" value={v} onChange={(e) => set(maskMes(e.target.value))} placeholder="MM" maxLength={2} className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
     case "estado":
       return (
-        <Select value={v} onValueChange={set}>
-          <SelectTrigger className="text-lg h-12 rounded-xl"><SelectValue placeholder="Selecione o estado..." /></SelectTrigger>
-          <SelectContent>
-            {ESTADOS_BR.map((e) => (<SelectItem key={e.sigla} value={e.sigla}>{e.sigla} — {e.nome}</SelectItem>))}
-          </SelectContent>
-        </Select>
+        <SelectBuscavel
+          opcoes={ESTADOS_BR.map((e) => ({ valor: e.sigla, rotulo: `${e.sigla} — ${e.nome}` }))}
+          valor={v}
+          onChange={set}
+          placeholder="Selecione o estado..."
+          cor={cor}
+          className="text-lg h-12 rounded-xl"
+        />
       );
     case "radio":
       return (
@@ -310,15 +332,33 @@ function renderInputBig(p: any, valores: Record<string, any>, setValores: (v: an
         </div>
       );
     }
-    case "dropdown":
+    case "dropdown": {
+      const opcoes = (p.opcoes || []) as string[];
+      if (opcoes.length > LIMITE_BUSCA) {
+        return (
+          <SelectBuscavel
+            opcoes={opcoes.map((o) => ({ valor: o, rotulo: o }))}
+            valor={v}
+            onChange={set}
+            cor={cor}
+            className="text-lg h-12 rounded-xl"
+          />
+        );
+      }
       return (
         <Select value={v} onValueChange={set}>
           <SelectTrigger className="text-lg h-12 rounded-xl"><SelectValue placeholder="Selecione..." /></SelectTrigger>
           <SelectContent>
-            {(p.opcoes || []).map((o: string, i: number) => (<SelectItem key={i} value={o}>{o}</SelectItem>))}
+            {opcoes.map((o: string, i: number) => (
+              <SelectItem key={i} value={o}>
+                <span className="tabular-nums text-xs text-muted-foreground mr-2">{i + 1}.</span>
+                {o}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       );
+    }
     default:
       return <Input autoFocus value={v} onChange={(e) => set(e.target.value)} placeholder="Digite aqui..." className={underline} style={{ ...focusStyle, borderBottomColor: v ? cor : undefined }} />;
   }
