@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      _auditoria_base_imp: {
+        Row: {
+          app: string | null
+          id: number
+          pid: number | null
+          quando: string | null
+          query: string | null
+          tabela: string | null
+          total: number | null
+        }
+        Insert: {
+          app?: string | null
+          id?: number
+          pid?: number | null
+          quando?: string | null
+          query?: string | null
+          tabela?: string | null
+          total?: number | null
+        }
+        Update: {
+          app?: string | null
+          id?: number
+          pid?: number | null
+          quando?: string | null
+          query?: string | null
+          tabela?: string | null
+          total?: number | null
+        }
+        Relationships: []
+      }
       _debug_hinova: {
         Row: {
           k: string
@@ -26,6 +56,24 @@ export type Database = {
         Update: {
           k?: string
           v?: string | null
+        }
+        Relationships: []
+      }
+      _diag2: {
+        Row: {
+          criado: string | null
+          req_id: number | null
+          rotulo: string | null
+        }
+        Insert: {
+          criado?: string | null
+          req_id?: number | null
+          rotulo?: string | null
+        }
+        Update: {
+          criado?: string | null
+          req_id?: number | null
+          rotulo?: string | null
         }
         Relationships: []
       }
@@ -771,6 +819,68 @@ export type Database = {
           },
         ]
       }
+      base_api_jobs: {
+        Row: {
+          coletados: number
+          corretora_id: string
+          ctx: Json
+          cursor_off: number
+          esperado: number | null
+          fase: string
+          iniciado_em: string
+          ultimo_erro: string | null
+          updated_at: string
+        }
+        Insert: {
+          coletados?: number
+          corretora_id: string
+          ctx?: Json
+          cursor_off?: number
+          esperado?: number | null
+          fase?: string
+          iniciado_em?: string
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Update: {
+          coletados?: number
+          corretora_id?: string
+          ctx?: Json
+          cursor_off?: number
+          esperado?: number | null
+          fase?: string
+          iniciado_em?: string
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "base_api_jobs_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      base_api_stg: {
+        Row: {
+          corretora_id: string
+          seq: number
+          veiculo: Json
+        }
+        Insert: {
+          corretora_id: string
+          seq?: never
+          veiculo: Json
+        }
+        Update: {
+          corretora_id?: string
+          seq?: never
+          veiculo?: Json
+        }
+        Relationships: []
+      }
       bi_audit_logs: {
         Row: {
           acao: string
@@ -820,14 +930,20 @@ export type Database = {
       }
       bug_reports: {
         Row: {
+          adiado_ate: string | null
           anexos: Json | null
+          aprovado_em: string | null
+          aprovado_por: string | null
           arquivado: boolean
+          avisado_em: string | null
           categoria: string
           created_at: string
           descricao: string
           diagnostico: Json | null
           id: string
+          instrucao_correcao: string | null
           previsao_entrega: string | null
+          protocolo: string | null
           resolvido_em: string | null
           severidade: string
           status: string
@@ -837,16 +953,26 @@ export type Database = {
           user_email: string | null
           user_id: string | null
           user_role: string | null
+          validacao: string | null
+          validacao_comentario: string | null
+          validacao_em: string | null
+          vezes_adiado: number
         }
         Insert: {
+          adiado_ate?: string | null
           anexos?: Json | null
+          aprovado_em?: string | null
+          aprovado_por?: string | null
           arquivado?: boolean
+          avisado_em?: string | null
           categoria?: string
           created_at?: string
           descricao: string
           diagnostico?: Json | null
           id?: string
+          instrucao_correcao?: string | null
           previsao_entrega?: string | null
+          protocolo?: string | null
           resolvido_em?: string | null
           severidade?: string
           status?: string
@@ -856,16 +982,26 @@ export type Database = {
           user_email?: string | null
           user_id?: string | null
           user_role?: string | null
+          validacao?: string | null
+          validacao_comentario?: string | null
+          validacao_em?: string | null
+          vezes_adiado?: number
         }
         Update: {
+          adiado_ate?: string | null
           anexos?: Json | null
+          aprovado_em?: string | null
+          aprovado_por?: string | null
           arquivado?: boolean
+          avisado_em?: string | null
           categoria?: string
           created_at?: string
           descricao?: string
           diagnostico?: Json | null
           id?: string
+          instrucao_correcao?: string | null
           previsao_entrega?: string | null
+          protocolo?: string | null
           resolvido_em?: string | null
           severidade?: string
           status?: string
@@ -875,6 +1011,10 @@ export type Database = {
           user_email?: string | null
           user_id?: string | null
           user_role?: string | null
+          validacao?: string | null
+          validacao_comentario?: string | null
+          validacao_em?: string | null
+          vezes_adiado?: number
         }
         Relationships: []
       }
@@ -7391,6 +7531,7 @@ export type Database = {
           financeiro_valor_aprovado: number | null
           financeiro_valor_pago: number | null
           id: string
+          numero_formulario: string | null
           oficina_cnpj: string | null
           oficina_contato: string | null
           oficina_endereco: string | null
@@ -7448,6 +7589,7 @@ export type Database = {
           financeiro_valor_aprovado?: number | null
           financeiro_valor_pago?: number | null
           id?: string
+          numero_formulario?: string | null
           oficina_cnpj?: string | null
           oficina_contato?: string | null
           oficina_endereco?: string | null
@@ -7505,6 +7647,7 @@ export type Database = {
           financeiro_valor_aprovado?: number | null
           financeiro_valor_pago?: number | null
           id?: string
+          numero_formulario?: string | null
           oficina_cnpj?: string | null
           oficina_contato?: string | null
           oficina_endereco?: string | null
@@ -9536,6 +9679,21 @@ export type Database = {
         Returns: boolean
       }
       backfill_pid_faturamento_worker: { Args: never; Returns: Json }
+      bug_report_adiar: { Args: { p_id: string }; Returns: Json }
+      bug_report_aprovar: {
+        Args: { p_id: string; p_instrucao?: string }
+        Returns: Json
+      }
+      bug_report_marcar_corrigido: { Args: { p_id: string }; Returns: Json }
+      bug_report_marcar_visto: {
+        Args: { p_id: string; p_tipo: string }
+        Returns: Json
+      }
+      bug_report_validar: {
+        Args: { p_comentario?: string; p_id: string; p_ok: boolean }
+        Returns: Json
+      }
+      bug_reports_avisos: { Args: never; Returns: Json }
       calcular_dashboard_cobranca: {
         Args: {
           p_cooperativa?: string
@@ -9729,7 +9887,7 @@ export type Database = {
         Returns: Json
       }
       eh_veiculo_ativo: { Args: { p_situacao: string }; Returns: boolean }
-      enfileirar_cobranca_recente_diario: { Args: never; Returns: Json }
+      enfileirar_sync_diario: { Args: never; Returns: Json }
       enqueue_recurrent_backfills: {
         Args: never
         Returns: {
@@ -10061,6 +10219,19 @@ export type Database = {
       listar_push_assinantes: { Args: never; Returns: Json }
       marcar_git_fallback_desativado: { Args: never; Returns: undefined }
       processar_backfill_cobranca: { Args: never; Returns: Json }
+      processar_base_api: {
+        Args: { p_corretora_id: string; p_orcamento_seg?: number }
+        Returns: Json
+      }
+      processar_base_api_worker: { Args: never; Returns: Json }
+      relatorio_analises_sinistro: {
+        Args: {
+          p_corretora_id?: string
+          p_desde?: string
+          p_tipo_sinistro?: string
+        }
+        Returns: Json
+      }
       reset_email_rate_limits: { Args: never; Returns: undefined }
       resumo_base_corretora:
         | { Args: { p_corretora_id: string }; Returns: Json }
