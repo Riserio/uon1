@@ -77,6 +77,7 @@ type TipoPergunta =
   | "cidade"
   | "dia"
   | "mes"
+  | "hora"
   | "secao";
 
 type Pergunta = {
@@ -98,6 +99,7 @@ const TIPOS: { value: TipoPergunta; label: string; opcoes: boolean }[] = [
   { value: "dropdown", label: "Lista suspensa", opcoes: true },
   { value: "numero", label: "Número", opcoes: false },
   { value: "data", label: "Data", opcoes: false },
+  { value: "hora", label: "Hora (HH:MM)", opcoes: false },
   { value: "email", label: "E-mail", opcoes: false },
   { value: "telefone", label: "Telefone", opcoes: false },
   { value: "placa", label: "Placa de veículo", opcoes: false },
@@ -128,6 +130,7 @@ export default function FormularioEditor() {
   const qc = useQueryClient();
 
   const [titulo, setTitulo] = useState("");
+  const [numero, setNumero] = useState("");
   const [descricao, setDescricao] = useState("");
   const [slug, setSlug] = useState("");
   const [slugDirty, setSlugDirty] = useState(false);
@@ -158,6 +161,7 @@ export default function FormularioEditor() {
   useEffect(() => {
     if (!form) return;
     setTitulo(form.titulo);
+    setNumero((form as any).numero || "");
     setDescricao(form.descricao || "");
     setSlug(form.slug);
     setCorTema(form.cor_tema || "#362C89");
@@ -233,6 +237,8 @@ export default function FormularioEditor() {
 
       const payload = {
         titulo,
+        // Vazio faz o banco gerar o próximo da sequência; preenchido, respeita.
+        numero: numero.trim() || null,
         descricao,
         slug,
         cor_tema: corTema,
@@ -351,13 +357,27 @@ export default function FormularioEditor() {
             className="h-2 w-24 rounded-full"
             style={{ backgroundColor: corTema }}
           />
-          <div className="space-y-2">
-            <Label>Título</Label>
-            <Input
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              placeholder="Título do formulário"
-            />
+          <div className="grid md:grid-cols-[1fr_200px] gap-4">
+            <div className="space-y-2">
+              <Label>Título</Label>
+              <Input
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+                placeholder="Título do formulário"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Número</Label>
+              <Input
+                value={numero}
+                onChange={(e) => setNumero(e.target.value)}
+                placeholder="gerado ao salvar"
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Deixe em branco para numerar sozinho.
+              </p>
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Descrição</Label>
