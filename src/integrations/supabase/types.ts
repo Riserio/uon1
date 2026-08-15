@@ -3685,6 +3685,7 @@ export type Database = {
           estilo: string
           id: string
           logo_url: string | null
+          numero: string | null
           slug: string
           status: string
           titulo: string
@@ -3700,6 +3701,7 @@ export type Database = {
           estilo?: string
           id?: string
           logo_url?: string | null
+          numero?: string | null
           slug: string
           status?: string
           titulo: string
@@ -3715,6 +3717,7 @@ export type Database = {
           estilo?: string
           id?: string
           logo_url?: string | null
+          numero?: string | null
           slug?: string
           status?: string
           titulo?: string
@@ -10224,6 +10227,7 @@ export type Database = {
         Returns: Json
       }
       processar_base_api_worker: { Args: never; Returns: Json }
+      reabrir_backfill_historico_lote: { Args: never; Returns: Json }
       relatorio_analises_sinistro: {
         Args: {
           p_corretora_id?: string
