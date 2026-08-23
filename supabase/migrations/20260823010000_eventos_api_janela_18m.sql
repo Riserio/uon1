@@ -5,7 +5,7 @@ CREATE OR REPLACE FUNCTION public.importar_eventos_api(p_corretora_id uuid, p_fu
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = 'public, extensions'
+SET search_path = public, extensions
 SET statement_timeout = '10min'
 AS $function$
 DECLARE

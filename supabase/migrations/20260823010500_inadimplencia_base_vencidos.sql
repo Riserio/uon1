@@ -16,7 +16,7 @@ RETURNS jsonb
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = 'public, extensions'
+SET search_path = public, extensions
 SET statement_timeout = '90s'
 AS $function$
 
