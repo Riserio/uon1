@@ -497,7 +497,12 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     if (existingCob) {
       await supabase
         .from("cobranca_automacao_config")
-        .update({ ...baseData, layout_relatorio: creds.layout_cobranca, ativo: creds.ativo_cobranca })
+        .update({
+          ...baseData,
+          layout_relatorio: creds.layout_cobranca,
+          ativo: creds.ativo_cobranca,
+          inadimplencia_base: inadimplenciaBase,
+        } as any)
         .eq("id", existingCob.id);
     } else {
       await supabase
@@ -507,7 +512,8 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           corretora_id: corretoraId,
           layout_relatorio: creds.layout_cobranca,
           ativo: creds.ativo_cobranca,
-        });
+          inadimplencia_base: inadimplenciaBase,
+        } as any);
     }
     const { data: existingSga } = await supabase
       .from("sga_automacao_config")
