@@ -187,8 +187,23 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   const [historyLogs, setHistoryLogs] = useState<ExecutionLog[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [tick, setTick] = useState(0);
+  // Base de cálculo da inadimplência ('total' = todos os boletos do mês;
+  // 'vencidos' = apenas os já vencidos)
+  const [inadimplenciaBase, setInadimplenciaBase] = useState<"total" | "vencidos">("total");
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!open || !corretoraId || corretoraId === "__admin__") return;
+    supabase
+      .from("cobranca_automacao_config")
+      .select("inadimplencia_base")
+      .eq("corretora_id", corretoraId)
+      .maybeSingle()
+      .then(({ data }) => {
+        setInadimplenciaBase(((data as any)?.inadimplencia_base ?? "total") as "total" | "vencidos");
+      });
+  }, [open, corretoraId]);
 
   const loadCredenciais = useCallback(async () => {
     if (!corretoraId || corretoraId === "__admin__") return;
