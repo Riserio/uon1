@@ -149,6 +149,39 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
     ultimo_erro: { modulo: string; mensagem: string; quando: string } | null;
   } | null>(null);
 
+  // Base da inadimplência escolhida no menu "Sincronizar" da associação:
+  // "total" (todo boleto em aberto, padrão) ou "vencidos" (só o que já
+  // passou do vencimento). Reflete no card e no texto do "i", e é
+  // recarregada em tempo real quando a preferência muda.
+  const [inadimplenciaBase, setInadimplenciaBase] = useState<"total" | "vencidos">("total");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!corretoraId) { setInadimplenciaBase("total"); return; }
+    const load = async () => {
+      const { data } = await supabase
+        .from("cobranca_automacao_config")
+        .select("inadimplencia_base")
+        .eq("corretora_id", corretoraId)
+        .maybeSingle();
+      if (!cancelled) {
+        setInadimplenciaBase((((data as any)?.inadimplencia_base ?? "total") as "total" | "vencidos"));
+      }
+    };
+    load();
+    const channel = supabase
+      .channel(`inad-base-${corretoraId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cobranca_automacao_config", filter: `corretora_id=eq.${corretoraId}` },
+        () => load(),
+      )
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [corretoraId]);
+
+
+
 
   // Carregar configuração de inadimplência do banco
   const loadInadimplenciaConfig = async () => {
@@ -731,14 +764,28 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
           {
             label: "Inadimplência",
             unidade: null,
-            value: formatPercent(stats.percentualInadimplencia),
-            sub: criterio === "sga" ? "critério do SGA" : "em aberto / emitido",
+            // Respeita a "Base da inadimplência" configurada no menu
+            // Sincronizar: "total" usa todos os boletos em aberto; "vencidos"
+            // considera apenas os que já passaram do vencimento.
+            value: formatPercent(
+              inadimplenciaBase === "vencidos"
+                ? (stats.totalBoletos > 0 ? ((stats.qtdeVencidosMes ?? 0) / stats.totalBoletos) * 100 : 0)
+                : stats.percentualInadimplencia
+            ),
+            sub:
+              (inadimplenciaBase === "vencidos" ? "somente vencidos" : "total em aberto") +
+              (criterio === "sga" ? " · critério do SGA" : " · cobrança total"),
             cls: "text-amber-600 bg-amber-500/5 border-amber-500/20",
             info:
-              criterio === "sga"
-                ? "Em aberto ÷ emitidos, pelo Critério SGA: exclui veículos que já arrastavam boleto em aberto de meses anteriores (janela de 6 meses). É o número que a associação confere no Relatório de Boletos — e o mesmo que sai no resumo do WhatsApp."
-                : "Em aberto ÷ emitidos, sem filtro (cobrança total). Inclui veículos com débito antigo — por isso fica mais alto que o Critério SGA. Veja o card 'Critério SGA × Bruto' para os dois lado a lado.",
+              (inadimplenciaBase === "vencidos"
+                ? "Base da inadimplência: SOMENTE VENCIDOS — considera apenas os boletos em aberto cujo vencimento já passou (÷ emitidos). Os boletos a vencer ficam de fora. "
+                : "Base da inadimplência: TOTAL DE BOLETOS EM ABERTO — considera todo boleto ainda não pago do mês (÷ emitidos), inclusive os que ainda vão vencer. ") +
+              (criterio === "sga"
+                ? "Critério SGA: exclui veículos que já arrastavam boleto em aberto de meses anteriores (janela de 6 meses) — é o número que a associação confere no Relatório de Boletos."
+                : "Cobrança total: sem filtro, inclui veículos com débito antigo — por isso fica mais alto que o Critério SGA.") +
+              " A base pode ser alterada no menu Sincronizar da associação e o painel recalcula na hora.",
           },
+
         ].map(({ label, unidade, value, sub, cls, info }) => (
           <Card key={label} className={`rounded-2xl border ${cls}`}>
             <CardContent className="p-4">
