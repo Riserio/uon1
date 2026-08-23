@@ -380,7 +380,11 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
         const { data, error } = await supabase.rpc("calcular_kpis_cobranca_sga", {
           p_importacao_ids: ids,
           p_mes_referencia: mesReferencia || null,
+          // Segue a mesma base de inadimplência do card principal e do
+          // resumo do WhatsApp: total em aberto ou somente vencidos.
+          p_somente_vencidos: inadimplenciaBase === "vencidos",
         } as any);
+
         if (!cancelled && !error) setKpisSga(data as any);
         // Alerta de duplicidade (mesma cobrança com nosso_numero diferente).
         const { data: dup, error: dupErr } = await supabase.rpc("detectar_boletos_duplicados", {
