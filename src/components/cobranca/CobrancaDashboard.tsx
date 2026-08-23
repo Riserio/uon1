@@ -149,6 +149,39 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
     ultimo_erro: { modulo: string; mensagem: string; quando: string } | null;
   } | null>(null);
 
+  // Base da inadimplência escolhida no menu "Sincronizar" da associação:
+  // "total" (todo boleto em aberto, padrão) ou "vencidos" (só o que já
+  // passou do vencimento). Reflete no card e no texto do "i", e é
+  // recarregada em tempo real quando a preferência muda.
+  const [inadimplenciaBase, setInadimplenciaBase] = useState<"total" | "vencidos">("total");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!corretoraId) { setInadimplenciaBase("total"); return; }
+    const load = async () => {
+      const { data } = await supabase
+        .from("cobranca_automacao_config")
+        .select("inadimplencia_base")
+        .eq("corretora_id", corretoraId)
+        .maybeSingle();
+      if (!cancelled) {
+        setInadimplenciaBase((((data as any)?.inadimplencia_base ?? "total") as "total" | "vencidos"));
+      }
+    };
+    load();
+    const channel = supabase
+      .channel(`inad-base-${corretoraId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cobranca_automacao_config", filter: `corretora_id=eq.${corretoraId}` },
+        () => load(),
+      )
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [corretoraId]);
+
+
+
 
   // Carregar configuração de inadimplência do banco
   const loadInadimplenciaConfig = async () => {
