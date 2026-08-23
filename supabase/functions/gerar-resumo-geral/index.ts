@@ -273,7 +273,7 @@ serve(async (req) => {
     if (cob) {
       secoes.push(`💰 *COBRANÇA* (${cob.mes_referencia})
 
-              📉 Inadimplência geral: *${cob.percentual_inadimplencia}%*
+              📉 Inadimplência geral: *${cob.percentual_inadimplencia}%*${cob.inadimplencia_base_label ? ` _(${cob.inadimplencia_base_label})_` : ""}
               📄 Boletos gerados: *${cob.total_gerados}*  ✅ Baixados: *${cob.total_baixados}*
               💵 Esperado: *R$ ${cob.faturamento_esperado_formatado}*
               💵 Recebido: *R$ ${cob.faturamento_recebido_formatado}*
