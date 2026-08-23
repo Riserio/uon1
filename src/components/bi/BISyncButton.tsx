@@ -1232,6 +1232,38 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                   </div>
 
                   <div className="space-y-2 border-t pt-4">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Base da inadimplência
+                    </p>
+                    <div className="inline-flex gap-1 rounded-2xl bg-muted p-1">
+                      {([
+                        { v: "total", label: "Total em aberto" },
+                        { v: "vencidos", label: "Somente vencidos" },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          onClick={() => setInadimplenciaBase(opt.v)}
+                          className={`rounded-xl px-3 py-1.5 text-xs transition-all ${
+                            inadimplenciaBase === opt.v
+                              ? "bg-card text-foreground font-semibold shadow-sm"
+                              : "text-muted-foreground font-medium hover:text-foreground"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {inadimplenciaBase === "vencidos"
+                        ? "O percentual considera apenas boletos com vencimento já passado (ignora os a vencer)."
+                        : "Padrão: o percentual considera todos os boletos do mês, inclusive os a vencer."}
+                    </p>
+                  </div>
+
+
+
+                  <div className="space-y-2 border-t pt-4">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         API Hinova (prioridade)
