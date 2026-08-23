@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -1373,6 +1373,7 @@ export type Database = {
           hinova_user: string
           hora_agendada: string | null
           id: string
+          inadimplencia_base: string
           layout_relatorio: string | null
           ultima_execucao: string | null
           ultima_origem: string | null
@@ -1396,6 +1397,7 @@ export type Database = {
           hinova_user?: string
           hora_agendada?: string | null
           id?: string
+          inadimplencia_base?: string
           layout_relatorio?: string | null
           ultima_execucao?: string | null
           ultima_origem?: string | null
@@ -1419,6 +1421,7 @@ export type Database = {
           hinova_user?: string
           hora_agendada?: string | null
           id?: string
+          inadimplencia_base?: string
           layout_relatorio?: string | null
           ultima_execucao?: string | null
           ultima_origem?: string | null
@@ -9807,10 +9810,19 @@ export type Database = {
         }
         Returns: Json
       }
-      calcular_resumo_cobranca: {
-        Args: { p_importacao_ids: string[]; p_mes_referencia?: string }
-        Returns: Json
-      }
+      calcular_resumo_cobranca:
+        | {
+            Args: { p_importacao_ids: string[]; p_mes_referencia?: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_importacao_ids: string[]
+              p_mes_referencia: string
+              p_somente_vencidos?: boolean
+            }
+            Returns: Json
+          }
       can_manage_gestao: { Args: { _user_id: string }; Returns: boolean }
       can_send_email: { Args: { provider_name: string }; Returns: boolean }
       can_view_profile: {
@@ -10081,7 +10093,10 @@ export type Database = {
       }
       importar_eventos_api:
         | { Args: { p_corretora_id: string }; Returns: Json }
-        | { Args: { p_corretora_id: string; p_full?: boolean }; Returns: Json }
+        | {
+            Args: { p_corretora_id: string; p_desde?: string; p_full?: boolean }
+            Returns: Json
+          }
       importar_mgf_api: { Args: { p_corretora_id: string }; Returns: Json }
       importar_tudo_api_todas: { Args: never; Returns: Json }
       is_equipe_interna: { Args: { _user_id: string }; Returns: boolean }

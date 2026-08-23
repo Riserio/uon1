@@ -187,8 +187,23 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   const [historyLogs, setHistoryLogs] = useState<ExecutionLog[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [tick, setTick] = useState(0);
+  // Base de cálculo da inadimplência ('total' = todos os boletos do mês;
+  // 'vencidos' = apenas os já vencidos)
+  const [inadimplenciaBase, setInadimplenciaBase] = useState<"total" | "vencidos">("total");
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!open || !corretoraId || corretoraId === "__admin__") return;
+    supabase
+      .from("cobranca_automacao_config")
+      .select("inadimplencia_base")
+      .eq("corretora_id", corretoraId)
+      .maybeSingle()
+      .then(({ data }) => {
+        setInadimplenciaBase(((data as any)?.inadimplencia_base ?? "total") as "total" | "vencidos");
+      });
+  }, [open, corretoraId]);
 
   const loadCredenciais = useCallback(async () => {
     if (!corretoraId || corretoraId === "__admin__") return;
@@ -482,7 +497,12 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     if (existingCob) {
       await supabase
         .from("cobranca_automacao_config")
-        .update({ ...baseData, layout_relatorio: creds.layout_cobranca, ativo: creds.ativo_cobranca })
+        .update({
+          ...baseData,
+          layout_relatorio: creds.layout_cobranca,
+          ativo: creds.ativo_cobranca,
+          inadimplencia_base: inadimplenciaBase,
+        } as any)
         .eq("id", existingCob.id);
     } else {
       await supabase
@@ -492,7 +512,8 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           corretora_id: corretoraId,
           layout_relatorio: creds.layout_cobranca,
           ativo: creds.ativo_cobranca,
-        });
+          inadimplencia_base: inadimplenciaBase,
+        } as any);
     }
     const { data: existingSga } = await supabase
       .from("sga_automacao_config")
@@ -1209,6 +1230,38 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                       API e para o robô GitHub
                     </p>
                   </div>
+
+                  <div className="space-y-2 border-t pt-4">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Base da inadimplência
+                    </p>
+                    <div className="inline-flex gap-1 rounded-2xl bg-muted p-1">
+                      {([
+                        { v: "total", label: "Total em aberto" },
+                        { v: "vencidos", label: "Somente vencidos" },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          onClick={() => setInadimplenciaBase(opt.v)}
+                          className={`rounded-xl px-3 py-1.5 text-xs transition-all ${
+                            inadimplenciaBase === opt.v
+                              ? "bg-card text-foreground font-semibold shadow-sm"
+                              : "text-muted-foreground font-medium hover:text-foreground"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {inadimplenciaBase === "vencidos"
+                        ? "O percentual considera apenas boletos com vencimento já passado (ignora os a vencer)."
+                        : "Padrão: o percentual considera todos os boletos do mês, inclusive os a vencer."}
+                    </p>
+                  </div>
+
+
 
                   <div className="space-y-2 border-t pt-4">
                     <div className="flex items-center justify-between">
