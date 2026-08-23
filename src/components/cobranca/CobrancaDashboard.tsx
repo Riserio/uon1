@@ -397,7 +397,8 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
       }
     })();
     return () => { cancelled = true; };
-  }, [corretoraId, mesReferencia]);
+  }, [corretoraId, mesReferencia, inadimplenciaBase]);
+
 
   // Card Base: uma chamada leve por associação (placas ativas + cadastros
   // do mês). Independe do mês selecionado nos filtros — sempre mostra a
