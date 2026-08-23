@@ -9757,15 +9757,26 @@ export type Database = {
         }
         Returns: Json
       }
-      calcular_kpis_cobranca_sga: {
-        Args: {
-          p_cooperativa?: string
-          p_importacao_ids: string[]
-          p_mes_referencia?: string
-          p_regional?: string
-        }
-        Returns: Json
-      }
+      calcular_kpis_cobranca_sga:
+        | {
+            Args: {
+              p_cooperativa?: string
+              p_importacao_ids: string[]
+              p_mes_referencia?: string
+              p_regional?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_cooperativa?: string
+              p_importacao_ids: string[]
+              p_mes_referencia?: string
+              p_regional?: string
+              p_somente_vencidos?: boolean
+            }
+            Returns: Json
+          }
       calcular_mapa_estudo_base: {
         Args: {
           p_cooperativa?: string

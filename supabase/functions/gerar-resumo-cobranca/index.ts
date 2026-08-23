@@ -150,6 +150,12 @@ serve(async (req) => {
     const valorTotalPago = Number(metrics?.faturamento_recebido || 0);
     const valorTotalAberto = Number(metrics?.valor_aberto || 0);
 
+    // Rótulo que acompanha o percentual no WhatsApp/PDF para não restar
+    // dúvida sobre qual base foi usada no cálculo.
+    const baseInadimplenciaLabel = somenteVencidos
+      ? "somente boletos vencidos"
+      : "total de boletos em aberto";
+
     const percentualInadimplencia = totalGerados > 0 ? ((totalAbertos / totalGerados) * 100).toFixed(2) : "0.00";
 
     const porDia = metrics?.por_dia || {};
@@ -199,7 +205,7 @@ Seguem abaixo informações importantes para sua gestão:
 
 📅 *${dataAtual}*
 
-💰 Inadimplência geral: *${percentualInadimplencia}%*
+💰 Inadimplência geral: *${percentualInadimplencia}%* _(${baseInadimplenciaLabel})_
 📄 Total boletos gerados: *${totalGerados}* boletos
 ✅ Total baixados: *${totalBaixados}* boletos
 
@@ -221,6 +227,8 @@ ${boletosPorDia}
           mes_referencia: mesReferenciaLabel,
           data_atual: dataAtual,
           percentual_inadimplencia: percentualInadimplencia,
+          inadimplencia_base: somenteVencidos ? "vencidos" : "total",
+          inadimplencia_base_label: baseInadimplenciaLabel,
           total_gerados: totalGerados,
           total_baixados: totalBaixados,
           total_inadimplentes: totalAbertos,

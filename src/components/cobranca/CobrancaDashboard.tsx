@@ -380,7 +380,11 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
         const { data, error } = await supabase.rpc("calcular_kpis_cobranca_sga", {
           p_importacao_ids: ids,
           p_mes_referencia: mesReferencia || null,
+          // Segue a mesma base de inadimplência do card principal e do
+          // resumo do WhatsApp: total em aberto ou somente vencidos.
+          p_somente_vencidos: inadimplenciaBase === "vencidos",
         } as any);
+
         if (!cancelled && !error) setKpisSga(data as any);
         // Alerta de duplicidade (mesma cobrança com nosso_numero diferente).
         const { data: dup, error: dupErr } = await supabase.rpc("detectar_boletos_duplicados", {
@@ -393,7 +397,8 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
       }
     })();
     return () => { cancelled = true; };
-  }, [corretoraId, mesReferencia]);
+  }, [corretoraId, mesReferencia, inadimplenciaBase]);
+
 
   // Card Base: uma chamada leve por associação (placas ativas + cadastros
   // do mês). Independe do mês selecionado nos filtros — sempre mostra a
@@ -821,37 +826,75 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
             <div className="flex items-center gap-1.5 mb-3">
               <Scale className="h-4 w-4 text-primary" />
               <span className="text-sm font-semibold">Critério SGA × Bruto</span>
-              <HelpTip text='O SGA não conta em duplicidade o veículo que arrasta boleto em aberto de meses anteriores; o bruto conta a carteira inteira. A diferença entre os dois são justamente os boletos "arrastados". O resumo do WhatsApp usa o Critério SGA — por isso bate com este painel.' />
+              <HelpTip
+                text={
+                  'O SGA não conta em duplicidade o veículo que arrasta boleto em aberto de meses anteriores; o bruto conta a carteira inteira. A diferença entre os dois são justamente os boletos "arrastados". O resumo do WhatsApp usa o Critério SGA — por isso bate com este painel. ' +
+                  (inadimplenciaBase === "vencidos"
+                    ? "Base atual: SOMENTE VENCIDOS — os dois percentuais consideram apenas boletos já vencidos."
+                    : "Base atual: TOTAL EM ABERTO — os dois percentuais consideram todo boleto não pago, inclusive os a vencer.")
+                }
+              />
+              {/* Selo deixa explícita a base usada nos dois percentuais deste card. */}
+              <span
+                className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  inadimplenciaBase === "vencidos"
+                    ? "bg-orange-500/10 text-orange-600"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {inadimplenciaBase === "vencidos" ? "somente vencidos" : "total em aberto"}
+              </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
                 <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-600 mb-1">
                   <span>Critério SGA</span>
-                  <HelpTip text="Em aberto ÷ emitidos, excluindo veículos que já tinham boleto em aberto nos 6 meses anteriores. É o número do Relatório de Boletos que a associação confere." />
+                  <HelpTip
+                    text={
+                      (inadimplenciaBase === "vencidos" ? "Vencidos" : "Em aberto") +
+                      " ÷ emitidos, excluindo veículos que já tinham boleto em aberto nos 6 meses anteriores. É o número do Relatório de Boletos que a associação confere" +
+                      (inadimplenciaBase === "vencidos"
+                        ? " — aqui restrito aos boletos cujo vencimento já passou."
+                        : ".")
+                    }
+                  />
                 </div>
                 <div className="text-xl font-bold tracking-tight text-emerald-600">
                   {formatPercent(kpisSga.percentualInadimplencia)}
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {(kpisSga.qtdeAbertos ?? 0).toLocaleString('pt-BR')} em aberto · o que a associação confere
+                  {(kpisSga.qtdeAbertos ?? 0).toLocaleString('pt-BR')}{" "}
+                  {inadimplenciaBase === "vencidos" ? "vencidos" : "em aberto"} · o que a associação confere
                 </div>
               </div>
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
                 <div className="flex items-center gap-1 text-[11px] font-medium text-amber-600 mb-1">
                   <span>Bruto (com prorrogação)</span>
-                  <HelpTip text="Em aberto ÷ emitidos considerando TODOS os boletos do mês, inclusive os de veículos que arrastam débito antigo. Fica mais alto que o SGA." />
+                  <HelpTip
+                    text={
+                      (inadimplenciaBase === "vencidos" ? "Vencidos" : "Em aberto") +
+                      " ÷ emitidos considerando TODOS os boletos do mês, inclusive os de veículos que arrastam débito antigo. Fica mais alto que o SGA."
+                    }
+                  />
                 </div>
                 <div className="text-xl font-bold tracking-tight text-amber-600">
                   {formatPercent(kpisSga.percentualInadimplenciaTotal ?? 0)}
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {(kpisSga.qtdeAbertosTotal ?? 0).toLocaleString('pt-BR')} em aberto · carteira inteira
+                  {(kpisSga.qtdeAbertosTotal ?? 0).toLocaleString('pt-BR')}{" "}
+                  {inadimplenciaBase === "vencidos" ? "vencidos" : "em aberto"} · carteira inteira
                 </div>
               </div>
               <div className="rounded-xl border border-border/50 bg-muted/30 p-3">
                 <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground mb-1">
                   <span>Arrastados</span>
-                  <HelpTip text="Boletos em aberto de veículos que já vinham devendo de meses anteriores. É exatamente a diferença entre o bruto e o SGA (o que o SGA deixa de contar para não duplicar o mesmo inadimplente)." />
+                  <HelpTip
+                    text={
+                      "Boletos" +
+                      (inadimplenciaBase === "vencidos" ? " vencidos" : " em aberto") +
+                      " de veículos que já vinham devendo de meses anteriores. É exatamente a diferença entre o bruto e o SGA (o que o SGA deixa de contar para não duplicar o mesmo inadimplente)."
+                    }
+                  />
                 </div>
                 <div className="text-xl font-bold tracking-tight text-foreground">
                   {(kpisSga.qtdeSemProrrogacao ?? 0).toLocaleString('pt-BR')}
@@ -860,6 +903,7 @@ export default function CobrancaDashboard({ stats, loading, corretoraId, mesRefe
                   boletos de veículos com débito de meses anteriores
                 </div>
               </div>
+
             </div>
           </CardContent>
         </Card>
