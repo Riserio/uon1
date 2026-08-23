@@ -122,9 +122,20 @@ serve(async (req) => {
     // buscando todas as linhas cruas (podia passar de 15-17 mil boletos e
     // demorar demais / estourar timeout, deixando o resumo geral sem essa
     // seção). Ver função pública.calcular_resumo_cobranca(uuid[], text). =====
+    // Base da inadimplência configurada por associação:
+    // 'total' (padrão) = todos os boletos do mês; 'vencidos' = apenas os que
+    // já passaram da data de vencimento.
+    const { data: cfgInad } = await supabase
+      .from("cobranca_automacao_config")
+      .select("inadimplencia_base")
+      .eq("corretora_id", corretora_id)
+      .maybeSingle();
+    const somenteVencidos = (cfgInad?.inadimplencia_base ?? "total") === "vencidos";
+
     const { data: metrics, error: metricsError } = await supabase.rpc("calcular_resumo_cobranca", {
       p_importacao_ids: importacaoIds,
       p_mes_referencia: mesReferencia,
+      p_somente_vencidos: somenteVencidos,
     });
 
     if (metricsError) {
