@@ -203,32 +203,42 @@ serve(async (req) => {
     }
 
     // Desenha "logo Vangard | logo parceiro" a partir de x, devolve a largura usada.
+    // A logo do parceiro é sempre dimensionada para ter o MESMO peso visual
+    // (mesma área desenhada) da logo da Vangard, preservando o aspect ratio.
     const drawLogos = (x: number, topY: number, targetH: number) => {
       let cursor = x;
+      let baseW = 80;
+      let baseH = targetH;
       if (logoImage) {
-        const w = logoImage.width * (targetH / logoImage.height);
-        page.drawImage(logoImage, { x: cursor, y: topY - targetH, width: w, height: targetH });
-        cursor += w;
+        baseW = logoImage.width * (targetH / logoImage.height);
+        page.drawImage(logoImage, { x: cursor, y: topY - targetH, width: baseW, height: targetH });
+        cursor += baseW;
       } else {
         page.drawText("VANGARD", { x: cursor, y: topY - targetH + 6, size: targetH * 0.34, font: fontBold, color: BLACK });
-        cursor += 80;
+        cursor += baseW;
       }
       if (logoParceiro) {
         cursor += 12;
         page.drawRectangle({ x: cursor, y: topY - targetH, width: 1, height: targetH, color: CARD_BORDER });
         cursor += 12;
-        const maxW = 130;
-        let w = logoParceiro.width * (targetH / logoParceiro.height);
-        let h = targetH;
-        if (w > maxW) {
-          h = h * (maxW / w);
-          w = maxW;
-        }
+
+        const ratio = logoParceiro.width / logoParceiro.height;
+        // Mesma área da logo da Vangard => proporcional em peso visual.
+        const targetArea = baseW * baseH;
+        let h = Math.sqrt(targetArea / ratio);
+        let w = h * ratio;
+        // Limites para não estourar o cabeçalho nem sumir.
+        const maxH = targetH;
+        const maxW = baseW * 1.6;
+        if (h > maxH) { h = maxH; w = h * ratio; }
+        if (w > maxW) { w = maxW; h = w / ratio; }
+
         page.drawImage(logoParceiro, { x: cursor, y: topY - targetH + (targetH - h) / 2, width: w, height: h });
         cursor += w;
       }
       return cursor - x;
     };
+
 
     const drawText = (
       text: string,
