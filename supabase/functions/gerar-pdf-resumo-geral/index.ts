@@ -46,7 +46,7 @@ serve(async (req) => {
 
     const { data: corretora } = await supabase
       .from("corretoras")
-      .select("nome, slug")
+      .select("nome, slug, logo_relatorio_url")
       .eq("id", corretora_id)
       .single();
     const nomeAssociacao = corretora?.nome || "Associação";
@@ -183,6 +183,53 @@ serve(async (req) => {
       logoImage = null;
     }
 
+    // Logo do parceiro (co-branding): aparece ao lado da logo da Vangard,
+    // separada por uma barra vertical — mesmo padrão usado nos formulários.
+    let logoParceiro: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
+    const logoParceiroUrl = (corretora as { logo_relatorio_url?: string } | null)?.logo_relatorio_url;
+    if (logoParceiroUrl) {
+      try {
+        const res = await fetch(logoParceiroUrl);
+        if (res.ok) {
+          const bytes = new Uint8Array(await res.arrayBuffer());
+          const ct = res.headers.get("content-type") || "";
+          logoParceiro = ct.includes("jpeg") || ct.includes("jpg")
+            ? await pdfDoc.embedJpg(bytes)
+            : await pdfDoc.embedPng(bytes);
+        }
+      } catch (_e) {
+        logoParceiro = null;
+      }
+    }
+
+    // Desenha "logo Vangard | logo parceiro" a partir de x, devolve a largura usada.
+    const drawLogos = (x: number, topY: number, targetH: number) => {
+      let cursor = x;
+      if (logoImage) {
+        const w = logoImage.width * (targetH / logoImage.height);
+        page.drawImage(logoImage, { x: cursor, y: topY - targetH, width: w, height: targetH });
+        cursor += w;
+      } else {
+        page.drawText("VANGARD", { x: cursor, y: topY - targetH + 6, size: targetH * 0.34, font: fontBold, color: BLACK });
+        cursor += 80;
+      }
+      if (logoParceiro) {
+        cursor += 12;
+        page.drawRectangle({ x: cursor, y: topY - targetH, width: 1, height: targetH, color: CARD_BORDER });
+        cursor += 12;
+        const maxW = 130;
+        let w = logoParceiro.width * (targetH / logoParceiro.height);
+        let h = targetH;
+        if (w > maxW) {
+          h = h * (maxW / w);
+          w = maxW;
+        }
+        page.drawImage(logoParceiro, { x: cursor, y: topY - targetH + (targetH - h) / 2, width: w, height: h });
+        cursor += w;
+      }
+      return cursor - x;
+    };
+
     const drawText = (
       text: string,
       x: number,
@@ -214,15 +261,7 @@ serve(async (req) => {
     const topPad = 50;
     y -= topPad;
 
-    if (logoImage) {
-      const targetH = 44;
-      const scale = targetH / logoImage.height;
-      const logoW = logoImage.width * scale;
-      page.drawImage(logoImage, { x: marginX, y: y - targetH, width: logoW, height: targetH });
-    } else {
-      drawText("VANGARD", marginX, y - 16, { size: 15, font: fontBold, color: BLACK });
-      drawText("G E S T O R A", marginX, y - 28, { size: 7, font: fontRegular, color: GRAY_MUTED });
-    }
+    drawLogos(marginX, y, 44);
 
     drawTextRight("Resumo executivo", width - marginX, y - 20, { size: 22, font: fontBold, color: BLACK });
     drawTextRight(dataEmissao, width - marginX, y - 36, { size: 11, color: GRAY_TEXT });
@@ -259,13 +298,7 @@ serve(async (req) => {
     const PAGE_H = 841.89;
     const drawHeaderCompacto = () => {
       let hy = PAGE_H - 50;
-      if (logoImage) {
-        const targetH = 30;
-        const scale = targetH / logoImage.height;
-        page.drawImage(logoImage, { x: marginX, y: hy - targetH, width: logoImage.width * scale, height: targetH });
-      } else {
-        drawText("VANGARD", marginX, hy - 14, { size: 13, font: fontBold, color: BLACK });
-      }
+      drawLogos(marginX, hy, 30);
       drawTextRight("Resumo executivo", width - marginX, hy - 16, { size: 16, font: fontBold, color: BLACK });
       hy -= 42;
       page.drawRectangle({ x: marginX, y: hy - 2, width: width - marginX * 2, height: 2, color: rgb(236 / 255, 236 / 255, 236 / 255) });

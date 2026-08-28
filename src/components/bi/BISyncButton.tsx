@@ -190,6 +190,9 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   // Base de cálculo da inadimplência ('total' = todos os boletos do mês;
   // 'vencidos' = apenas os já vencidos)
   const [inadimplenciaBase, setInadimplenciaBase] = useState<"total" | "vencidos">("total");
+  // Logo do parceiro exibida ao lado da logo da Vangard nos relatórios
+  const [logoParceiro, setLogoParceiro] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -203,7 +206,61 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
       .then(({ data }) => {
         setInadimplenciaBase(((data as any)?.inadimplencia_base ?? "total") as "total" | "vencidos");
       });
+    supabase
+      .from("corretoras")
+      .select("logo_relatorio_url")
+      .eq("id", corretoraId)
+      .maybeSingle()
+      .then(({ data }) => setLogoParceiro(((data as any)?.logo_relatorio_url as string) || null));
   }, [open, corretoraId]);
+
+  const handleUploadLogoParceiro = async (file: File | undefined) => {
+    if (!file || !corretoraId || corretoraId === "__admin__") return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Imagem muito grande. Máximo 2MB");
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const path = `relatorios/${corretoraId}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("logos")
+        .upload(path, file, { cacheControl: "3600", upsert: true });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("logos").getPublicUrl(path);
+      const { error } = await supabase
+        .from("corretoras")
+        .update({ logo_relatorio_url: pub.publicUrl } as any)
+        .eq("id", corretoraId);
+      if (error) throw error;
+      setLogoParceiro(pub.publicUrl);
+      toast.success("Logo do parceiro salva!");
+    } catch (e: any) {
+      toast.error("Erro ao enviar logo: " + (e.message || "desconhecido"));
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleRemoverLogoParceiro = async () => {
+    if (!corretoraId || corretoraId === "__admin__") return;
+    const { error } = await supabase
+      .from("corretoras")
+      .update({ logo_relatorio_url: null } as any)
+      .eq("id", corretoraId);
+    if (error) {
+      toast.error("Erro ao remover logo");
+      return;
+    }
+    setLogoParceiro(null);
+    toast.success("Logo removida");
+  };
+
 
   const loadCredenciais = useCallback(async () => {
     if (!corretoraId || corretoraId === "__admin__") return;
@@ -1260,6 +1317,52 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                         : "Padrão: o percentual considera todos os boletos do mês, inclusive os a vencer."}
                     </p>
                   </div>
+
+                  <div className="space-y-2 border-t pt-4">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Logo do parceiro nos relatórios
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Exibida ao lado da logo da Vangard, separada por uma barra, no PDF enviado pelo WhatsApp. PNG
+                      transparente, até 2MB.
+                    </p>
+                    <div className="flex items-center gap-3 rounded-2xl border bg-muted/20 p-3">
+                      <img src="/images/vangard-logo.png" alt="Vangard" className="h-8 object-contain" />
+                      <div className="h-8 w-px bg-border" />
+                      {logoParceiro ? (
+                        <img src={logoParceiro} alt="Logo do parceiro" className="h-8 max-w-[140px] object-contain" />
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">Nenhuma logo enviada</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingLogo}
+                        onChange={(e) => {
+                          handleUploadLogoParceiro(e.target.files?.[0]);
+                          e.target.value = "";
+                        }}
+                        className="h-9 text-xs rounded-xl"
+                      />
+                      {logoParceiro && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRemoverLogoParceiro}
+                          className="h-9 rounded-xl text-xs"
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" />
+                          Remover
+                        </Button>
+                      )}
+                      {uploadingLogo && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                    </div>
+                  </div>
+
+
 
 
 
