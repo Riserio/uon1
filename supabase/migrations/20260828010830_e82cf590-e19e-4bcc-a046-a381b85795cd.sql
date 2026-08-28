@@ -1,0 +1,2 @@
+ALTER TABLE public.corretoras ADD COLUMN IF NOT EXISTS logo_relatorio_url text;
+COMMENT ON COLUMN public.corretoras.logo_relatorio_url IS 'Logo do parceiro exibida ao lado da logo Vangard nos relatórios (PDF/WhatsApp).';

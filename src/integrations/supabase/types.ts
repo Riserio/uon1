@@ -2486,6 +2486,7 @@ export type Database = {
           id: string
           logo_collapsed_url: string | null
           logo_expanded_url: string | null
+          logo_relatorio_url: string | null
           logo_url: string | null
           nome: string
           observacoes: string | null
@@ -2510,6 +2511,7 @@ export type Database = {
           id?: string
           logo_collapsed_url?: string | null
           logo_expanded_url?: string | null
+          logo_relatorio_url?: string | null
           logo_url?: string | null
           nome: string
           observacoes?: string | null
@@ -2534,6 +2536,7 @@ export type Database = {
           id?: string
           logo_collapsed_url?: string | null
           logo_expanded_url?: string | null
+          logo_relatorio_url?: string | null
           logo_url?: string | null
           nome?: string
           observacoes?: string | null
