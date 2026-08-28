@@ -1318,6 +1318,52 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                     </p>
                   </div>
 
+                  <div className="space-y-2 border-t pt-4">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Logo do parceiro nos relatórios
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Exibida ao lado da logo da Vangard, separada por uma barra, no PDF enviado pelo WhatsApp. PNG
+                      transparente, até 2MB.
+                    </p>
+                    <div className="flex items-center gap-3 rounded-2xl border bg-muted/20 p-3">
+                      <img src="/images/vangard-logo.png" alt="Vangard" className="h-8 object-contain" />
+                      <div className="h-8 w-px bg-border" />
+                      {logoParceiro ? (
+                        <img src={logoParceiro} alt="Logo do parceiro" className="h-8 max-w-[140px] object-contain" />
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">Nenhuma logo enviada</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingLogo}
+                        onChange={(e) => {
+                          handleUploadLogoParceiro(e.target.files?.[0]);
+                          e.target.value = "";
+                        }}
+                        className="h-9 text-xs rounded-xl"
+                      />
+                      {logoParceiro && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRemoverLogoParceiro}
+                          className="h-9 rounded-xl text-xs"
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" />
+                          Remover
+                        </Button>
+                      )}
+                      {uploadingLogo && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                    </div>
+                  </div>
+
+
+
 
 
                   <div className="space-y-2 border-t pt-4">
