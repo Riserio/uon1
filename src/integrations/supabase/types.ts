@@ -7474,6 +7474,7 @@ export type Database = {
           importado_por: string | null
           nome_arquivo: string
           total_registros: number | null
+          updated_at: string
         }
         Insert: {
           ativo?: boolean | null
@@ -7483,6 +7484,7 @@ export type Database = {
           importado_por?: string | null
           nome_arquivo: string
           total_registros?: number | null
+          updated_at?: string
         }
         Update: {
           ativo?: boolean | null
@@ -7492,6 +7494,7 @@ export type Database = {
           importado_por?: string | null
           nome_arquivo?: string
           total_registros?: number | null
+          updated_at?: string
         }
         Relationships: [
           {
