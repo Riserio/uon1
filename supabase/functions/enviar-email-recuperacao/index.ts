@@ -49,78 +49,32 @@ const handler = async (req: Request): Promise<Response> => {
       <html>
         <head>
           <meta charset="utf-8">
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-              line-height: 1.6;
-              color: #333;
-              max-width: 600px;
-              margin: 0 auto;
-              padding: 20px;
-            }
-            .container {
-              background-color: #f9fafb;
-              border-radius: 8px;
-              padding: 30px;
-            }
-            .header {
-              text-align: center;
-              margin-bottom: 30px;
-            }
-            .header h1 {
-              color: #1f2937;
-              margin: 0;
-            }
-            .content {
-              background-color: white;
-              border-radius: 6px;
-              padding: 25px;
-              margin-bottom: 20px;
-            }
-            .button {
-              display: inline-block;
-              background-color: #3b82f6;
-              color: white;
-              text-decoration: none;
-              padding: 12px 30px;
-              border-radius: 6px;
-              font-weight: 500;
-              margin: 20px 0;
-            }
-            .footer {
-              text-align: center;
-              color: #6b7280;
-              font-size: 14px;
-            }
-            .link {
-              color: #3b82f6;
-              word-break: break-all;
-            }
-          </style>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🔐 Recuperação de Senha</h1>
-            </div>
-            <div class="content">
-              <p>Olá,</p>
-              <p>Recebemos uma solicitação para redefinir a senha da sua conta.</p>
-              <p>Clique no botão abaixo para criar uma nova senha:</p>
-              <div style="text-align: center;">
-                <a href="${resetLink}" class="button">Redefinir Senha</a>
+        <body style="margin:0;padding:0;background-color:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+          <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
+            <div style="background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e8e8ee;">
+              <div style="padding:28px 32px 24px;border-bottom:1px solid #eeeef4;text-align:center;">
+                <img src="https://uon1.lovable.app/images/logo-full.png" alt="uon1" style="max-height:44px;display:inline-block;" />
               </div>
-              <p style="margin-top: 20px;">Ou copie e cole este link no seu navegador:</p>
-              <p class="link">${resetLink}</p>
-              <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                <strong>Este link expira em 1 hora.</strong>
-              </p>
-              <p style="color: #6b7280; font-size: 14px;">
-                Se você não solicitou a redefinição de senha, pode ignorar este e-mail com segurança.
-              </p>
+              <div style="padding:32px;">
+                <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#F06F19;">Segurança da conta</p>
+                <h1 style="margin:0 0 20px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:600;color:#1f1b2d;">Recuperação de senha</h1>
+                <p style="margin:0 0 12px;color:#3f3d4d;font-size:15px;line-height:1.6;">Olá,</p>
+                <p style="margin:0 0 24px;color:#3f3d4d;font-size:15px;line-height:1.6;">Recebemos uma solicitação para redefinir a senha da sua conta no <strong>uon1</strong>. Clique no botão abaixo para criar uma nova senha:</p>
+                <div style="text-align:center;margin:8px 0 24px;">
+                  <a href="${resetLink}" style="display:inline-block;background-color:#362C89;color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:12px;font-weight:600;font-size:15px;">Redefinir senha</a>
+                </div>
+                <p style="margin:0 0 8px;color:#6b6a7a;font-size:13px;">Ou copie e cole este link no seu navegador:</p>
+                <p style="margin:0 0 24px;color:#362C89;font-size:12px;word-break:break-all;">${resetLink}</p>
+                <div style="border-top:1px solid #eeeef4;padding-top:20px;">
+                  <p style="margin:0 0 12px;color:#1f1b2d;font-size:14px;"><strong>Este link expira em 1 hora.</strong></p>
+                  <p style="margin:0;color:#6b6a7a;font-size:13px;line-height:1.6;">Se você não solicitou a redefinição de senha, pode ignorar este e-mail com segurança — sua senha atual permanece a mesma.</p>
+                </div>
+              </div>
             </div>
-            <div class="footer">
-              <p>Este é um e-mail automático, por favor não responda.</p>
+            <div style="text-align:center;padding:20px 0;color:#9b99a8;font-size:12px;line-height:1.6;">
+              <p style="margin:0;">Este é um e-mail automático enviado pelo uon1, por favor não responda.</p>
             </div>
           </div>
         </body>
@@ -128,11 +82,11 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const emailText = `
-Recuperação de Senha
+Recuperação de Senha — uon1
 
 Olá,
 
-Recebemos uma solicitação para redefinir a senha da sua conta.
+Recebemos uma solicitação para redefinir a senha da sua conta no uon1.
 
 Clique no link abaixo para criar uma nova senha:
 ${resetLink}
@@ -142,7 +96,7 @@ Este link expira em 1 hora.
 Se você não solicitou a redefinição de senha, pode ignorar este e-mail com segurança.
 
 ---
-Este é um e-mail automático, por favor não responda.
+Este é um e-mail automático enviado pelo uon1, por favor não responda.
     `.trim();
 
     let emailSent = false;
@@ -183,14 +137,14 @@ Este é um e-mail automático, por favor não responda.
         await client.send({
           from: fromAddress,
           to: to,
-          subject: "Recuperação de Senha - ATCD",
+          subject: "Recuperação de Senha — uon1",
           content: emailText,
           html: emailHtml,
           headers: {
             "X-Priority": "1",
             "X-MSMail-Priority": "High",
             Importance: "high",
-            "X-Mailer": "ATCD Sistema",
+            "X-Mailer": "uon1",
             "Reply-To": smtpConfig.from_email,
           },
         });
@@ -210,7 +164,7 @@ Este é um e-mail automático, por favor não responda.
       try {
         console.log(`Trying Resend for password recovery to ${to}...`);
 
-        let resendFromEmail = "ATCD Sistema <vangard@uon1.com.br>";
+        let resendFromEmail = "uon1 <vangard@uon1.com.br>";
         if (adminUsers && adminUsers.length > 0) {
           const { data: resendConfig } = await supabase
             .from("resend_config")
@@ -231,7 +185,7 @@ Este é um e-mail automático, por favor não responda.
         const { error: resendError } = await resend.emails.send({
           from: resendFromEmail,
           to: [to],
-          subject: "Recuperação de Senha - ATCD",
+          subject: "Recuperação de Senha — uon1",
           html: emailHtml,
           text: emailText,
           headers: {
