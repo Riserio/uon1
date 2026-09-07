@@ -10253,6 +10253,10 @@ export type Database = {
       }
       listar_push_assinantes: { Args: never; Returns: Json }
       marcar_git_fallback_desativado: { Args: never; Returns: undefined }
+      ouvidoria_rate_limit_ok: {
+        Args: { p_corretora_id: string }
+        Returns: boolean
+      }
       processar_backfill_cobranca: { Args: never; Returns: Json }
       processar_base_api: {
         Args: { p_corretora_id: string; p_orcamento_seg?: number }
