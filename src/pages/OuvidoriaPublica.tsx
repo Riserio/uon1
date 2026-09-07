@@ -111,14 +111,12 @@ export default function OuvidoriaPublica() {
 
     setSubmitting(true);
     try {
-      // Rate limiting
-      const { data: recentSubmissions } = await supabase
-        .from("ouvidoria_rate_limit")
-        .select("id")
-        .eq("corretora_id", corretora.id)
-        .gte("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString());
+      // Rate limiting (checado no servidor — a tabela não é legível pelo público)
+      const { data: podeEnviar, error: rateError } = await (supabase as any).rpc("ouvidoria_rate_limit_ok", {
+        p_corretora_id: corretora.id,
+      });
 
-      if (recentSubmissions && recentSubmissions.length >= 5) {
+      if (!rateError && podeEnviar === false) {
         toast.error("Muitas submissões recentes. Tente novamente mais tarde.");
         setSubmitting(false);
         return;
