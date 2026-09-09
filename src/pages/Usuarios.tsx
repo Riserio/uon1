@@ -108,6 +108,7 @@ export default function Usuarios() {
   const [formData, setFormData] = useState<Partial<Profile>>({});
   const [approvalRole, setApprovalRole] = useState<string>("");
   const [selectedRole, setSelectedRole] = useState<RoleType>("comercial");
+  const [savingUser, setSavingUser] = useState(false);
   const [editingRole, setEditingRole] = useState<RoleType>("comercial");
   const [lideres, setLideres] = useState<Profile[]>([]);
   const [administrativos, setAdministrativos] = useState<Profile[]>([]);
@@ -1937,7 +1938,9 @@ export default function Usuarios() {
                     <Button variant="outline" onClick={() => setDialogOpen(false)}>
                       Cancelar
                     </Button>
-                    <Button onClick={handleSave}>{editingItem ? "Atualizar" : "Criar Usuário"}</Button>
+                    <Button onClick={handleSave} disabled={savingUser}>
+                      {savingUser ? "Salvando..." : editingItem ? "Atualizar" : "Criar Usuário"}
+                    </Button>
                   </div>
                 </DialogContent>
               </Dialog>
