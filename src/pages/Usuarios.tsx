@@ -108,6 +108,7 @@ export default function Usuarios() {
   const [formData, setFormData] = useState<Partial<Profile>>({});
   const [approvalRole, setApprovalRole] = useState<string>("");
   const [selectedRole, setSelectedRole] = useState<RoleType>("comercial");
+  const [savingUser, setSavingUser] = useState(false);
   const [editingRole, setEditingRole] = useState<RoleType>("comercial");
   const [lideres, setLideres] = useState<Profile[]>([]);
   const [administrativos, setAdministrativos] = useState<Profile[]>([]);
@@ -402,11 +403,24 @@ export default function Usuarios() {
           return;
         }
 
+        if (selectedRole === "comercial" && !formData.equipe_id) {
+          toast.error("Selecione uma equipe para o perfil Comercial");
+          return;
+        }
+
+        if (selectedRole === "lider" && !formData.administrativo_id) {
+          toast.error("Selecione um administrativo responsável para o perfil Líder");
+          return;
+        }
+
         const { data: session } = await supabase.auth.getSession();
         if (!session?.session) {
           toast.error("Sessão inválida");
           return;
         }
+
+        setSavingUser(true);
+
 
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
           method: "POST",
@@ -499,8 +513,11 @@ export default function Usuarios() {
         if (error instanceof z.ZodError) {
           toast.error(error.errors[0].message);
         } else {
-          toast.error("Erro ao criar usuário");
+          console.error("Erro ao criar usuário:", error);
+          toast.error(error instanceof Error ? error.message : "Erro ao criar usuário");
         }
+      } finally {
+        setSavingUser(false);
       }
       return;
     }
@@ -1937,7 +1954,9 @@ export default function Usuarios() {
                     <Button variant="outline" onClick={() => setDialogOpen(false)}>
                       Cancelar
                     </Button>
-                    <Button onClick={handleSave}>{editingItem ? "Atualizar" : "Criar Usuário"}</Button>
+                    <Button onClick={handleSave} disabled={savingUser}>
+                      {savingUser ? "Salvando..." : editingItem ? "Atualizar" : "Criar Usuário"}
+                    </Button>
                   </div>
                 </DialogContent>
               </Dialog>
