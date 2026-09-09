@@ -403,11 +403,24 @@ export default function Usuarios() {
           return;
         }
 
+        if (selectedRole === "comercial" && !formData.equipe_id) {
+          toast.error("Selecione uma equipe para o perfil Comercial");
+          return;
+        }
+
+        if (selectedRole === "lider" && !formData.administrativo_id) {
+          toast.error("Selecione um administrativo responsável para o perfil Líder");
+          return;
+        }
+
         const { data: session } = await supabase.auth.getSession();
         if (!session?.session) {
           toast.error("Sessão inválida");
           return;
         }
+
+        setSavingUser(true);
+
 
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
           method: "POST",
