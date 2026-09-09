@@ -513,8 +513,11 @@ export default function Usuarios() {
         if (error instanceof z.ZodError) {
           toast.error(error.errors[0].message);
         } else {
-          toast.error("Erro ao criar usuário");
+          console.error("Erro ao criar usuário:", error);
+          toast.error(error instanceof Error ? error.message : "Erro ao criar usuário");
         }
+      } finally {
+        setSavingUser(false);
       }
       return;
     }
