@@ -29,6 +29,13 @@
       "when": 1788793061689,
       "tag": "0003_rls_ouvidoria_rate_limit_e_vistoria_fotos",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789389002360,
+      "tag": "0004_restrict_storage_buckets_tenant",
+      "breakpoints": true
     }
   ]
 }
