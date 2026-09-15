@@ -1903,7 +1903,8 @@ export default function Usuarios() {
                                 <SelectTrigger>
                                   <SelectValue placeholder="Selecione um administrativo" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-background z-50">
+                                <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+
                                   {administrativos.map((admin) => (
                                     <SelectItem key={admin.id} value={admin.id}>
                                       {admin.nome}
