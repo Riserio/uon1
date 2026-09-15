@@ -1379,7 +1379,8 @@ export default function Usuarios() {
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione uma função" />
                             </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
+                            <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+
                               <SelectItem value="superintendente">Superintendente</SelectItem>
                               <SelectItem value="administrativo">Administrativo</SelectItem>
                               <SelectItem value="lider">Líder</SelectItem>
@@ -1902,7 +1903,8 @@ export default function Usuarios() {
                                 <SelectTrigger>
                                   <SelectValue placeholder="Selecione um administrativo" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-background z-50">
+                                <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+
                                   {administrativos.map((admin) => (
                                     <SelectItem key={admin.id} value={admin.id}>
                                       {admin.nome}
@@ -1923,11 +1925,12 @@ export default function Usuarios() {
                                   equipe_id: value,
                                 })
                               }
+                              disabled={equipes.length === 0}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Selecione uma equipe" />
+                                <SelectValue placeholder={equipes.length === 0 ? "Nenhuma equipe cadastrada" : "Selecione uma equipe"} />
                               </SelectTrigger>
-                              <SelectContent className="bg-background z-50">
+                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                                 {equipes.map((equipe) => (
                                   <SelectItem key={equipe.id} value={equipe.id}>
                                     {equipe.nome}
@@ -1935,7 +1938,13 @@ export default function Usuarios() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {equipes.length === 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Nenhuma equipe disponível. Cadastre uma equipe na aba "Hierarquia" ou escolha outro perfil.
+                              </p>
+                            )}
                           </div>
+
                         ) : null}
                       </div>
                     )}
