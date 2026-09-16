@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { mensagemErroBanco } from "@/lib/dbErrors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -975,7 +976,7 @@ export default function Usuarios() {
         })
         .eq("id", editingEquipe.id);
       if (error) {
-        toast.error("Erro ao atualizar equipe: " + error.message);
+        toast.error(mensagemErroBanco(error, { equipes_nome_key: "Já existe uma equipe com esse nome." }));
         return;
       }
 
@@ -1005,7 +1006,7 @@ export default function Usuarios() {
         .select()
         .single();
       if (error) {
-        toast.error("Erro ao criar equipe: " + error.message);
+        toast.error(mensagemErroBanco(error, { equipes_nome_key: "Já existe uma equipe com esse nome." }));
         return;
       }
 
