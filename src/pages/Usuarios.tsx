@@ -103,6 +103,9 @@ export default function Usuarios() {
   const [userRoles, setUserRoles] = useState<Record<string, string>>({});
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [cargosCustom, setCargosCustom] = useState<{ id: string; nome: string; cor?: string | null }[]>([]);
+  const [novoCargoOpen, setNovoCargoOpen] = useState(false);
+  const [novoCargoNome, setNovoCargoNome] = useState("");
+  const [salvandoCargo, setSalvandoCargo] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
@@ -378,6 +381,16 @@ export default function Usuarios() {
     }
   };
 
+  const fetchCargosCustom = async () => {
+    const { data } = await supabase
+      .from("cargos")
+      .select("id, nome, cor")
+      .eq("ativo", true)
+      .order("nome");
+    setCargosCustom((data as any) || []);
+    return (data as any) || [];
+  };
+
   useEffect(() => {
     if (userRole === "admin" || userRole === "administrativo" || userRole === "superintendente") {
       fetchProfiles();
@@ -386,14 +399,33 @@ export default function Usuarios() {
       fetchLideres();
       fetchAdministrativos();
       fetchLogs();
-      supabase
-        .from("cargos")
-        .select("id, nome, cor")
-        .eq("ativo", true)
-        .order("nome")
-        .then(({ data }) => setCargosCustom((data as any) || []));
+      fetchCargosCustom();
     }
   }, [userRole]);
+
+  const handleCriarCargoRapido = async () => {
+    const nome = novoCargoNome.trim();
+    if (!nome) {
+      toast.error("Informe o nome do cargo");
+      return;
+    }
+    setSalvandoCargo(true);
+    const { data, error } = await supabase
+      .from("cargos")
+      .insert({ nome, ativo: true })
+      .select("id, nome, cor")
+      .single();
+    setSalvandoCargo(false);
+    if (error) {
+      toast.error(mensagemErroBanco(error, { cargos_nome_key: "Já existe um cargo com esse nome." }));
+      return;
+    }
+    await fetchCargosCustom();
+    setFormData((prev) => ({ ...prev, cargo_id: data.id, cargo: data.nome }));
+    setNovoCargoNome("");
+    setNovoCargoOpen(false);
+    toast.success("Cargo criado e vinculado ao usuário");
+  };
 
   const handleSave = async () => {
     if (!editingItem) {
@@ -437,8 +469,13 @@ export default function Usuarios() {
             nome: validatedData.nome,
             telefone: formData.telefone,
             cargo: formData.cargo,
+            cargo_id: formData.cargo_id || null,
             equipe_id: selectedRole === "comercial" ? formData.equipe_id : null,
             administrativo_id: selectedRole === "lider" ? formData.administrativo_id : null,
+            lider_id:
+              selectedRole === "administrativo" || selectedRole === "comercial"
+                ? formData.lider_id || null
+                : null,
             whatsapp: formData.whatsapp,
             instagram: formData.instagram,
             facebook: formData.facebook,
@@ -535,7 +572,10 @@ export default function Usuarios() {
         cargo: formData.cargo,
         cargo_id: formData.cargo_id || null,
         equipe_id: editingRole === "comercial" ? formData.equipe_id : null,
-        lider_id: null,
+        lider_id:
+          editingRole === "administrativo" || editingRole === "comercial"
+            ? formData.lider_id || null
+            : null,
         administrativo_id: editingRole === "lider" ? formData.administrativo_id : null,
         ativo: formData.ativo,
         whatsapp: formData.whatsapp,
@@ -551,12 +591,23 @@ export default function Usuarios() {
       return;
     }
 
-    const { error: roleError } = await supabase
+    const { data: roleRows, error: roleError } = await supabase
       .from("user_roles")
       .update({
         role: editingRole,
       })
-      .eq("user_id", editingItem.id);
+      .eq("user_id", editingItem.id)
+      .select("id");
+
+    if (!roleError && (!roleRows || roleRows.length === 0)) {
+      const { error: insertRoleError } = await supabase
+        .from("user_roles")
+        .insert({ user_id: editingItem.id, role: editingRole });
+      if (insertRoleError) {
+        toast.error(mensagemErroBanco(insertRoleError));
+        return;
+      }
+    }
 
     if (roleError) {
       toast.error("Erro ao atualizar função");
@@ -1890,8 +1941,42 @@ export default function Usuarios() {
                               )}
                             </SelectContent>
                           </Select>
+                          {novoCargoOpen ? (
+                            <div className="flex gap-2">
+                              <Input
+                                value={novoCargoNome}
+                                onChange={(e) => setNovoCargoNome(e.target.value)}
+                                placeholder="Nome do novo cargo"
+                              />
+                              <Button type="button" size="sm" onClick={handleCriarCargoRapido} disabled={salvandoCargo}>
+                                {salvandoCargo ? "Salvando..." : "Salvar"}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setNovoCargoOpen(false);
+                                  setNovoCargoNome("");
+                                }}
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-2 w-fit"
+                              onClick={() => setNovoCargoOpen(true)}
+                            >
+                              <Plus className="h-4 w-4" />
+                              Criar novo cargo
+                            </Button>
+                          )}
                           <p className="text-[11px] text-muted-foreground">
-                            Cadastre novos cargos em "Cargos & Permissões".
+                            As permissões de cada cargo são ajustadas na área "Permissões".
                           </p>
                         </div>
                       </div>
@@ -2072,8 +2157,52 @@ export default function Usuarios() {
                                 Nenhuma equipe disponível. Cadastre uma equipe na aba "Hierarquia" ou escolha outro perfil.
                               </p>
                             )}
+                            <Label htmlFor="lider_id_comercial" className="mt-2">Líder direto (opcional)</Label>
+                            <Select
+                              value={formData.lider_id || "none"}
+                              onValueChange={(value) =>
+                                setFormData({ ...formData, lider_id: value === "none" ? undefined : value })
+                              }
+                            >
+                              <SelectTrigger id="lider_id_comercial">
+                                <SelectValue placeholder="Selecione um líder" />
+                              </SelectTrigger>
+                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                                <SelectItem value="none">Nenhum</SelectItem>
+                                {lideres.map((lider) => (
+                                  <SelectItem key={lider.id} value={lider.id}>
+                                    {lider.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
 
+                        ) : (editingItem ? editingRole : selectedRole) === "administrativo" ? (
+                          <div className="grid gap-2">
+                            <Label htmlFor="lider_id_admin">Líder vinculado</Label>
+                            <Select
+                              value={formData.lider_id || "none"}
+                              onValueChange={(value) =>
+                                setFormData({ ...formData, lider_id: value === "none" ? undefined : value })
+                              }
+                            >
+                              <SelectTrigger id="lider_id_admin">
+                                <SelectValue placeholder={lideres.length === 0 ? "Nenhum líder cadastrado" : "Selecione um líder"} />
+                              </SelectTrigger>
+                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                                <SelectItem value="none">Nenhum</SelectItem>
+                                {lideres.map((lider) => (
+                                  <SelectItem key={lider.id} value={lider.id}>
+                                    {lider.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Um líder é um usuário com o perfil "Líder". Crie um na aba Pessoas → Novo Usuário.
+                            </p>
+                          </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">
                             Este perfil não precisa de vínculo com líder ou equipe.

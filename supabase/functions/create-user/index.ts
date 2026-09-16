@@ -70,6 +70,8 @@ serve(async (req) => {
     const toUuidOrNull = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v : null)
     const equipe_id = toUuidOrNull(requestBody.equipe_id)
     const administrativo_id = toUuidOrNull(requestBody.administrativo_id)
+    const lider_id = toUuidOrNull(requestBody.lider_id)
+    const cargo_id = toUuidOrNull(requestBody.cargo_id)
     const equipesList: string[] = Array.isArray(equipes)
       ? equipes.filter((e: unknown) => typeof e === 'string' && (e as string).trim() !== '')
       : []
@@ -152,8 +154,9 @@ serve(async (req) => {
       email: email,
       telefone: emptyToNull(telefone),
       cargo: emptyToNull(cargo),
+      cargo_id: cargo_id,
       equipe_id: role === 'comercial' ? equipe_id : null,
-      lider_id: null,
+      lider_id: role === 'administrativo' || role === 'comercial' ? lider_id : null,
       administrativo_id: role === 'lider' ? administrativo_id : null,
       whatsapp: emptyToNull(whatsapp),
       instagram: emptyToNull(instagram),
