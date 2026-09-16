@@ -102,6 +102,7 @@ export default function Usuarios() {
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [cargosCustom, setCargosCustom] = useState<{ id: string; nome: string; cor?: string | null }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [step, setStep] = useState(1);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Profile | null>(null);
   const [approvingItem, setApprovingItem] = useState<Profile | null>(null);
@@ -904,6 +905,7 @@ export default function Usuarios() {
       setAcessoOuvidoria(false);
       setOuvidoriaPodeEditar(false);
     }
+    setStep(1);
     setDialogOpen(true);
   };
 
@@ -1291,9 +1293,41 @@ export default function Usuarios() {
                     </div>
                   )}
 
+                  {!editingItem && (
+                    <div className="flex items-center gap-2 pt-2">
+                      {[
+                        { n: 1, label: "Acesso e perfil" },
+                        { n: 2, label: "Hierarquia" },
+                        { n: 3, label: "Dados complementares" },
+                      ].map((s, i) => (
+                        <div key={s.n} className="flex items-center gap-2 flex-1">
+                          <button
+                            type="button"
+                            onClick={() => setStep(s.n)}
+                            className={`flex items-center gap-2 rounded-xl px-3 py-2 text-left transition-colors ${
+                              step === s.n
+                                ? "bg-primary/10 text-primary"
+                                : "text-muted-foreground hover:bg-muted"
+                            }`}
+                          >
+                            <span
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                                step >= s.n ? "bg-primary text-primary-foreground" : "bg-muted"
+                              }`}
+                            >
+                              {s.n}
+                            </span>
+                            <span className="text-xs font-medium hidden sm:inline">{s.label}</span>
+                          </button>
+                          {i < 2 && <div className="h-px flex-1 bg-border" />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="grid gap-6 py-4">
                     {/* INFORMAÇÕES DE ACESSO - NOVO USUÁRIO */}
-                    {!editingItem && (
+                    {!editingItem && step === 1 && (
                       <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                         <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                           Informações de Acesso
@@ -1694,6 +1728,7 @@ export default function Usuarios() {
                     )}
 
                     {/* INFORMAÇÕES PESSOAIS */}
+                    {(!!editingItem || step === 3) && (
                     <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                       <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                         Informações Pessoais
@@ -1796,8 +1831,10 @@ export default function Usuarios() {
                         />
                       </div>
                     </div>
+                    )}
 
                     {/* REDES SOCIAIS */}
+                    {(!!editingItem || step === 3) && (
                     <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                       <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                         Redes Sociais
