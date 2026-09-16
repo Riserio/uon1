@@ -1228,19 +1228,21 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* Stat Widgets */}
+      {/* Indicadores (clicáveis: levam direto para a visão correspondente) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total de usuários", value: userStats.total, icon: UsersIcon, color: "bg-primary/10 text-primary" },
-          { label: "Ativos", value: userStats.ativos, icon: UserCircle, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
-          { label: "Pendentes", value: userStats.pendentes, icon: UserPlus, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-          { label: "Equipes", value: userStats.equipesCount, icon: UsersRound, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+          { label: "Total de usuários", value: userStats.total, icon: UsersIcon, color: "bg-primary/10 text-primary", tab: "lista" },
+          { label: "Ativos", value: userStats.ativos, icon: UserCircle, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400", tab: "lista" },
+          { label: "Pendentes", value: userStats.pendentes, icon: UserPlus, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400", tab: "pendentes" },
+          { label: "Equipes", value: userStats.equipesCount, icon: UsersRound, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400", tab: "equipes" },
         ].map((w) => {
           const Icon = w.icon;
           return (
-            <div
+            <button
               key={w.label}
-              className="rounded-2xl border border-border/50 bg-card p-4 hover:shadow-sm transition-all"
+              type="button"
+              onClick={() => setActiveTab(w.tab)}
+              className="text-left rounded-2xl border border-border/50 bg-card p-4 hover:shadow-sm hover:border-border transition-all"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${w.color}`}>
@@ -1249,22 +1251,23 @@ export default function Usuarios() {
                 <span className="text-2xl font-bold tracking-tight">{w.value}</span>
               </div>
               <p className="text-xs text-muted-foreground font-medium">{w.label}</p>
-            </div>
+            </button>
           );
         })}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        {/* Widget-style tab navigation */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 mb-4">
-          {tabsConfig.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+        {/* Navegação principal: 4 áreas */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+          {GRUPOS.map((g) => {
+            const Icon = g.icon;
+            const isActive = grupoAtivo === g.id;
             return (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative text-left rounded-xl border p-3 transition-all duration-200 ${
+                key={g.id}
+                type="button"
+                onClick={() => setActiveTab(g.abas[0])}
+                className={`relative text-left rounded-2xl border p-3 transition-all duration-200 ${
                   isActive
                     ? "border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/20"
                     : "border-border/50 bg-card hover:border-border hover:shadow-sm"
@@ -1272,23 +1275,53 @@ export default function Usuarios() {
               >
                 <div className="flex items-center gap-2">
                   <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
-                    isActive ? "bg-primary text-primary-foreground" : tab.color
+                    isActive ? "bg-primary text-primary-foreground" : g.color
                   }`}>
                     <Icon className="h-4 w-4" />
                   </div>
-                  <span className={`text-xs font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>
-                    {tab.label}
-                  </span>
+                  <div className="min-w-0">
+                    <p className={`text-xs font-semibold leading-tight ${isActive ? "text-primary" : "text-foreground"}`}>
+                      {g.label}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate hidden sm:block">{g.desc}</p>
+                  </div>
                 </div>
-                {tab.badge && tab.badge > 0 ? (
+                {g.badge > 0 ? (
                   <Badge variant="destructive" className="absolute -top-1.5 -right-1.5 h-5 min-w-5 px-1 text-[10px]">
-                    {tab.badge}
+                    {g.badge}
                   </Badge>
                 ) : null}
               </button>
             );
           })}
         </div>
+
+        {/* Filtros internos da área selecionada */}
+        {subabas.length > 0 && (
+          <div className="inline-flex flex-wrap gap-1 rounded-2xl bg-muted p-1 mb-4">
+            {subabas.map((s) => {
+              const isActive = activeTab === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setActiveTab(s.id)}
+                  className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors ${
+                    isActive ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {s.label}
+                  {s.badge ? (
+                    <span className="rounded-full bg-primary/10 text-primary px-1.5 text-[10px] font-semibold">
+                      {s.badge}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
 
         <TabsList className="hidden">
           <TabsTrigger value="lista">Lista</TabsTrigger>
