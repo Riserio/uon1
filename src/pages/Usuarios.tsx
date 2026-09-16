@@ -591,12 +591,23 @@ export default function Usuarios() {
       return;
     }
 
-    const { error: roleError } = await supabase
+    const { data: roleRows, error: roleError } = await supabase
       .from("user_roles")
       .update({
         role: editingRole,
       })
-      .eq("user_id", editingItem.id);
+      .eq("user_id", editingItem.id)
+      .select("id");
+
+    if (!roleError && (!roleRows || roleRows.length === 0)) {
+      const { error: insertRoleError } = await supabase
+        .from("user_roles")
+        .insert({ user_id: editingItem.id, role: editingRole });
+      if (insertRoleError) {
+        toast.error(mensagemErroBanco(insertRoleError));
+        return;
+      }
+    }
 
     if (roleError) {
       toast.error("Erro ao atualizar função");
