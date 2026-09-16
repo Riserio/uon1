@@ -572,7 +572,10 @@ export default function Usuarios() {
         cargo: formData.cargo,
         cargo_id: formData.cargo_id || null,
         equipe_id: editingRole === "comercial" ? formData.equipe_id : null,
-        lider_id: null,
+        lider_id:
+          editingRole === "administrativo" || editingRole === "comercial"
+            ? formData.lider_id || null
+            : null,
         administrativo_id: editingRole === "lider" ? formData.administrativo_id : null,
         ativo: formData.ativo,
         whatsapp: formData.whatsapp,
