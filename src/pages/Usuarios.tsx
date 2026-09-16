@@ -469,8 +469,13 @@ export default function Usuarios() {
             nome: validatedData.nome,
             telefone: formData.telefone,
             cargo: formData.cargo,
+            cargo_id: formData.cargo_id || null,
             equipe_id: selectedRole === "comercial" ? formData.equipe_id : null,
             administrativo_id: selectedRole === "lider" ? formData.administrativo_id : null,
+            lider_id:
+              selectedRole === "administrativo" || selectedRole === "comercial"
+                ? formData.lider_id || null
+                : null,
             whatsapp: formData.whatsapp,
             instagram: formData.instagram,
             facebook: formData.facebook,
