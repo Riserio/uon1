@@ -1898,14 +1898,19 @@ export default function Usuarios() {
                           />
                         </div>
                       </div>
-                    </div>
+                     </div>
+                    )}
 
                     {/* HIERARQUIA */}
-                    {(editingItem ? editingRole : selectedRole) && (
+                    {(!!editingItem || step === 2) && (editingItem ? editingRole : selectedRole) && (
                       <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                         <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                           Hierarquia
                         </h3>
+                        <p className="text-xs text-muted-foreground -mt-2">
+                          Superintendente → Administrativo → Líder → Equipe → Comercial. Cada pessoa é ligada
+                          ao nível imediatamente acima.
+                        </p>
                         {(editingItem ? editingRole : selectedRole) === "lider" ? (
                           <>
                             <div className="grid gap-2">
@@ -1989,12 +1994,29 @@ export default function Usuarios() {
                             )}
                           </div>
 
-                        ) : null}
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Este perfil não precisa de vínculo com líder ou equipe.
+                          </p>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={() => {
+                            setDialogOpen(false);
+                            openEquipeDialog();
+                          }}
+                        >
+                          <Plus className="h-4 w-4" />
+                          Criar nova equipe
+                        </Button>
                       </div>
                     )}
 
                     {/* DADOS DO FUNCIONÁRIO */}
-                    {isFuncionario && (
+                    {isFuncionario && (!!editingItem || step === 3) && (
                       <FuncionarioFormTabs
                         data={funcionarioFormData}
                         onChange={setFuncionarioFormData}
@@ -2003,13 +2025,50 @@ export default function Usuarios() {
                     )}
                   </div>
 
-                  <div className="flex justify-end gap-2 pt-4 border-t">
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  <div className="flex justify-between gap-2 pt-4 border-t">
+                    <Button variant="ghost" onClick={() => setDialogOpen(false)}>
                       Cancelar
                     </Button>
-                    <Button onClick={handleSave} disabled={savingUser}>
-                      {savingUser ? "Salvando..." : editingItem ? "Atualizar" : "Criar Usuário"}
-                    </Button>
+                    <div className="flex gap-2">
+                      {!editingItem && step > 1 && (
+                        <Button variant="outline" onClick={() => setStep(step - 1)}>
+                          Voltar
+                        </Button>
+                      )}
+                      {!editingItem && step < 3 ? (
+                        <Button
+                          onClick={() => {
+                            if (step === 1) {
+                              if (!formData.nome || !formData.email) {
+                                toast.error("Informe nome e email");
+                                return;
+                              }
+                              if (!tempPassword) {
+                                toast.error("Defina uma senha temporária");
+                                return;
+                              }
+                            }
+                            if (step === 2) {
+                              if (selectedRole === "comercial" && !formData.equipe_id) {
+                                toast.error("Selecione uma equipe para o perfil Comercial");
+                                return;
+                              }
+                              if (selectedRole === "lider" && !formData.administrativo_id) {
+                                toast.error("Selecione um administrativo responsável para o perfil Líder");
+                                return;
+                              }
+                            }
+                            setStep(step + 1);
+                          }}
+                        >
+                          Continuar
+                        </Button>
+                      ) : (
+                        <Button onClick={handleSave} disabled={savingUser}>
+                          {savingUser ? "Salvando..." : editingItem ? "Atualizar" : "Criar Usuário"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
