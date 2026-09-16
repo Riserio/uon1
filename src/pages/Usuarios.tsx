@@ -2968,8 +2968,19 @@ export default function Usuarios() {
                   <TableBody>
                     {equipes.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                          Nenhuma equipe cadastrada
+                        <TableCell colSpan={5} className="py-10">
+                          <div className="flex flex-col items-center gap-2 text-center">
+                            <UsersRound className="h-8 w-8 text-muted-foreground/50" />
+                            <p className="text-sm font-medium">Nenhuma equipe cadastrada</p>
+                            <p className="text-xs text-muted-foreground max-w-sm">
+                              As equipes agrupam os comerciais sob um líder. Crie a primeira para poder vincular
+                              usuários com perfil Comercial.
+                            </p>
+                            <Button size="sm" className="mt-1 gap-2" onClick={() => openEquipeDialog()}>
+                              <Plus className="h-4 w-4" />
+                              Criar primeira equipe
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ) : (
