@@ -1213,13 +1213,13 @@ export default function Usuarios() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {activeTab === "equipes" && (
+          {grupoAtivo === "estrutura" && (
             <Button onClick={() => openEquipeDialog()} className="gap-2 rounded-xl">
               <UsersRound className="h-4 w-4" />
               Nova Equipe
             </Button>
           )}
-          {activeTab === "lista" && (
+          {grupoAtivo === "pessoas" && (
             <Button onClick={() => openDialog()} className="gap-2 rounded-xl">
               <UserPlus className="h-4 w-4" />
               Novo Usuário
