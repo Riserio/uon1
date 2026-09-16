@@ -1142,15 +1142,60 @@ export default function Usuarios() {
     equipesCount: equipes.length,
   };
 
-  const tabsConfig = [
-    { id: "lista", label: "Lista", icon: UsersIcon, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
-    { id: "pendentes", label: "Pendentes", icon: UserPlus, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400", badge: pendingProfiles.length },
-    { id: "inativos", label: "Inativos", icon: UserX, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400", badge: inactiveProfiles.length },
-    { id: "equipes", label: "Equipes", icon: UsersRound, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
-    { id: "hierarquia", label: "Hierarquia", icon: Network, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
-    { id: "cargos", label: "Cargos & Permissões", icon: Shield, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" },
-    { id: "logs", label: "Logs", icon: Briefcase, color: "bg-slate-500/10 text-slate-600 dark:text-slate-400" },
+  // Navegação simplificada: 4 áreas, cada uma com suas visões internas
+  const GRUPOS = [
+    {
+      id: "pessoas",
+      label: "Pessoas",
+      desc: "Quem tem acesso ao sistema",
+      icon: UsersIcon,
+      color: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+      abas: ["lista", "pendentes", "inativos"],
+      badge: pendingProfiles.length,
+    },
+    {
+      id: "estrutura",
+      label: "Estrutura",
+      desc: "Equipes e quem lidera quem",
+      icon: Network,
+      color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+      abas: ["equipes", "hierarquia"],
+      badge: 0,
+    },
+    {
+      id: "permissoes",
+      label: "Permissões",
+      desc: "Cargos e o que cada um vê",
+      icon: Shield,
+      color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+      abas: ["cargos"],
+      badge: 0,
+    },
+    {
+      id: "historico",
+      label: "Histórico",
+      desc: "Tudo que foi alterado",
+      icon: Briefcase,
+      color: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
+      abas: ["logs"],
+      badge: 0,
+    },
   ];
+
+  const SUBABAS: Record<string, { id: string; label: string; badge?: number }[]> = {
+    pessoas: [
+      { id: "lista", label: "Todos" },
+      { id: "pendentes", label: "Aguardando aprovação", badge: pendingProfiles.length },
+      { id: "inativos", label: "Inativos", badge: inactiveProfiles.length },
+    ],
+    estrutura: [
+      { id: "equipes", label: "Equipes" },
+      { id: "hierarquia", label: "Organograma" },
+    ],
+  };
+
+  const grupoAtivo = GRUPOS.find((g) => g.abas.includes(activeTab))?.id ?? "pessoas";
+  const subabas = SUBABAS[grupoAtivo] ?? [];
 
   return (
     <div className="flex flex-col gap-5 min-w-0 w-full overflow-x-hidden">
