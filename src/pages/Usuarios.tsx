@@ -103,6 +103,9 @@ export default function Usuarios() {
   const [userRoles, setUserRoles] = useState<Record<string, string>>({});
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [cargosCustom, setCargosCustom] = useState<{ id: string; nome: string; cor?: string | null }[]>([]);
+  const [novoCargoOpen, setNovoCargoOpen] = useState(false);
+  const [novoCargoNome, setNovoCargoNome] = useState("");
+  const [salvandoCargo, setSalvandoCargo] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
