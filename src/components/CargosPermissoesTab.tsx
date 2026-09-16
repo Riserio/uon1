@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { MENU_PERMISSION_ITEMS as MENU_ITEMS } from "@/config/modulos";
 import { supabase } from "@/integrations/supabase/client";
+import { mensagemErroBanco } from "@/lib/dbErrors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -110,30 +111,41 @@ export default function CargosPermissoesTab() {
     setCargoDialogOpen(true);
   };
 
+  const ERROS_CARGO = { cargos_nome_key: "Já existe um cargo com esse nome. Escolha outro nome." };
+
   const saveCargo = async () => {
-    if (!cargoForm.nome?.trim()) {
+    const nome = cargoForm.nome?.trim();
+    if (!nome) {
       toast.error("Informe o nome do cargo");
+      return;
+    }
+    // Checagem amigável antes de salvar
+    const duplicado = cargos.some(
+      (c) => c.nome.trim().toLowerCase() === nome.toLowerCase() && c.id !== editingCargo?.id
+    );
+    if (duplicado) {
+      toast.error("Já existe um cargo com esse nome. Escolha outro nome.");
       return;
     }
     const { data: { user } } = await supabase.auth.getUser();
     if (editingCargo) {
       const { error } = await supabase.from("cargos").update({
-        nome: cargoForm.nome.trim(),
+        nome,
         descricao: cargoForm.descricao || null,
         cor: cargoForm.cor,
         ativo: cargoForm.ativo,
       }).eq("id", editingCargo.id);
-      if (error) { toast.error("Erro: " + error.message); return; }
+      if (error) { toast.error(mensagemErroBanco(error, ERROS_CARGO)); return; }
       toast.success("Cargo atualizado");
     } else {
       const { error } = await supabase.from("cargos").insert({
-        nome: cargoForm.nome!.trim(),
+        nome,
         descricao: cargoForm.descricao || null,
         cor: cargoForm.cor,
         ativo: cargoForm.ativo,
         created_by: user?.id,
       });
-      if (error) { toast.error("Erro: " + error.message); return; }
+      if (error) { toast.error(mensagemErroBanco(error, ERROS_CARGO)); return; }
       toast.success("Cargo criado");
     }
     setCargoDialogOpen(false);
@@ -143,7 +155,7 @@ export default function CargosPermissoesTab() {
   const handleDelete = async () => {
     if (!deleteCargo) return;
     const { error } = await supabase.from("cargos").delete().eq("id", deleteCargo.id);
-    if (error) { toast.error("Erro: " + error.message); return; }
+    if (error) { toast.error(mensagemErroBanco(error)); return; }
     toast.success("Cargo excluído");
     setDeleteCargo(null);
     loadCargos();
