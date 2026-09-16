@@ -1941,8 +1941,42 @@ export default function Usuarios() {
                               )}
                             </SelectContent>
                           </Select>
+                          {novoCargoOpen ? (
+                            <div className="flex gap-2">
+                              <Input
+                                value={novoCargoNome}
+                                onChange={(e) => setNovoCargoNome(e.target.value)}
+                                placeholder="Nome do novo cargo"
+                              />
+                              <Button type="button" size="sm" onClick={handleCriarCargoRapido} disabled={salvandoCargo}>
+                                {salvandoCargo ? "Salvando..." : "Salvar"}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setNovoCargoOpen(false);
+                                  setNovoCargoNome("");
+                                }}
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-2 w-fit"
+                              onClick={() => setNovoCargoOpen(true)}
+                            >
+                              <Plus className="h-4 w-4" />
+                              Criar novo cargo
+                            </Button>
+                          )}
                           <p className="text-[11px] text-muted-foreground">
-                            Cadastre novos cargos em "Cargos & Permissões".
+                            As permissões de cada cargo são ajustadas na área "Permissões".
                           </p>
                         </div>
                       </div>
