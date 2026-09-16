@@ -101,7 +101,11 @@ export default function Equipes() {
       // Atualizar equipe
       const { error } = await supabase
         .from('equipes')
-        .update(formData)
+        .update({
+          nome: formData.nome!,
+          descricao: formData.descricao ?? null,
+          lider_id: formData.lider_id || null,
+        })
         .eq('id', editingItem.id);
       
       if (error) {

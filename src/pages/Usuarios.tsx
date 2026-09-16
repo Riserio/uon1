@@ -963,7 +963,14 @@ export default function Usuarios() {
       return;
     }
     if (editingEquipe) {
-      const { error } = await supabase.from("equipes").update(equipeFormData).eq("id", editingEquipe.id);
+      const { error } = await supabase
+        .from("equipes")
+        .update({
+          nome: equipeFormData.nome,
+          descricao: equipeFormData.descricao ?? null,
+          lider_id: equipeFormData.lider_id || null,
+        })
+        .eq("id", editingEquipe.id);
       if (error) {
         toast.error("Erro ao atualizar equipe: " + error.message);
         return;
