@@ -378,6 +378,16 @@ export default function Usuarios() {
     }
   };
 
+  const fetchCargosCustom = async () => {
+    const { data } = await supabase
+      .from("cargos")
+      .select("id, nome, cor")
+      .eq("ativo", true)
+      .order("nome");
+    setCargosCustom((data as any) || []);
+    return (data as any) || [];
+  };
+
   useEffect(() => {
     if (userRole === "admin" || userRole === "administrativo" || userRole === "superintendente") {
       fetchProfiles();
@@ -386,14 +396,33 @@ export default function Usuarios() {
       fetchLideres();
       fetchAdministrativos();
       fetchLogs();
-      supabase
-        .from("cargos")
-        .select("id, nome, cor")
-        .eq("ativo", true)
-        .order("nome")
-        .then(({ data }) => setCargosCustom((data as any) || []));
+      fetchCargosCustom();
     }
   }, [userRole]);
+
+  const handleCriarCargoRapido = async () => {
+    const nome = novoCargoNome.trim();
+    if (!nome) {
+      toast.error("Informe o nome do cargo");
+      return;
+    }
+    setSalvandoCargo(true);
+    const { data, error } = await supabase
+      .from("cargos")
+      .insert({ nome, ativo: true })
+      .select("id, nome, cor")
+      .single();
+    setSalvandoCargo(false);
+    if (error) {
+      toast.error(mensagemErroBanco(error, { cargos_nome_key: "Já existe um cargo com esse nome." }));
+      return;
+    }
+    await fetchCargosCustom();
+    setFormData((prev) => ({ ...prev, cargo_id: data.id, cargo: data.nome }));
+    setNovoCargoNome("");
+    setNovoCargoOpen(false);
+    toast.success("Cargo criado e vinculado ao usuário");
+  };
 
   const handleSave = async () => {
     if (!editingItem) {
