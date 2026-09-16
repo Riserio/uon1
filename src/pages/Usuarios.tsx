@@ -2633,6 +2633,10 @@ export default function Usuarios() {
                 <Network className="h-5 w-5" />
                 Estrutura Organizacional
               </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                A ordem é sempre: Superintendente → Administrativo → Líder → Equipe → Comercial. Clique em cada
+                nome para abrir quem está abaixo dele.
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Superintendentes */}
