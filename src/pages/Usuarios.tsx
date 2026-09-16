@@ -2123,8 +2123,52 @@ export default function Usuarios() {
                                 Nenhuma equipe disponível. Cadastre uma equipe na aba "Hierarquia" ou escolha outro perfil.
                               </p>
                             )}
+                            <Label htmlFor="lider_id_comercial" className="mt-2">Líder direto (opcional)</Label>
+                            <Select
+                              value={formData.lider_id || "none"}
+                              onValueChange={(value) =>
+                                setFormData({ ...formData, lider_id: value === "none" ? undefined : value })
+                              }
+                            >
+                              <SelectTrigger id="lider_id_comercial">
+                                <SelectValue placeholder="Selecione um líder" />
+                              </SelectTrigger>
+                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                                <SelectItem value="none">Nenhum</SelectItem>
+                                {lideres.map((lider) => (
+                                  <SelectItem key={lider.id} value={lider.id}>
+                                    {lider.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
 
+                        ) : (editingItem ? editingRole : selectedRole) === "administrativo" ? (
+                          <div className="grid gap-2">
+                            <Label htmlFor="lider_id_admin">Líder vinculado</Label>
+                            <Select
+                              value={formData.lider_id || "none"}
+                              onValueChange={(value) =>
+                                setFormData({ ...formData, lider_id: value === "none" ? undefined : value })
+                              }
+                            >
+                              <SelectTrigger id="lider_id_admin">
+                                <SelectValue placeholder={lideres.length === 0 ? "Nenhum líder cadastrado" : "Selecione um líder"} />
+                              </SelectTrigger>
+                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                                <SelectItem value="none">Nenhum</SelectItem>
+                                {lideres.map((lider) => (
+                                  <SelectItem key={lider.id} value={lider.id}>
+                                    {lider.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Um líder é um usuário com o perfil "Líder". Crie um na aba Pessoas → Novo Usuário.
+                            </p>
+                          </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">
                             Este perfil não precisa de vínculo com líder ou equipe.
