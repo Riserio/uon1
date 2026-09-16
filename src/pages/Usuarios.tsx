@@ -2821,10 +2821,21 @@ export default function Usuarios() {
                   Permissões por Perfil de Sistema
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Cadastre cargos personalizados com permissões de menu específicas. Permissões individuais por
-                usuário sobrescrevem as do cargo, e as do cargo sobrescrevem as do perfil de sistema.
-              </p>
+              <div className="rounded-xl border border-border/50 bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">Como as permissões se combinam</p>
+                <p>
+                  <span className="font-medium text-foreground">1. Perfil de sistema</span> (Superintendente,
+                  Administrativo, Líder, Comercial, Parceiro) define o acesso básico.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">2. Cargo</span> (ex.: Financeiro, Vistoriador) ajusta
+                  os menus para um grupo de pessoas e substitui o perfil.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">3. Permissão individual</span> vale mais que tudo e é
+                  definida em Pessoas, no menu de ações do usuário.
+                </p>
+              </div>
             </CardHeader>
             <CardContent>
               <CargosPermissoesTab />
