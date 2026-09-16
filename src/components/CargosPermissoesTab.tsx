@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { MENU_PERMISSION_ITEMS as MENU_ITEMS } from "@/config/modulos";
 import { supabase } from "@/integrations/supabase/client";
+import { mensagemErroBanco } from "@/lib/dbErrors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
