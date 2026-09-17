@@ -2262,7 +2262,7 @@ export default function Usuarios() {
                                 toast.error("Selecione uma equipe para o perfil Comercial");
                                 return;
                               }
-                              if (selectedRole === "lider" && !formData.administrativo_id) {
+                              if (selectedRole === "lider" && !formData.administrativo_id && administrativos.length > 0) {
                                 toast.error("Selecione um administrativo responsável para o perfil Líder");
                                 return;
                               }
