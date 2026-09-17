@@ -116,9 +116,8 @@ serve(async (req) => {
       throw new Error('Comercial deve estar vinculado a uma equipe')
     }
     
-    if (role === 'lider' && !administrativo_id) {
-      throw new Error('Líder deve estar vinculado a um administrativo')
-    }
+    // Líder pode ser criado sem administrativo responsável (vínculo opcional,
+    // definido depois na edição do usuário).
     
     // Parceiro doesn't need equipe_id or administrativo_id
     console.log('5. Creating user with role:', role);
