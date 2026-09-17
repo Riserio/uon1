@@ -1551,7 +1551,7 @@ export default function Usuarios() {
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione uma função" />
                             </SelectTrigger>
-                            <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                            <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
 
                               <SelectItem value="superintendente">Superintendente</SelectItem>
                               <SelectItem value="administrativo">Administrativo</SelectItem>
@@ -1710,7 +1710,7 @@ export default function Usuarios() {
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                            <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                               <SelectItem value="superintendente">Superintendente</SelectItem>
                               <SelectItem value="administrativo">Administrativo</SelectItem>
                               <SelectItem value="lider">Líder</SelectItem>
@@ -1927,7 +1927,7 @@ export default function Usuarios() {
                             <SelectTrigger id="cargo">
                               <SelectValue placeholder="Selecione um cargo" />
                             </SelectTrigger>
-                            <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                            <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                               <SelectItem value="none">Nenhum</SelectItem>
                               {cargosCustom.map((c) => (
                                 <SelectItem key={c.id} value={c.id}>
@@ -2119,7 +2119,7 @@ export default function Usuarios() {
                                 <SelectTrigger id="administrativo_id">
                                   <SelectValue placeholder="Selecione um administrativo" />
                                 </SelectTrigger>
-                                <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                                <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                                   <SelectItem value="none">Nenhum</SelectItem>
                                   {administrativos.map((admin) => (
                                     <SelectItem key={admin.id} value={admin.id}>
@@ -2152,7 +2152,7 @@ export default function Usuarios() {
                               <SelectTrigger>
                                 <SelectValue placeholder={equipes.length === 0 ? "Nenhuma equipe cadastrada" : "Selecione uma equipe"} />
                               </SelectTrigger>
-                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                                 {equipes.map((equipe) => (
                                   <SelectItem key={equipe.id} value={equipe.id}>
                                     {equipe.nome}
@@ -2175,7 +2175,7 @@ export default function Usuarios() {
                               <SelectTrigger id="lider_id_comercial">
                                 <SelectValue placeholder="Selecione um líder" />
                               </SelectTrigger>
-                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                                 <SelectItem value="none">Nenhum</SelectItem>
                                 {lideres.map((lider) => (
                                   <SelectItem key={lider.id} value={lider.id}>
@@ -2198,7 +2198,7 @@ export default function Usuarios() {
                               <SelectTrigger id="lider_id_admin">
                                 <SelectValue placeholder={lideres.length === 0 ? "Nenhum líder cadastrado" : "Selecione um líder"} />
                               </SelectTrigger>
-                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                              <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                                 <SelectItem value="none">Nenhum</SelectItem>
                                 {lideres.map((lider) => (
                                   <SelectItem key={lider.id} value={lider.id}>
@@ -2387,7 +2387,7 @@ export default function Usuarios() {
                       <SelectTrigger className="w-20">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                      <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                         <SelectItem value="10">10</SelectItem>
                         <SelectItem value="25">25</SelectItem>
                         <SelectItem value="50">50</SelectItem>
@@ -2536,7 +2536,7 @@ export default function Usuarios() {
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione uma função" />
                         </SelectTrigger>
-                        <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                        <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                           <SelectItem value="superintendente">Superintendente</SelectItem>
                           <SelectItem value="administrativo">Administrativo</SelectItem>
                           <SelectItem value="lider">Líder</SelectItem>
@@ -2561,7 +2561,7 @@ export default function Usuarios() {
                         <SelectTrigger id="approval-cargo">
                           <SelectValue placeholder="Selecione um cargo" />
                         </SelectTrigger>
-                        <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                        <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                           <SelectItem value="none">Nenhum</SelectItem>
                           {cargosCustom.map((c) => (
                             <SelectItem key={c.id} value={c.id}>
@@ -2591,7 +2591,7 @@ export default function Usuarios() {
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione um líder" />
                           </SelectTrigger>
-                          <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                          <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                             <SelectItem value="none">Nenhum</SelectItem>
                             {lideres.map((lider) => (
                               <SelectItem key={lider.id} value={lider.id}>
@@ -2617,7 +2617,7 @@ export default function Usuarios() {
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione um administrativo" />
                           </SelectTrigger>
-                          <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                          <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                             <SelectItem value="none">Nenhum</SelectItem>
                             {administrativos.map((admin) => (
                               <SelectItem key={admin.id} value={admin.id}>
@@ -2643,7 +2643,7 @@ export default function Usuarios() {
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione uma equipe" />
                           </SelectTrigger>
-                          <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                          <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                             <SelectItem value="none">Nenhuma</SelectItem>
                             {equipes.map((equipe) => (
                               <SelectItem key={equipe.id} value={equipe.id}>
@@ -2714,7 +2714,7 @@ export default function Usuarios() {
                       <SelectTrigger className="w-20">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                      <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                         <SelectItem value="10">10</SelectItem>
                         <SelectItem value="25">25</SelectItem>
                         <SelectItem value="50">50</SelectItem>
@@ -3044,7 +3044,7 @@ export default function Usuarios() {
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione um líder" />
                         </SelectTrigger>
-                        <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
+                        <SelectContent position="popper" sideOffset={4} className="bg-background z-[100001] max-h-[300px] overflow-y-auto">
                           <SelectItem value="none">Nenhum</SelectItem>
                           {lideres.map((lider) => (
                             <SelectItem key={lider.id} value={lider.id}>
