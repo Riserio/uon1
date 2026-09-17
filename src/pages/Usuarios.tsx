@@ -341,7 +341,7 @@ export default function Usuarios() {
     const { data: adminRoles, error: rolesError } = await supabase
       .from("user_roles")
       .select("user_id")
-      .in("role", ["administrativo", "admin"]);
+      .in("role", ["administrativo", "admin", "superintendente"]);
     if (rolesError) {
       console.error("Erro ao carregar administrativos:", rolesError);
       return;
