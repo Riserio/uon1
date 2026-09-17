@@ -341,7 +341,7 @@ export default function Usuarios() {
     const { data: adminRoles, error: rolesError } = await supabase
       .from("user_roles")
       .select("user_id")
-      .in("role", ["administrativo", "admin"]);
+      .in("role", ["administrativo", "admin", "superintendente"]);
     if (rolesError) {
       console.error("Erro ao carregar administrativos:", rolesError);
       return;
@@ -443,7 +443,7 @@ export default function Usuarios() {
           return;
         }
 
-        if (selectedRole === "lider" && !formData.administrativo_id) {
+        if (selectedRole === "lider" && !formData.administrativo_id && administrativos.length > 0) {
           toast.error("Selecione um administrativo responsável para o perfil Líder");
           return;
         }
@@ -1710,7 +1710,7 @@ export default function Usuarios() {
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                               <SelectItem value="superintendente">Superintendente</SelectItem>
                               <SelectItem value="administrativo">Administrativo</SelectItem>
                               <SelectItem value="lider">Líder</SelectItem>
@@ -1927,7 +1927,7 @@ export default function Usuarios() {
                             <SelectTrigger id="cargo">
                               <SelectValue placeholder="Selecione um cargo" />
                             </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
+                            <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                               <SelectItem value="none">Nenhum</SelectItem>
                               {cargosCustom.map((c) => (
                                 <SelectItem key={c.id} value={c.id}>
@@ -2104,21 +2104,23 @@ export default function Usuarios() {
                               </div>
                             </div>
                             <div className="grid gap-2">
-                              <Label htmlFor="administrativo_id">Administrativo Responsável *</Label>
+                              <Label htmlFor="administrativo_id">
+                                Administrativo Responsável {administrativos.length > 0 ? "*" : "(opcional)"}
+                              </Label>
                               <Select
-                                value={formData.administrativo_id || ""}
+                                value={formData.administrativo_id || "none"}
                                 onValueChange={(value) =>
                                   setFormData({
                                     ...formData,
-                                    administrativo_id: value,
+                                    administrativo_id: value === "none" ? undefined : value,
                                   })
                                 }
                               >
-                                <SelectTrigger>
+                                <SelectTrigger id="administrativo_id">
                                   <SelectValue placeholder="Selecione um administrativo" />
                                 </SelectTrigger>
                                 <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
-
+                                  <SelectItem value="none">Nenhum</SelectItem>
                                   {administrativos.map((admin) => (
                                     <SelectItem key={admin.id} value={admin.id}>
                                       {admin.nome}
@@ -2126,6 +2128,12 @@ export default function Usuarios() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              {administrativos.length === 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  Ainda não há usuários com perfil Administrativo ou Superintendente. Você pode salvar sem
+                                  vínculo e definir o responsável depois.
+                                </p>
+                              )}
                             </div>
                           </>
                         ) : (editingItem ? editingRole : selectedRole) === "comercial" ? (
@@ -2262,7 +2270,7 @@ export default function Usuarios() {
                                 toast.error("Selecione uma equipe para o perfil Comercial");
                                 return;
                               }
-                              if (selectedRole === "lider" && !formData.administrativo_id) {
+                              if (selectedRole === "lider" && !formData.administrativo_id && administrativos.length > 0) {
                                 toast.error("Selecione um administrativo responsável para o perfil Líder");
                                 return;
                               }
@@ -2379,7 +2387,7 @@ export default function Usuarios() {
                       <SelectTrigger className="w-20">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                         <SelectItem value="10">10</SelectItem>
                         <SelectItem value="25">25</SelectItem>
                         <SelectItem value="50">50</SelectItem>
@@ -2528,7 +2536,7 @@ export default function Usuarios() {
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione uma função" />
                         </SelectTrigger>
-                        <SelectContent className="bg-background z-50">
+                        <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                           <SelectItem value="superintendente">Superintendente</SelectItem>
                           <SelectItem value="administrativo">Administrativo</SelectItem>
                           <SelectItem value="lider">Líder</SelectItem>
@@ -2553,7 +2561,7 @@ export default function Usuarios() {
                         <SelectTrigger id="approval-cargo">
                           <SelectValue placeholder="Selecione um cargo" />
                         </SelectTrigger>
-                        <SelectContent className="bg-background z-50">
+                        <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                           <SelectItem value="none">Nenhum</SelectItem>
                           {cargosCustom.map((c) => (
                             <SelectItem key={c.id} value={c.id}>
@@ -2583,7 +2591,7 @@ export default function Usuarios() {
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione um líder" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                             <SelectItem value="none">Nenhum</SelectItem>
                             {lideres.map((lider) => (
                               <SelectItem key={lider.id} value={lider.id}>
@@ -2609,7 +2617,7 @@ export default function Usuarios() {
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione um administrativo" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                             <SelectItem value="none">Nenhum</SelectItem>
                             {administrativos.map((admin) => (
                               <SelectItem key={admin.id} value={admin.id}>
@@ -2635,7 +2643,7 @@ export default function Usuarios() {
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione uma equipe" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                             <SelectItem value="none">Nenhuma</SelectItem>
                             {equipes.map((equipe) => (
                               <SelectItem key={equipe.id} value={equipe.id}>
@@ -2706,7 +2714,7 @@ export default function Usuarios() {
                       <SelectTrigger className="w-20">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                         <SelectItem value="10">10</SelectItem>
                         <SelectItem value="25">25</SelectItem>
                         <SelectItem value="50">50</SelectItem>
@@ -3036,7 +3044,7 @@ export default function Usuarios() {
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione um líder" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
                           <SelectItem value="none">Nenhum</SelectItem>
                           {lideres.map((lider) => (
                             <SelectItem key={lider.id} value={lider.id}>
