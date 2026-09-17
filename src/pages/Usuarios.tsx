@@ -2104,21 +2104,23 @@ export default function Usuarios() {
                               </div>
                             </div>
                             <div className="grid gap-2">
-                              <Label htmlFor="administrativo_id">Administrativo Responsável *</Label>
+                              <Label htmlFor="administrativo_id">
+                                Administrativo Responsável {administrativos.length > 0 ? "*" : "(opcional)"}
+                              </Label>
                               <Select
-                                value={formData.administrativo_id || ""}
+                                value={formData.administrativo_id || "none"}
                                 onValueChange={(value) =>
                                   setFormData({
                                     ...formData,
-                                    administrativo_id: value,
+                                    administrativo_id: value === "none" ? undefined : value,
                                   })
                                 }
                               >
-                                <SelectTrigger>
+                                <SelectTrigger id="administrativo_id">
                                   <SelectValue placeholder="Selecione um administrativo" />
                                 </SelectTrigger>
                                 <SelectContent position="popper" sideOffset={4} className="bg-background z-[100] max-h-[300px] overflow-y-auto">
-
+                                  <SelectItem value="none">Nenhum</SelectItem>
                                   {administrativos.map((admin) => (
                                     <SelectItem key={admin.id} value={admin.id}>
                                       {admin.nome}
@@ -2126,6 +2128,12 @@ export default function Usuarios() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              {administrativos.length === 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  Ainda não há usuários com perfil Administrativo ou Superintendente. Você pode salvar sem
+                                  vínculo e definir o responsável depois.
+                                </p>
+                              )}
                             </div>
                           </>
                         ) : (editingItem ? editingRole : selectedRole) === "comercial" ? (
