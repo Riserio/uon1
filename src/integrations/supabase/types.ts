@@ -10264,6 +10264,7 @@ export type Database = {
       }
       processar_base_api_worker: { Args: never; Returns: Json }
       reabrir_backfill_historico_lote: { Args: never; Returns: Json }
+      reabrir_sync_atrasado: { Args: never; Returns: Json }
       relatorio_analises_sinistro: {
         Args: {
           p_corretora_id?: string

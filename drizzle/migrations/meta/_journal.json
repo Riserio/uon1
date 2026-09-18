@@ -43,6 +43,13 @@
       "when": 1789474497771,
       "tag": "0005_restrict_ponto_documentos_select",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789690639065,
+      "tag": "0006_sync_fila_lote_e_watchdog_diario",
+      "breakpoints": true
     }
   ]
 }
