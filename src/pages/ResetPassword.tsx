@@ -83,6 +83,15 @@ export default function ResetPassword() {
 
       if (error) throw error;
 
+      // O usuário acabou de criar a própria senha: libera o acesso normal
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id) {
+        await supabase
+          .from('profiles')
+          .update({ status: 'ativo', force_password_change: false })
+          .eq('id', authData.user.id);
+      }
+
       toast.success('Senha atualizada com sucesso!');
       setTimeout(() => navigate('/'), 2000);
     } catch (error) {
