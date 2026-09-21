@@ -88,10 +88,13 @@ Deno.serve(async (req) => {
 
     // Toda senha enviada por e-mail é temporária: o usuário precisa criar a dele no primeiro acesso
     if (alvoId) {
-      await supabase
+      const { error: profileUpdateError } = await supabase
         .from("profiles")
         .update({ status: "primeiro_login", force_password_change: true })
         .eq("id", alvoId);
+      if (profileUpdateError) {
+        throw new Error(`Não foi possível exigir a troca de senha: ${profileUpdateError.message}`);
+      }
     }
 
     const primeiroNome = (nome || email).split(" ")[0];
