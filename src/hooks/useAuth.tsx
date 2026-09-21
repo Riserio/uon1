@@ -95,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setUserRole(null);
           setIsParceiro(false);
+          setMustChangePassword(false);
           roleLoadedRef.current = false;
         }
       }
