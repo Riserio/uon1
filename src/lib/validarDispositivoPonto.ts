@@ -1,5 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
-import { getDeviceFingerprint, getClientIp } from "./deviceFingerprint";
+import {
+  getDeviceFingerprint,
+  getClientIp,
+  normalizarUserAgent,
+  persistDeviceId,
+} from "./deviceFingerprint";
 
 export type ValidacaoDispositivo =
   | { permitido: true; dispositivoId: string }
@@ -7,6 +12,10 @@ export type ValidacaoDispositivo =
 
 /**
  * Valida (e, se necessário, registra) o dispositivo usado para bater ponto.
+ *
+ * Reconhecimento em 2 níveis para NÃO pedir aprovação repetida do mesmo
+ * aparelho: 1) ID persistente do navegador; 2) assinatura estável (ou o
+ * user agent sem números de versão, para registros antigos).
  */
 export async function validarDispositivoPonto(
   funcionarioId: string
@@ -22,15 +31,47 @@ export async function validarDispositivoPonto(
   }
 
   const exigirIpGlobal = !!config.exigir_ip_dispositivo;
-  const { fingerprint, userAgent, plataforma, navegador } = await getDeviceFingerprint();
+  const { fingerprint, assinatura, userAgent, plataforma, navegador } =
+    await getDeviceFingerprint();
   const ip = await getClientIp();
 
-  const { data: existente } = await supabase
+  const { data: dispositivos } = await supabase
     .from("dispositivos_ponto")
     .select("*")
-    .eq("funcionario_id", funcionarioId)
-    .eq("fingerprint", fingerprint)
-    .maybeSingle();
+    .eq("funcionario_id", funcionarioId);
+
+  const lista = dispositivos || [];
+  const uaBase = normalizarUserAgent(userAgent);
+
+  // 1) mesmo ID persistente
+  let existente = lista.find((d) => d.fingerprint === fingerprint) || null;
+
+  // 2) mesmo aparelho já conhecido (assinatura ou UA sem versão)
+  if (!existente) {
+    const mesmoAparelho = lista.filter(
+      (d) =>
+        (d.assinatura && d.assinatura === assinatura) ||
+        (!d.assinatura &&
+          d.plataforma === plataforma &&
+          d.navegador === navegador &&
+          d.user_agent &&
+          normalizarUserAgent(d.user_agent) === uaBase)
+    );
+    existente =
+      mesmoAparelho.find((d) => d.status === "aprovado") ||
+      mesmoAparelho.find((d) => d.status === "bloqueado") ||
+      mesmoAparelho[0] ||
+      null;
+
+    if (existente) {
+      // revincula o registro existente ao novo ID persistente
+      await supabase
+        .from("dispositivos_ponto")
+        .update({ fingerprint, assinatura, user_agent: userAgent })
+        .eq("id", existente.id);
+      persistDeviceId(existente.fingerprint || fingerprint);
+    }
+  }
 
   if (existente) {
     if (existente.status === "aprovado") {
@@ -66,6 +107,7 @@ export async function validarDispositivoPonto(
   const { error: insErr } = await supabase.from("dispositivos_ponto").insert({
     funcionario_id: funcionarioId,
     fingerprint,
+    assinatura,
     user_agent: userAgent,
     plataforma,
     navegador,

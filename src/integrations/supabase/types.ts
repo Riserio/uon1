@@ -2665,6 +2665,7 @@ export type Database = {
       }
       device_approval_requests: {
         Row: {
+          assinatura: string | null
           corretora_id: string | null
           device_info: string | null
           email: string
@@ -2681,6 +2682,7 @@ export type Database = {
           ultimo_uso_em: string | null
         }
         Insert: {
+          assinatura?: string | null
           corretora_id?: string | null
           device_info?: string | null
           email: string
@@ -2697,6 +2699,7 @@ export type Database = {
           ultimo_uso_em?: string | null
         }
         Update: {
+          assinatura?: string | null
           corretora_id?: string | null
           device_info?: string | null
           email?: string
@@ -2727,6 +2730,7 @@ export type Database = {
           apelido: string | null
           aprovado_em: string | null
           aprovado_por: string | null
+          assinatura: string | null
           created_at: string
           exigir_ip: boolean
           fingerprint: string
@@ -2746,6 +2750,7 @@ export type Database = {
           apelido?: string | null
           aprovado_em?: string | null
           aprovado_por?: string | null
+          assinatura?: string | null
           created_at?: string
           exigir_ip?: boolean
           fingerprint: string
@@ -2765,6 +2770,7 @@ export type Database = {
           apelido?: string | null
           aprovado_em?: string | null
           aprovado_por?: string | null
+          assinatura?: string | null
           created_at?: string
           exigir_ip?: boolean
           fingerprint?: string

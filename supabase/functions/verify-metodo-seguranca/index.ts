@@ -135,7 +135,7 @@ serve(async (req) => {
     // associação exige IP fixo pra aquele dispositivo (exigir_ip), o IP
     // atual precisa bater com o IP salvo na aprovação.
     if (action === "dispositivo-solicitar") {
-      const { deviceInfo, fingerprint } = body;
+      const { deviceInfo, fingerprint, assinatura } = body;
       const ipAddress =
         body.ip ||
         req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -150,17 +150,39 @@ serve(async (req) => {
         });
       }
 
-      // Dispositivo sem fingerprint (navegador bloqueando canvas/etc) —
-      // segue no modelo antigo, sempre pede aprovação nova.
-      const { data: existente } = fingerprint
-        ? await supabaseAdmin
+      // Busca o dispositivo pelo ID persistente; se não achar, tenta pela
+      // assinatura estável (mesmo aparelho após atualização do navegador ou
+      // limpeza do armazenamento local) e revincula o registro existente.
+      let existente: any = null;
+      if (fingerprint) {
+        const { data } = await supabaseAdmin
+          .from("device_approval_requests")
+          .select("id, status, exigir_ip, ip_aprovado")
+          .eq("corretora_id", corretoraId)
+          .eq("profile_id", profileId)
+          .eq("fingerprint", fingerprint)
+          .maybeSingle();
+        existente = data;
+      }
+      if (!existente && assinatura) {
+        const { data } = await supabaseAdmin
+          .from("device_approval_requests")
+          .select("id, status, exigir_ip, ip_aprovado")
+          .eq("corretora_id", corretoraId)
+          .eq("profile_id", profileId)
+          .eq("assinatura", assinatura)
+          .order("status", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (data) {
+          existente = data;
+          await supabaseAdmin
             .from("device_approval_requests")
-            .select("id, status, exigir_ip, ip_aprovado")
-            .eq("corretora_id", corretoraId)
-            .eq("profile_id", profileId)
-            .eq("fingerprint", fingerprint)
-            .maybeSingle()
-        : { data: null };
+            .update({ fingerprint: fingerprint || null })
+            .eq("id", data.id);
+        }
+      }
+
 
       if (existente) {
         if (existente.status === "approved") {
@@ -214,6 +236,7 @@ serve(async (req) => {
           email,
           device_info: deviceInfo || null,
           fingerprint: fingerprint || null,
+          assinatura: assinatura || null,
           ip_address: ipAddress,
           status: "pending",
         })
