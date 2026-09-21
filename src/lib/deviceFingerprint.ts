@@ -1,50 +1,82 @@
-// Lightweight device fingerprint (no external dep)
-// Combines stable browser/system signals into a SHA-256 hash.
+// Identificação de dispositivo estável (sem dependência externa).
+//
+// IMPORTANTE: a versão antiga usava canvas + versão completa do navegador,
+// o que fazia o "fingerprint" mudar a cada atualização do Chrome (ou troca de
+// driver de vídeo). Resultado: o mesmo computador pedia aprovação de novo
+// várias vezes por mês.
+//
+// Agora o identificador principal é um ID persistente salvo no próprio
+// navegador (localStorage), e há uma "assinatura" derivada de sinais estáveis
+// (sem números de versão) usada para reconhecer o mesmo aparelho caso o
+// armazenamento local seja limpo.
 
-export async function getDeviceFingerprint(): Promise<{
+const DEVICE_ID_KEY = "uon1_device_id";
+
+export type DeviceInfo = {
   fingerprint: string;
+  assinatura: string;
   userAgent: string;
   plataforma: string;
   navegador: string;
-}> {
+};
+
+export async function getDeviceFingerprint(): Promise<DeviceInfo> {
   const ua = navigator.userAgent;
   const plataforma = navigator.platform || "desconhecida";
   const navegador = detectBrowser(ua);
 
-  // Canvas signal
-  let canvasHash = "no-canvas";
+  const assinatura = await sha256(
+    [
+      normalizarUserAgent(ua),
+      plataforma,
+      (navigator.language || "").split("-")[0],
+      `${screen.width}x${screen.height}x${screen.colorDepth}`,
+      Intl.DateTimeFormat().resolvedOptions().timeZone,
+      `cores:${navigator.hardwareConcurrency ?? 0}`,
+      `touch:${navigator.maxTouchPoints ?? 0}`,
+    ].join("||")
+  );
+
+  return {
+    fingerprint: getOrCreateDeviceId(assinatura),
+    assinatura,
+    userAgent: ua,
+    plataforma,
+    navegador,
+  };
+}
+
+/** ID persistente do aparelho; cai na assinatura se o storage estiver bloqueado. */
+function getOrCreateDeviceId(assinatura: string): string {
   try {
-    const canvas = document.createElement("canvas");
-    canvas.width = 240;
-    canvas.height = 60;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.textBaseline = "top";
-      ctx.font = "16px Arial";
-      ctx.fillStyle = "#069";
-      ctx.fillText("Uon1 fingerprint #@!", 2, 2);
-      ctx.strokeStyle = "rgba(102,200,0,0.7)";
-      ctx.strokeRect(10, 10, 100, 30);
-      canvasHash = canvas.toDataURL();
-    }
+    const salvo = localStorage.getItem(DEVICE_ID_KEY);
+    if (salvo) return salvo;
+    const novo =
+      (crypto.randomUUID?.() as string | undefined) ??
+      `${assinatura.slice(0, 16)}-${Date.now().toString(36)}`;
+    localStorage.setItem(DEVICE_ID_KEY, novo);
+    return novo;
+  } catch {
+    return assinatura;
+  }
+}
+
+/** Reaproveita um ID já existente no banco para este aparelho. */
+export function persistDeviceId(id: string) {
+  try {
+    localStorage.setItem(DEVICE_ID_KEY, id);
   } catch {
     /* ignore */
   }
+}
 
-  const parts = [
-    ua,
-    plataforma,
-    navigator.language,
-    `${screen.width}x${screen.height}x${screen.colorDepth}`,
-    Intl.DateTimeFormat().resolvedOptions().timeZone,
-    `cores:${navigator.hardwareConcurrency ?? 0}`,
-    `mem:${(navigator as any).deviceMemory ?? 0}`,
-    `touch:${navigator.maxTouchPoints ?? 0}`,
-    canvasHash,
-  ].join("||");
-
-  const fingerprint = await sha256(parts);
-  return { fingerprint, userAgent: ua, plataforma, navegador };
+/** Remove números de versão (Chrome/135.0.0.0 -> Chrome/x) e builds do SO. */
+export function normalizarUserAgent(ua: string): string {
+  return ua
+    .replace(/\d+(\.\d+)+/g, "x")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 function detectBrowser(ua: string): string {

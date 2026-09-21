@@ -50,6 +50,13 @@
       "when": 1789690639065,
       "tag": "0006_sync_fila_lote_e_watchdog_diario",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790033633383,
+      "tag": "0007_device_assinatura_estavel",
+      "breakpoints": true
     }
   ]
 }
