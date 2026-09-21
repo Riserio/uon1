@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isParceiro, setIsParceiro] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const navigate = useNavigate();
   const roleLoadedRef = useRef(false);
   const initializedRef = useRef(false);
