@@ -377,7 +377,81 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
     }
   };
 
+  // ─── Reordenação agrupada por fluxo (arrastar entre grupos) ───
+  const persistOrdem = async (lista: StatusConfig[]) => {
+    try {
+      await Promise.all(lista.map(s =>
+        supabase.from('gestao_associacao_status_config')
+          .update({ ordem: s.ordem, fluxo_id: s.fluxo_id }).eq('id', s.id)
+      ));
+      toast.success('Sequência atualizada');
+      onStatusChange();
+    } catch { toast.error('Erro ao reordenar'); loadData(); }
+  };
+
+  const handleGroupedDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeStatus = statuses.find(s => s.id === active.id);
+    if (!activeStatus) return;
+
+    const overId = String(over.id);
+    const isGroupTarget = overId.startsWith('group-');
+    const targetKey = isGroupTarget
+      ? overId.replace('group-', '')
+      : (statuses.find(s => s.id === overId)?.fluxo_id ?? 'none');
+    const targetFluxoId = targetKey === 'none' ? null : targetKey;
+
+    // Monta grupos na ordem dos fluxos
+    const ordemGrupos: (string | null)[] = [...[...fluxos].sort((a, b) => a.ordem - b.ordem).map(f => f.id), null];
+    const buckets = new Map<string, StatusConfig[]>();
+    ordemGrupos.forEach(k => buckets.set(k ?? 'none', []));
+    [...statuses].sort((a, b) => a.ordem - b.ordem).forEach(s => {
+      const k = s.fluxo_id ?? 'none';
+      if (!buckets.has(k)) buckets.set(k, []);
+      buckets.get(k)!.push(s);
+    });
+
+    // Remove o item arrastado
+    buckets.forEach((arr, k) => buckets.set(k, arr.filter(s => s.id !== activeStatus.id)));
+
+    const destino = buckets.get(targetKey) || [];
+    const movido = { ...activeStatus, fluxo_id: targetFluxoId };
+    const idx = isGroupTarget ? destino.length : destino.findIndex(s => s.id === overId);
+    destino.splice(idx < 0 ? destino.length : idx, 0, movido);
+    buckets.set(targetKey, destino);
+
+    const chaves = [...new Set([...ordemGrupos.map(k => k ?? 'none'), ...buckets.keys()])];
+    const flat = chaves.flatMap(k => buckets.get(k) || []).map((s, i) => ({ ...s, ordem: i + 1 }));
+
+    setStatuses(flat);
+    setLoading(true);
+    await persistOrdem(flat);
+    setLoading(false);
+  };
+
+  const statusesFiltrados = statuses
+    .filter(s => !busca.trim() || s.nome.toLowerCase().includes(busca.trim().toLowerCase()))
+    .sort((a, b) => a.ordem - b.ordem);
+
+  const gruposStatus = [
+    ...[...fluxos].sort((a, b) => a.ordem - b.ordem).map(f => ({
+      key: f.id,
+      titulo: f.nome,
+      cor: f.cor,
+      statuses: statusesFiltrados.filter(s => s.fluxo_id === f.id),
+    })),
+    {
+      key: 'none',
+      titulo: 'Sem fluxo',
+      cor: 'hsl(var(--muted-foreground))',
+      statuses: statusesFiltrados.filter(s => !s.fluxo_id),
+    },
+  ];
+
   const unconfiguredSituacoes = availableSituacoes.filter(s => !statuses.some(st => st.nome === s));
+
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
