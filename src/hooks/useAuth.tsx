@@ -184,9 +184,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (profile?.status === 'primeiro_login') {
+      setMustChangePassword(true);
       return { error: null, isParceiro: false, forcePasswordChange: true };
     }
-    
+
+    setMustChangePassword(profile?.force_password_change === true);
+
     return { 
       error: null, 
       isParceiro: roleData?.role === 'parceiro',
