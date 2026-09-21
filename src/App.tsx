@@ -131,7 +131,7 @@ function MainContent({ children }: { children: React.ReactNode }) {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, isParceiro } = useAuth();
+  const { user, loading, isParceiro, mustChangePassword } = useAuth();
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
