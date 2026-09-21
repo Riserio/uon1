@@ -51,6 +51,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsParceiro(false);
     }
     roleLoadedRef.current = true;
+
+    // Verifica se o usuário precisa definir uma nova senha (primeiro acesso)
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('status, force_password_change')
+        .eq('id', userId)
+        .maybeSingle();
+      setMustChangePassword(
+        profile?.status === 'primeiro_login' || profile?.force_password_change === true
+      );
+    } catch {
+      // silencioso: não bloqueia o login
+    }
   }, []);
 
   useEffect(() => {
