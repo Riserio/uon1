@@ -141,6 +141,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
+  if (mustChangePassword) {
+    return <Navigate to="/change-password" replace />;
+  }
+
   if (isParceiro) {
     return <Navigate to="/portal" replace />;
   }
