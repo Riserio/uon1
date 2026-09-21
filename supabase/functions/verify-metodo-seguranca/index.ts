@@ -236,6 +236,7 @@ serve(async (req) => {
           email,
           device_info: deviceInfo || null,
           fingerprint: fingerprint || null,
+          assinatura: assinatura || null,
           ip_address: ipAddress,
           status: "pending",
         })
