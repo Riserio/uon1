@@ -1104,6 +1104,38 @@ export default function Usuarios() {
     return lider?.nome || "Sem líder";
   };
 
+  const [enviandoAcessoId, setEnviandoAcessoId] = useState<string | null>(null);
+
+  const handleEnviarAcesso = async (profile: Profile) => {
+    if (enviandoAcessoId) return;
+    const confirmado = window.confirm(
+      `Enviar os dados de acesso para ${profile.email}?\n\nUma nova senha temporária será gerada e a senha atual deixará de funcionar.`,
+    );
+    if (!confirmado) return;
+
+    setEnviandoAcessoId(profile.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("enviar-email-acesso", {
+        body: {
+          email: profile.email,
+          nome: profile.nome,
+          userId: profile.id,
+          loginUrl: `${window.location.origin}/auth`,
+        },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || error?.message || "Não foi possível enviar o e-mail de acesso");
+        return;
+      }
+      toast.success(`E-mail com os dados de acesso enviado para ${profile.email}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível enviar o e-mail de acesso");
+    } finally {
+      setEnviandoAcessoId(null);
+    }
+  };
+
+
   const handleResetPassword = async (profile: Profile) => {
     const newPassword = generateSecurePassword();
     setResetPasswordData({
