@@ -64,6 +64,13 @@
       "when": 1790033724013,
       "tag": "0008_restringir_select_ponto_rh",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790034062777,
+      "tag": "0009_restrict_registros_ponto_insert_ownership",
+      "breakpoints": true
     }
   ]
 }

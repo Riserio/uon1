@@ -34,6 +34,8 @@ import {
   RotateCcw,
   UserX,
   Plus,
+  Mail,
+
 } from "lucide-react";
 import { UserFluxoPermissionsDialog } from "@/components/UserFluxoPermissionsDialog";
 import { UserMenuPermissionsDialog } from "@/components/UserMenuPermissionsDialog";
@@ -483,6 +485,7 @@ export default function Usuarios() {
             cpf_cnpj: formData.cpf_cnpj,
             role: selectedRole,
             equipes: selectedRole === "lider" ? selectedEquipes : [],
+            loginUrl: `${window.location.origin}/auth`,
           }),
         });
 
@@ -491,6 +494,13 @@ export default function Usuarios() {
           toast.error(result.error || "Erro ao criar usuário");
           return;
         }
+
+        if (result.emailAcessoEnviado) {
+          toast.success(`E-mail com os dados de acesso enviado para ${validatedData.email}`);
+        } else {
+          toast.warning("Usuário criado, mas não foi possível enviar o e-mail de acesso. Use o botão de enviar acesso na lista.");
+        }
+
 
         const createdUserId = result.userId || result.user?.id || null;
 
@@ -1095,6 +1105,38 @@ export default function Usuarios() {
     const lider = profiles.find((p) => p.id === liderId) || lideres.find((l) => l.id === liderId);
     return lider?.nome || "Sem líder";
   };
+
+  const [enviandoAcessoId, setEnviandoAcessoId] = useState<string | null>(null);
+
+  const handleEnviarAcesso = async (profile: Profile) => {
+    if (enviandoAcessoId) return;
+    const confirmado = window.confirm(
+      `Enviar os dados de acesso para ${profile.email}?\n\nUma nova senha temporária será gerada e a senha atual deixará de funcionar.`,
+    );
+    if (!confirmado) return;
+
+    setEnviandoAcessoId(profile.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("enviar-email-acesso", {
+        body: {
+          email: profile.email,
+          nome: profile.nome,
+          userId: profile.id,
+          loginUrl: `${window.location.origin}/auth`,
+        },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || error?.message || "Não foi possível enviar o e-mail de acesso");
+        return;
+      }
+      toast.success(`E-mail com os dados de acesso enviado para ${profile.email}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível enviar o e-mail de acesso");
+    } finally {
+      setEnviandoAcessoId(null);
+    }
+  };
+
 
   const handleResetPassword = async (profile: Profile) => {
     const newPassword = generateSecurePassword();
@@ -2337,6 +2379,21 @@ export default function Usuarios() {
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                disabled={enviandoAcessoId === item.id}
+                                onClick={() => handleEnviarAcesso(item)}
+                                title="Enviar dados de acesso por e-mail"
+                              >
+                                {enviandoAcessoId === item.id ? (
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Mail className="h-4 w-4" />
+                                )}
+                              </Button>
+
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8" title="Mais ações">

@@ -208,10 +208,35 @@ serve(async (req) => {
       }
     }
 
+    // Envia automaticamente o e-mail com os dados de acesso
+    let emailAcessoEnviado = false
+    try {
+      const resp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/enviar-email-acesso`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({
+          email,
+          nome,
+          senha: password,
+          userId: authData.user.id,
+          loginUrl: requestBody.loginUrl,
+        }),
+      })
+      const json = await resp.json().catch(() => ({}))
+      emailAcessoEnviado = !!json?.success
+      if (!emailAcessoEnviado) console.error('Falha ao enviar e-mail de acesso:', json)
+    } catch (e) {
+      console.error('Erro ao enviar e-mail de acesso:', e)
+    }
+
     return new Response(
-      JSON.stringify({ user: authData.user, userId: authData.user.id, success: true }),
+      JSON.stringify({ user: authData.user, userId: authData.user.id, success: true, emailAcessoEnviado }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+
 
   } catch (error: any) {
     console.error('=== CREATE USER FUNCTION ERROR ===');
