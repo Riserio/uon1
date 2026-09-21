@@ -34,6 +34,8 @@ import {
   RotateCcw,
   UserX,
   Plus,
+  Mail,
+
 } from "lucide-react";
 import { UserFluxoPermissionsDialog } from "@/components/UserFluxoPermissionsDialog";
 import { UserMenuPermissionsDialog } from "@/components/UserMenuPermissionsDialog";
