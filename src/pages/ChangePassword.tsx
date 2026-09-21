@@ -18,9 +18,11 @@ const changePasswordSchema = z.object({
 });
 
 export default function ChangePassword() {
-  const { user } = useAuth();
+  const { user, clearMustChangePassword, signOut } = useAuth();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [pedirSenhaAtual, setPedirSenhaAtual] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -30,6 +32,22 @@ export default function ChangePassword() {
     }
   }, [user, navigate]);
 
+  const concluir = async () => {
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        status: 'ativo',
+        force_password_change: false
+      })
+      .eq('id', user?.id);
+
+    if (profileError) console.error('Error updating profile:', profileError);
+
+    clearMustChangePassword();
+    toast.success('Senha definida com sucesso!');
+    setTimeout(() => navigate('/', { replace: true }), 800);
+  };
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -37,30 +55,42 @@ export default function ChangePassword() {
     try {
       changePasswordSchema.parse({ password, confirmPassword });
 
-      const { error } = await supabase.auth.updateUser({
-        password: password
-      });
+      const payload: { password: string; current_password?: string } = { password };
+      if (currentPassword) payload.current_password = currentPassword;
 
-      if (error) throw error;
+      const { error } = await supabase.auth.updateUser(payload as any);
 
-      // Clear force_password_change flag and set status as active
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ 
-          status: 'ativo',
-          force_password_change: false 
-        })
-        .eq('id', user?.id);
+      if (error) {
+        const msg = (error.message || '').toLowerCase();
 
-      if (profileError) console.error('Error updating profile:', profileError);
+        // Reutilizar uma senha anterior é permitido: seguimos normalmente
+        if (msg.includes('different from the old password') || msg.includes('should be different')) {
+          await concluir();
+          return;
+        }
 
-      toast.success('Senha alterada com sucesso!');
-      setTimeout(() => navigate('/'), 1000);
-    } catch (error) {
+        if (msg.includes('current password')) {
+          setPedirSenhaAtual(true);
+          toast.error('Digite também a senha atual (a que você recebeu por e-mail).');
+          setLoading(false);
+          return;
+        }
+
+        if (msg.includes('pwned') || msg.includes('compromised')) {
+          toast.error('Essa senha é muito comum. Escolha outra.');
+          setLoading(false);
+          return;
+        }
+
+        throw error;
+      }
+
+      await concluir();
+    } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
       } else {
-        toast.error('Erro ao alterar senha');
+        toast.error(error?.message || 'Erro ao alterar senha');
       }
     }
     setLoading(false);
@@ -70,13 +100,26 @@ export default function ChangePassword() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl font-bold text-center">Alterar Senha</CardTitle>
+          <CardTitle className="font-serif text-2xl font-semibold text-center">Crie sua nova senha</CardTitle>
           <CardDescription className="text-center">
-            Por favor, altere sua senha antes de continuar
+            Por segurança, defina uma senha pessoal antes de acessar o sistema.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleChangePassword}>
           <CardContent className="space-y-4">
+            {pedirSenhaAtual && (
+              <div className="space-y-2">
+                <Label htmlFor="currentPassword">Senha atual</Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">A senha temporária que você recebeu por e-mail</p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="password">Nova Senha</Label>
               <Input
@@ -103,7 +146,15 @@ export default function ChangePassword() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Alterando...' : 'Alterar Senha'}
+              {loading ? 'Salvando...' : 'Salvar nova senha'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => signOut()}
+            >
+              Sair
             </Button>
           </CardContent>
         </form>
