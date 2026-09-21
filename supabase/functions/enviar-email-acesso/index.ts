@@ -68,23 +68,30 @@ Deno.serve(async (req) => {
 
     if (!email) throw new Error("E-mail do usuário não informado");
 
+    let alvoId = userId;
+    if (!alvoId) {
+      const { data: list } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      alvoId = list?.users.find((u) => u.email?.toLowerCase() === email.toLowerCase())?.id ?? null;
+    }
+
     // Reenvio manual: gera uma nova senha temporária
     if (!senha) {
-      senha = gerarSenha();
-      let alvoId = userId;
-      if (!alvoId) {
-        const { data: list } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
-        alvoId = list?.users.find((u) => u.email?.toLowerCase() === email.toLowerCase())?.id ?? null;
-      }
       if (!alvoId) throw new Error("Usuário não encontrado");
+      senha = gerarSenha();
 
       const { error: updErr } = await supabase.auth.admin.updateUserById(alvoId, {
         password: senha,
         email_confirm: true,
       });
       if (updErr) throw new Error(`Não foi possível definir a nova senha: ${updErr.message}`);
+    }
 
-      await supabase.from("profiles").update({ status: "primeiro_login" }).eq("id", alvoId);
+    // Toda senha enviada por e-mail é temporária: o usuário precisa criar a dele no primeiro acesso
+    if (alvoId) {
+      await supabase
+        .from("profiles")
+        .update({ status: "primeiro_login", force_password_change: true })
+        .eq("id", alvoId);
     }
 
     const primeiroNome = (nome || email).split(" ")[0];
