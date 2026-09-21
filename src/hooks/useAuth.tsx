@@ -9,6 +9,8 @@ interface AuthContextType {
   loading: boolean;
   userRole: string | null;
   isParceiro: boolean;
+  mustChangePassword: boolean;
+  clearMustChangePassword: () => void;
   signIn: (email: string, password: string) => Promise<{ error: any; isParceiro?: boolean; forcePasswordChange?: boolean }>;
   signUp: (email: string, password: string, nome: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
