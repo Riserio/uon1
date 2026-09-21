@@ -466,29 +466,82 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
                   </div>
                 )}
 
+                {/* Toolbar: busca + modo de visualização */}
+                <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+                  <div className="relative flex-1 min-w-[180px]">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input value={busca} onChange={(e) => setBusca(e.target.value)}
+                      placeholder="Buscar status..." className="pl-8" />
+                  </div>
+                  <div className="inline-flex gap-1 rounded-2xl bg-muted p-1">
+                    <button type="button" onClick={() => setViewMode('grouped')}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm transition-colors ${viewMode === 'grouped' ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}>
+                      <Layers className="h-4 w-4" /> Por fluxo
+                    </button>
+                    <button type="button" onClick={() => setViewMode('flat')}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm transition-colors ${viewMode === 'flat' ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}>
+                      <List className="h-4 w-4" /> Lista
+                    </button>
+                  </div>
+                </div>
+
                 {/* Configured statuses */}
                 <div className="flex-1 min-h-0 overflow-y-auto pr-2">
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleStatusDragEnd}>
-                    <SortableContext items={statuses.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                      <div className="space-y-2">
-                        {statuses.map(status => (
-                          <SortableStatusItem
-                            key={status.id}
-                            status={status}
-                            fluxos={fluxos}
-                            editingId={editingId}
-                            loading={loading}
-                            onUpdate={(s) => setStatuses(statuses.map(st => st.id === s.id ? s : st))}
-                            onSave={handleSaveStatus}
-                            onToggle={handleToggleStatus}
-                            onDelete={handleDeleteStatus}
-                            setEditingId={setEditingId}
-                            onFluxoChange={handleStatusFluxoChange}
-                          />
+                  {viewMode === 'grouped' ? (
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupedDragEnd}>
+                      <div className="space-y-4">
+                        {gruposStatus.map(grupo => (
+                          <StatusGroup
+                            key={grupo.key}
+                            titulo={grupo.titulo}
+                            cor={grupo.cor}
+                            groupId={grupo.key}
+                            statuses={grupo.statuses}
+                            collapsed={!!collapsedGroups[grupo.key]}
+                            onToggleCollapse={() => setCollapsedGroups(prev => ({ ...prev, [grupo.key]: !prev[grupo.key] }))}
+                          >
+                            {grupo.statuses.map(status => (
+                              <SortableStatusItem
+                                key={status.id}
+                                status={status}
+                                fluxos={fluxos}
+                                editingId={editingId}
+                                loading={loading}
+                                onUpdate={(s) => setStatuses(statuses.map(st => st.id === s.id ? s : st))}
+                                onSave={handleSaveStatus}
+                                onToggle={handleToggleStatus}
+                                onDelete={handleDeleteStatus}
+                                setEditingId={setEditingId}
+                                onFluxoChange={handleStatusFluxoChange}
+                              />
+                            ))}
+                          </StatusGroup>
                         ))}
                       </div>
-                    </SortableContext>
-                  </DndContext>
+                    </DndContext>
+                  ) : (
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleStatusDragEnd}>
+                      <SortableContext items={statusesFiltrados.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-2">
+                          {statusesFiltrados.map(status => (
+                            <SortableStatusItem
+                              key={status.id}
+                              status={status}
+                              fluxos={fluxos}
+                              editingId={editingId}
+                              loading={loading}
+                              onUpdate={(s) => setStatuses(statuses.map(st => st.id === s.id ? s : st))}
+                              onSave={handleSaveStatus}
+                              onToggle={handleToggleStatus}
+                              onDelete={handleDeleteStatus}
+                              setEditingId={setEditingId}
+                              onFluxoChange={handleStatusFluxoChange}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  )}
                 </div>
 
                 <Button variant="outline" onClick={loadData} disabled={loading} className="w-full flex-shrink-0">
@@ -496,6 +549,7 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
                   Recarregar situações do BI
                 </Button>
               </TabsContent>
+
             </Tabs>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
