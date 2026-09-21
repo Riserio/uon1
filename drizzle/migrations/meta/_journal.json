@@ -71,6 +71,13 @@
       "when": 1790034062777,
       "tag": "0009_restrict_registros_ponto_insert_ownership",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790034880557,
+      "tag": "0010_fix_temporary_password_redirect_and_restrict_sensitive_rls",
+      "breakpoints": true
     }
   ]
 }
