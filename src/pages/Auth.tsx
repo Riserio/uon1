@@ -229,7 +229,8 @@ export default function Auth() {
     setDeviceMessage("");
 
     try {
-      const { fingerprint, userAgent, plataforma, navegador } = await getDeviceFingerprint();
+      const { fingerprint, assinatura, userAgent, plataforma, navegador } =
+        await getDeviceFingerprint();
       const ip = await getClientIp();
 
       const { data, error } = await supabase.functions.invoke("verify-metodo-seguranca", {
@@ -238,6 +239,7 @@ export default function Auth() {
           email: currentUser.email,
           deviceInfo: `${navegador} em ${plataforma} — ${userAgent}`,
           fingerprint,
+          assinatura,
           ip,
         },
       });
