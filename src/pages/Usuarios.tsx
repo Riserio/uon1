@@ -2377,6 +2377,21 @@ export default function Usuarios() {
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                disabled={enviandoAcessoId === item.id}
+                                onClick={() => handleEnviarAcesso(item)}
+                                title="Enviar dados de acesso por e-mail"
+                              >
+                                {enviandoAcessoId === item.id ? (
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Mail className="h-4 w-4" />
+                                )}
+                              </Button>
+
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8" title="Mais ações">
