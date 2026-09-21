@@ -483,6 +483,7 @@ export default function Usuarios() {
             cpf_cnpj: formData.cpf_cnpj,
             role: selectedRole,
             equipes: selectedRole === "lider" ? selectedEquipes : [],
+            loginUrl: `${window.location.origin}/auth`,
           }),
         });
 
@@ -491,6 +492,13 @@ export default function Usuarios() {
           toast.error(result.error || "Erro ao criar usuário");
           return;
         }
+
+        if (result.emailAcessoEnviado) {
+          toast.success(`E-mail com os dados de acesso enviado para ${validatedData.email}`);
+        } else {
+          toast.warning("Usuário criado, mas não foi possível enviar o e-mail de acesso. Use o botão de enviar acesso na lista.");
+        }
+
 
         const createdUserId = result.userId || result.user?.id || null;
 
