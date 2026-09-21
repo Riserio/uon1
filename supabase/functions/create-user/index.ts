@@ -95,7 +95,7 @@ serve(async (req) => {
       // Update profile status to force password change
       const { error: profileUpdateError } = await supabaseAdmin
         .from('profiles')
-        .update({ status: 'primeiro_login' })
+        .update({ status: 'primeiro_login', force_password_change: true })
         .eq('id', userId)
 
       if (profileUpdateError) {
