@@ -168,6 +168,10 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
   const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
   const [configCorretoraId, setConfigCorretoraId] = useState<string | null>(selectedCorretoraId || null);
   const [activeConfigTab, setActiveConfigTab] = useState('fluxos');
+  const [viewMode, setViewMode] = useState<'grouped' | 'flat'>('grouped');
+  const [busca, setBusca] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
 
   const sensors = useSensors(
     useSensor(PointerSensor),
