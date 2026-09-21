@@ -151,6 +151,41 @@ function SortableStatusItem({ status, fluxos, editingId, loading, onUpdate, onSa
   );
 }
 
+// ─── Grupo de status por fluxo (área de soltura) ───
+function StatusGroup({ titulo, cor, groupId, statuses, collapsed, onToggleCollapse, children }: {
+  titulo: string; cor: string; groupId: string; statuses: StatusConfig[];
+  collapsed: boolean; onToggleCollapse: () => void; children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `group-${groupId}` });
+
+  return (
+    <div className={`rounded-2xl border bg-muted/20 p-3 transition-colors ${isOver ? 'border-primary bg-primary/5' : 'border-border'}`}>
+      <button type="button" onClick={onToggleCollapse}
+        className="flex w-full items-center gap-2 pb-2 text-left">
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+        <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: cor }} />
+        <span className="font-serif text-base font-semibold">{titulo}</span>
+        <Badge variant="secondary" className="ml-1">{statuses.length}</Badge>
+      </button>
+      {!collapsed && (
+        <div ref={setNodeRef} className="min-h-[52px]">
+          <SortableContext items={statuses.map(s => s.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {children}
+              {statuses.length === 0 && (
+                <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  Arraste status para cá
+                </div>
+              )}
+            </div>
+          </SortableContext>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ─── Main Component ───
 interface GestaoAssociacaoStatusConfigProps {
   open: boolean;
