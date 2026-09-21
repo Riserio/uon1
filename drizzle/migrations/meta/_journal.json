@@ -57,6 +57,13 @@
       "when": 1790033633383,
       "tag": "0007_device_assinatura_estavel",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790033724013,
+      "tag": "0008_restringir_select_ponto_rh",
+      "breakpoints": true
     }
   ]
 }
