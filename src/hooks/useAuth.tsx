@@ -9,6 +9,8 @@ interface AuthContextType {
   loading: boolean;
   userRole: string | null;
   isParceiro: boolean;
+  mustChangePassword: boolean;
+  clearMustChangePassword: () => void;
   signIn: (email: string, password: string) => Promise<{ error: any; isParceiro?: boolean; forcePasswordChange?: boolean }>;
   signUp: (email: string, password: string, nome: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -22,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isParceiro, setIsParceiro] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const navigate = useNavigate();
   const roleLoadedRef = useRef(false);
   const initializedRef = useRef(false);
@@ -48,6 +51,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsParceiro(false);
     }
     roleLoadedRef.current = true;
+
+    // Verifica se o usuário precisa definir uma nova senha (primeiro acesso)
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('status, force_password_change')
+        .eq('id', userId)
+        .maybeSingle();
+      setMustChangePassword(
+        profile?.status === 'primeiro_login' || profile?.force_password_change === true
+      );
+    } catch {
+      // silencioso: não bloqueia o login
+    }
   }, []);
 
   useEffect(() => {
@@ -78,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setUserRole(null);
           setIsParceiro(false);
+          setMustChangePassword(false);
           roleLoadedRef.current = false;
         }
       }
@@ -166,9 +184,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (profile?.status === 'primeiro_login') {
+      setMustChangePassword(true);
       return { error: null, isParceiro: false, forcePasswordChange: true };
     }
-    
+
+    setMustChangePassword(profile?.force_password_change === true);
+
     return { 
       error: null, 
       isParceiro: roleData?.role === 'parceiro',
@@ -226,7 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, userRole, isParceiro, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, userRole, isParceiro, mustChangePassword, clearMustChangePassword: () => setMustChangePassword(false), signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
