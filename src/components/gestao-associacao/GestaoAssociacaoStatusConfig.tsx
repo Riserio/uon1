@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Trash2, GripVertical, RefreshCw, Eye, EyeOff, Workflow } from 'lucide-react';
+import { Plus, Trash2, GripVertical, RefreshCw, Eye, EyeOff, Workflow, Layers, List, Search, ChevronDown } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,8 +18,10 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   DragEndEvent,
 } from '@dnd-kit/core';
+
 import {
   arrayMove,
   SortableContext,
