@@ -134,7 +134,8 @@ function MiniDonut({ data, total, onClick }: { data: { name: string; value: numb
             >
               <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
               <span className="text-[11px] text-muted-foreground truncate flex-1 min-w-0">{item.name}</span>
-              <span className="text-[11px] font-bold tabular-nums shrink-0">{pct.toFixed(0)}%</span>
+              <span className="text-[11px] font-semibold tabular-nums shrink-0 text-foreground">{item.value.toLocaleString('pt-BR')}</span>
+              <span className="text-[11px] font-bold tabular-nums shrink-0 w-9 text-right">{pct.toFixed(0)}%</span>
             </div>
           );
         })}
