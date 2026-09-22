@@ -154,11 +154,28 @@ serve(async (req) => {
       const base = baseMap.get(normPlaca(e.placa));
       return (base?.cidade || "").toString().trim() || "Não informada";
     };
+    const nomeCooperativa = (valor: unknown): string => {
+      const texto = String(valor ?? "").trim();
+      if (!texto) return "";
+      if (texto.startsWith("{") || texto.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(texto);
+          const item = Array.isArray(parsed) ? parsed[0] : parsed;
+          const nome = String(item?.descricao ?? item?.nome ?? item?.name ?? "").trim();
+          if (nome) return nome;
+        } catch {
+          // Texto legado não-JSON: segue para a validação abaixo.
+        }
+      }
+      // A API antiga persistia somente codigo_cooperativa. Código puro não é
+      // nome exibível e deve ser resolvido pela placa na base ativa.
+      return /^\d+$/.test(texto) ? "" : texto;
+    };
     const coopDoEvento = (e: any): string => {
-      const c = (e.cooperativa || "").toString().trim();
+      const c = nomeCooperativa(e.cooperativa);
       if (c) return c;
       const base = baseMap.get(normPlaca(e.placa));
-      return (base?.cooperativa || "").toString().trim() || "Sem cooperativa";
+      return nomeCooperativa(base?.cooperativa) || "Sem cooperativa";
     };
 
     // Calculate metrics
