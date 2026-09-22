@@ -162,16 +162,25 @@ export default function SGADashboard({
     totalCustoEventos: number; totalRecebido: number; sinistralidade: number;
     mensalData: { mes: string; custo: number; recebido: number; sinistralidade: number }[];
   } | null>(null);
+  const [sinistralidadeVolume, setSinistralidadeVolume] = useState<{
+    media12m: number; placasAtivasAtual: number;
+    mensalData: { mes: string; sinistros: number; placas: number | null; sinistralidade: number | null }[];
+  } | null>(null);
 
   // Sinistralidade (custo): custo de eventos (MGF, centro de custo EVENTOS*)
   // ÷ total recebido (MGF, entradas pagas). Busca independente — não depende
   // da importação do SGA nem dos filtros da tela.
   useEffect(() => {
-    if (!corretoraId) { setSinistralidade(null); return; }
+    if (!corretoraId) { setSinistralidade(null); setSinistralidadeVolume(null); return; }
     supabase.rpc('calcular_sinistralidade', { p_corretora_id: corretoraId }).then(({ data, error }) => {
       if (error) { console.error('[SGADashboard] sinistralidade:', error.message); setSinistralidade(null); return; }
       const d = data as any;
       setSinistralidade(d && Number(d.totalRecebido) > 0 ? d : null);
+    });
+    supabase.rpc('calcular_sinistralidade_volume', { p_corretora_id: corretoraId }).then(({ data, error }) => {
+      if (error) { console.error('[SGADashboard] sinistralidade volume:', error.message); setSinistralidadeVolume(null); return; }
+      const d = data as any;
+      setSinistralidadeVolume(d && (d.mensalData || []).some((m: any) => m.sinistralidade != null) ? d : null);
     });
   }, [corretoraId]);
 
@@ -182,6 +191,15 @@ export default function SGADashboard({
         mesLabel: new Date(d.mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
       })),
     [sinistralidade?.mensalData],
+  );
+
+  const sinistralidadeVolumeMensal = useMemo(
+    () =>
+      (sinistralidadeVolume?.mensalData || []).map((d) => ({
+        ...d,
+        mesLabel: new Date(d.mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      })),
+    [sinistralidadeVolume?.mensalData],
   );
 
   const openDetailDialog = (title: string, filterType: string, filterValue: string) =>
