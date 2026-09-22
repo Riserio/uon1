@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Trash2, GripVertical, RefreshCw, Eye, EyeOff, Workflow } from 'lucide-react';
+import { Plus, Trash2, GripVertical, RefreshCw, Eye, EyeOff, Workflow, Layers, List, Search, ChevronDown } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,8 +18,10 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   DragEndEvent,
 } from '@dnd-kit/core';
+
 import {
   arrayMove,
   SortableContext,
@@ -151,6 +153,41 @@ function SortableStatusItem({ status, fluxos, editingId, loading, onUpdate, onSa
   );
 }
 
+// ─── Grupo de status por fluxo (área de soltura) ───
+function StatusGroup({ titulo, cor, groupId, statuses, collapsed, onToggleCollapse, children }: {
+  titulo: string; cor: string; groupId: string; statuses: StatusConfig[];
+  collapsed: boolean; onToggleCollapse: () => void; children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `group-${groupId}` });
+
+  return (
+    <div className={`rounded-2xl border bg-muted/20 p-3 transition-colors ${isOver ? 'border-primary bg-primary/5' : 'border-border'}`}>
+      <button type="button" onClick={onToggleCollapse}
+        className="flex w-full items-center gap-2 pb-2 text-left">
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+        <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: cor }} />
+        <span className="font-serif text-base font-semibold">{titulo}</span>
+        <Badge variant="secondary" className="ml-1">{statuses.length}</Badge>
+      </button>
+      {!collapsed && (
+        <div ref={setNodeRef} className="min-h-[52px]">
+          <SortableContext items={statuses.map(s => s.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {children}
+              {statuses.length === 0 && (
+                <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  Arraste status para cá
+                </div>
+              )}
+            </div>
+          </SortableContext>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ─── Main Component ───
 interface GestaoAssociacaoStatusConfigProps {
   open: boolean;
@@ -168,6 +205,10 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
   const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
   const [configCorretoraId, setConfigCorretoraId] = useState<string | null>(selectedCorretoraId || null);
   const [activeConfigTab, setActiveConfigTab] = useState('fluxos');
+  const [viewMode, setViewMode] = useState<'grouped' | 'flat'>('grouped');
+  const [busca, setBusca] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -377,7 +418,81 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
     }
   };
 
+  // ─── Reordenação agrupada por fluxo (arrastar entre grupos) ───
+  const persistOrdem = async (lista: StatusConfig[]) => {
+    try {
+      await Promise.all(lista.map(s =>
+        supabase.from('gestao_associacao_status_config')
+          .update({ ordem: s.ordem, fluxo_id: s.fluxo_id }).eq('id', s.id)
+      ));
+      toast.success('Sequência atualizada');
+      onStatusChange();
+    } catch { toast.error('Erro ao reordenar'); loadData(); }
+  };
+
+  const handleGroupedDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeStatus = statuses.find(s => s.id === active.id);
+    if (!activeStatus) return;
+
+    const overId = String(over.id);
+    const isGroupTarget = overId.startsWith('group-');
+    const targetKey = isGroupTarget
+      ? overId.replace('group-', '')
+      : (statuses.find(s => s.id === overId)?.fluxo_id ?? 'none');
+    const targetFluxoId = targetKey === 'none' ? null : targetKey;
+
+    // Monta grupos na ordem dos fluxos
+    const ordemGrupos: (string | null)[] = [...[...fluxos].sort((a, b) => a.ordem - b.ordem).map(f => f.id), null];
+    const buckets = new Map<string, StatusConfig[]>();
+    ordemGrupos.forEach(k => buckets.set(k ?? 'none', []));
+    [...statuses].sort((a, b) => a.ordem - b.ordem).forEach(s => {
+      const k = s.fluxo_id ?? 'none';
+      if (!buckets.has(k)) buckets.set(k, []);
+      buckets.get(k)!.push(s);
+    });
+
+    // Remove o item arrastado
+    buckets.forEach((arr, k) => buckets.set(k, arr.filter(s => s.id !== activeStatus.id)));
+
+    const destino = buckets.get(targetKey) || [];
+    const movido = { ...activeStatus, fluxo_id: targetFluxoId };
+    const idx = isGroupTarget ? destino.length : destino.findIndex(s => s.id === overId);
+    destino.splice(idx < 0 ? destino.length : idx, 0, movido);
+    buckets.set(targetKey, destino);
+
+    const chaves = [...new Set([...ordemGrupos.map(k => k ?? 'none'), ...buckets.keys()])];
+    const flat = chaves.flatMap(k => buckets.get(k) || []).map((s, i) => ({ ...s, ordem: i + 1 }));
+
+    setStatuses(flat);
+    setLoading(true);
+    await persistOrdem(flat);
+    setLoading(false);
+  };
+
+  const statusesFiltrados = statuses
+    .filter(s => !busca.trim() || s.nome.toLowerCase().includes(busca.trim().toLowerCase()))
+    .sort((a, b) => a.ordem - b.ordem);
+
+  const gruposStatus = [
+    ...[...fluxos].sort((a, b) => a.ordem - b.ordem).map(f => ({
+      key: f.id,
+      titulo: f.nome,
+      cor: f.cor,
+      statuses: statusesFiltrados.filter(s => s.fluxo_id === f.id),
+    })),
+    {
+      key: 'none',
+      titulo: 'Sem fluxo',
+      cor: 'hsl(var(--muted-foreground))',
+      statuses: statusesFiltrados.filter(s => !s.fluxo_id),
+    },
+  ];
+
   const unconfiguredSituacoes = availableSituacoes.filter(s => !statuses.some(st => st.nome === s));
+
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
@@ -466,29 +581,82 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
                   </div>
                 )}
 
+                {/* Toolbar: busca + modo de visualização */}
+                <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+                  <div className="relative flex-1 min-w-[180px]">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input value={busca} onChange={(e) => setBusca(e.target.value)}
+                      placeholder="Buscar status..." className="pl-8" />
+                  </div>
+                  <div className="inline-flex gap-1 rounded-2xl bg-muted p-1">
+                    <button type="button" onClick={() => setViewMode('grouped')}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm transition-colors ${viewMode === 'grouped' ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}>
+                      <Layers className="h-4 w-4" /> Por fluxo
+                    </button>
+                    <button type="button" onClick={() => setViewMode('flat')}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm transition-colors ${viewMode === 'flat' ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}>
+                      <List className="h-4 w-4" /> Lista
+                    </button>
+                  </div>
+                </div>
+
                 {/* Configured statuses */}
                 <div className="flex-1 min-h-0 overflow-y-auto pr-2">
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleStatusDragEnd}>
-                    <SortableContext items={statuses.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                      <div className="space-y-2">
-                        {statuses.map(status => (
-                          <SortableStatusItem
-                            key={status.id}
-                            status={status}
-                            fluxos={fluxos}
-                            editingId={editingId}
-                            loading={loading}
-                            onUpdate={(s) => setStatuses(statuses.map(st => st.id === s.id ? s : st))}
-                            onSave={handleSaveStatus}
-                            onToggle={handleToggleStatus}
-                            onDelete={handleDeleteStatus}
-                            setEditingId={setEditingId}
-                            onFluxoChange={handleStatusFluxoChange}
-                          />
+                  {viewMode === 'grouped' ? (
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupedDragEnd}>
+                      <div className="space-y-4">
+                        {gruposStatus.map(grupo => (
+                          <StatusGroup
+                            key={grupo.key}
+                            titulo={grupo.titulo}
+                            cor={grupo.cor}
+                            groupId={grupo.key}
+                            statuses={grupo.statuses}
+                            collapsed={!!collapsedGroups[grupo.key]}
+                            onToggleCollapse={() => setCollapsedGroups(prev => ({ ...prev, [grupo.key]: !prev[grupo.key] }))}
+                          >
+                            {grupo.statuses.map(status => (
+                              <SortableStatusItem
+                                key={status.id}
+                                status={status}
+                                fluxos={fluxos}
+                                editingId={editingId}
+                                loading={loading}
+                                onUpdate={(s) => setStatuses(statuses.map(st => st.id === s.id ? s : st))}
+                                onSave={handleSaveStatus}
+                                onToggle={handleToggleStatus}
+                                onDelete={handleDeleteStatus}
+                                setEditingId={setEditingId}
+                                onFluxoChange={handleStatusFluxoChange}
+                              />
+                            ))}
+                          </StatusGroup>
                         ))}
                       </div>
-                    </SortableContext>
-                  </DndContext>
+                    </DndContext>
+                  ) : (
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleStatusDragEnd}>
+                      <SortableContext items={statusesFiltrados.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-2">
+                          {statusesFiltrados.map(status => (
+                            <SortableStatusItem
+                              key={status.id}
+                              status={status}
+                              fluxos={fluxos}
+                              editingId={editingId}
+                              loading={loading}
+                              onUpdate={(s) => setStatuses(statuses.map(st => st.id === s.id ? s : st))}
+                              onSave={handleSaveStatus}
+                              onToggle={handleToggleStatus}
+                              onDelete={handleDeleteStatus}
+                              setEditingId={setEditingId}
+                              onFluxoChange={handleStatusFluxoChange}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  )}
                 </div>
 
                 <Button variant="outline" onClick={loadData} disabled={loading} className="w-full flex-shrink-0">
@@ -496,6 +664,7 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
                   Recarregar situações do BI
                 </Button>
               </TabsContent>
+
             </Tabs>
           ) : (
             <div className="text-center py-8 text-muted-foreground">

@@ -35,11 +35,15 @@ export function AnexosFinanceiros({ anexos, onChange, disabled }: Props) {
           continue;
         }
         const ext = file.name.split(".").pop();
-        const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { data: userData } = await supabase.auth.getUser();
+        const uid = userData?.user?.id;
+        if (!uid) throw new Error("Sessão expirada. Faça login novamente.");
+        const path = `${uid}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const { error } = await supabase.storage
           .from("financeiro-anexos")
           .upload(path, file);
         if (error) throw error;
+
         const { data: { publicUrl } } = supabase.storage
           .from("financeiro-anexos")
           .getPublicUrl(path);
