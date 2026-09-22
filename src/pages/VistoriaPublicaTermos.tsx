@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { getVistoriaClient } from "@/integrations/supabase/vistoriaClient";
+import { getVistoriaPublica, atualizarVistoriaPublica } from "@/integrations/supabase/vistoriaClient";
 import { toast } from "sonner";
 import {
   CheckCircle2,
@@ -67,12 +67,7 @@ export default function VistoriaPublicaTermos() {
 
   const loadData = async () => {
     try {
-      const { data: vistoriaData, error: vistoriaError } = await getVistoriaClient(token)
-        .from("vistorias")
-        .select("*, corretoras(nome, logo_url)")
-        .eq("link_token", token)
-        .gt("link_expires_at", new Date().toISOString())
-        .single();
+      const { data: vistoriaData, error: vistoriaError } = await getVistoriaPublica(token);
 
       if (vistoriaError) throw vistoriaError;
       if (!vistoriaData) {
@@ -148,11 +143,7 @@ export default function VistoriaPublicaTermos() {
     setSubmitting(true);
     try {
       // Verificar se já está finalizada
-      const { data: checkVistoria } = await getVistoriaClient(token)
-        .from("vistorias")
-        .select("status, completed_at")
-        .eq("id", vistoria.id)
-        .single();
+      const { data: checkVistoria } = await getVistoriaPublica(token);
 
       if (checkVistoria?.status === "concluida" && checkVistoria?.completed_at) {
         toast.success("Esta vistoria já foi finalizada anteriormente!");
@@ -198,16 +189,13 @@ export default function VistoriaPublicaTermos() {
         }
       }
 
-      const { error: updateError } = await getVistoriaClient(token)
-        .from("vistorias")
-        .update({
+      const { error: updateError } = await atualizarVistoriaPublica(token, {
           assinatura_url: assinaturaUrl,
           status: "concluida",
           completed_at: new Date().toISOString(),
           latitude: geolocation?.latitude,
           longitude: geolocation?.longitude,
-        })
-        .eq("id", vistoria.id);
+        });
 
       if (updateError) {
         console.error("Erro ao finalizar vistoria:", updateError);
@@ -215,11 +203,7 @@ export default function VistoriaPublicaTermos() {
       }
 
       // Verificar se foi salvo corretamente
-      const { data: verificacao, error: errorVerif } = await getVistoriaClient(token)
-        .from("vistorias")
-        .select("id, status, completed_at")
-        .eq("id", vistoria.id)
-        .single();
+      const { data: verificacao, error: errorVerif } = await getVistoriaPublica(token);
 
       if (errorVerif || !verificacao || verificacao.status !== "concluida") {
         throw new Error("Erro ao verificar finalização da vistoria");

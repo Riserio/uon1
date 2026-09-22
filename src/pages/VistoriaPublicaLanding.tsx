@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { getVistoriaClient } from "@/integrations/supabase/vistoriaClient";
+import { getVistoriaPublica, atualizarVistoriaPublica } from "@/integrations/supabase/vistoriaClient";
 import { toast } from "sonner";
 import {
   Camera,
@@ -33,23 +33,7 @@ export default function VistoriaPublicaLanding() {
 
   const loadVistoria = async () => {
     try {
-      const { data, error } = await getVistoriaClient(token)
-        .from("vistorias")
-        .select(
-          `
-          *,
-          corretoras(nome, logo_url, slug),
-          atendimentos!vistorias_atendimento_id_fkey(
-            corretora_id,
-            responsavel_id,
-            corretoras(nome, slug),
-            profiles!atendimentos_responsavel_id_fkey(nome)
-          )
-        `,
-        )
-        .eq("link_token", token)
-        .gt("link_expires_at", new Date().toISOString())
-        .single();
+      const { data, error } = await getVistoriaPublica(token);
 
       if (error) throw error;
       if (!data) {
