@@ -9696,6 +9696,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      atualizar_vistoria_publica: {
+        Args: { p_payload: Json; p_token: string }
+        Returns: Json
+      }
       backfill_pid_faturamento_worker: { Args: never; Returns: Json }
       bug_report_adiar: { Args: { p_id: string }; Returns: Json }
       bug_report_aprovar: {
@@ -10105,6 +10109,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_vistoria_publica: { Args: { p_token: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
