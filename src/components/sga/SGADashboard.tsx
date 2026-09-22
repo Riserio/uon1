@@ -158,6 +158,31 @@ export default function SGADashboard({
   const evolucaoScrollRef = useRef<HTMLDivElement>(null);
   const [showScroll, setShowScroll] = useState({ left: false, right: false });
   const [detailDialog, setDetailDialog] = useState<DetailDialogState>({ open: false, title: "", filterType: "", filterValue: "" });
+  const [sinistralidade, setSinistralidade] = useState<{
+    totalCustoEventos: number; totalRecebido: number; sinistralidade: number;
+    mensalData: { mes: string; custo: number; recebido: number; sinistralidade: number }[];
+  } | null>(null);
+
+  // Sinistralidade (custo): custo de eventos (MGF, centro de custo EVENTOS*)
+  // ÷ total recebido (MGF, entradas pagas). Busca independente — não depende
+  // da importação do SGA nem dos filtros da tela.
+  useEffect(() => {
+    if (!corretoraId) { setSinistralidade(null); return; }
+    supabase.rpc('calcular_sinistralidade', { p_corretora_id: corretoraId }).then(({ data, error }) => {
+      if (error) { console.error('[SGADashboard] sinistralidade:', error.message); setSinistralidade(null); return; }
+      const d = data as any;
+      setSinistralidade(d && Number(d.totalRecebido) > 0 ? d : null);
+    });
+  }, [corretoraId]);
+
+  const sinistralidadeMensal = useMemo(
+    () =>
+      (sinistralidade?.mensalData || []).map((d) => ({
+        ...d,
+        mesLabel: new Date(d.mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      })),
+    [sinistralidade?.mensalData],
+  );
 
   const openDetailDialog = (title: string, filterType: string, filterValue: string) =>
     setDetailDialog({ open: true, title, filterType, filterValue });
