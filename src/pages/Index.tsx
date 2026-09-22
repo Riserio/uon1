@@ -870,15 +870,6 @@ const Index = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => navigate("/configuracao-status-publico")}
-                    title="Configurar Status Públicos"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
                     onClick={() => setFluxoVisualizationOpen(true)}
                     title="Visualizar Fluxo Completo"
                   >
