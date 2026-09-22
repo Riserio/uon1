@@ -197,6 +197,8 @@ export default function MGFTabela({
 
   const [rows, setRows] = useState<any[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [totalAPagar, setTotalAPagar] = useState(0);
+  const [totalPago, setTotalPago] = useState(0);
   const [tableLoading, setTableLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
