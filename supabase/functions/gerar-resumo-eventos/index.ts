@@ -227,7 +227,9 @@ serve(async (req) => {
     // Find cooperativa with most events
     let cooperativaMaisEventos = { nome: 'N/A', quantidade: 0 };
     Object.entries(cooperativaContagem).forEach(([coop, qtd]) => {
-      if (qtd > cooperativaMaisEventos.quantidade) {
+      // Registros sem identificação não competem com cooperativas reais no
+      // destaque; isso evita "Sem cooperativa" ocupar a primeira posição.
+      if (coop !== "Sem cooperativa" && qtd > cooperativaMaisEventos.quantidade) {
         cooperativaMaisEventos = { nome: coop, quantidade: qtd };
       }
     });
