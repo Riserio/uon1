@@ -678,7 +678,7 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
       {/* KPIs Sinistralidade e Inadimplência - Linha 2 */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <MetricCard
-          title="Sinistralidade Geral"
+          title="Sinistralidade por Volume de Eventos"
           value={formatPercent(calculatedData.sinistralidade_geral)}
           icon={<AlertTriangle className="h-4 w-4" />}
           isPercent
@@ -904,7 +904,7 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
                   <PercentDisplayField label="Índice Dano Parcial" value={calculatedData.indice_dano_parcial} />
                   <PercentDisplayField label="Índice Dano Integral" value={calculatedData.indice_dano_integral} />
                   <PercentDisplayField label="Sinistralidade Financeira" value={calculatedData.sinistralidade_financeira} />
-                  <PercentDisplayField label="Sinistralidade Geral" value={calculatedData.sinistralidade_geral} />
+                  <PercentDisplayField label="Sinistralidade por Volume de Eventos" value={calculatedData.sinistralidade_geral} />
                 </div>
               </CardContent>
             </Card>

@@ -1108,7 +1108,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                   ? mediasConsolidadas.sinistralidade_geral
                   : dadosAtual.sinistralidade_geral || 0,
               )}
-              label="Sinistralidade Geral"
+              label="Sinistralidade por Volume de Eventos"
               variation={
                 !todoPeriodo ? (
                   <VariationIndicator

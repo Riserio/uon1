@@ -360,6 +360,43 @@ export default function SGADashboard({
         </Card>
       )}
 
+      {/* Evolução da Sinistralidade por Volume de Eventos */}
+      {sinistralidadeVolume && sinistralidadeVolumeMensal.some(m => m.sinistralidade != null) && (
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-2 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <Percent className="h-4 w-4 text-sky-600" />
+              <CardTitle className="font-serif text-sm font-semibold">Sinistralidade por Volume de Eventos</CardTitle>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Sinistros do mês ÷ placas ativas no dia 01 · Média 12 meses: {sinistralidadeVolume.media12m.toFixed(2)}%
+            </p>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={sinistralidadeVolumeMensal} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradSinistralidadeVol" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0284c7" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#0284c7" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="mesLabel" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11 }} width={48} unit="%" />
+                <Tooltip
+                  contentStyle={ttStyle}
+                  formatter={(v: any, name: string) => {
+                    if (name === 'Sinistralidade') return v == null ? ['sem placas', name] : [`${Number(v).toFixed(2)}%`, name];
+                    return [Number(v).toLocaleString('pt-BR'), name];
+                  }}
+                />
+                <Area type="monotone" dataKey="sinistralidade" name="Sinistralidade" stroke="#0284c7" strokeWidth={2.5} fill="url(#gradSinistralidadeVol)" connectNulls />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Evolução Timeline */}
       <Card className="rounded-2xl border-border/40">
         <CardHeader className="pb-2 pt-4 px-5">
