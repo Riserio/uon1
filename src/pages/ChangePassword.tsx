@@ -100,7 +100,7 @@ export default function ChangePassword() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-2">
-          <CardTitle className="font-serif text-2xl font-semibold text-center">Crie sua nova senha</CardTitle>
+          <CardTitle className="text-2xl font-semibold text-center">Crie sua nova senha</CardTitle>
           <CardDescription className="text-center">
             Por segurança, defina uma senha pessoal antes de acessar o sistema.
           </CardDescription>

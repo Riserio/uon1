@@ -166,7 +166,7 @@ function StatusGroup({ titulo, cor, groupId, statuses, collapsed, onToggleCollap
         className="flex w-full items-center gap-2 pb-2 text-left">
         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
         <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: cor }} />
-        <span className="font-serif text-base font-semibold">{titulo}</span>
+        <span className="text-base font-semibold">{titulo}</span>
         <Badge variant="secondary" className="ml-1">{statuses.length}</Badge>
       </button>
       {!collapsed && (
