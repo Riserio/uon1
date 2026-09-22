@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, ChevronLeft, ChevronRight, Timer } from "lucide-react";
 import SGAEventosDetailDialog from "./SGAEventosDetailDialog";
 
 // NOTE (escalabilidade): este componente não recebe mais o array cru de
@@ -34,6 +34,7 @@ interface SGADashboardStats {
   envolvimentoData: { name: string; value: number }[];
   timelineData: { mes: string; eventos: number; custo: number }[];
   timelineDiaData: { dia: string; eventos: number; custo: number }[];
+  conclusaoData?: { totalMedidos: number; ate60: number; de61a70: number; de71a90: number; acima90: number };
 }
 
 interface SGADashboardProps {
