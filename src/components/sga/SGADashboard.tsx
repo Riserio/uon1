@@ -259,7 +259,7 @@ export default function SGADashboard({
   return (
     <div className="space-y-3 max-w-full overflow-x-hidden">
       {/* KPI Cards */}
-      <div className="grid gap-2.5 sm:gap-3 grid-cols-2 md:grid-cols-4">
+      <div className={`grid gap-2.5 sm:gap-3 grid-cols-2 ${sinistralidade ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
         {[
           { label: "Custo Total", value: formatCompactCurrency(stats.totalCusto), icon: DollarSign, cls: "text-primary bg-primary/5 border-primary/20" },
           { label: "Total Reparo", value: formatCompactCurrency(stats.totalReparo), icon: Car, cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
@@ -275,7 +275,56 @@ export default function SGADashboard({
             </CardContent>
           </Card>
         ))}
+        {sinistralidade && (
+          <Card className="rounded-2xl border min-w-0 text-orange-600 bg-orange-500/5 border-orange-500/30">
+            <CardContent className="p-3 sm:p-4 min-w-0">
+              <div className="flex items-center gap-1.5 text-[11px] font-medium mb-1.5 truncate text-orange-600" title="Custo de eventos ÷ total recebido (MGF)">
+                <Percent className="h-3 w-3 shrink-0" /><span className="truncate">Sinistralidade (Custo)</span>
+              </div>
+              <div className="font-serif text-base sm:text-xl font-semibold tracking-tight tabular-nums truncate" title={`Custo de eventos: ${formatCurrency(sinistralidade.totalCustoEventos)} · Recebido: ${formatCurrency(sinistralidade.totalRecebido)}`}>
+                {sinistralidade.sinistralidade.toFixed(1)}%
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
+
+      {/* Evolução da Sinistralidade (Custo) */}
+      {sinistralidade && sinistralidadeMensal.length > 1 && (
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-2 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <Percent className="h-4 w-4 text-orange-600" />
+              <CardTitle className="font-serif text-sm font-semibold">Evolução da Sinistralidade (Custo)</CardTitle>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Custo de eventos ÷ valor recebido, mês a mês (dados financeiros MGF)
+            </p>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={sinistralidadeMensal} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradSinistralidade" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ea580c" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#ea580c" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="mesLabel" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11 }} width={48} unit="%" />
+                <Tooltip
+                  contentStyle={ttStyle}
+                  formatter={(v: any, name: string) => {
+                    if (name === 'Sinistralidade') return [`${Number(v).toFixed(1)}%`, name];
+                    return [formatCurrency(Number(v)), name];
+                  }}
+                />
+                <Area type="monotone" dataKey="sinistralidade" name="Sinistralidade" stroke="#ea580c" strokeWidth={2.5} fill="url(#gradSinistralidade)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Evolução Timeline */}
       <Card className="rounded-2xl border-border/40">
