@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Authenticated can view template schedules" ON public.whatsapp_template_schedules;

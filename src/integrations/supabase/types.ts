@@ -10129,6 +10129,15 @@ export type Database = {
             Returns: Json
           }
       importar_mgf_api: { Args: { p_corretora_id: string }; Returns: Json }
+      importar_mgf_api_periodo: {
+        Args: {
+          p_corretora_id: string
+          p_fim: string
+          p_inicio: string
+          p_max_paginas?: number
+        }
+        Returns: Json
+      }
       importar_tudo_api_todas: { Args: never; Returns: Json }
       is_equipe_interna: { Args: { _user_id: string }; Returns: boolean }
       jsonb_object_keys_count: { Args: { j: Json }; Returns: number }

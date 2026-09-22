@@ -113,6 +113,27 @@
       "when": 1790037410947,
       "tag": "0015_fix_importar_mgf_api_paginacao_e_campos",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790037796210,
+      "tag": "0016_mgf_api_importacao_incremental_por_periodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790037978949,
+      "tag": "0017_fila_sync_alternar_modulos",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790037990961,
+      "tag": "0018_fix_whatsapp_template_schedules_select_policy",
+      "breakpoints": true
     }
   ]
 }
