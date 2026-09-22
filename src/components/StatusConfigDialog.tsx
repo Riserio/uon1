@@ -348,7 +348,7 @@ function StatusGroup({
           className="h-2.5 w-2.5 rounded-full shrink-0"
           style={{ backgroundColor: cor || 'hsl(var(--muted-foreground))' }}
         />
-        <h4 className="font-serif text-base font-semibold truncate">{nome}</h4>
+        <h4 className="text-base font-semibold truncate">{nome}</h4>
         <Badge variant="outline" className="text-[10px] tabular-nums">
           {statuses.length}
         </Badge>

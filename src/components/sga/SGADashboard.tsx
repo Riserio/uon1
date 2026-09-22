@@ -304,7 +304,7 @@ export default function SGADashboard({
               <div className="flex items-center gap-1.5 text-[11px] font-medium mb-1.5 truncate text-orange-600" title="Custo de eventos ÷ total recebido (MGF)">
                 <Percent className="h-3 w-3 shrink-0" /><span className="truncate">Sinistralidade (Custo)</span>
               </div>
-              <div className="font-serif text-base sm:text-xl font-semibold tracking-tight tabular-nums truncate" title={`Custo de eventos: ${formatCurrency(sinistralidade.totalCustoEventos)} · Recebido: ${formatCurrency(sinistralidade.totalRecebido)}`}>
+              <div className="text-base sm:text-xl font-semibold tracking-tight tabular-nums truncate" title={`Custo de eventos: ${formatCurrency(sinistralidade.totalCustoEventos)} · Recebido: ${formatCurrency(sinistralidade.totalRecebido)}`}>
                 {sinistralidade.sinistralidade.toFixed(1)}%
               </div>
             </CardContent>
@@ -316,7 +316,7 @@ export default function SGADashboard({
               <div className="flex items-center gap-1.5 text-[11px] font-medium mb-1.5 truncate text-sky-600" title="Sinistros ÷ placas ativas no dia 01 — média dos últimos 12 meses">
                 <Percent className="h-3 w-3 shrink-0" /><span className="truncate">Sinistr. por Volume (12m)</span>
               </div>
-              <div className="font-serif text-base sm:text-xl font-semibold tracking-tight tabular-nums truncate" title={`Média dos últimos 12 meses · Placas ativas hoje: ${sinistralidadeVolume.placasAtivasAtual.toLocaleString('pt-BR')}`}>
+              <div className="text-base sm:text-xl font-semibold tracking-tight tabular-nums truncate" title={`Média dos últimos 12 meses · Placas ativas hoje: ${sinistralidadeVolume.placasAtivasAtual.toLocaleString('pt-BR')}`}>
                 {sinistralidadeVolume.media12m.toFixed(2)}%
               </div>
             </CardContent>
@@ -330,7 +330,7 @@ export default function SGADashboard({
           <CardHeader className="pb-2 pt-4 px-5">
             <div className="flex items-center gap-2">
               <Percent className="h-4 w-4 text-orange-600" />
-              <CardTitle className="font-serif text-sm font-semibold">Evolução da Sinistralidade (Custo)</CardTitle>
+              <CardTitle className="text-sm font-semibold">Evolução da Sinistralidade (Custo)</CardTitle>
             </div>
             <p className="text-[11px] text-muted-foreground">
               Custo de eventos ÷ valor recebido, mês a mês (dados financeiros MGF)
@@ -367,7 +367,7 @@ export default function SGADashboard({
           <CardHeader className="pb-2 pt-4 px-5">
             <div className="flex items-center gap-2">
               <Percent className="h-4 w-4 text-sky-600" />
-              <CardTitle className="font-serif text-sm font-semibold">Sinistralidade por Volume de Eventos</CardTitle>
+              <CardTitle className="text-sm font-semibold">Sinistralidade por Volume de Eventos</CardTitle>
             </div>
             <p className="text-[11px] text-muted-foreground">
               Sinistros do mês ÷ placas ativas no dia 01 · Média 12 meses: {sinistralidadeVolume.media12m.toFixed(2)}%
