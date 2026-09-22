@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, ChevronLeft, ChevronRight, Timer } from "lucide-react";
 import SGAEventosDetailDialog from "./SGAEventosDetailDialog";
 
 // NOTE (escalabilidade): este componente não recebe mais o array cru de
@@ -34,6 +34,7 @@ interface SGADashboardStats {
   envolvimentoData: { name: string; value: number }[];
   timelineData: { mes: string; eventos: number; custo: number }[];
   timelineDiaData: { dia: string; eventos: number; custo: number }[];
+  conclusaoData?: { totalMedidos: number; ate60: number; de61a70: number; de71a90: number; acima90: number };
 }
 
 interface SGADashboardProps {
@@ -297,6 +298,32 @@ export default function SGADashboard({
           </div>
         </CardContent>
       </Card>
+
+      {/* Tempo de Conclusão de Eventos */}
+      {stats.conclusaoData && stats.conclusaoData.totalMedidos > 0 && (
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <Timer className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-semibold">Tempo de Conclusão de Eventos</CardTitle>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Do protocolo (abertura) até a finalização — {stats.conclusaoData.totalMedidos.toLocaleString("pt-BR")} eventos finalizados medidos
+            </p>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <BarWidget
+              data={[
+                { name: "Finalizados em até 60 dias", value: stats.conclusaoData.ate60, fill: "#10b981" },
+                { name: "Finalizados em até 70 dias", value: stats.conclusaoData.de61a70, fill: "#84cc16" },
+                { name: "Finalizados em até 90 dias", value: stats.conclusaoData.de71a90, fill: "#f59e0b" },
+                { name: "Finalizados acima de 90 dias", value: stats.conclusaoData.acima90, fill: "#ef4444" },
+              ]}
+              total={stats.conclusaoData.totalMedidos}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Situação (Donut) + Regional (Bars) */}
       <div className="grid gap-3 lg:grid-cols-2">
