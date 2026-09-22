@@ -1,9 +1,10 @@
 import { useMemo, useState, useRef, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, ChevronLeft, ChevronRight, Timer } from "lucide-react";
+import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, ChevronLeft, ChevronRight, Timer, Percent } from "lucide-react";
 import SGAEventosDetailDialog from "./SGAEventosDetailDialog";
 
 // NOTE (escalabilidade): este componente não recebe mais o array cru de
