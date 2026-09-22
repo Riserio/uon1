@@ -92,6 +92,13 @@
       "when": 1790036167655,
       "tag": "0012_add_tempo_conclusao_eventos_dashboard",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790036417314,
+      "tag": "0013_create_calcular_sinistralidade",
+      "breakpoints": true
     }
   ]
 }
