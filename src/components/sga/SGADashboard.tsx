@@ -162,16 +162,25 @@ export default function SGADashboard({
     totalCustoEventos: number; totalRecebido: number; sinistralidade: number;
     mensalData: { mes: string; custo: number; recebido: number; sinistralidade: number }[];
   } | null>(null);
+  const [sinistralidadeVolume, setSinistralidadeVolume] = useState<{
+    media12m: number; placasAtivasAtual: number;
+    mensalData: { mes: string; sinistros: number; placas: number | null; sinistralidade: number | null }[];
+  } | null>(null);
 
   // Sinistralidade (custo): custo de eventos (MGF, centro de custo EVENTOS*)
   // ÷ total recebido (MGF, entradas pagas). Busca independente — não depende
   // da importação do SGA nem dos filtros da tela.
   useEffect(() => {
-    if (!corretoraId) { setSinistralidade(null); return; }
+    if (!corretoraId) { setSinistralidade(null); setSinistralidadeVolume(null); return; }
     supabase.rpc('calcular_sinistralidade', { p_corretora_id: corretoraId }).then(({ data, error }) => {
       if (error) { console.error('[SGADashboard] sinistralidade:', error.message); setSinistralidade(null); return; }
       const d = data as any;
       setSinistralidade(d && Number(d.totalRecebido) > 0 ? d : null);
+    });
+    supabase.rpc('calcular_sinistralidade_volume', { p_corretora_id: corretoraId }).then(({ data, error }) => {
+      if (error) { console.error('[SGADashboard] sinistralidade volume:', error.message); setSinistralidadeVolume(null); return; }
+      const d = data as any;
+      setSinistralidadeVolume(d && (d.mensalData || []).some((m: any) => m.sinistralidade != null) ? d : null);
     });
   }, [corretoraId]);
 
@@ -182,6 +191,15 @@ export default function SGADashboard({
         mesLabel: new Date(d.mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
       })),
     [sinistralidade?.mensalData],
+  );
+
+  const sinistralidadeVolumeMensal = useMemo(
+    () =>
+      (sinistralidadeVolume?.mensalData || []).map((d) => ({
+        ...d,
+        mesLabel: new Date(d.mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      })),
+    [sinistralidadeVolume?.mensalData],
   );
 
   const openDetailDialog = (title: string, filterType: string, filterValue: string) =>
@@ -259,7 +277,11 @@ export default function SGADashboard({
   return (
     <div className="space-y-3 max-w-full overflow-x-hidden">
       {/* KPI Cards */}
-      <div className={`grid gap-2.5 sm:gap-3 grid-cols-2 ${sinistralidade ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
+      <div className={`grid gap-2.5 sm:gap-3 grid-cols-2 ${
+        sinistralidade && sinistralidadeVolume ? 'md:grid-cols-3 lg:grid-cols-6'
+          : (sinistralidade || sinistralidadeVolume) ? 'md:grid-cols-3 lg:grid-cols-5'
+          : 'md:grid-cols-4'
+      }`}>
         {[
           { label: "Custo Total", value: formatCompactCurrency(stats.totalCusto), icon: DollarSign, cls: "text-primary bg-primary/5 border-primary/20" },
           { label: "Total Reparo", value: formatCompactCurrency(stats.totalReparo), icon: Car, cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
@@ -283,6 +305,18 @@ export default function SGADashboard({
               </div>
               <div className="font-serif text-base sm:text-xl font-semibold tracking-tight tabular-nums truncate" title={`Custo de eventos: ${formatCurrency(sinistralidade.totalCustoEventos)} · Recebido: ${formatCurrency(sinistralidade.totalRecebido)}`}>
                 {sinistralidade.sinistralidade.toFixed(1)}%
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {sinistralidadeVolume && (
+          <Card className="rounded-2xl border min-w-0 text-sky-600 bg-sky-500/5 border-sky-500/30">
+            <CardContent className="p-3 sm:p-4 min-w-0">
+              <div className="flex items-center gap-1.5 text-[11px] font-medium mb-1.5 truncate text-sky-600" title="Sinistros ÷ placas ativas no dia 01 — média dos últimos 12 meses">
+                <Percent className="h-3 w-3 shrink-0" /><span className="truncate">Sinistr. por Volume (12m)</span>
+              </div>
+              <div className="font-serif text-base sm:text-xl font-semibold tracking-tight tabular-nums truncate" title={`Média dos últimos 12 meses · Placas ativas hoje: ${sinistralidadeVolume.placasAtivasAtual.toLocaleString('pt-BR')}`}>
+                {sinistralidadeVolume.media12m.toFixed(2)}%
               </div>
             </CardContent>
           </Card>
@@ -320,6 +354,43 @@ export default function SGADashboard({
                   }}
                 />
                 <Area type="monotone" dataKey="sinistralidade" name="Sinistralidade" stroke="#ea580c" strokeWidth={2.5} fill="url(#gradSinistralidade)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Evolução da Sinistralidade por Volume de Eventos */}
+      {sinistralidadeVolume && sinistralidadeVolumeMensal.some(m => m.sinistralidade != null) && (
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-2 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <Percent className="h-4 w-4 text-sky-600" />
+              <CardTitle className="font-serif text-sm font-semibold">Sinistralidade por Volume de Eventos</CardTitle>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Sinistros do mês ÷ placas ativas no dia 01 · Média 12 meses: {sinistralidadeVolume.media12m.toFixed(2)}%
+            </p>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={sinistralidadeVolumeMensal} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradSinistralidadeVol" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0284c7" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#0284c7" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="mesLabel" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11 }} width={48} unit="%" />
+                <Tooltip
+                  contentStyle={ttStyle}
+                  formatter={(v: any, name: string) => {
+                    if (name === 'Sinistralidade') return v == null ? ['sem placas', name] : [`${Number(v).toFixed(2)}%`, name];
+                    return [Number(v).toLocaleString('pt-BR'), name];
+                  }}
+                />
+                <Area type="monotone" dataKey="sinistralidade" name="Sinistralidade" stroke="#0284c7" strokeWidth={2.5} fill="url(#gradSinistralidadeVol)" connectNulls />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>

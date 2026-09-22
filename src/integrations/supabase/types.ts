@@ -9850,6 +9850,10 @@ export type Database = {
         Args: { p_corretora_id: string }
         Returns: Json
       }
+      calcular_sinistralidade_volume: {
+        Args: { p_corretora_id: string }
+        Returns: Json
+      }
       can_manage_gestao: { Args: { _user_id: string }; Returns: boolean }
       can_send_email: { Args: { provider_name: string }; Returns: boolean }
       can_view_profile: {

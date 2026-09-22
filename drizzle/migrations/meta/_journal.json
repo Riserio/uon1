@@ -99,6 +99,13 @@
       "when": 1790036417314,
       "tag": "0013_create_calcular_sinistralidade",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790036534419,
+      "tag": "0014_create_calcular_sinistralidade_volume",
+      "breakpoints": true
     }
   ]
 }
