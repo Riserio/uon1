@@ -283,6 +283,8 @@ export default function MGFTabela({
     if (!corretoraId) {
       setRows([]);
       setTotalCount(0);
+      setTotalAPagar(0);
+      setTotalPago(0);
       setTableLoading(false);
       return;
     }
@@ -298,6 +300,8 @@ export default function MGFTabela({
         const result = (data as any) || {};
         setRows(result.rows || []);
         setTotalCount(result.totalCount || 0);
+        setTotalAPagar(Number(result.totalAPagar) || 0);
+        setTotalPago(Number(result.totalPago) || 0);
       } catch (error) {
         console.error("Erro ao carregar tabela MGF:", error);
         if (myFetchId === fetchIdRef.current) {
