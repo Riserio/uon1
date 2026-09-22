@@ -277,7 +277,11 @@ export default function SGADashboard({
   return (
     <div className="space-y-3 max-w-full overflow-x-hidden">
       {/* KPI Cards */}
-      <div className={`grid gap-2.5 sm:gap-3 grid-cols-2 ${sinistralidade ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
+      <div className={`grid gap-2.5 sm:gap-3 grid-cols-2 ${
+        sinistralidade && sinistralidadeVolume ? 'md:grid-cols-3 lg:grid-cols-6'
+          : (sinistralidade || sinistralidadeVolume) ? 'md:grid-cols-3 lg:grid-cols-5'
+          : 'md:grid-cols-4'
+      }`}>
         {[
           { label: "Custo Total", value: formatCompactCurrency(stats.totalCusto), icon: DollarSign, cls: "text-primary bg-primary/5 border-primary/20" },
           { label: "Total Reparo", value: formatCompactCurrency(stats.totalReparo), icon: Car, cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
@@ -301,6 +305,18 @@ export default function SGADashboard({
               </div>
               <div className="font-serif text-base sm:text-xl font-semibold tracking-tight tabular-nums truncate" title={`Custo de eventos: ${formatCurrency(sinistralidade.totalCustoEventos)} · Recebido: ${formatCurrency(sinistralidade.totalRecebido)}`}>
                 {sinistralidade.sinistralidade.toFixed(1)}%
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {sinistralidadeVolume && (
+          <Card className="rounded-2xl border min-w-0 text-sky-600 bg-sky-500/5 border-sky-500/30">
+            <CardContent className="p-3 sm:p-4 min-w-0">
+              <div className="flex items-center gap-1.5 text-[11px] font-medium mb-1.5 truncate text-sky-600" title="Sinistros ÷ placas ativas no dia 01 — média dos últimos 12 meses">
+                <Percent className="h-3 w-3 shrink-0" /><span className="truncate">Sinistr. por Volume (12m)</span>
+              </div>
+              <div className="font-serif text-base sm:text-xl font-semibold tracking-tight tabular-nums truncate" title={`Média dos últimos 12 meses · Placas ativas hoje: ${sinistralidadeVolume.placasAtivasAtual.toLocaleString('pt-BR')}`}>
+                {sinistralidadeVolume.media12m.toFixed(2)}%
               </div>
             </CardContent>
           </Card>
