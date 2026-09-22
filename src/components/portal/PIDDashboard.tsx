@@ -778,7 +778,10 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         cancelamentos: d.cancelamentos || 0,
         inadimplentes: d.inadimplentes || 0,
         reativacao: d.reativacao || 0,
-        churn: (d.churn || 0) * 100,
+        // Churn: espelha o calculo do painel operacional (cancelamentos / placas ativas).
+        // O valor gravado em pid_operacional.churn fica zerado em meses cuja
+        // derivacao rodou antes do lancamento dos cancelamentos.
+        churn: (d.churn || 0) > 0 ? (d.churn || 0) * 100 : calcPercent(d.cancelamentos, d.placas_ativas),
         permanencia: permanencia,
         indice_permanencia: indicePermanencia,
         boletos_emitidos: d.boletos_emitidos || 0,
