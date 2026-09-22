@@ -78,6 +78,13 @@
       "when": 1790034880557,
       "tag": "0010_fix_temporary_password_redirect_and_restrict_sensitive_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790035223778,
+      "tag": "0011_restrict_bug_reports_read_and_financeiro_upload",
+      "breakpoints": true
     }
   ]
 }
