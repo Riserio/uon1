@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { getVistoriaClient } from "@/integrations/supabase/vistoriaClient";
+import { getVistoriaPublica, atualizarVistoriaPublica } from "@/integrations/supabase/vistoriaClient";
 import { toast } from "sonner";
 import { CheckCircle2, FileText, ExternalLink, Calendar, Hash, PartyPopper } from "lucide-react";
 
@@ -19,19 +19,7 @@ export default function VistoriaPublicaConclusao() {
 
   const loadVistoria = async () => {
     try {
-      const { data, error } = await getVistoriaClient(token)
-        .from("vistorias")
-        .select(`
-          id,
-          numero,
-          status,
-          completed_at,
-          corretora_id,
-          link_token,
-          corretoras(nome, logo_url, slug)
-        `)
-        .eq("link_token", token)
-        .single();
+      const { data, error } = await getVistoriaPublica(token);
 
       if (error) throw error;
       if (!data) {
