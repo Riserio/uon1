@@ -51,7 +51,6 @@ const VistoriaPublicaTermos = lazyWithRetry(() => import('./pages/VistoriaPublic
 const VistoriaPublicaConclusao = lazyWithRetry(() => import('./pages/VistoriaPublicaConclusao'));
 const AcompanhamentoSinistro = lazyWithRetry(() => import('./pages/AcompanhamentoSinistro'));
 const AcompanhamentoSinistroInterno = lazyWithRetry(() => import('./pages/AcompanhamentoSinistroInterno'));
-const ConfiguracaoStatusPublico = lazyWithRetry(() => import('./pages/ConfiguracaoStatusPublico'));
 const Administradora = lazyWithRetry(() => import("./pages/Administradora"));
 const PortalLogin = lazyWithRetry(() => import('./pages/portal/PortalLogin'));
 const PortalDashboard = lazyWithRetry(() => import('./pages/portal/PortalDashboard'));
