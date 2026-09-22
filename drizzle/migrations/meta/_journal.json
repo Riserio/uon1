@@ -127,6 +127,13 @@
       "when": 1790037978949,
       "tag": "0017_fila_sync_alternar_modulos",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790037990961,
+      "tag": "0018_fix_whatsapp_template_schedules_select_policy",
+      "breakpoints": true
     }
   ]
 }
