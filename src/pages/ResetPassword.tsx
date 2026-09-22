@@ -39,34 +39,33 @@ export default function ResetPassword() {
 
       const redirectTo = `${window.location.origin}/reset-password?type=recovery`;
 
-      // Gera o link real de recuperação via Supabase (envia também o email padrão)
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo,
-      });
-
-      if (error) throw error;
-
-      // Sempre dispara o template customizado (SMTP → Resend fallback)
-      const { error: fnError } = await supabase.functions.invoke('enviar-email-recuperacao', {
+      // Envia apenas o template customizado (a função gera o link real de recuperação)
+      const { data, error: fnError } = await supabase.functions.invoke('enviar-email-recuperacao', {
         body: {
           to: email,
           resetLink: redirectTo,
         },
       });
 
-      if (fnError) {
-        console.error('Erro ao enviar template customizado:', fnError);
+      if (fnError || (data && (data as any).error)) {
+        console.error('Erro ao enviar email de recuperação:', fnError || (data as any).error);
+        // Fallback: usa o envio padrão do sistema
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+        if (error) throw error;
       }
 
       toast.success('Email de recuperação enviado! Verifique sua caixa de entrada.');
       setTimeout(() => navigate('/auth'), 2000);
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
+      } else if (String(error?.message || '').includes('rate limit')) {
+        toast.error('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
       } else {
         toast.error('Erro ao enviar email de recuperação');
       }
     }
+
     setLoading(false);
   };
 
