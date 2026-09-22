@@ -134,6 +134,13 @@
       "when": 1790037990961,
       "tag": "0018_fix_whatsapp_template_schedules_select_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790102515804,
+      "tag": "0019_resolve_cooperative_names_in_billing_summary",
+      "breakpoints": true
     }
   ]
 }
