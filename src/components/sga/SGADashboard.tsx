@@ -434,7 +434,7 @@ export default function SGADashboard({
                     <XAxis dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
                     <YAxis yAxisId="left" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
                     <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={formatCompactCurrency} axisLine={false} tickLine={false} width={52} />
-                    <Tooltip contentStyle={ttStyle} formatter={(v: any, name: string) => [name === 'custo' ? formatCurrency(v) : v.toLocaleString('pt-BR'), name === 'custo' ? 'Custo' : 'Eventos']} />
+                    <Tooltip contentStyle={ttStyle} formatter={(v: any, name: string) => [name === 'Custo' ? formatCurrency(v) : Number(v).toLocaleString('pt-BR'), name]} />
                     <Area yAxisId="left" type="monotone" dataKey="eventos" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.15} strokeWidth={2} name="Eventos" />
                     <Area yAxisId="right" type="monotone" dataKey="custo" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} strokeWidth={2} name="Custo" />
                   </AreaChart>
