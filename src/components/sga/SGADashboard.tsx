@@ -34,7 +34,7 @@ interface SGADashboardStats {
   envolvimentoData: { name: string; value: number }[];
   timelineData: { mes: string; eventos: number; custo: number }[];
   timelineDiaData: { dia: string; eventos: number; custo: number }[];
-  conclusaoData?: { totalMedidos: number; ate60: number; de61a70: number; de71a90: number; acima90: number };
+  conclusaoData?: { totalMedidos: number; ate60: number; ate70: number; ate90: number; acima90: number };
 }
 
 interface SGADashboardProps {
@@ -315,8 +315,8 @@ export default function SGADashboard({
             <BarWidget
               data={[
                 { name: "Finalizados em até 60 dias", value: stats.conclusaoData.ate60, fill: "#10b981" },
-                { name: "Finalizados em até 70 dias", value: stats.conclusaoData.de61a70, fill: "#84cc16" },
-                { name: "Finalizados em até 90 dias", value: stats.conclusaoData.de71a90, fill: "#f59e0b" },
+                { name: "Finalizados em até 70 dias", value: stats.conclusaoData.ate70, fill: "#84cc16" },
+                { name: "Finalizados em até 90 dias", value: stats.conclusaoData.ate90, fill: "#f59e0b" },
                 { name: "Finalizados acima de 90 dias", value: stats.conclusaoData.acima90, fill: "#ef4444" },
               ]}
               total={stats.conclusaoData.totalMedidos}
