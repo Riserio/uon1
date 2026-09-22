@@ -299,6 +299,32 @@ export default function SGADashboard({
         </CardContent>
       </Card>
 
+      {/* Tempo de Conclusão de Eventos */}
+      {stats.conclusaoData && stats.conclusaoData.totalMedidos > 0 && (
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <Timer className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-semibold">Tempo de Conclusão de Eventos</CardTitle>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Do protocolo (abertura) até a finalização — {stats.conclusaoData.totalMedidos.toLocaleString("pt-BR")} eventos finalizados medidos
+            </p>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <BarWidget
+              data={[
+                { name: "Finalizados em até 60 dias", value: stats.conclusaoData.ate60, fill: "#10b981" },
+                { name: "Finalizados em até 70 dias", value: stats.conclusaoData.de61a70, fill: "#84cc16" },
+                { name: "Finalizados em até 90 dias", value: stats.conclusaoData.de71a90, fill: "#f59e0b" },
+                { name: "Finalizados acima de 90 dias", value: stats.conclusaoData.acima90, fill: "#ef4444" },
+              ]}
+              total={stats.conclusaoData.totalMedidos}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Situação (Donut) + Regional (Bars) */}
       <div className="grid gap-3 lg:grid-cols-2">
         <Card className="rounded-2xl border-border/40">
