@@ -508,9 +508,31 @@ export default function MGFTabela({
       <CardHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex flex-wrap items-center gap-2">
               <Database className="h-5 w-5 text-orange-500" />
               Dados Completos ({totalCount.toLocaleString()} registros)
+              {!tableLoading && totalCount > 0 && (
+                <span className="flex flex-wrap items-center gap-2 ml-1">
+                  <Badge
+                    variant="outline"
+                    className="text-xs font-semibold bg-orange-500/10 text-orange-600 border-orange-500/30"
+                    title={`Soma dos valores a pagar (a vencer + vencidos) dos ${totalCount.toLocaleString()} registros filtrados`}
+                  >
+                    Total a pagar:{" "}
+                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalAPagar)}
+                  </Badge>
+                  {status.pago && totalPago > 0 && (
+                    <Badge
+                      variant="outline"
+                      className="text-xs font-semibold bg-emerald-600/10 text-emerald-700 border-emerald-600/30"
+                      title="Soma dos valores pagos dentro do filtro atual"
+                    >
+                      Pago:{" "}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalPago)}
+                    </Badge>
+                  )}
+                </span>
+              )}
             </CardTitle>
             <div className="flex items-center gap-2">
               <div className="relative">
