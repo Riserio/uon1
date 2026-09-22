@@ -85,6 +85,13 @@
       "when": 1790035223778,
       "tag": "0011_restrict_bug_reports_read_and_financeiro_upload",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790036167655,
+      "tag": "0012_add_tempo_conclusao_eventos_dashboard",
+      "breakpoints": true
     }
   ]
 }
