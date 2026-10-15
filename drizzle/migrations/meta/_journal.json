@@ -148,6 +148,13 @@
       "when": 1790102913629,
       "tag": "0020_secure_public_vistoria_token_access",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792075527982,
+      "tag": "0021_registrar_estado_sync_relatorio",
+      "breakpoints": true
     }
   ]
 }
