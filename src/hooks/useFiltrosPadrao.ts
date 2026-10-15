@@ -8,6 +8,11 @@ import { toast } from "sonner";
  * - 1 SELECT ao abrir a tela (cache react-query 30 min, sem polling/realtime).
  * - Grava apenas no clique de "Salvar como padrão" (upsert); nada de autosave.
  */
+// Datas salvas em JSON voltam como string ISO; reconverte para Date.
+const reviver = (_k: string, v: unknown) =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v) ? new Date(v) : v;
+const roundtrip = <T,>(v: T): T => JSON.parse(JSON.stringify(v), reviver);
+
 export function useFiltrosPadrao<T extends Record<string, unknown>>(tela: string, corretoraId: string | null | undefined) {
   const qc = useQueryClient();
   const key = ["bi_filtros_padrao", tela, corretoraId ?? null];
@@ -25,7 +30,7 @@ export function useFiltrosPadrao<T extends Record<string, unknown>>(tela: string
       q = corretoraId ? q.eq("corretora_id", corretoraId) : q.is("corretora_id", null);
       const { data, error } = await q.maybeSingle();
       if (error) throw error;
-      return (data?.filtros as Partial<T>) ?? null;
+      return data?.filtros ? roundtrip(data.filtros as Partial<T>) : null;
     },
   });
 
@@ -38,7 +43,7 @@ export function useFiltrosPadrao<T extends Record<string, unknown>>(tela: string
           user_id: auth.user.id,
           tela,
           corretora_id: corretoraId ?? null,
-          filtros: filtros as never,
+          filtros: JSON.parse(JSON.stringify(filtros)),
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id,tela,corretora_id" },
@@ -47,7 +52,7 @@ export function useFiltrosPadrao<T extends Record<string, unknown>>(tela: string
         toast.error("Não foi possível salvar o padrão de filtros.");
         return;
       }
-      qc.setQueryData(key, filtros);
+      qc.setQueryData(key, roundtrip(filtros));
       toast.success("Filtros salvos como padrão.");
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
