@@ -162,6 +162,13 @@
       "when": 1792075726862,
       "tag": "0022_dashboard_cobranca_filtro_tipos",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792075919355,
+      "tag": "0023_listar_boletos_filtro_tipos",
+      "breakpoints": true
     }
   ]
 }

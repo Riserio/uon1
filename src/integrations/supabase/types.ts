@@ -10271,6 +10271,7 @@ export type Database = {
           p_situacao?: string
           p_sort_col?: string
           p_sort_dir?: string
+          p_tipos?: string[]
           p_voluntario?: string
         }
         Returns: Json
