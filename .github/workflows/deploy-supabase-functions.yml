@@ -33,6 +33,7 @@ jobs:
       - name: Deploy edge functions (API Hinova + base)
         run: |
           set -e
+          FALHAS=""
           for fn in \
             importar-api-hinova \
             consultar-associado-hinova \
@@ -52,5 +53,14 @@ jobs:
             verify-metodo-seguranca \
             pwa-manifest; do
             echo "== deploy $fn =="
-            supabase functions deploy "$fn" --project-ref "$PROJECT_REF" || echo "FALHOU: $fn"
+            if ! supabase functions deploy "$fn" --project-ref "$PROJECT_REF"; then
+              echo "::error::Falhou o deploy de $fn"
+              FALHAS="$FALHAS $fn"
+            fi
           done
+          # Antes as falhas eram engolidas ("|| echo FALHOU") e o run ficava
+          # verde mesmo sem publicar nada. Agora o run fica vermelho.
+          if [ -n "$FALHAS" ]; then
+            echo "::error::Funções não publicadas:$FALHAS (confira o secret SUPABASE_ACCESS_TOKEN)"
+            exit 1
+          fi
