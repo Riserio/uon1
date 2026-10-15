@@ -127,15 +127,19 @@ serve(async (req) => {
     // já passaram da data de vencimento.
     const { data: cfgInad } = await supabase
       .from("cobranca_automacao_config")
-      .select("inadimplencia_base")
+      .select("inadimplencia_base, tipos_boleto_relatorio")
       .eq("corretora_id", corretora_id)
       .maybeSingle();
     const somenteVencidos = (cfgInad?.inadimplencia_base ?? "total") === "vencidos";
+    // Tipos de boleto do bloco principal (padrão: só mensalidade/FECHAMENTO).
+    const tiposCfg = (cfgInad as { tipos_boleto_relatorio?: string[] | null } | null)?.tipos_boleto_relatorio;
+    const tiposRelatorio: string[] = Array.isArray(tiposCfg) && tiposCfg.length > 0 ? tiposCfg : ["FECHAMENTO"];
 
     const { data: metrics, error: metricsError } = await supabase.rpc("calcular_resumo_cobranca", {
       p_importacao_ids: importacaoIds,
       p_mes_referencia: mesReferencia,
       p_somente_vencidos: somenteVencidos,
+      p_tipos: tiposRelatorio,
     });
 
     if (metricsError) {
