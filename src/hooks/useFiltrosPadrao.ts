@@ -13,7 +13,7 @@ const reviver = (_k: string, v: unknown) =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v) ? new Date(v) : v;
 const roundtrip = <T,>(v: T): T => JSON.parse(JSON.stringify(v), reviver);
 
-export function useFiltrosPadrao<T extends Record<string, unknown>>(tela: string, corretoraId: string | null | undefined) {
+export function useFiltrosPadrao<T extends object>(tela: string, corretoraId: string | null | undefined) {
   const qc = useQueryClient();
   const key = ["bi_filtros_padrao", tela, corretoraId ?? null];
 
