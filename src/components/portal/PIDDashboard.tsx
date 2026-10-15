@@ -1,6 +1,6 @@
 import FiltrosPadraoBotoes from "@/components/bi/FiltrosPadraoBotoes";
 import { useFiltrosPadrao } from "@/hooks/useFiltrosPadrao";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SyncStatusHint from "@/components/portal/SyncStatusHint";
