@@ -327,7 +327,7 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     importacaoIds.join(","), corretoraId, globalFilters.mesReferencia, globalFilters.situacao,
-    globalFilters.regional, globalFilters.cooperativa, globalFilters.diaVencimento, (globalFilters.tiposBoleto || []).join("|"), (globalFilters.tiposBoleto || []).join("|"),
+    globalFilters.regional, globalFilters.cooperativa, globalFilters.diaVencimento, (globalFilters.tiposBoleto || []).join("|"),
     filtroSituacoes.join(","), filtroRegional, filtroCooperativa, filtroDiaVencimento, filtroPlacas,
     filtroDataPagamentoDe, filtroDataPagamentoAte, filtroDataVencimentoDe, filtroDataVencimentoAte, filtroVoluntario,
   ]);

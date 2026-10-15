@@ -129,6 +129,8 @@ export default function CobrancaInsights() {
   });
   // Debounce (~400 ms) do filtro de tipo para não disparar uma consulta por clique.
   const [tiposDebounced, setTiposDebounced] = useState<string[]>([]);
+  // Associação cujo padrão de filtros já foi aplicado (evita uma consulta "sem filtro" antes do padrão).
+  const [padraoPronto, setPadraoPronto] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setTiposDebounced(filters.tiposBoleto || []), 400);
     return () => clearTimeout(t);
@@ -361,10 +363,12 @@ export default function CobrancaInsights() {
       prevAssociacaoRef.current = selectedAssociacao;
     }
 
+    if (padraoPronto !== selectedAssociacao) return;
     fetchDashboardStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectedAssociacao,
+    padraoPronto,
     filters.mesReferencia,
     filters.situacao,
     filters.regional,
@@ -516,6 +520,7 @@ export default function CobrancaInsights() {
     if (padraoAplicadoRef.current === selectedAssociacao) return;
     padraoAplicadoRef.current = selectedAssociacao;
     aplicarPadrao();
+    setPadraoPronto(selectedAssociacao);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAssociacao, padraoCarregado, tiposRelatorio]);
 
