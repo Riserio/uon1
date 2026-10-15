@@ -512,7 +512,9 @@ export default function CobrancaInsights() {
   });
   const aplicarPadrao = () => {
     // Mês não é salvo como fixo: sempre abre no mês atual.
-    setFilters({ ...filtrosIniciais(), ...(padrao || {}), mesReferencia: getMesAtual() });
+    const novo = { ...filtrosIniciais(), ...(padrao || {}), mesReferencia: getMesAtual() };
+    setFilters(novo);
+    setTiposDebounced(novo.tiposBoleto || []);
     autoAdjustedMonthRef.current = false;
   };
   useEffect(() => {
