@@ -78,8 +78,10 @@ serve(async (req) => {
       new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0);
     const fmtInt = (v: number) => new Intl.NumberFormat("pt-BR").format(v || 0);
 
-    // Chama um gerador existente; retorna null se falhar (seção é omitida)
-    const invocar = async (fn: string): Promise<any | null> => {
+    // Chama um gerador existente; em caso de falha tenta 1 vez mais após ~3 s.
+    // Se ainda falhar, retorna null (seção é omitida) e registra o motivo em `avisos`.
+    const avisos: string[] = [];
+    const chamar = async (fn: string): Promise<{ json: any | null; erro: string | null }> => {
       try {
         const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
           method: "POST",
@@ -87,14 +89,27 @@ serve(async (req) => {
           body: JSON.stringify({ corretora_id }),
         });
         const json = await res.json().catch(() => null);
-        return json?.success ? json : null;
-      } catch {
-        return null;
+        if (json?.success) return { json, erro: null };
+        return { json: null, erro: json?.error || `HTTP ${res.status}` };
+      } catch (e) {
+        return { json: null, erro: e instanceof Error ? e.message : String(e) };
       }
+    };
+    const invocar = async (fn: string, rotulo: string): Promise<any | null> => {
+      let r = await chamar(fn);
+      if (!r.json) {
+        await new Promise((ok) => setTimeout(ok, 3000));
+        r = await chamar(fn);
+      }
+      if (!r.json) avisos.push(`${rotulo} indisponível: ${r.erro}`);
+      return r.json;
     };
 
     // ===== EVENTOS + COBRANÇA (reuso dos geradores oficiais) =====
-    const [evRes, cobRes] = await Promise.all([invocar("gerar-resumo-eventos"), invocar("gerar-resumo-cobranca")]);
+    const [evRes, cobRes] = await Promise.all([
+      invocar("gerar-resumo-eventos", "eventos"),
+      invocar("gerar-resumo-cobranca", "cobrança"),
+    ]);
     const ev = evRes?.dados || null;
     const cob = cobRes?.dados || null;
 
