@@ -197,6 +197,13 @@
       "when": 1792078656206,
       "tag": "0027_bi_status_alimentacao",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792078816855,
+      "tag": "0028_resumo_cobranca_dia_e_cooperativa",
+      "breakpoints": true
     }
   ]
 }

@@ -46,6 +46,9 @@ jobs:
             scheduler-cobranca-hinova \
                         gerar-resumo-cobranca \
                                     gerar-resumo-geral \
+            gerar-resumo-eventos \
+            gerar-pdf-resumo-geral \
+            whatsapp-template-schedule-runner \
             verify-metodo-seguranca \
             pwa-manifest; do
             echo "== deploy $fn =="

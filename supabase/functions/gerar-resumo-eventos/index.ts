@@ -66,7 +66,7 @@ serve(async (req) => {
       while (hasMore) {
         const { data: batchEventos, error: batchError } = await supabase
         .from('sga_eventos')
-        .select('motivo_evento, evento_cidade, cooperativa, placa, data_cadastro_evento')
+        .select('motivo_evento, evento_cidade, associado_cidade, cooperativa, placa, data_cadastro_evento')
         .eq('importacao_id', importacao.id)
         .gte('data_cadastro_evento', inicio)
         .lte('data_cadastro_evento', fim)
@@ -151,6 +151,9 @@ serve(async (req) => {
     const cidadeDoEvento = (e: any): string => {
       const c = (e.evento_cidade || "").toString().trim();
       if (c) return c;
+      // SGA sem local do evento: usa a cidade do cadastro do associado
+      const ca = (e.associado_cidade || "").toString().trim();
+      if (ca) return ca;
       const base = baseMap.get(normPlaca(e.placa));
       return (base?.cidade || "").toString().trim() || "Não informada";
     };
@@ -211,7 +214,9 @@ serve(async (req) => {
 
     // Find city with most events
     let cidadeMaisEventos = { nome: 'N/A', quantidade: 0 };
+    // "Não informada" só vence se nenhum evento tiver cidade conhecida
     Object.entries(cidadeContagem).forEach(([cidade, qtd]) => {
+      if (cidade === "Não informada" && Object.keys(cidadeContagem).length > 1) return;
       if (qtd > cidadeMaisEventos.quantidade) {
         cidadeMaisEventos = { nome: cidade, quantidade: qtd };
       }
