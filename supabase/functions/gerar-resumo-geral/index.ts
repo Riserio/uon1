@@ -263,7 +263,7 @@ serve(async (req) => {
     }
 
     if (!ev && !cob && !mgf) {
-      throw new Error("Nenhum módulo com dados disponíveis para esta associação");
+      throw new Error(`Nenhum módulo com dados disponíveis para esta associação. ${avisos.join("; ")}`.trim());
     }
 
     // ===== Montagem da mensagem consolidada (seções sem dados são omitidas) =====
@@ -286,7 +286,7 @@ serve(async (req) => {
     }
 
     if (cob) {
-      secoes.push(`💰 *COBRANÇA* (${cob.mes_referencia})
+      secoes.push(`💰 *COBRANÇA* (${cob.mes_referencia})${cob.bloco_principal_label ? ` — ${cob.bloco_principal_label}` : ""}
 
               📉 Inadimplência geral: *${cob.percentual_inadimplencia}%*${cob.inadimplencia_base_label ? ` _(${cob.inadimplencia_base_label})_` : ""}
               📄 Boletos gerados: *${cob.total_gerados}*  ✅ Baixados: *${cob.total_baixados}*
@@ -295,6 +295,11 @@ serve(async (req) => {
               ⏳ Em aberto: *R$ ${cob.total_aberto_formatado}*
               🔴 Maior inadimplência: *${extractLabel(cob.cooperativa_maior_inadimplencia)}*
               🟢 Menor inadimplência: *${extractLabel(cob.cooperativa_menor_inadimplencia)}*`);
+      if (Number(cob.outras_cobrancas_qtd || 0) > 0) {
+        secoes.push(`📎 *Outras cobranças do mês (fora da mensalidade)*
+
+              ${cob.outras_cobrancas_resumo}`);
+      }
     }
 
     if (mgf) {
