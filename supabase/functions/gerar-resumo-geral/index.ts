@@ -26,6 +26,7 @@ const corsHeaders = {
  *   cob_total_gerados, cob_total_baixados, cob_total_inadimplentes,
  *   cob_faturamento_esperado, cob_faturamento_recebido, cob_total_aberto,
  *   cob_boletos_por_dia, cob_coop_maior_inadimplencia, cob_coop_menor_inadimplencia
+ *   cob_outras_cobrancas_qtd, cob_outras_cobrancas_valor, cob_outras_cobrancas_resumo
  *
  * — MGF (calculado de mgf_dados, vencimento no mês corrente) —
  *   mgf_total_lancamentos, mgf_valor_total, mgf_pagos, mgf_valor_pago,
@@ -355,6 +356,11 @@ serve(async (req) => {
       cob_boletos_por_dia: cob?.boletos_por_dia ?? "-",
       cob_coop_maior_inadimplencia: cob ? extractLabel(cob.cooperativa_maior_inadimplencia) : "-",
       cob_coop_menor_inadimplencia: cob ? extractLabel(cob.cooperativa_menor_inadimplencia) : "-",
+      cob_tipos_aplicados: cob?.tipos_aplicados ?? null,
+      cob_outras_cobrancas_qtd: cob?.outras_cobrancas_qtd ?? 0,
+      cob_outras_cobrancas_valor: cob?.outras_cobrancas_valor_formatado != null ? `R$ ${cob.outras_cobrancas_valor_formatado}` : "-",
+      cob_outras_cobrancas_resumo: cob?.outras_cobrancas_resumo ?? "-",
+      cob_outras_cobrancas_tipos: cob?.outras_cobrancas_tipos ?? [],
       // MGF
       mgf_total_lancamentos: mgf?.mgf_total_lancamentos ?? "-",
       mgf_valor_total: mgf?.mgf_valor_total ?? "-",
@@ -373,6 +379,7 @@ serve(async (req) => {
         resumo,
         dados,
         modulos_incluidos: { base: true, eventos: !!ev, cobranca: !!cob, mgf: !!mgf },
+        avisos,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
