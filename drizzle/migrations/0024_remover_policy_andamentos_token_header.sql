@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Public can view andamentos via valid vistoria token" ON public.andamentos;

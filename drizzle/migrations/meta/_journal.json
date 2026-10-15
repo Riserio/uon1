@@ -169,6 +169,13 @@
       "when": 1792075919355,
       "tag": "0023_listar_boletos_filtro_tipos",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792076171042,
+      "tag": "0024_remover_policy_andamentos_token_header",
+      "breakpoints": true
     }
   ]
 }
