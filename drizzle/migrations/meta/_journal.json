@@ -176,6 +176,13 @@
       "when": 1792076171042,
       "tag": "0024_remover_policy_andamentos_token_header",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792076565799,
+      "tag": "0025_fila_sync_rodizio_e_timeout_cron",
+      "breakpoints": true
     }
   ]
 }
