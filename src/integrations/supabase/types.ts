@@ -9825,6 +9825,7 @@ export type Database = {
           p_mes_referencia?: string
           p_regional?: string
           p_situacao?: string
+          p_tipos?: string[]
         }
         Returns: Json
       }
@@ -10096,6 +10097,7 @@ export type Database = {
           p_mes_referencia?: string
           p_regional?: string
           p_situacao?: string
+          p_tipos?: string[]
         }
         Returns: Json
       }

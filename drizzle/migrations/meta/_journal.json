@@ -155,6 +155,13 @@
       "when": 1792075527982,
       "tag": "0021_registrar_estado_sync_relatorio",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792075726862,
+      "tag": "0022_dashboard_cobranca_filtro_tipos",
+      "breakpoints": true
     }
   ]
 }
