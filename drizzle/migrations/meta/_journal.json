@@ -148,6 +148,34 @@
       "when": 1790102913629,
       "tag": "0020_secure_public_vistoria_token_access",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792075527982,
+      "tag": "0021_registrar_estado_sync_relatorio",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792075726862,
+      "tag": "0022_dashboard_cobranca_filtro_tipos",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792075919355,
+      "tag": "0023_listar_boletos_filtro_tipos",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792076171042,
+      "tag": "0024_remover_policy_andamentos_token_header",
+      "breakpoints": true
     }
   ]
 }

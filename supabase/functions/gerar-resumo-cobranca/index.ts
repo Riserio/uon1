@@ -127,15 +127,19 @@ serve(async (req) => {
     // já passaram da data de vencimento.
     const { data: cfgInad } = await supabase
       .from("cobranca_automacao_config")
-      .select("inadimplencia_base")
+      .select("inadimplencia_base, tipos_boleto_relatorio")
       .eq("corretora_id", corretora_id)
       .maybeSingle();
     const somenteVencidos = (cfgInad?.inadimplencia_base ?? "total") === "vencidos";
+    // Tipos de boleto do bloco principal (padrão: só mensalidade/FECHAMENTO).
+    const tiposCfg = (cfgInad as { tipos_boleto_relatorio?: string[] | null } | null)?.tipos_boleto_relatorio;
+    const tiposRelatorio: string[] = Array.isArray(tiposCfg) && tiposCfg.length > 0 ? tiposCfg : ["FECHAMENTO"];
 
     const { data: metrics, error: metricsError } = await supabase.rpc("calcular_resumo_cobranca", {
       p_importacao_ids: importacaoIds,
       p_mes_referencia: mesReferencia,
       p_somente_vencidos: somenteVencidos,
+      p_tipos: tiposRelatorio,
     });
 
     if (metricsError) {
@@ -194,6 +198,24 @@ serve(async (req) => {
     const mesReferenciaLabel = `${mesesNomes[parseInt(refMes)]}/${refAno}`;
     const labelPeriodo = usandoMesAnterior ? ` (Ref: ${mesReferenciaLabel})` : "";
 
+    // ===== Outras cobranças do mês (tipos fora do filtro do relatório) =====
+    const tiposAplicados: string[] = Array.isArray(metrics?.tipos_aplicados) ? metrics.tipos_aplicados : tiposRelatorio;
+    const soFechamento = tiposAplicados.length === 1 && String(tiposAplicados[0]).toUpperCase() === "FECHAMENTO";
+    const tituloBloco = soFechamento ? "Mensalidades (FECHAMENTO)" : `Boletos (${tiposAplicados.join(", ")})`;
+    type OutroTipo = { tipo: string; qtd: number; baixados: number; valor: number; valor_pago: number };
+    const outrosTipos: OutroTipo[] = Array.isArray(metrics?.outros_tipos) ? metrics.outros_tipos : [];
+    const outrosQtd = Number(metrics?.outros_total_qtd || 0);
+    const outrosValor = Number(metrics?.outros_total_valor || 0);
+    const fmtCurto = (v: number) =>
+      new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(Math.round(Number(v) || 0));
+    const tituloCase = (s: string) =>
+      s.toLowerCase().replace(/(^|\s|-)(\p{L})/gu, (_m, p, c) => p + c.toUpperCase());
+    const top = outrosTipos.slice(0, 4).map((o) => `${tituloCase(o.tipo)} R$ ${fmtCurto(o.valor)}`);
+    if (outrosTipos.length > 4) top.push("outros");
+    const outrasResumo = outrosQtd > 0
+      ? `${outrosQtd} boletos · R$ ${formatCurrency(outrosValor)}${top.length ? ` — ${top.join(" · ")}` : ""}`
+      : "Nenhuma";
+
     // Build message with standard header including association name
     const resumo = `*Resumo VANGARD da sua operação - ${nomeAssociacao}*
 
@@ -205,6 +227,7 @@ Seguem abaixo informações importantes para sua gestão:
 
 📅 *${dataAtual}*
 
+🧾 *${tituloBloco}*
 💰 Inadimplência geral: *${percentualInadimplencia}%* _(${baseInadimplenciaLabel})_
 📄 Total boletos gerados: *${totalGerados}* boletos
 ✅ Total baixados: *${totalBaixados}* boletos
@@ -217,7 +240,10 @@ Seguem abaixo informações importantes para sua gestão:
 ${boletosPorDia}
 
 🔴 *Maior inadimplência:* ${maiorInadimplencia.nome} (${Number(maiorInadimplencia.percentual).toFixed(1)}%)
-🟢 *Menor inadimplência:* ${menorInadimplencia.nome} (${Number(menorInadimplencia.percentual).toFixed(1)}%)`;
+🟢 *Menor inadimplência:* ${menorInadimplencia.nome} (${Number(menorInadimplencia.percentual).toFixed(1)}%)${outrosQtd > 0 ? `
+
+📎 *Outras cobranças do mês (fora da mensalidade)*
+${outrasResumo}` : ""}`;
 
     return new Response(
       JSON.stringify({
@@ -242,6 +268,12 @@ ${boletosPorDia}
           boletos_por_dia: boletosPorDia,
           cooperativa_maior_inadimplencia: maiorInadimplencia.nome,
           cooperativa_menor_inadimplencia: menorInadimplencia.nome,
+          tipos_aplicados: tiposAplicados,
+          bloco_principal_label: tituloBloco,
+          outras_cobrancas_qtd: outrosQtd,
+          outras_cobrancas_valor_formatado: formatCurrency(outrosValor),
+          outras_cobrancas_resumo: outrasResumo,
+          outras_cobrancas_tipos: outrosTipos,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

@@ -1,4 +1,6 @@
-import { useEffect, useState, useMemo } from "react";
+import FiltrosPadraoBotoes from "@/components/bi/FiltrosPadraoBotoes";
+import { useFiltrosPadrao } from "@/hooks/useFiltrosPadrao";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SyncStatusHint from "@/components/portal/SyncStatusHint";
@@ -511,6 +513,25 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [ultimoMesComDados, setUltimoMesComDados] = useState<{ ano: string; mes: string } | null>(null);
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
   const [periodoOpen, setPeriodoOpen] = useState(false);
+  // ===== Filtros padrão por usuário (bi_filtros_padrao) =====
+  // O mês/ano não é fixado (a tela sempre abre no mês corrente); salvamos
+  // "Todo período", janela dos gráficos e modo da frota.
+  type FiltrosIndicadores = { todoPeriodo: boolean; chartRange: number; frotaModo: "mes" | "dia" };
+  const { padrao: padraoInd, carregado: padraoIndCarregado, salvar: salvarPadraoInd } =
+    useFiltrosPadrao<FiltrosIndicadores>("indicadores", corretoraId || null);
+  const padraoIndAplicadoRef = useRef("");
+  const aplicarPadraoInd = () => {
+    const p = { todoPeriodo: false, chartRange: 12, frotaModo: "mes" as const, ...(padraoInd || {}) };
+    setTodoPeriodo(!!p.todoPeriodo);
+    setChartRange(Number(p.chartRange) || 12);
+    setFrotaModo(p.frotaModo === "dia" ? "dia" : "mes");
+  };
+  useEffect(() => {
+    if (!corretoraId || !padraoIndCarregado || padraoIndAplicadoRef.current === corretoraId) return;
+    padraoIndAplicadoRef.current = corretoraId;
+    if (padraoInd) aplicarPadraoInd();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [corretoraId, padraoIndCarregado]);
   // Slot acima das abas (definido em PID.tsx) onde a barra de período é projetada
   useEffect(() => {
     setFilterSlot(document.getElementById("pid-filters-slot"));
@@ -950,6 +971,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       {/* Corpo colapsável - controles de período */}
       {periodoOpen && (
         <div className="px-4 pb-4 border-t border-border/50">
+          <div className="flex justify-end pt-3">
+            <FiltrosPadraoBotoes
+              temPadrao={!!padraoInd}
+              onSalvar={() => salvarPadraoInd({ todoPeriodo, chartRange, frotaModo })}
+              onRestaurar={aplicarPadraoInd}
+            />
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
             <div className="space-y-1">
               <span className="text-xs text-muted-foreground block">Período</span>

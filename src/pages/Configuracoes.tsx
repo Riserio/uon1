@@ -1,3 +1,4 @@
+import TiposBoletoLegendaAdmin from "@/components/cobranca/TiposBoletoLegendaAdmin";
 import { useState, useEffect } from "react";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,7 +11,7 @@ import { toast } from "sonner";
 import {
   Palette, Image as ImageIcon, Settings, Shield, Bell, BellOff,
   Monitor, Moon, Sun, Upload, RotateCcw, Save, Eye,
-  Globe, Lock, Mail, Smartphone, Users, Share2, Blocks, BookOpen } from "lucide-react";
+  Globe, Lock, Mail, Smartphone, Users, Share2, Blocks, BookOpen, Receipt } from "lucide-react";
 import Documentacao from "@/components/configuracoes/Documentacao";
 import { PageHeader } from "@/components/ui/page-header";
 import Usuarios from "@/pages/Usuarios";
@@ -284,6 +285,7 @@ export default function Configuracoes() {
     { id: "compartilhamento", label: "Compartilhamento", icon: Share2, description: "Preview de links (logo da administradora)" },
     ...(canManageUsers ? [{ id: "usuarios", label: "Usuários", icon: Users, description: "Gerenciar usuários e permissões" }] : []),
     ...(canManageUsers ? [{ id: "modulos", label: "Módulos", icon: Blocks, description: "Habilitar/desabilitar módulos do sistema" }] : []),
+    ...(userRole === "admin" ? [{ id: "tipos_boleto", label: "Tipos de boleto", icon: Receipt, description: "Legenda dos tipos de boleto da cobrança" }] : []),
     { id: "seguranca", label: "Segurança", icon: Shield, description: "Configurações de acesso" },
     { id: "notificacoes", label: "Notificações", icon: Bell, description: "Alertas e avisos" },
     { id: "documentacao", label: "Documentação", icon: BookOpen, description: "Arquitetura, regras de negócio e integrações" },
@@ -600,6 +602,7 @@ export default function Configuracoes() {
 
             {/* DOCUMENTAÇÃO */}
             {activeSection === "documentacao" && <Documentacao />}
+            {activeSection === "tipos_boleto" && userRole === "admin" && <TiposBoletoLegendaAdmin />}
           </div>
         </div>
       </div>

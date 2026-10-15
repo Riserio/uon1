@@ -1,3 +1,5 @@
+import FiltrosPadraoBotoes from "@/components/bi/FiltrosPadraoBotoes";
+import { useFiltrosPadrao } from "@/hooks/useFiltrosPadrao";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -128,6 +130,20 @@ export default function SGAInsights() {
     null,
   );
   const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
+
+  // ===== Filtros padrão por usuário (bi_filtros_padrao) =====
+  const [padraoPronto, setPadraoPronto] = useState("");
+  const { padrao, carregado: padraoCarregado, salvar: salvarPadrao } = useFiltrosPadrao<SGAFilters>(
+    "eventos",
+    selectedAssociacao || null,
+  );
+  const aplicarPadrao = () => setFilters({ ...(getDefaultFilters()), ...(padrao || {}) } as SGAFilters);
+  useEffect(() => {
+    if (!selectedAssociacao || !padraoCarregado || padraoPronto === selectedAssociacao) return;
+    aplicarPadrao();
+    setPadraoPronto(selectedAssociacao);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAssociacao, padraoCarregado]);
 
   // Sync from shared BILayout context when available (internal access)
   useEffect(() => {
@@ -316,10 +332,12 @@ export default function SGAInsights() {
     const isAssociacaoChange = prevAssociacaoRef.current !== selectedAssociacao;
     prevAssociacaoRef.current = selectedAssociacao;
 
+    if (padraoPronto !== selectedAssociacao) return;
     fetchDashboardData(isAssociacaoChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectedAssociacao,
+    padraoPronto,
     filters.status,
     filters.dataInicio,
     filters.dataFim,
@@ -511,6 +529,9 @@ export default function SGAInsights() {
             {/* Filtros corpo - colapsável */}
             {filtersOpen && (
               <div className="px-4 pb-4 border-t border-border/50">
+                <div className="flex justify-end pt-3">
+                  <FiltrosPadraoBotoes temPadrao={!!padrao} onSalvar={() => salvarPadrao(filters)} onRestaurar={aplicarPadrao} />
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-3">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Status</Label>

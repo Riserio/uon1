@@ -368,6 +368,18 @@ serve(async (req) => {
         { label: "Boletos baixados", value: String(dados.cob_total_baixados ?? "-") },
         { label: "Inadimplência", value: String(dados.cob_percentual_inadimplencia ?? "-"), color: ORANGE },
       ]);
+      const outrasQtd = Number(dados.cob_outras_cobrancas_qtd ?? 0);
+      if (outrasQtd > 0) {
+        const tiposOutros: Array<{ tipo: string; valor: number }> = Array.isArray(dados.cob_outras_cobrancas_tipos)
+          ? dados.cob_outras_cobrancas_tipos
+          : [];
+        const fmt = (v: number) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v) || 0);
+        drawTableSection("Outras cobranças do mês (fora da mensalidade)", [
+          { label: "Boletos", value: outrasQtd.toLocaleString("pt-BR") },
+          { label: "Valor total", value: String(dados.cob_outras_cobrancas_valor ?? "-"), color: ORANGE },
+          ...tiposOutros.slice(0, 4).map((t) => ({ label: String(t.tipo), value: `R$ ${fmt(t.valor)}` })),
+        ]);
+      }
     }
 
     // ----- Eventos -----

@@ -1,3 +1,5 @@
+import FiltrosPadraoBotoes from "@/components/bi/FiltrosPadraoBotoes";
+import { useFiltrosPadrao } from "@/hooks/useFiltrosPadrao";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -123,6 +125,17 @@ export default function MGFInsights() {
   );
   const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
 
+  const filtrosIniciaisMGF = (): MGFFilters => ({
+    operacoes: [],
+    subOperacoes: [],
+    situacao: "all",
+    baseData: "vencimento",
+    cooperativa: "all",
+    regional: "all",
+    formaPagamento: "all",
+    tipoVeiculo: "all",
+    dateRange: undefined,
+  } as MGFFilters);
   const [filters, setFilters] = useState<MGFFilters>({
     operacoes: [],
     subOperacoes: [],
@@ -354,10 +367,26 @@ export default function MGFInsights() {
     }
   }, [selectedAssociacao, fetchImportacaoMeta, fetchFilterOptions]);
 
+
+  // ===== Filtros padrão por usuário (bi_filtros_padrao) =====
+  const [padraoPronto, setPadraoPronto] = useState("");
+  const { padrao, carregado: padraoCarregado, salvar: salvarPadrao } = useFiltrosPadrao<MGFFilters>(
+    "mgf",
+    selectedAssociacao || null,
+  );
+  const aplicarPadrao = () => setFilters({ ...(filtrosIniciaisMGF()), ...(padrao || {}) } as MGFFilters);
+  useEffect(() => {
+    if (!selectedAssociacao || !padraoCarregado || padraoPronto === selectedAssociacao) return;
+    aplicarPadrao();
+    setPadraoPronto(selectedAssociacao);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAssociacao, padraoCarregado]);
+
   // Dashboard: depende da associação selecionada E dos filtros globais.
   useEffect(() => {
+    if (padraoPronto !== selectedAssociacao) return;
     fetchDashboard();
-  }, [fetchDashboard]);
+  }, [fetchDashboard, padraoPronto, selectedAssociacao]);
 
   const handleImportSuccess = async () => {
     await Promise.all([fetchImportacaoMeta(), fetchFilterOptions()]);
@@ -539,6 +568,9 @@ export default function MGFInsights() {
               </button>
               {filtersOpen && (
                 <div className="px-4 pb-4 pt-1">
+                <div className="flex justify-end pb-2">
+                  <FiltrosPadraoBotoes temPadrao={!!padrao} onSalvar={() => salvarPadrao(filters)} onRestaurar={aplicarPadrao} />
+                </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2">
                     {/* Operação — múltipla (Entrada e Saída juntas) */}
                     <MultiSelectFilter

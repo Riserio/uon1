@@ -1,3 +1,4 @@
+import TiposBoletoRelatorioConfig from "./TiposBoletoRelatorioConfig";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -435,6 +436,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
 
   return (
     <div className="space-y-4">
+      <TiposBoletoRelatorioConfig corretoraId={corretoraId} />
       {/* Header com status e ações */}
       <Card>
         <CardHeader className="pb-4">

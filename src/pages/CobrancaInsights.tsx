@@ -37,6 +37,9 @@ import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 import PortalHeader from "@/components/portal/PortalHeader";
 import BIPageHeader from "@/components/bi/BIPageHeader";
+import TipoBoletoFilter, { useTiposBoletoRelatorio } from "@/components/cobranca/TipoBoletoFilter";
+import FiltrosPadraoBotoes from "@/components/bi/FiltrosPadraoBotoes";
+import { useFiltrosPadrao } from "@/hooks/useFiltrosPadrao";
 import { getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
@@ -50,6 +53,8 @@ export interface CobrancaFilters {
   regional: string;
   cooperativa: string;
   diaVencimento: string;
+  /** Tipos de boleto (dados_extras.tipo_boleto). Vazio = todos. */
+  tiposBoleto?: string[];
   /**
    * "sga"   — reproduz o Relatorio de Boletos do SGA: conta apenas boletos de
    *           veiculos que NAO tinham boleto em aberto nos 6 meses anteriores
@@ -120,7 +125,16 @@ export default function CobrancaInsights() {
     regional: "todos",
     cooperativa: "todos",
     diaVencimento: "todos",
+    tiposBoleto: [],
   });
+  // Debounce (~400 ms) do filtro de tipo para não disparar uma consulta por clique.
+  const [tiposDebounced, setTiposDebounced] = useState<string[]>([]);
+  // Associação cujo padrão de filtros já foi aplicado (evita uma consulta "sem filtro" antes do padrão).
+  const [padraoPronto, setPadraoPronto] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setTiposDebounced(filters.tiposBoleto || []), 400);
+    return () => clearTimeout(t);
+  }, [(filters.tiposBoleto || []).join("|")]);
 
   // Detectar se é acesso via portal (parceiro)
   const isPortalAccess = location.pathname.startsWith("/portal");
@@ -294,6 +308,7 @@ export default function CobrancaInsights() {
           p_dia_vencimento: filters.diaVencimento !== "todos" ? Number(filters.diaVencimento) : null,
           p_force_refresh: forceRefresh,
           p_criterio: filters.criterio,
+          p_tipos: tiposDebounced.length ? tiposDebounced : null,
         };
         let data: any = null;
         let lastError: any = null;
@@ -348,16 +363,19 @@ export default function CobrancaInsights() {
       prevAssociacaoRef.current = selectedAssociacao;
     }
 
+    if (padraoPronto !== selectedAssociacao) return;
     fetchDashboardStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectedAssociacao,
+    padraoPronto,
     filters.mesReferencia,
     filters.situacao,
     filters.regional,
     filters.cooperativa,
     filters.diaVencimento,
     filters.criterio,
+    tiposDebounced.join("|"),
   ]);
 
   // Opções dos dropdowns de filtro: RPC leve e separada (não depende dos
@@ -476,6 +494,38 @@ export default function CobrancaInsights() {
 
   const selectedAssociacaoNome = associacoes.find((a) => a.id === selectedAssociacao)?.nome || "";
 
+  // ===== Filtros padrão por usuário (bi_filtros_padrao) =====
+  const { data: tiposRelatorio } = useTiposBoletoRelatorio(selectedAssociacao);
+  const { padrao, carregado: padraoCarregado, salvar: salvarPadrao } = useFiltrosPadrao<CobrancaFilters>(
+    "cobranca",
+    selectedAssociacao || null,
+  );
+  const padraoAplicadoRef = useRef<string>("");
+  const filtrosIniciais = (): CobrancaFilters => ({
+    mesReferencia: getMesAtual(),
+    situacao: "todos",
+    regional: "todos",
+    cooperativa: "todos",
+    diaVencimento: "todos",
+    criterio: "sga",
+    tiposBoleto: tiposRelatorio || ["FECHAMENTO"],
+  });
+  const aplicarPadrao = () => {
+    // Mês não é salvo como fixo: sempre abre no mês atual.
+    const novo = { ...filtrosIniciais(), ...(padrao || {}), mesReferencia: getMesAtual() };
+    setFilters(novo);
+    setTiposDebounced(novo.tiposBoleto || []);
+    autoAdjustedMonthRef.current = false;
+  };
+  useEffect(() => {
+    if (!selectedAssociacao || !padraoCarregado || tiposRelatorio === undefined) return;
+    if (padraoAplicadoRef.current === selectedAssociacao) return;
+    padraoAplicadoRef.current = selectedAssociacao;
+    aplicarPadrao();
+    setPadraoPronto(selectedAssociacao);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAssociacao, padraoCarregado, tiposRelatorio]);
+
   const clearFilters = () => {
     setFilters({
       mesReferencia: getMesAtual(),
@@ -486,6 +536,7 @@ export default function CobrancaInsights() {
       // Limpar filtros volta ao padrao do sistema, que e o criterio SGA — e o
       // criterio em que os numeros batem com o relatorio da associacao.
       criterio: "sga",
+      tiposBoleto: tiposRelatorio || ["FECHAMENTO"],
     });
     autoAdjustedMonthRef.current = false;
   };
@@ -640,7 +691,7 @@ export default function CobrancaInsights() {
               </button>
               {filtersOpen && (
                 <div className="px-4 pb-4 pt-1">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">Mês Referência</label>
                       <Popover>
@@ -829,6 +880,22 @@ export default function CobrancaInsights() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Tipo de boleto</label>
+                      <TipoBoletoFilter
+                        corretoraId={selectedAssociacao}
+                        selected={filters.tiposBoleto || []}
+                        onChange={(v) => setFilters((f) => ({ ...f, tiposBoleto: v }))}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <FiltrosPadraoBotoes
+                      temPadrao={!!padrao}
+                      onSalvar={() => salvarPadrao(filters)}
+                      onRestaurar={aplicarPadrao}
+                    />
                   </div>
                 </div>
               )}

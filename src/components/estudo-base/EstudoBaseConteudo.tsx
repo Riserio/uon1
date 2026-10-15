@@ -1,3 +1,5 @@
+import FiltrosPadraoBotoes from "@/components/bi/FiltrosPadraoBotoes";
+import { useFiltrosPadrao } from "@/hooks/useFiltrosPadrao";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -43,6 +45,29 @@ export default function EstudoBaseConteudo({
     montadora: "todos",
     faixaValorProtegido: "todos",
   });
+
+  // ===== Filtros padrão por usuário (bi_filtros_padrao) — filtragem é local, sem nova consulta =====
+  const filtrosIniciaisBase = (): EstudoBaseFilters => ({
+    situacao: [],
+    regional: "todos",
+    cooperativa: "todos",
+    dataContratoInicio: "",
+    dataContratoFim: "",
+    montadora: "todos",
+    faixaValorProtegido: "todos",
+  });
+  const { padrao, carregado: padraoCarregado, salvar: salvarPadrao } = useFiltrosPadrao<EstudoBaseFilters>(
+    "estudo_base",
+    corretoraId || null,
+  );
+  const [padraoAplicado, setPadraoAplicado] = useState("");
+  const aplicarPadrao = () => setFilters({ ...filtrosIniciaisBase(), ...(padrao || {}) } as EstudoBaseFilters);
+  useEffect(() => {
+    if (!corretoraId || !padraoCarregado || padraoAplicado === corretoraId) return;
+    aplicarPadrao();
+    setPadraoAplicado(corretoraId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [corretoraId, padraoCarregado]);
 
   const fetchRegistros = useCallback(async (forceRefresh = false) => {
     if (!corretoraId) {
@@ -137,6 +162,9 @@ export default function EstudoBaseConteudo({
   return (
     <div className="space-y-4">
       <EstudoBaseFilterBar registros={registros} filters={filters} onFiltersChange={setFilters} />
+      <div className="flex justify-end">
+        <FiltrosPadraoBotoes temPadrao={!!padrao} onSalvar={() => salvarPadrao(filters)} onRestaurar={aplicarPadrao} />
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="w-full overflow-x-auto pb-2">

@@ -26,6 +26,7 @@ const corsHeaders = {
  *   cob_total_gerados, cob_total_baixados, cob_total_inadimplentes,
  *   cob_faturamento_esperado, cob_faturamento_recebido, cob_total_aberto,
  *   cob_boletos_por_dia, cob_coop_maior_inadimplencia, cob_coop_menor_inadimplencia
+ *   cob_outras_cobrancas_qtd, cob_outras_cobrancas_valor, cob_outras_cobrancas_resumo
  *
  * — MGF (calculado de mgf_dados, vencimento no mês corrente) —
  *   mgf_total_lancamentos, mgf_valor_total, mgf_pagos, mgf_valor_pago,
@@ -78,8 +79,10 @@ serve(async (req) => {
       new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0);
     const fmtInt = (v: number) => new Intl.NumberFormat("pt-BR").format(v || 0);
 
-    // Chama um gerador existente; retorna null se falhar (seção é omitida)
-    const invocar = async (fn: string): Promise<any | null> => {
+    // Chama um gerador existente; em caso de falha tenta 1 vez mais após ~3 s.
+    // Se ainda falhar, retorna null (seção é omitida) e registra o motivo em `avisos`.
+    const avisos: string[] = [];
+    const chamar = async (fn: string): Promise<{ json: any | null; erro: string | null }> => {
       try {
         const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
           method: "POST",
@@ -87,14 +90,27 @@ serve(async (req) => {
           body: JSON.stringify({ corretora_id }),
         });
         const json = await res.json().catch(() => null);
-        return json?.success ? json : null;
-      } catch {
-        return null;
+        if (json?.success) return { json, erro: null };
+        return { json: null, erro: json?.error || `HTTP ${res.status}` };
+      } catch (e) {
+        return { json: null, erro: e instanceof Error ? e.message : String(e) };
       }
+    };
+    const invocar = async (fn: string, rotulo: string): Promise<any | null> => {
+      let r = await chamar(fn);
+      if (!r.json) {
+        await new Promise((ok) => setTimeout(ok, 3000));
+        r = await chamar(fn);
+      }
+      if (!r.json) avisos.push(`${rotulo} indisponível: ${r.erro}`);
+      return r.json;
     };
 
     // ===== EVENTOS + COBRANÇA (reuso dos geradores oficiais) =====
-    const [evRes, cobRes] = await Promise.all([invocar("gerar-resumo-eventos"), invocar("gerar-resumo-cobranca")]);
+    const [evRes, cobRes] = await Promise.all([
+      invocar("gerar-resumo-eventos", "eventos"),
+      invocar("gerar-resumo-cobranca", "cobrança"),
+    ]);
     const ev = evRes?.dados || null;
     const cob = cobRes?.dados || null;
 
@@ -248,7 +264,7 @@ serve(async (req) => {
     }
 
     if (!ev && !cob && !mgf) {
-      throw new Error("Nenhum módulo com dados disponíveis para esta associação");
+      throw new Error(`Nenhum módulo com dados disponíveis para esta associação. ${avisos.join("; ")}`.trim());
     }
 
     // ===== Montagem da mensagem consolidada (seções sem dados são omitidas) =====
@@ -271,7 +287,7 @@ serve(async (req) => {
     }
 
     if (cob) {
-      secoes.push(`💰 *COBRANÇA* (${cob.mes_referencia})
+      secoes.push(`💰 *COBRANÇA* (${cob.mes_referencia})${cob.bloco_principal_label ? ` — ${cob.bloco_principal_label}` : ""}
 
               📉 Inadimplência geral: *${cob.percentual_inadimplencia}%*${cob.inadimplencia_base_label ? ` _(${cob.inadimplencia_base_label})_` : ""}
               📄 Boletos gerados: *${cob.total_gerados}*  ✅ Baixados: *${cob.total_baixados}*
@@ -280,6 +296,11 @@ serve(async (req) => {
               ⏳ Em aberto: *R$ ${cob.total_aberto_formatado}*
               🔴 Maior inadimplência: *${extractLabel(cob.cooperativa_maior_inadimplencia)}*
               🟢 Menor inadimplência: *${extractLabel(cob.cooperativa_menor_inadimplencia)}*`);
+      if (Number(cob.outras_cobrancas_qtd || 0) > 0) {
+        secoes.push(`📎 *Outras cobranças do mês (fora da mensalidade)*
+
+              ${cob.outras_cobrancas_resumo}`);
+      }
     }
 
     if (mgf) {
@@ -335,6 +356,11 @@ serve(async (req) => {
       cob_boletos_por_dia: cob?.boletos_por_dia ?? "-",
       cob_coop_maior_inadimplencia: cob ? extractLabel(cob.cooperativa_maior_inadimplencia) : "-",
       cob_coop_menor_inadimplencia: cob ? extractLabel(cob.cooperativa_menor_inadimplencia) : "-",
+      cob_tipos_aplicados: cob?.tipos_aplicados ?? null,
+      cob_outras_cobrancas_qtd: cob?.outras_cobrancas_qtd ?? 0,
+      cob_outras_cobrancas_valor: cob?.outras_cobrancas_valor_formatado != null ? `R$ ${cob.outras_cobrancas_valor_formatado}` : "-",
+      cob_outras_cobrancas_resumo: cob?.outras_cobrancas_resumo ?? "-",
+      cob_outras_cobrancas_tipos: cob?.outras_cobrancas_tipos ?? [],
       // MGF
       mgf_total_lancamentos: mgf?.mgf_total_lancamentos ?? "-",
       mgf_valor_total: mgf?.mgf_valor_total ?? "-",
@@ -353,6 +379,7 @@ serve(async (req) => {
         resumo,
         dados,
         modulos_incluidos: { base: true, eventos: !!ev, cobranca: !!cob, mgf: !!mgf },
+        avisos,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

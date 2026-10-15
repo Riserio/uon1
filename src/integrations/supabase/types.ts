@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
@@ -41,6 +41,27 @@ export type Database = {
           query?: string | null
           tabela?: string | null
           total?: number | null
+        }
+        Relationships: []
+      }
+      _backup_funcoes: {
+        Row: {
+          assinatura: string | null
+          definicao: string | null
+          motivo: string | null
+          salvo_em: string | null
+        }
+        Insert: {
+          assinatura?: string | null
+          definicao?: string | null
+          motivo?: string | null
+          salvo_em?: string | null
+        }
+        Update: {
+          assinatura?: string | null
+          definicao?: string | null
+          motivo?: string | null
+          salvo_em?: string | null
         }
         Relationships: []
       }
@@ -928,6 +949,44 @@ export type Database = {
           },
         ]
       }
+      bi_filtros_padrao: {
+        Row: {
+          corretora_id: string | null
+          created_at: string
+          filtros: Json
+          id: string
+          tela: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          corretora_id?: string | null
+          created_at?: string
+          filtros?: Json
+          id?: string
+          tela: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          corretora_id?: string | null
+          created_at?: string
+          filtros?: Json
+          id?: string
+          tela?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bi_filtros_padrao_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bug_reports: {
         Row: {
           adiado_ate: string | null
@@ -1375,6 +1434,7 @@ export type Database = {
           id: string
           inadimplencia_base: string
           layout_relatorio: string | null
+          tipos_boleto_relatorio: string[] | null
           ultima_execucao: string | null
           ultima_origem: string | null
           ultimo_erro: string | null
@@ -1399,6 +1459,7 @@ export type Database = {
           id?: string
           inadimplencia_base?: string
           layout_relatorio?: string | null
+          tipos_boleto_relatorio?: string[] | null
           ultima_execucao?: string | null
           ultima_origem?: string | null
           ultimo_erro?: string | null
@@ -1423,6 +1484,7 @@ export type Database = {
           id?: string
           inadimplencia_base?: string
           layout_relatorio?: string | null
+          tipos_boleto_relatorio?: string[] | null
           ultima_execucao?: string | null
           ultima_origem?: string | null
           ultimo_erro?: string | null
@@ -1746,6 +1808,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cobranca_tipos_boleto: {
+        Row: {
+          descricao: string | null
+          grupo: string
+          ordem: number
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          descricao?: string | null
+          grupo?: string
+          ordem?: number
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          descricao?: string | null
+          grupo?: string
+          ordem?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       cobrancas_gestao: {
         Row: {
@@ -7478,6 +7564,7 @@ export type Database = {
           created_at: string | null
           id: string
           importado_por: string | null
+          meta: Json | null
           nome_arquivo: string
           total_registros: number | null
           updated_at: string
@@ -7488,6 +7575,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           importado_por?: string | null
+          meta?: Json | null
           nome_arquivo: string
           total_registros?: number | null
           updated_at?: string
@@ -7498,6 +7586,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           importado_por?: string | null
+          meta?: Json | null
           nome_arquivo?: string
           total_registros?: number | null
           updated_at?: string
@@ -9652,6 +9741,17 @@ export type Database = {
       }
     }
     Functions: {
+      _eventos_janela: {
+        Args: {
+          p_atualizar: boolean
+          p_base: string
+          p_fim: string
+          p_imp: string
+          p_ini: string
+          p_tok: string
+        }
+        Returns: number[]
+      }
       _processar_fila_sync: { Args: never; Returns: Json }
       administrativo_can_view_profile: {
         Args: { target_profile_id: string; viewer_id: string }
@@ -9725,6 +9825,7 @@ export type Database = {
           p_mes_referencia?: string
           p_regional?: string
           p_situacao?: string
+          p_tipos?: string[]
         }
         Returns: Json
       }
@@ -9847,6 +9948,7 @@ export type Database = {
               p_importacao_ids: string[]
               p_mes_referencia: string
               p_somente_vencidos?: boolean
+              p_tipos?: string[]
             }
             Returns: Json
           }
@@ -9995,6 +10097,7 @@ export type Database = {
           p_mes_referencia?: string
           p_regional?: string
           p_situacao?: string
+          p_tipos?: string[]
         }
         Returns: Json
       }
@@ -10168,6 +10271,7 @@ export type Database = {
           p_situacao?: string
           p_sort_col?: string
           p_sort_dir?: string
+          p_tipos?: string[]
           p_voluntario?: string
         }
         Returns: Json
@@ -10280,6 +10384,16 @@ export type Database = {
         Returns: Json
       }
       listar_push_assinantes: { Args: never; Returns: Json }
+      listar_tipos_boleto: {
+        Args: { p_corretora_id: string; p_desde?: string }
+        Returns: {
+          descricao: string
+          grupo: string
+          ordem: number
+          qtd: number
+          tipo: string
+        }[]
+      }
       marcar_git_fallback_desativado: { Args: never; Returns: undefined }
       ouvidoria_rate_limit_ok: {
         Args: { p_corretora_id: string }

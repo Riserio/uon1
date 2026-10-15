@@ -120,6 +120,9 @@ const DEFAULT_MAPS: Record<string, string[]> = {
     "ev_total", // {{11}} total de eventos
     "cob_coop_maior_inadimplencia", // {{12}} maior inadimplência
     "ev_cidade_top", // {{13}} cidade com mais eventos
+    // Para mostrar "outras cobranças" no WhatsApp é preciso aprovar na Meta uma
+    // nova versão do template com {{14}} = cob_outras_cobrancas_resumo e só
+    // então acrescentar "cob_outras_cobrancas_resumo" aqui. NÃO mudar a ordem acima.
   ],
 };
 
@@ -223,7 +226,12 @@ async function generateData(supabase: any, source: string, corretora_id: string)
   });
   const json = await res.json();
   if (!res.ok || !json?.success) throw new Error(json?.error || "Falha ao gerar dados");
-  return json.dados || {};
+  const avisos: string[] = Array.isArray(json.avisos) ? json.avisos : [];
+  // Resumo geral: se COBRANÇA e EVENTOS falharam juntos, não envia mensagem com traços.
+  if (source === "resumo_geral" && json.modulos_incluidos && !json.modulos_incluidos.cobranca && !json.modulos_incluidos.eventos) {
+    throw new Error(`Cobrança e eventos indisponíveis — envio cancelado. ${avisos.join("; ")}`.trim());
+  }
+  return { ...(json.dados || {}), __avisos: avisos };
 }
 
 // A Meta rejeita parâmetros com quebra de linha, tab ou 4+ espaços seguidos (erro #132018).
@@ -449,7 +457,8 @@ async function runOne(supabase: any, schedule: any) {
       .update({
         last_run_at: now.toISOString(),
         last_status: results.join(", "),
-        last_error: null,
+        // Avisos do gerador (ex.: "cobrança indisponível: ...") ficam registrados mesmo com envio ok.
+        last_error: Array.isArray(dados?.__avisos) && dados.__avisos.length ? dados.__avisos.join("; ") : null,
         next_run_at: computeNextRun(schedule, now).toISOString(),
       })
       .eq("id", schedule.id);
