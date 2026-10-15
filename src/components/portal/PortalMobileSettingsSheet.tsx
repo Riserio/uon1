@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Settings, Star, ArrowLeftRight, LogOut, Download, CheckCircle2, Share, SquarePlus, X, Bell, BellOff } from "lucide-react";
+import { Settings, Star, ArrowLeftRight, LogOut, Download, CheckCircle2, Share, SquarePlus, X, Bell, BellOff, HelpCircle, ChevronRight } from "lucide-react";
+import { useBIAjudaOptional } from "@/contexts/BIAjudaContext";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { MODULE_CONFIG, PortalModule } from "@/lib/portalModules";
@@ -38,6 +39,7 @@ export default function PortalMobileSettingsSheet({
   onNavigateModule,
 }: Props) {
   const { canInstall, isIos, isStandalone, promptInstall } = usePwaInstall();
+  const ajuda = useBIAjudaOptional();
   const [showIosSteps, setShowIosSteps] = useState(false);
 
   // ---- Notificações push (OneSignal) ----
@@ -296,6 +298,30 @@ export default function PortalMobileSettingsSheet({
             )}
 
             <div className="border-t border-border/50" />
+
+            {/* Ajuda do BI */}
+            {ajuda && (
+              <>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold mb-1">Ajuda</p>
+                  <button
+                    onClick={() => {
+                      onOpenChange(false);
+                      ajuda.abrir();
+                    }}
+                    className="flex items-center gap-3 w-full px-2 py-2.5 rounded-lg text-sm hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <HelpCircle className="h-4 w-4 text-primary flex-shrink-0" />
+                    <span className="flex-1">
+                      <span className="block">Ajuda do BI</span>
+                      <span className="block text-xs text-muted-foreground">De onde vêm os números, regras e última atualização</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </div>
+                <div className="border-t border-border/50" />
+              </>
+            )}
 
             {/* Conta */}
             <div className="space-y-1 pb-1">

@@ -9,7 +9,10 @@ import {
   KanbanSquare,
   BarChart3,
   MessageSquare,
+  HelpCircle,
 } from "lucide-react";
+import { useState } from "react";
+import BIAjudaDialog from "./BIAjudaDialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -100,6 +103,7 @@ export default function BIPageHeader({
 }: BIPageHeaderProps) {
   const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
+  const [ajudaOpen, setAjudaOpen] = useState(false);
 
   // Vai para a Visão Administradora: limpa o parametro de associacao da URL
   // (para nao voltar a abrir a ultima associacao selecionada) e navega sempre
@@ -175,6 +179,23 @@ export default function BIPageHeader({
               <span className="hidden sm:inline text-xs">Histórico</span>
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setAjudaOpen(true)}
+            className="gap-1.5 text-muted-foreground hover:text-foreground rounded-lg h-9"
+            title="Como este BI é alimentado e calculado"
+          >
+            <HelpCircle className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs">Ajuda</span>
+          </Button>
+          <BIAjudaDialog
+            open={ajudaOpen}
+            onOpenChange={setAjudaOpen}
+            corretoraId={selectedAssociacao}
+            corretoraNome={selectedAssociacaoNome}
+            moduloInicial={currentModule}
+          />
           <div className="hidden sm:block h-6 w-px bg-border mx-1" />
           <img src={headerLogo} alt="Logo" className="h-7 w-auto opacity-90 shrink-0 object-contain" />
         </div>

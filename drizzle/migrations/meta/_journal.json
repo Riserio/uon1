@@ -183,6 +183,20 @@
       "when": 1792076565799,
       "tag": "0025_fila_sync_rodizio_e_timeout_cron",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792078656205,
+      "tag": "0026_bi_alimentacao_graficos",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792078656206,
+      "tag": "0027_bi_status_alimentacao",
+      "breakpoints": true
     }
   ]
 }

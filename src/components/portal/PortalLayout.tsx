@@ -10,6 +10,7 @@ import PortalSplash from "./PortalSplash";
 import PortalPageWrapper from "./PortalPageWrapper";
 import BaseAssociacaoCard from "@/components/bi/BaseAssociacaoCard";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
+import { BIAjudaProvider } from "@/contexts/BIAjudaContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
 import { useOneSignalPortal } from "@/hooks/useOneSignalPortal";
@@ -161,6 +162,12 @@ export default function PortalLayout() {
       availableModules={availableModules}
       currentModule={currentModule}
     >
+      <BIAjudaProvider
+        corretoraId={corretora.id}
+        corretoraNome={corretora.nome}
+        moduloAtual={currentModule}
+        modulosPermitidos={corretora.modulos_bi}
+      >
       <div className="portal-theme min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
         <PortalOrientationGuard />
         <PortalSplash corretoraId={corretora.id} logo={corretora.logo_expanded_url || corretora.logo_url || corretora.logo_collapsed_url} nome={corretora.nome} />
@@ -221,6 +228,7 @@ export default function PortalLayout() {
           </PortalPageWrapper>
         </div>
       </div>
+      </BIAjudaProvider>
     </PortalCarouselProvider>
   );
 }

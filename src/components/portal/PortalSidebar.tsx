@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LogOut, ArrowLeftRight, Settings, PanelLeftClose, PanelLeftOpen,
-  Building2, Play, Pause, ChevronLeft, ChevronRight, Monitor, Eye,
+  Building2, Play, Pause, ChevronLeft, ChevronRight, Monitor, Eye, HelpCircle,
 } from "lucide-react";
+import { useBIAjudaOptional } from "@/contexts/BIAjudaContext";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -179,6 +180,7 @@ function SidebarContent({
 }: Props & { collapsed: boolean; onNavigate?: () => void; onOpenSettings: () => void }) {
   const navigate = useNavigate();
   const carousel = usePortalCarouselOptional();
+  const ajuda = useBIAjudaOptional();
   const assocKey = corretora.slug || corretora.id;
 
   // Object.keys(MODULE_CONFIG) já exclui "estudo-base" (fora do CONFIG),
@@ -351,6 +353,16 @@ function SidebarContent({
             <Settings className="h-4 w-4 flex-shrink-0" />
             {!collapsed && <span>Configurações</span>}
           </button>
+          {ajuda && (
+            <button
+              onClick={() => { ajuda.abrir(); onNavigate?.(); }}
+              title={collapsed ? "Ajuda do BI" : undefined}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-foreground/70 hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <HelpCircle className="h-4 w-4 flex-shrink-0" />
+              {!collapsed && <span>Ajuda do BI</span>}
+            </button>
+          )}
           {showChangeButton && onChangeCorretora && (
             <button
               onClick={() => { onChangeCorretora(); onNavigate?.(); }}
