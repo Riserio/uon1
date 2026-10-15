@@ -200,6 +200,7 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
     p_sort_dir: "desc",
     p_limit: limit,
     p_offset: offset,
+    p_tipos: globalFilters.tiposBoleto && globalFilters.tiposBoleto.length ? globalFilters.tiposBoleto : null,
   });
 
   const sortByVencimentoDesc = (a: any, b: any) => {
@@ -287,7 +288,7 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     importacaoIds.join(","), globalFilters.mesReferencia, globalFilters.situacao, globalFilters.regional,
-    globalFilters.cooperativa, globalFilters.diaVencimento, debouncedSearch, filtroSituacoes.join(","),
+    globalFilters.cooperativa, globalFilters.diaVencimento, (globalFilters.tiposBoleto || []).join("|"), debouncedSearch, filtroSituacoes.join(","),
     filtroDataPagamentoDe, filtroDataPagamentoAte, filtroDataVencimentoDe, filtroDataVencimentoAte,
     filtroDiaVencimento, filtroRegional, filtroCooperativa, filtroVoluntario, filtroPlacas, currentPage,
   ]);
@@ -300,7 +301,7 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
     filtroDataVencimentoDe, filtroDataVencimentoAte, filtroDiaVencimento, filtroRegional,
     filtroCooperativa, filtroVoluntario, filtroPlacas,
     globalFilters.mesReferencia, globalFilters.situacao, globalFilters.regional,
-    globalFilters.cooperativa, globalFilters.diaVencimento,
+    globalFilters.cooperativa, globalFilters.diaVencimento, (globalFilters.tiposBoleto || []).join("|"),
   ]);
 
   // Contagem de candidatos à Revistoria (ABERTO + placa), respeitando os
@@ -326,7 +327,7 @@ export default function CobrancaTabela({ importacaoIds, globalFilters, filterOpt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     importacaoIds.join(","), corretoraId, globalFilters.mesReferencia, globalFilters.situacao,
-    globalFilters.regional, globalFilters.cooperativa, globalFilters.diaVencimento,
+    globalFilters.regional, globalFilters.cooperativa, globalFilters.diaVencimento, (globalFilters.tiposBoleto || []).join("|"), (globalFilters.tiposBoleto || []).join("|"),
     filtroSituacoes.join(","), filtroRegional, filtroCooperativa, filtroDiaVencimento, filtroPlacas,
     filtroDataPagamentoDe, filtroDataPagamentoAte, filtroDataVencimentoDe, filtroDataVencimentoAte, filtroVoluntario,
   ]);
