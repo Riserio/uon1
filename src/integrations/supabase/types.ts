@@ -4224,6 +4224,85 @@ export type Database = {
           },
         ]
       }
+      hinova_lookups: {
+        Row: {
+          codigo: string
+          corretora_id: string
+          descricao: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          codigo: string
+          corretora_id: string
+          descricao: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string
+          corretora_id?: string
+          descricao?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hinova_lookups_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hinova_veiculos_map: {
+        Row: {
+          codigo_associado: string | null
+          codigo_cooperativa: string | null
+          codigo_regional: string | null
+          codigo_veiculo: string
+          corretora_id: string
+          modelo: string | null
+          nome_associado: string | null
+          placa: string | null
+          tipo: string | null
+          updated_at: string
+        }
+        Insert: {
+          codigo_associado?: string | null
+          codigo_cooperativa?: string | null
+          codigo_regional?: string | null
+          codigo_veiculo: string
+          corretora_id: string
+          modelo?: string | null
+          nome_associado?: string | null
+          placa?: string | null
+          tipo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          codigo_associado?: string | null
+          codigo_cooperativa?: string | null
+          codigo_regional?: string | null
+          codigo_veiculo?: string
+          corretora_id?: string
+          modelo?: string | null
+          nome_associado?: string | null
+          placa?: string | null
+          tipo?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hinova_veiculos_map_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integracao_sync_log: {
         Row: {
           corretora_id: string
@@ -4634,6 +4713,109 @@ export type Database = {
             columns: ["evento_id"]
             isOneToOne: false
             referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      link_bio_itens: {
+        Row: {
+          ativo: boolean
+          cliques: number
+          created_at: string
+          id: string
+          ordem: number
+          pagina_id: string
+          rotulo: string
+          tipo: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          ativo?: boolean
+          cliques?: number
+          created_at?: string
+          id?: string
+          ordem?: number
+          pagina_id: string
+          rotulo: string
+          tipo?: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          ativo?: boolean
+          cliques?: number
+          created_at?: string
+          id?: string
+          ordem?: number
+          pagina_id?: string
+          rotulo?: string
+          tipo?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "link_bio_itens_pagina_id_fkey"
+            columns: ["pagina_id"]
+            isOneToOne: false
+            referencedRelation: "link_bio_paginas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      link_bio_paginas: {
+        Row: {
+          ativo: boolean
+          avatar_url: string | null
+          corretora_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          slug: string
+          subtitulo: string | null
+          tema: Json
+          titulo: string
+          updated_at: string
+          verificado: boolean
+          visitas: number
+        }
+        Insert: {
+          ativo?: boolean
+          avatar_url?: string | null
+          corretora_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          slug: string
+          subtitulo?: string | null
+          tema?: Json
+          titulo: string
+          updated_at?: string
+          verificado?: boolean
+          visitas?: number
+        }
+        Update: {
+          ativo?: boolean
+          avatar_url?: string | null
+          corretora_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          slug?: string
+          subtitulo?: string | null
+          tema?: Json
+          titulo?: string
+          updated_at?: string
+          verificado?: boolean
+          visitas?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "link_bio_paginas_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
             referencedColumns: ["id"]
           },
         ]
@@ -6108,6 +6290,32 @@ export type Database = {
           },
         ]
       }
+      pid_derivacao_status: {
+        Row: {
+          complementar_em: string | null
+          corretora_id: string
+          resultado: Json | null
+        }
+        Insert: {
+          complementar_em?: string | null
+          corretora_id: string
+          resultado?: Json | null
+        }
+        Update: {
+          complementar_em?: string | null
+          corretora_id?: string
+          resultado?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pid_derivacao_status_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pid_estudo_base: {
         Row: {
           corretora_id: string
@@ -7355,6 +7563,7 @@ export type Database = {
         Row: {
           analista_responsavel: string | null
           ano_fabricacao: number | null
+          associado_cidade: string | null
           associado_estado: string | null
           categoria_veiculo: string | null
           classificacao: string | null
@@ -7405,6 +7614,7 @@ export type Database = {
         Insert: {
           analista_responsavel?: string | null
           ano_fabricacao?: number | null
+          associado_cidade?: string | null
           associado_estado?: string | null
           categoria_veiculo?: string | null
           classificacao?: string | null
@@ -7455,6 +7665,7 @@ export type Database = {
         Update: {
           analista_responsavel?: string | null
           ano_fabricacao?: number | null
+          associado_cidade?: string | null
           associado_estado?: string | null
           categoria_veiculo?: string | null
           classificacao?: string | null
@@ -9801,6 +10012,7 @@ export type Database = {
         Returns: Json
       }
       backfill_pid_faturamento_worker: { Args: never; Returns: Json }
+      bi_status_alimentacao: { Args: { p_corretora_id: string }; Returns: Json }
       bug_report_adiar: { Args: { p_id: string }; Returns: Json }
       bug_report_aprovar: {
         Args: { p_id: string; p_instrucao?: string }
@@ -10026,7 +10238,12 @@ export type Database = {
           protocolo: string
         }[]
       }
+      derivar_complementares_worker: { Args: never; Returns: Json }
       derivar_indicadores: {
+        Args: { p_corretora_id: string; p_meses?: number }
+        Returns: Json
+      }
+      derivar_indicadores_complementares: {
         Args: { p_corretora_id: string; p_meses?: number }
         Returns: Json
       }
@@ -10056,6 +10273,10 @@ export type Database = {
             Returns: Json
           }
       enriquecer_cobranca_worker: { Args: { p_batch?: number }; Returns: Json }
+      enriquecer_mgf_eventos: {
+        Args: { p_corretora_id: string }
+        Returns: Json
+      }
       enviar_push_onesignal: {
         Args: {
           p_cidades?: string[]
@@ -10252,6 +10473,14 @@ export type Database = {
       kpis_cobranca_sga: {
         Args: { p_corretora_id: string; p_mes_referencia?: string }
         Returns: Json
+      }
+      link_bio_registrar_clique: {
+        Args: { p_item_id: string }
+        Returns: undefined
+      }
+      link_bio_registrar_visita: {
+        Args: { p_slug: string }
+        Returns: undefined
       }
       listar_cobranca_boletos_dedup: {
         Args: {
