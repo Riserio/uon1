@@ -239,6 +239,13 @@
       "when": 1793114466940,
       "tag": "0033_restringir_envio_mensagens_reuniao",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793114523193,
+      "tag": "0034_restringir_whatsapp_templates_e_bug_reports",
+      "breakpoints": true
     }
   ]
 }
