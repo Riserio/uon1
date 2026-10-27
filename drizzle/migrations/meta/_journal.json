@@ -211,6 +211,13 @@
       "when": 1792078817855,
       "tag": "0029_link_bio",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793114116159,
+      "tag": "0030_registrar_migracoes_pendentes",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+SELECT 1; -- migração no-op: o migrator registra/aplica os arquivos 0025–0029, todos idempotentes e já presentes no banco
