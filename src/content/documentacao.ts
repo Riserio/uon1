@@ -872,7 +872,7 @@ export const CAPITULOS: DocCapitulo[] = [
               cabecalho: ["Grupo", "Itens"],
               linhas: [
                 ["Início", "Painel"],
-                ["Relacionamento", "Atendimentos, Central de Atendimento, Mensagens, Uon1 Talk, Ouvidoria, Comunicados"],
+                ["Relacionamento", "Atendimentos, Central de Atendimento, Mensagens, Uon1 Talk, Ouvidoria, Comunicados, Links"],
                 ["Inteligência", "BI Indicadores, SGA Associados"],
                 ["Operação", "Vistorias, Financeiro, Débitos Veiculares, Formulários"],
                 ["Documentos", "Uon1 Sign, Documentos, Biblioteca, Termos de Aceite"],

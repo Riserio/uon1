@@ -96,6 +96,9 @@ const Formularios = lazyWithRetry(() => import("./pages/Formularios"));
 const FormularioEditor = lazyWithRetry(() => import("./pages/FormularioEditor"));
 const FormularioRespostas = lazyWithRetry(() => import("./pages/FormularioRespostas"));
 const FormularioPublico = lazyWithRetry(() => import("./pages/FormularioPublico"));
+const LinkBio = lazyWithRetry(() => import("./pages/LinkBio"));
+const LinkBioEditor = lazyWithRetry(() => import("./pages/LinkBioEditor"));
+const LinkBioPublico = lazyWithRetry(() => import("./pages/LinkBioPublico"));
 const DispositivosPonto = lazyWithRetry(() => import("./pages/DispositivosPonto"));
 
 const queryClient = new QueryClient({
@@ -266,6 +269,7 @@ const App = () => (
               <Route path="/embed/ouvidoria/:slug" element={<OuvidoriaEmbed />} />
               <Route path="/gestao-cobranca" element={<GestaoCobranca />} />
               <Route path="/f/:slug" element={<FormularioPublico />} />
+              <Route path="/l/:slug" element={<LinkBioPublico />} />
               <Route path="/biblioteca/estudoregulatorio" element={<EstudoRegulatorio />} />
               <Route path="/" element={<DomainBasedRoute />} />
 
@@ -321,6 +325,8 @@ const App = () => (
                 <Route path="/biblioteca" element={<ProtectedRoute><Biblioteca /></ProtectedRoute>} />
                 <Route path="/ajuda" element={<ProtectedRoute><Treinamento /></ProtectedRoute>} />
                 <Route path="/debitos-veiculares" element={<ProtectedRoute><DebitosVeiculares /></ProtectedRoute>} />
+                <Route path="/links" element={<ProtectedRoute><LinkBio /></ProtectedRoute>} />
+                <Route path="/links/:id" element={<ProtectedRoute><LinkBioEditor /></ProtectedRoute>} />
                 <Route path="/formularios" element={<ProtectedRoute><Formularios /></ProtectedRoute>} />
                 <Route path="/formularios/novo" element={<ProtectedRoute><FormularioEditor /></ProtectedRoute>} />
                 <Route path="/formularios/:id/editar" element={<ProtectedRoute><FormularioEditor /></ProtectedRoute>} />

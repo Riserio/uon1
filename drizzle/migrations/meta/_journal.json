@@ -204,6 +204,13 @@
       "when": 1792078816855,
       "tag": "0028_resumo_cobranca_dia_e_cooperativa",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792078817855,
+      "tag": "0029_link_bio",
+      "breakpoints": true
     }
   ]
 }

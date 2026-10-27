@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck, Link2 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +94,7 @@ function useMenuItems() {
     { id: "contratos", label: "Uon1 Sign", to: "/uon1sign", icon: FileSignature, badge: signedContracts.count, group: "documentos" },
     { id: "talka", label: "Uon1 Talk", to: "/video", icon: Video, group: "relacionamento" },
      { id: "comunicados", label: "Comunicados", to: "/comunicados", icon: Megaphone, group: "relacionamento" },
+    { id: "links", label: "Links", to: "/links", icon: Link2, group: "relacionamento" },
      { id: "gestao", label: "Gestão", to: "/gestao", icon: Briefcase, group: "interno" },
     { id: "formularios", label: "Formulários", to: "/formularios", icon: FileEdit, group: "operacao" },
       { id: "ppr", label: "PPR", to: "/ppr", icon: ClipboardCheck, group: "interno" },

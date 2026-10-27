@@ -92,6 +92,7 @@ export const SYSTEM_MODULES: ModuloSistema[] = [
   { id: "contratos", label: "Uon1 Sign", grupo: "documentos" },
   { id: "talka", label: "Uon1 Talk", grupo: "relacionamento" },
   { id: "comunicados", label: "Comunicados", grupo: "relacionamento" },
+  { id: "links", label: "Links", grupo: "relacionamento" },
   { id: "gestao", label: "Gestão", grupo: "interno" },
   { id: "formularios", label: "Formulários", grupo: "operacao" },
   { id: "ppr", label: "PPR", grupo: "interno" },
@@ -112,7 +113,7 @@ const MODULO_EMOJI: Record<string, string> = {
   sinistros: "🔍", lancamentos_financeiros: "💰", agenda: "📅", documentos: "📁",
   emails: "📧", mensagens: "💬", pid: "📈", ouvidoria: "🛡️", contratos: "✍️",
   talka: "🎥", comunicados: "📢", gestao: "⚙️", formularios: "📝", ppr: "✅",
-  debitos_veiculares: "🚗", biblioteca: "📚", ajuda: "❓", configuracoes: "⚙️",
+  debitos_veiculares: "🚗", links: "🔗", biblioteca: "📚", ajuda: "❓", configuracoes: "⚙️",
   usuarios: "👤", performance: "🎯",
 };
 
