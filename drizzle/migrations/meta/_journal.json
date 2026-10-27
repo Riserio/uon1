@@ -225,6 +225,13 @@
       "when": 1793114282774,
       "tag": "0031_fechar_acesso_cargos_participantes_prazo_vistoria",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793114297443,
+      "tag": "0032_ajustar_grants_excedentes",
+      "breakpoints": true
     }
   ]
 }
