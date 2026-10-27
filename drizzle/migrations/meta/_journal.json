@@ -232,6 +232,13 @@
       "when": 1793114297443,
       "tag": "0032_ajustar_grants_excedentes",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793114466940,
+      "tag": "0033_restringir_envio_mensagens_reuniao",
+      "breakpoints": true
     }
   ]
 }
