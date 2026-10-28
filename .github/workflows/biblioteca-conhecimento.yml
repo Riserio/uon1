@@ -37,8 +37,11 @@ jobs:
           node-version: 20
           cache: npm
 
+      # npm install (e não npm ci): o package-lock.json do repositório está fora
+      # de sincronia com o package.json (pacotes do drizzle). O lock alterado
+      # aqui NÃO é commitado — só a base de conhecimento.
       - name: Instalar dependências
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Gerar base de conhecimento
         run: node scripts/gerar-conhecimento-biblioteca.mjs
@@ -66,6 +69,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # O Lovable também publica as edge functions a partir da main; se o
+      # token do Supabase CLI estiver inválido, a base já foi commitada acima.
       - name: Publicar biblioteca-perguntar
         if: steps.commit.outputs.mudou == 'true'
+        continue-on-error: true
         run: supabase functions deploy biblioteca-perguntar --project-ref "$PROJECT_REF"
