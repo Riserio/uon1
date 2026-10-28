@@ -92,7 +92,7 @@ export const AJUDA_SECOES: AjudaSecao[] = [
       "Boletos emitidos, pagos, em aberto, vencidos, faturamento e recebido: boletos da Cobrança, no critério SGA.",
       "Eventos e sinistralidade por volume: eventos do SGA pela data de cadastro.",
       "Custo de eventos, pagamentos de evento e assistência: lançamentos de saída do MGF.",
-      "Cadastros do mês: data de adesão/contrato dos veículos na base.",
+      "Cadastros do mês: veículos com DATA CONTRATO no mês (campo do SGA; pela API, se vier vazio, usa data de adesão e depois data de cadastro).",
     ],
     atualizacao: [
       "O mês corrente é recalculado sempre que a base é conferida (várias vezes ao dia).",
@@ -134,6 +134,7 @@ export const AJUDA_SECOES: AjudaSecao[] = [
     duvidas: [
       { pergunta: "Por que o mês atual parece menor que o anterior?", resposta: "Porque ainda está em andamento: boletos vencem ao longo do mês e os pagamentos entram dia a dia. Compare meses fechados." },
       { pergunta: "Por que as placas ativas daqui diferem do SGA?", resposta: "O número é o da última conferência da base (veja o horário nesta tela). Movimentações feitas no SGA depois disso entram na próxima conferência." },
+      { pergunta: "O card \"cadastros do mês\" conta renovações?", resposta: "Conta todos os veículos com DATA CONTRATO (SGA) dentro do mês, sem filtrar situação nem tipo de entrada. Se o SGA atualiza a data de contrato em renovação, reativação ou troca de veículo, esses casos entram. A contagem é por veículo, não por associado." },
     ],
   },
   {

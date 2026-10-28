@@ -51,7 +51,8 @@ jobs:
             gerar-pdf-resumo-geral \
             whatsapp-template-schedule-runner \
             verify-metodo-seguranca \
-            pwa-manifest; do
+            pwa-manifest \
+            biblioteca-perguntar; do
             echo "== deploy $fn =="
             if ! supabase functions deploy "$fn" --project-ref "$PROJECT_REF"; then
               echo "::error::Falhou o deploy de $fn"
