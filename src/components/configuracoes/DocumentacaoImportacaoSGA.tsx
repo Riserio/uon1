@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -79,10 +80,9 @@ export default function DocumentacaoImportacaoSGA() {
 
   useEffect(() => {
     carregar();
-    // Atualiza sozinho: o processo avança a cada 2 minutos.
-    const t = setInterval(carregar, 60000);
-    return () => clearInterval(t);
   }, [carregar]);
+  // Atualiza sozinho (só com a aba visível): o processo avança a cada 2 minutos.
+  useVisibleInterval(carregar, 120_000);
 
   // ~30 dias de histórico por execução, uma execução a cada 2 minutos.
   const horasEstimadas = status ? Math.round(((status.dias_restantes / 30) * 2) / 60) : 0;

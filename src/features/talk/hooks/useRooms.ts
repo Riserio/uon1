@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { supabase } from "@/integrations/supabase/client";
 import { callLivekitFn } from "@/lib/livekitApi";
 import { toast } from "sonner";
@@ -81,9 +82,9 @@ export function useRooms(userReady: boolean) {
   useEffect(() => {
     if (!userReady) return;
     autoFinalizeExpired().then(fetchRooms);
-    const interval = setInterval(() => autoFinalizeExpired().then(fetchRooms), 60000);
-    return () => clearInterval(interval);
   }, [userReady, autoFinalizeExpired, fetchRooms]);
+  // Atualiza a lista só com a aba visível (não gasta requisição em segundo plano).
+  useVisibleInterval(() => autoFinalizeExpired().then(fetchRooms), 60_000, { enabled: userReady });
 
   const endRoom = async (roomId: string) => {
     try {
