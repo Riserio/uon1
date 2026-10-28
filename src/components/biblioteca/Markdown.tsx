@@ -92,7 +92,7 @@ export function Markdown({ texto }: { texto: string }) {
       fecharLista();
       const k = `h${blocos.length}`;
       blocos.push(
-        <h4 key={k} className="pt-1 font-serif text-[1.05rem] font-semibold text-foreground">
+        <h4 key={k} className="pt-1 text-[1.05rem] font-semibold text-foreground">
           {inline(h[2].replace(/\*\*/g, ""), k)}
         </h4>,
       );

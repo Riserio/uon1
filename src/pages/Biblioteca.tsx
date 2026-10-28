@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, BookOpen, Scale, Sparkles } from "lucide-react";
+import { ArrowUpRight, BookOpen, Library, Scale, Sparkles } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import PergunteBiblioteca from "@/components/biblioteca/PergunteBiblioteca";
 import GuiasModulos, { type SelecaoGuia } from "@/components/biblioteca/GuiasModulos";
 import { HELP_MODULES } from "@/data/treinamentoContent";
@@ -12,8 +13,8 @@ import { cn } from "@/lib/utils";
  *    com modos de resposta, filtro de área e prints (só consulta, nada é salvo);
  *  - Aba "Guias": passo a passo por módulo (antiga Central de Ajuda, /ajuda);
  *  - Coluna lateral: módulos do sistema (abre o guia) e o Estudo Regulatório.
- * Visual: estilo editorial do styleguide uon1 (serifada nos títulos, índigo
- * como primária, laranja da marca nos destaques).
+ * Visual: cabeçalho padrão do sistema (PageHeader) e fonte do sistema; índigo
+ * como primária e laranja da marca nos destaques.
  */
 type Aba = "perguntar" | "guias";
 
@@ -29,17 +30,14 @@ export default function Biblioteca() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1320px] px-4 pb-16 pt-8 sm:px-8 md:pt-10">
-        {/* Cabeçalho */}
+    <div className="min-h-screen bg-background p-4 md:p-8">
+      <PageHeader
+        icon={Library}
+        title="Biblioteca"
+        subtitle="Tire dúvidas sobre o sistema com IA e aprenda a usar cada área com guias passo a passo"
+      />
+      <div>
         <header>
-          <div className="h-1 w-14 rounded-full bg-accent-brand" />
-          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Central de conhecimento</p>
-          <h1 className="mt-1.5 font-serif text-4xl font-semibold leading-tight sm:text-[2.75rem]">Biblioteca</h1>
-          <p className="mt-2 max-w-[72ch] text-[0.98rem] text-muted-foreground">
-            Tudo sobre como o uon1 funciona: o que cada número significa, de onde vem cada dado e como usar cada tela.
-          </p>
-
           <div className="mt-6 inline-flex gap-1 rounded-2xl bg-muted p-1" role="tablist">
             {(
               [
@@ -76,7 +74,7 @@ export default function Biblioteca() {
               <PergunteBiblioteca />
             ) : (
               <section>
-                <h2 className="font-serif text-2xl font-semibold">Guias por módulo</h2>
+                <h2 className="text-2xl font-semibold">Guias por módulo</h2>
                 <p className="mb-6 mt-1.5 text-sm text-muted-foreground">
                   {HELP_MODULES.length} módulos e {totalGuias} guias passo a passo para usar cada área do sistema.
                 </p>
@@ -129,7 +127,7 @@ export default function Biblioteca() {
                   </span>
                   <ArrowUpRight className="h-4 w-4 text-muted-foreground transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </div>
-                <h3 className="mt-3 font-serif text-lg font-semibold">Estudo Regulatório</h3>
+                <h3 className="mt-3 text-lg font-semibold">Estudo Regulatório</h3>
                 <p className="mt-1 text-[0.82rem] text-muted-foreground">
                   Leis, resoluções do CNSP, circulares da Susep e normas de governança, riscos e compliance.
                 </p>

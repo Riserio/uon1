@@ -27,7 +27,7 @@ function CardModulo({ mod, onClick }: { mod: HelpModule; onClick: () => void }) 
           {mod.topics.length} {mod.topics.length === 1 ? "guia" : "guias"}
         </span>
       </div>
-      <h3 className="mt-4 font-serif text-[1.08rem] font-semibold leading-snug text-foreground">{mod.title}</h3>
+      <h3 className="mt-4 text-[1.08rem] font-semibold leading-snug text-foreground">{mod.title}</h3>
       <p className="mt-1.5 line-clamp-2 text-[0.84rem] text-muted-foreground">{mod.description}</p>
       <span className="mt-auto inline-flex items-center gap-1 pt-4 text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">
         Abrir guias <ArrowRight className="h-3.5 w-3.5" />
@@ -56,7 +56,7 @@ function DetalheModulo({ mod, onBack, destaque }: { mod: HelpModule; onBack: () 
             <Icon className="h-6 w-6" />
           </span>
           <div>
-            <h3 className="font-serif text-2xl font-semibold leading-tight">{mod.title}</h3>
+            <h3 className="text-2xl font-semibold leading-tight">{mod.title}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{mod.description}</p>
           </div>
         </div>
@@ -74,7 +74,7 @@ function DetalheModulo({ mod, onBack, destaque }: { mod: HelpModule; onBack: () 
             value={`t-${idx}`}
             className="overflow-hidden rounded-2xl border border-border bg-card px-5 shadow-sm"
           >
-            <AccordionTrigger className="py-4 text-left font-serif text-[1rem] font-semibold hover:no-underline">
+            <AccordionTrigger className="py-4 text-left text-[1rem] font-semibold hover:no-underline">
               {topic.title}
             </AccordionTrigger>
             <AccordionContent>
@@ -82,7 +82,7 @@ function DetalheModulo({ mod, onBack, destaque }: { mod: HelpModule; onBack: () 
                 <ol className="space-y-2.5">
                   {topic.steps.map((step, si) => (
                     <li key={si} className="flex gap-3 text-[0.9rem] leading-relaxed text-foreground/80">
-                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 font-serif text-xs font-bold text-primary">
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                         {si + 1}
                       </span>
                       <span>{step}</span>
@@ -169,7 +169,7 @@ export default function GuiasModulos({
 
       {filtrados.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border py-14 text-center text-muted-foreground">
-          <p className="font-serif text-lg text-foreground">Nenhum guia encontrado para “{busca}”.</p>
+          <p className="text-lg text-foreground">Nenhum guia encontrado para “{busca}”.</p>
           <p className="mt-1 text-sm">Experimente perguntar na caixa do topo — ela consulta o próprio sistema.</p>
         </div>
       ) : (

@@ -271,7 +271,7 @@ export default function PergunteBiblioteca() {
             <Sparkles className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <h2 className="font-serif text-xl font-semibold leading-snug sm:text-[1.35rem]">
+            <h2 className="text-xl font-semibold leading-snug sm:text-[1.35rem]">
               Pergunte sobre qualquer tela, número ou função
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -456,7 +456,7 @@ export default function PergunteBiblioteca() {
                   </span>
                 )}
               </div>
-              <h3 className="mt-1.5 font-serif text-lg font-semibold leading-snug sm:text-xl">{t.pergunta}</h3>
+              <h3 className="mt-1.5 text-lg font-semibold leading-snug sm:text-xl">{t.pergunta}</h3>
               {!!t.previas?.length && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {t.previas.map((src, i) => (
