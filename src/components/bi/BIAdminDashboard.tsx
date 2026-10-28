@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -442,9 +443,12 @@ export default function BIAdminDashboard() {
 
   useEffect(() => {
     loadData();
-    const id = setInterval(() => loadData(true), 30000);
-    return () => clearInterval(id);
   }, [loadData]);
+
+  // Polling: ~10 consultas por ciclo. Só com a aba visível; 30s enquanto há
+  // importação em execução (barra de progresso), 2 min quando está tudo parado.
+  const temExecucao = associacoes.some((a) => a.em_execucao);
+  useVisibleInterval(() => loadData(true), temExecucao ? 30_000 : 120_000);
 
   const sincronizarTodas = async () => {
     setSyncingAll(true);

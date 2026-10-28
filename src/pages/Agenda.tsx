@@ -160,7 +160,7 @@ export default function Agenda() {
         if (document.visibilityState === 'visible') verificarLembretes();
       }, 60000);
 
-      // Auto-sync Google Calendar: immediate + every 3 minutes
+      // Auto-sync Google Calendar: immediate + every 10 minutes (only while visible)
       const doAutoSync = () => {
         if (document.visibilityState !== 'visible') return;
         if (integrations.some(i => i.ativo)) {
@@ -173,7 +173,7 @@ export default function Agenda() {
         }
       };
       doAutoSync(); // sync immediately on load
-      const syncInterval = setInterval(doAutoSync, 3 * 60 * 1000);
+      const syncInterval = setInterval(doAutoSync, 10 * 60 * 1000);
 
       // Realtime subscription on eventos table
       const channel = supabase

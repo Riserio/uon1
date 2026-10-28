@@ -117,8 +117,11 @@ if (typeof window !== 'undefined') {
   supabase.auth.onAuthStateChange((event) => {
     if (event === 'TOKEN_REFRESHED') {
       // Small delay to let the new token propagate to the client
+      // Só refaz as consultas que falharam (ex.: 401 com o token antigo).
+      // Recarregar TODAS a cada renovação (~1x/h por aba) gastava requisições
+      // à toa — as demais já se renovam pelo staleTime de 5 min.
       setTimeout(() => {
-        queryClient.invalidateQueries();
+        queryClient.invalidateQueries({ predicate: (q) => q.state.status === 'error' });
       }, 250);
     }
   });
