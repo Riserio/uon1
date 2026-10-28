@@ -89,7 +89,6 @@ const MeetingRsvp = lazyWithRetry(() => import("./pages/MeetingRsvp"));
 const OuvidoriaPublica = lazyWithRetry(() => import("./pages/OuvidoriaPublica"));
 const OuvidoriaBackoffice = lazyWithRetry(() => import("./pages/OuvidoriaBackoffice"));
 const OuvidoriaEmbed = lazyWithRetry(() => import("./pages/OuvidoriaEmbed"));
-const Treinamento = lazyWithRetry(() => import("./pages/Treinamento"));
 const DebitosVeiculares = lazyWithRetry(() => import("./pages/DebitosVeiculares"));
 const GestaoCobranca = lazyWithRetry(() => import("./pages/GestaoCobranca"));
 const Formularios = lazyWithRetry(() => import("./pages/Formularios"));
@@ -323,7 +322,7 @@ const App = () => (
                 <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
                 <Route path="/ouvidoria-backoffice" element={<ProtectedRoute><OuvidoriaBackoffice /></ProtectedRoute>} />
                 <Route path="/biblioteca" element={<ProtectedRoute><Biblioteca /></ProtectedRoute>} />
-                <Route path="/ajuda" element={<ProtectedRoute><Treinamento /></ProtectedRoute>} />
+                <Route path="/ajuda" element={<Navigate to="/biblioteca" replace />} />
                 <Route path="/debitos-veiculares" element={<ProtectedRoute><DebitosVeiculares /></ProtectedRoute>} />
                 <Route path="/links" element={<ProtectedRoute><LinkBio /></ProtectedRoute>} />
                 <Route path="/links/:id" element={<ProtectedRoute><LinkBioEditor /></ProtectedRoute>} />

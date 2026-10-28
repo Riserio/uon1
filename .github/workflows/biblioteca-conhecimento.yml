@@ -1,0 +1,71 @@
+name: Biblioteca — atualizar base de conhecimento
+
+# Regera a base que o "Pergunte à Biblioteca" usa para responder (funções do
+# banco, edge functions, telas, ajudas) sempre que o código muda na main, e
+# publica a função biblioteca-perguntar com a base nova.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
+      - '!supabase/functions/biblioteca-perguntar/conhecimento.ts'
+      - 'docs/**'
+      - '*.md'
+      - 'scripts/gerar-conhecimento-biblioteca.mjs'
+  workflow_dispatch: {}
+
+concurrency:
+  group: biblioteca-conhecimento
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: mnoczwmqgignmylbvpgp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+
+      - name: Gerar base de conhecimento
+        run: node scripts/gerar-conhecimento-biblioteca.mjs
+
+      - name: Commitar se mudou
+        id: commit
+        run: |
+          if git diff --quiet -- supabase/functions/biblioteca-perguntar/conhecimento.ts; then
+            echo "mudou=false" >> "$GITHUB_OUTPUT"
+            echo "Base de conhecimento sem mudanças."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add supabase/functions/biblioteca-perguntar/conhecimento.ts
+            git commit -m "Biblioteca: atualiza base de conhecimento"
+            git push
+            echo "mudou=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Supabase CLI
+        if: steps.commit.outputs.mudou == 'true'
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publicar biblioteca-perguntar
+        if: steps.commit.outputs.mudou == 'true'
+        run: supabase functions deploy biblioteca-perguntar --project-ref "$PROJECT_REF"

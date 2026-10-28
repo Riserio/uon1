@@ -3,7 +3,7 @@ import {
   AlertTriangle, DollarSign, Calendar, FolderOpen, Headset,
   MessageCircle, TrendingUp, MessageSquareWarning, FileSignature,
   Video, Megaphone, Briefcase, Settings, HelpCircle, Sparkles,
-  CalendarClock, Car, BarChart3
+  CalendarClock, Car, BarChart3, Search, Link2, Library
 } from "lucide-react";
 
 export interface HelpTopic {
@@ -350,6 +350,14 @@ export const HELP_MODULES: HelpModule[] = [
           "Reuniões criadas no sistema também são sincronizadas para o Google Calendar."
         ],
         tip: "A sincronização é bidirecional: alterações feitas em qualquer plataforma são refletidas na outra."
+      },
+      {
+        title: "Conectar e gerenciar contas Google",
+        steps: [
+          "Clique em 'Google' no topo e em 'Conectar conta'.",
+          "Várias contas Google podem ser conectadas simultaneamente — cada evento mostra a origem.",
+          "Eventos criados são sincronizados imediatamente no Google Calendar conectado."
+        ]
       }
     ]
   },
@@ -503,6 +511,53 @@ export const HELP_MODULES: HelpModule[] = [
         ]
       },
       {
+        title: "Selecionar associação ou Visão Administradora",
+        steps: [
+          "Use o seletor no topo para escolher uma associação ou a 'Visão Administradora' (consolida todas).",
+          "Na Visão Administradora, o botão 'Sincronizar Todas' atualiza simultaneamente MGF, SGA e Cobrança."
+        ]
+      },
+      {
+        title: "Sincronização automática (Hinova)",
+        steps: [
+          "Cada módulo importa direto da API da Hinova, sem planilha.",
+          "Configure credenciais e horários por associação na tela Sincronizar (padrão: 08h e 14h).",
+          "A rodada automática cobre os últimos 45 dias. Períodos anteriores são trazidos por backfill sob demanda.",
+          "É possível sincronizar manualmente a qualquer momento pelo botão Sincronizar."
+        ],
+        tip: "Resumos operacionais via WhatsApp são disparados automaticamente após cada sync."
+      },
+      {
+        title: "Quando um número não bate com o SGA",
+        steps: [
+          "Confira o carimbo de data no cabeçalho: nosso dado é de um horário e o relatório da associação de outro. Pagamentos e prorrogações acontecem no intervalo.",
+          "Confira qual critério está selecionado no painel de Cobrança — SGA ou Cobrança total.",
+          "Confira a unidade do card: boletos e placas são contagens diferentes.",
+          "Se for mês corrente, lembre que ele está parcial e não se compara a mês fechado."
+        ],
+        tip: "Diferenças pequenas e estáveis (poucos registros) são normais e vêm do horário da medição. Diferença grande ou que cresce merece investigação."
+      },
+      {
+        title: "Base da associação: placas ativas e cadastros do mês",
+        steps: [
+          "O card 'Base da associação' aparece acima dos filtros em todos os BIs e usa o mês selecionado.",
+          "Placas ativas: no mês corrente, conta ao vivo os veículos com situação ativa na base importada; em meses passados, usa o número consolidado do mês (PID).",
+          "Cadastros do mês: conta TODOS os veículos da base com DATA CONTRATO dentro do mês — sem filtrar situação (entra até quem já foi cancelado) e sem separar adesão nova de renovação, reativação ou troca de veículo.",
+          "A DATA CONTRATO vem do SGA: na planilha, da coluna 'DATA CONTRATO'; pela API, do campo data_contrato (se vier vazio, usa data de adesão e, por último, data de cadastro).",
+          "A contagem é por veículo, não por associado: quem cadastrou dois carros soma dois."
+        ],
+        tip: "Se a associação atualiza a DATA CONTRATO em renovações ou reativações, esses veículos aparecem como cadastro do mês. Confira algumas placas no SGA quando o número parecer alto."
+      }
+    ]
+  },
+  {
+    id: "sga",
+    title: "SGA — Associados",
+    description: "Consulta ao vivo de associados, veículos, boletos, eventos e MGF direto na Hinova.",
+    icon: Search,
+    color: "text-cyan-600",
+    topics: [
+      {
         title: "Consulta ao SGA",
         steps: [
           "A tela SGA consulta a Hinova AO VIVO, em todas as associações com API ativa.",
@@ -567,7 +622,7 @@ export const HELP_MODULES: HelpModule[] = [
         title: "Criar contrato",
         steps: [
           "Clique em '+ Novo Contrato' e selecione um template ou crie do zero.",
-          "Preencha as variáveis do contrato (nomes, valores, datas) nos campos indicados.",
+          "Preencha as variáveis do contrato (nomes, CPF, valores, datas) — elas são substituídas automaticamente no texto.",
           "Adicione os signatários com nome, e-mail e CPF.",
           "Defina a ordem de assinatura se necessário."
         ]
@@ -585,7 +640,7 @@ export const HELP_MODULES: HelpModule[] = [
       {
         title: "Acompanhar assinaturas",
         steps: [
-          "O painel mostra o status de cada contrato: Rascunho, Enviado, Parcialmente Assinado, Concluído.",
+          "O painel mostra o status de cada contrato: Rascunho, Aguardando assinatura, Assinado ou Cancelado.",
           "Contratos assinados recentemente aparecem com badge no menu lateral.",
           "Clique em um contrato para ver quem já assinou e quem falta.",
           "Reenvie o link de assinatura para signatários que ainda não assinaram."
@@ -597,7 +652,7 @@ export const HELP_MODULES: HelpModule[] = [
           "O signatário recebe um link por e-mail para assinar o contrato.",
           "Ao acessar, ele visualiza o documento completo e desenha sua assinatura na tela.",
           "O sistema registra: IP, data/hora, geolocalização e hash do documento para validade jurídica.",
-          "Após todos assinarem, o PDF final é gerado automaticamente."
+          "Quando todos assinam, o contrato muda para Assinado e o PDF final é gerado automaticamente."
         ]
       }
     ]
@@ -610,12 +665,11 @@ export const HELP_MODULES: HelpModule[] = [
     color: "text-rose-500",
     topics: [
       {
-        title: "Criar sala de vídeo",
+        title: "Criar reunião agendada ou instantânea",
         steps: [
-          "Acesse Uon1 Talk e clique em '+ Nova Sala'.",
-          "Dê um nome à sala e defina os participantes.",
-          "O link da sala pode ser compartilhado por e-mail ou WhatsApp.",
-          "A sala fica ativa até que todos saiam ou o anfitrião encerre."
+          "Clique em 'Nova Reunião' para agendar com data/hora e participantes.",
+          "Use 'Reunião Instantânea' para abrir uma sala imediatamente, sem agendamento.",
+          "Convidados externos recebem template HTML 'Talk by Uon1'."
         ]
       },
       {
@@ -657,9 +711,67 @@ export const HELP_MODULES: HelpModule[] = [
     ]
   },
   {
+    id: "formularios",
+    title: "Formulários",
+    description: "Crie formulários com link público, escolha o estilo e acompanhe as respostas.",
+    icon: ClipboardList,
+    color: "text-fuchsia-500",
+    topics: [
+      {
+        title: "Criar um formulário",
+        steps: [
+          "Em Formulários, clique em criar e informe título e descrição.",
+          "Escolha o estilo: Google Forms (todas as perguntas numa página), Typeform (uma pergunta por vez), Colapse (layout Vangard com seções) ou Fluxos (análise de sinistro com estrutura fixa).",
+          "Adicione perguntas: texto curto ou longo, escolha única, múltipla escolha, lista, número, data, hora, e-mail, telefone, placa, CPF, CNPJ ou cabeçalho de seção.",
+          "Marque as perguntas obrigatórias, defina a cor do tema, a logo do parceiro (opcional) e a mensagem exibida ao enviar."
+        ]
+      },
+      {
+        title: "Publicar e compartilhar",
+        steps: [
+          "O link público fica em /f/<slug>. O slug pode ser personalizado no editor.",
+          "Na listagem você copia o link, ativa ou desativa, duplica ou exclui o formulário."
+        ],
+        tip: "Duplique um formulário existente para criar variações sem perder o original."
+      },
+      {
+        title: "Ver as respostas",
+        steps: [
+          "Abra as respostas do formulário para ver em Tabela (todas juntas) ou Individual (uma por vez).",
+          "Filtre por associação e busque por qualquer texto das respostas."
+        ]
+      }
+    ]
+  },
+  {
+    id: "links",
+    title: "Links",
+    description: "Páginas de links para a bio do Instagram, WhatsApp e QR codes, com contagem de cliques.",
+    icon: Link2,
+    color: "text-emerald-600",
+    topics: [
+      {
+        title: "Criar uma página de links",
+        steps: [
+          "Em Links, clique em 'Nova página de links' e informe o nome e o endereço.",
+          "A página fica pública em /l/<endereço> — é esse link que vai na bio ou no QR code.",
+          "No editor, configure o perfil (título, frase de apoio, imagem até 2 MB) e a aparência (estilo do botão)."
+        ]
+      },
+      {
+        title: "Links, WhatsApp e cliques",
+        steps: [
+          "Adicione links, botões de WhatsApp (com mensagem inicial), telefone ou e-mail; reordene com Subir/Descer.",
+          "Cada link mostra quantos cliques recebeu, e a página mostra o total."
+        ],
+        tip: "Trocar o endereço de uma página publicada quebra o link antigo — inclusive QR codes já impressos."
+      }
+    ]
+  },
+  {
     id: "gestao",
     title: "Gestão",
-    description: "Gestão de funcionários, contratos de trabalho, jornada e ponto eletrônico.",
+    description: "Usuários, funcionários, contratos de trabalho, jornada, banco de horas e ponto eletrônico.",
     icon: Briefcase,
     color: "text-slate-600",
     topics: [
@@ -704,6 +816,23 @@ export const HELP_MODULES: HelpModule[] = [
           "Cada anexo pode ter dias abonados associados, que são descontados automaticamente das faltas.",
           "O histórico de anexos fica disponível para consulta e auditoria."
         ]
+      },
+      {
+        title: "Aba Usuários",
+        steps: [
+          "Em Gestão > Usuários você gerencia todos os usuários, permissões e acessos no estilo widget moderno.",
+          "Aprove cadastros pendentes, defina cargos (Admin, Administrativo, Comercial, Líder, Superintendente).",
+          "Vínculo bidirecional: ao cadastrar usuário pode marcar 'É funcionário' (cria registro na Jornada)."
+        ]
+      },
+      {
+        title: "Jornada de Trabalho",
+        steps: [
+          "Dashboard com dias trabalhados, horas acumuladas, atrasos e banco de horas.",
+          "Configure jornada padrão, tolerância e dias úteis em 'Configurações da Jornada'.",
+          "Lembretes automáticos de bater ponto são enviados a todos os usuários ativos — apenas habilite/desabilite."
+        ],
+        tip: "O Espelho de Ponto (PDF) segue o padrão clean — título à esquerda e logo Vangard no canto superior direito."
       }
     ]
   },
@@ -828,31 +957,6 @@ export const HELP_MODULES: HelpModule[] = [
     ]
   },
   {
-    id: "uon1sign-help",
-    title: "Uon1 Sign (Assinatura Digital)",
-    description: "Gestão de contratos com assinatura eletrônica, templates e link público para o signatário.",
-    icon: FileSignature,
-    color: "text-amber-500",
-    topics: [
-      {
-        title: "Criar contrato",
-        steps: [
-          "Clique em '+ Novo Contrato' e escolha um template ou crie em branco.",
-          "Preencha as variáveis (nome, CPF, valor) — substituídas automaticamente.",
-          "Adicione signatários (com ordem) e envie o link por e-mail."
-        ]
-      },
-      {
-        title: "Acompanhamento",
-        steps: [
-          "Status: Rascunho, Aguardando, Assinado, Cancelado.",
-          "Cada assinatura registra IP, geolocalização, hash do documento e timestamp para validade jurídica.",
-          "Contratos totalmente assinados mudam para 'Assinado' e geram PDF final."
-        ]
-      }
-    ]
-  },
-  {
     id: "debitos-veiculares",
     title: "Débitos Veiculares",
     description: "Consulta de IPVA, multas e licenciamento por placa, com simulação de parcelamento (Zapay).",
@@ -878,98 +982,21 @@ export const HELP_MODULES: HelpModule[] = [
     ]
   },
   {
-    id: "bi-help",
-    title: "BI · Indicadores e Visão Administradora",
-    description: "Dashboards de Indicadores, Eventos (SGA), MGF, Cobrança, Estudo de Base e Cadastro com sync Hinova.",
-    icon: BarChart3,
-    color: "text-indigo-500",
+    id: "biblioteca",
+    title: "Biblioteca",
+    description: "Guias, Estudo Regulatório e o 'Pergunte à Biblioteca' para tirar dúvidas sobre o sistema.",
+    icon: Library,
+    color: "text-primary",
     topics: [
       {
-        title: "Selecionar associação ou Visão Administradora",
+        title: "Pergunte à Biblioteca",
         steps: [
-          "Use o seletor no topo para escolher uma associação ou a 'Visão Administradora' (consolida todas).",
-          "Na Visão Administradora, o botão 'Sincronizar Todas' atualiza simultaneamente MGF, SGA e Cobrança."
-        ]
-      },
-      {
-        title: "Sincronização automática (Hinova)",
-        steps: [
-          "Cada módulo importa direto da API da Hinova, sem planilha.",
-          "Configure credenciais e horários por associação na tela Sincronizar (padrão: 08h e 14h).",
-          "A rodada automática cobre os últimos 45 dias. Períodos anteriores são trazidos por backfill sob demanda.",
-          "É possível sincronizar manualmente a qualquer momento pelo botão Sincronizar."
+          "Escreva sua dúvida em linguagem normal: o que um número significa, de onde vem um dado, o que uma função faz, quando sincroniza.",
+          "A resposta é montada a partir do próprio código do uon1 (funções do banco, importações, telas e ajudas) e mostra as fontes consultadas.",
+          "Faça perguntas de continuação — a Biblioteca considera a pergunta anterior.",
+          "A base é atualizada automaticamente sempre que o sistema muda."
         ],
-        tip: "Resumos operacionais via WhatsApp são disparados automaticamente após cada sync."
-      },
-      {
-        title: "Quando um número não bate com o SGA",
-        steps: [
-          "Confira o carimbo de data no cabeçalho: nosso dado é de um horário e o relatório da associação de outro. Pagamentos e prorrogações acontecem no intervalo.",
-          "Confira qual critério está selecionado no painel de Cobrança — SGA ou Cobrança total.",
-          "Confira a unidade do card: boletos e placas são contagens diferentes.",
-          "Se for mês corrente, lembre que ele está parcial e não se compara a mês fechado."
-        ],
-        tip: "Diferenças pequenas e estáveis (poucos registros) são normais e vêm do horário da medição. Diferença grande ou que cresce merece investigação."
-      }
-    ]
-  },
-  {
-    id: "agenda-help",
-    title: "Agenda (Google Calendar)",
-    description: "Agenda integrada com múltiplas contas Google e visões dia/semana/mês.",
-    icon: CalendarClock,
-    color: "text-teal-500",
-    topics: [
-      {
-        title: "Conectar e gerenciar contas Google",
-        steps: [
-          "Clique em 'Google' no topo e em 'Conectar conta'.",
-          "Várias contas Google podem ser conectadas simultaneamente — cada evento mostra a origem.",
-          "Eventos criados são sincronizados imediatamente no Google Calendar conectado."
-        ]
-      }
-    ]
-  },
-  {
-    id: "talk-help",
-    title: "Uon1 Talk (Videoconferência)",
-    description: "Reuniões online com salas persistentes, link de convite e reuniões instantâneas.",
-    icon: Video,
-    color: "text-rose-500",
-    topics: [
-      {
-        title: "Criar reunião agendada ou instantânea",
-        steps: [
-          "Clique em 'Nova Reunião' para agendar com data/hora e participantes.",
-          "Use 'Reunião Instantânea' para abrir uma sala imediatamente, sem agendamento.",
-          "Convidados externos recebem template HTML 'Talk by Uon1'."
-        ]
-      }
-    ]
-  },
-  {
-    id: "gestao-jornada",
-    title: "Gestão · Usuários e Jornada",
-    description: "Controle de usuários, permissões e jornada de trabalho com banco de horas e folha de ponto.",
-    icon: Briefcase,
-    color: "text-blue-500",
-    topics: [
-      {
-        title: "Aba Usuários",
-        steps: [
-          "Em Gestão > Usuários você gerencia todos os usuários, permissões e acessos no estilo widget moderno.",
-          "Aprove cadastros pendentes, defina cargos (Admin, Administrativo, Comercial, Líder, Superintendente).",
-          "Vínculo bidirecional: ao cadastrar usuário pode marcar 'É funcionário' (cria registro na Jornada)."
-        ]
-      },
-      {
-        title: "Jornada de Trabalho",
-        steps: [
-          "Dashboard com dias trabalhados, horas acumuladas, atrasos e banco de horas.",
-          "Configure jornada padrão, tolerância e dias úteis em 'Configurações da Jornada'.",
-          "Lembretes automáticos de bater ponto são enviados a todos os usuários ativos — apenas habilite/desabilite."
-        ],
-        tip: "O Espelho de Ponto (PDF) segue o padrão clean — título à esquerda e logo Vangard no canto superior direito."
+        tip: "Seja específico: 'o card cadastros do mês conta renovações?' rende uma resposta melhor que 'como funciona o BI?'."
       }
     ]
   }
