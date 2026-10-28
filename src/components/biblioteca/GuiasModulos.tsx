@@ -106,9 +106,18 @@ function DetalheModulo({ mod, onBack, destaque }: { mod: HelpModule; onBack: () 
   );
 }
 
-export default function GuiasModulos() {
+export type SelecaoGuia = { id: string; topico?: string } | null;
+
+/** A seleção é controlada pela página, para a coluna lateral abrir um módulo direto. */
+export default function GuiasModulos({
+  selecionado,
+  onSelecionar,
+}: {
+  selecionado: SelecaoGuia;
+  onSelecionar: (s: SelecaoGuia) => void;
+}) {
   const [busca, setBusca] = useState("");
-  const [selecionado, setSelecionado] = useState<{ id: string; topico?: string } | null>(null);
+  const setSelecionado = onSelecionar;
 
   const q = normalizar(busca.trim());
   const filtrados = useMemo(() => {
