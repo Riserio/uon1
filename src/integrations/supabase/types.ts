@@ -1905,6 +1905,253 @@ export type Database = {
           },
         ]
       }
+      comercial_etapas: {
+        Row: {
+          cor: string
+          created_at: string
+          funil_id: string
+          id: string
+          nome: string
+          ordem: number
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          cor?: string
+          created_at?: string
+          funil_id: string
+          id?: string
+          nome: string
+          ordem?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          cor?: string
+          created_at?: string
+          funil_id?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comercial_etapas_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_funis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comercial_funis: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          produtos: string[]
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          produtos?: string[]
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          produtos?: string[]
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      comercial_lead_historico: {
+        Row: {
+          created_at: string
+          etapa_de: string | null
+          etapa_para: string | null
+          id: string
+          lead_id: string
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          etapa_de?: string | null
+          etapa_para?: string | null
+          id?: string
+          lead_id: string
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          etapa_de?: string | null
+          etapa_para?: string | null
+          id?: string
+          lead_id?: string
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comercial_lead_historico_etapa_de_fkey"
+            columns: ["etapa_de"]
+            isOneToOne: false
+            referencedRelation: "comercial_etapas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comercial_lead_historico_etapa_para_fkey"
+            columns: ["etapa_para"]
+            isOneToOne: false
+            referencedRelation: "comercial_etapas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comercial_lead_historico_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comercial_leads: {
+        Row: {
+          associacao: string | null
+          cargo: string | null
+          created_at: string
+          created_by: string | null
+          etapa_alterada_em: string
+          etapa_id: string
+          funil_id: string
+          id: string
+          indicacao_externa: boolean
+          indicador_nome: string | null
+          motivo_perda: string | null
+          nome: string
+          observacoes: string | null
+          origem: string
+          produto: string | null
+          updated_at: string
+          vendedor_id: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          associacao?: string | null
+          cargo?: string | null
+          created_at?: string
+          created_by?: string | null
+          etapa_alterada_em?: string
+          etapa_id: string
+          funil_id: string
+          id?: string
+          indicacao_externa?: boolean
+          indicador_nome?: string | null
+          motivo_perda?: string | null
+          nome: string
+          observacoes?: string | null
+          origem?: string
+          produto?: string | null
+          updated_at?: string
+          vendedor_id?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          associacao?: string | null
+          cargo?: string | null
+          created_at?: string
+          created_by?: string | null
+          etapa_alterada_em?: string
+          etapa_id?: string
+          funil_id?: string
+          id?: string
+          indicacao_externa?: boolean
+          indicador_nome?: string | null
+          motivo_perda?: string | null
+          nome?: string
+          observacoes?: string | null
+          origem?: string
+          produto?: string | null
+          updated_at?: string
+          vendedor_id?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comercial_leads_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_etapas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comercial_leads_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_funis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comercial_leads_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comercial_vendedores: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          nome: string
+          updated_at: string
+          whatsapp: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+          whatsapp?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
       comunicados: {
         Row: {
           ativo: boolean
@@ -10210,6 +10457,24 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      comercial_funil_publico: {
+        Args: { p_funil_slug: string; p_vendedor_codigo?: string }
+        Returns: Json
+      }
+      comercial_registrar_lead_publico: {
+        Args: {
+          p_associacao: string
+          p_cargo: string
+          p_funil_slug: string
+          p_indicacao_externa: boolean
+          p_indicador_nome: string
+          p_nome: string
+          p_produto: string
+          p_vendedor_codigo: string
+          p_whatsapp: string
+        }
+        Returns: boolean
       }
       consultar_hinova: {
         Args: { p_cpf?: string; p_nome?: string; p_placa?: string }

@@ -253,6 +253,13 @@
       "when": 1793717995733,
       "tag": "0035_comercial_funil_vendas",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793719236363,
+      "tag": "0036_0035_comercial_funil_vendas",
+      "breakpoints": true
     }
   ]
 }
