@@ -11,6 +11,14 @@ import { MaskedInput } from "@/components/ui/masked-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+/** Logo da Vangard (o mesmo do cabeçalho do sistema). Quem chega pelo QR não está logado,
+ * então não dá para usar o logo da configuração do usuário. */
+const LOGO = "/images/logo-vg.png";
+
+function Logo() {
+  return <img src={LOGO} alt="Vangard Gestora" className="h-20 w-auto mx-auto object-contain" />;
+}
+
 interface FunilPublico {
   nome: string;
   descricao: string | null;
@@ -91,7 +99,8 @@ export default function ComercialCaptura() {
   if (!data) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 text-center">
-        <div>
+        <div className="space-y-2">
+          <Logo />
           <h1 className="text-xl font-bold">Cadastro indisponível</h1>
           <p className="text-sm text-muted-foreground mt-1">Este link não existe ou foi desativado.</p>
         </div>
@@ -103,6 +112,7 @@ export default function ComercialCaptura() {
     <div className="min-h-screen bg-muted/30 px-4 py-8">
       <div className="mx-auto max-w-md space-y-4">
         <div className="text-center space-y-1">
+          <Logo />
           <h1 className="text-2xl font-bold tracking-tight">{data.nome}</h1>
           {data.descricao && <p className="text-sm text-muted-foreground">{data.descricao}</p>}
           {data.vendedor && (
