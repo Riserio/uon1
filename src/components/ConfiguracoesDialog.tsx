@@ -195,7 +195,7 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
               {imageUrls.header ? (
                 <img src={imageUrls.header} alt="Logo cabeçalho" className="h-12 object-contain bg-muted/30 rounded p-2" />
               ) : (
-                <img src="/images/logo-vg.png" alt="Logo cabeçalho padrão" className="h-12 object-contain bg-muted/30 rounded p-2" />
+                <img src="/images/logo-vg-hd.png" alt="Logo cabeçalho padrão" className="h-12 object-contain bg-muted/30 rounded p-2" />
               )}
             </div>
             <div className="space-y-3">

@@ -121,7 +121,7 @@ export default function BIPageHeader({
     }, { replace: true });
   };
   const { config } = useAppConfig();
-  const headerLogo = config.header_logo_url || "/images/logo-vg.png";
+  const headerLogo = config.header_logo_url || "/images/logo-vg-hd.png";
   const selectedAssociacaoNome = associacoes.find((a) => a.id === selectedAssociacao)?.nome;
 
   return (

@@ -29,7 +29,7 @@ export default function RoomHeader({ room, isHost, roomId, subtitleOverride }: R
       <div className="flex items-center gap-3 min-w-0">
         <img src="/images/logo-full.png" alt="UON1" className="h-7 w-auto hidden sm:block" />
         <div className="h-5 w-px bg-border/50 hidden sm:block" />
-        <img src="/images/logo-vg.png" alt="Vangard" className="h-7 w-auto hidden md:block" />
+        <img src="/images/logo-vg-hd.png" alt="Vangard" className="h-7 w-auto hidden md:block" />
         <div className="h-5 w-px bg-border/50 hidden md:block" />
         <div className="min-w-0">
           <h2 className="font-semibold text-sm flex items-center gap-1.5 truncate">

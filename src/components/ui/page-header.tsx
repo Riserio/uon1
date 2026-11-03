@@ -17,7 +17,7 @@ interface PageHeaderProps {
  */
 export function PageHeader({ icon: Icon, title, subtitle, actions, className }: PageHeaderProps) {
   const { config } = useAppConfig();
-  const headerLogo = config.header_logo_url || "/images/logo-vg.png";
+  const headerLogo = config.header_logo_url || "/images/logo-vg-hd.png";
 
   return (
     <div className={cn("flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-4 border-b border-border/60", className)}>

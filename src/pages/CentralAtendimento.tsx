@@ -56,7 +56,7 @@ interface Message {
 export default function CentralAtendimento({ embedded }: { embedded?: boolean }) {
   const { user } = useAuth();
   const { config } = useAppConfig();
-  const headerLogo = config.header_logo_url || "/images/logo-vg.png";
+  const headerLogo = config.header_logo_url || "/images/logo-vg-hd.png";
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);

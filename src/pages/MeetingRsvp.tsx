@@ -64,7 +64,7 @@ export default function MeetingRsvp() {
             <div className="flex items-center justify-center gap-4 mb-2">
               <img src="/images/logo-full.png" alt="Logo" className="h-8 object-contain" />
               <div className="w-px h-8 bg-border" />
-              <img src="/images/logo-vg.png" alt="Vangard" className="h-8 object-contain" />
+              <img src="/images/logo-vg-hd.png" alt="Vangard" className="h-8 object-contain" />
             </div>
             <div className={`inline-flex p-4 rounded-full ${c.bg}`}>{c.icon}</div>
             <h2 className={`text-2xl font-bold ${c.color}`}>{c.title}</h2>
