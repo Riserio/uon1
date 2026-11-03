@@ -26,7 +26,7 @@ function LogoBanner() {
     <div className="flex items-center justify-center gap-3">
       <img src="/images/logo-full.png" alt="UON1" className="h-8 w-auto" />
       <div className="h-6 w-px bg-border" />
-      <img src="/images/logo-vg.png" alt="Vangard" className="h-8 w-auto" />
+      <img src="/images/logo-vg-hd.png" alt="Vangard" className="h-8 w-auto" />
     </div>
   );
 }
