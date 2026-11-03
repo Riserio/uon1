@@ -16,7 +16,7 @@ import { ShieldAlert } from "lucide-react";
 const COOLDOWN_MS = 30_000;
 
 /** Rotas públicas onde o popup não deve aparecer */
-const ROTAS_IGNORADAS = ["/auth", "/reset-password", "/f/", "/vistoria/", "/contrato/", "/ouvidoria", "/reportar-problema", "/login"];
+const ROTAS_IGNORADAS = ["/auth", "/reset-password", "/f/", "/c/", "/vistoria/", "/contrato/", "/ouvidoria", "/reportar-problema", "/login"];
 
 /** Erros de infraestrutura/ruído que não devem gerar popup */
 const RUIDO_RE = /ResizeObserver|Loading chunk|dynamically imported module|Script error\.?$|Importing a module script failed|AbortError|NetworkError when attempting|Registration does not have an active worker|OneSignal|service ?worker|push subscription|Notification permission|The operation is insecure/i;
