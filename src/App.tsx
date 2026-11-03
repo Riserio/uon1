@@ -98,6 +98,8 @@ const FormularioPublico = lazyWithRetry(() => import("./pages/FormularioPublico"
 const LinkBio = lazyWithRetry(() => import("./pages/LinkBio"));
 const LinkBioEditor = lazyWithRetry(() => import("./pages/LinkBioEditor"));
 const LinkBioPublico = lazyWithRetry(() => import("./pages/LinkBioPublico"));
+const Comercial = lazyWithRetry(() => import("./pages/Comercial"));
+const ComercialCaptura = lazyWithRetry(() => import("./pages/ComercialCaptura"));
 const DispositivosPonto = lazyWithRetry(() => import("./pages/DispositivosPonto"));
 
 const queryClient = new QueryClient({
@@ -269,6 +271,8 @@ const App = () => (
               <Route path="/gestao-cobranca" element={<GestaoCobranca />} />
               <Route path="/f/:slug" element={<FormularioPublico />} />
               <Route path="/l/:slug" element={<LinkBioPublico />} />
+              <Route path="/c/:funil" element={<ComercialCaptura />} />
+              <Route path="/c/:funil/:vendedor" element={<ComercialCaptura />} />
               <Route path="/biblioteca/estudoregulatorio" element={<EstudoRegulatorio />} />
               <Route path="/" element={<DomainBasedRoute />} />
 
@@ -325,6 +329,7 @@ const App = () => (
                 <Route path="/ajuda" element={<Navigate to="/biblioteca" replace />} />
                 <Route path="/debitos-veiculares" element={<ProtectedRoute><DebitosVeiculares /></ProtectedRoute>} />
                 <Route path="/links" element={<ProtectedRoute><LinkBio /></ProtectedRoute>} />
+                <Route path="/comercial" element={<ProtectedRoute><Comercial /></ProtectedRoute>} />
                 <Route path="/links/:id" element={<ProtectedRoute><LinkBioEditor /></ProtectedRoute>} />
                 <Route path="/formularios" element={<ProtectedRoute><Formularios /></ProtectedRoute>} />
                 <Route path="/formularios/novo" element={<ProtectedRoute><FormularioEditor /></ProtectedRoute>} />

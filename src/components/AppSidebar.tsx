@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck, Link2 } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, Search, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Briefcase, Headset, Video, MessageSquareWarning, Menu, X, HelpCircle, BookOpen, CarFront, SearchCheck, ClipboardCheck, FileEdit, Bug, ChevronDown, Handshake, Radar, Wrench, FolderOpen, Database, ShieldCheck, Link2, Target } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,7 @@ function useMenuItems() {
     // Navegação
     { id: "dashboard", label: "Painel", to: "/dashboard", icon: LayoutDashboard, end: true, group: "inicio" },
     { id: "atendimentos", label: "Atendimentos", to: "/atendimentos", icon: ClipboardList, group: "relacionamento" },
+    { id: "comercial", label: "Comercial", to: "/comercial", icon: Target, group: "relacionamento" },
     // Cadastros
     { id: "corretoras", label: "Associações", to: "/corretoras", icon: Building2, group: "cadastros" },
     { id: "termos", label: "Termos de Aceite", to: "/termos", icon: FileText, group: "documentos" },

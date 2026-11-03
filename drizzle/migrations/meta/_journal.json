@@ -246,6 +246,13 @@
       "when": 1793114523193,
       "tag": "0034_restringir_whatsapp_templates_e_bug_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793717995733,
+      "tag": "0035_comercial_funil_vendas",
+      "breakpoints": true
     }
   ]
 }

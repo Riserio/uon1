@@ -77,6 +77,7 @@ export const GRUPO_RECOLHIDO_PADRAO: ModuloGrupo[] = ["documentos", "cadastros",
 export const SYSTEM_MODULES: ModuloSistema[] = [
   { id: "dashboard", label: "Painel", grupo: "inicio", essencial: true },
   { id: "atendimentos", label: "Atendimentos", grupo: "relacionamento" },
+  { id: "comercial", label: "Comercial", grupo: "relacionamento" },
   { id: "corretoras", label: "Associações", grupo: "cadastros" },
   { id: "termos", label: "Termos de Aceite", grupo: "documentos" },
   { id: "contatos", label: "Contatos", grupo: "cadastros" },
@@ -109,7 +110,7 @@ export const SYSTEM_MODULES: ModuloSistema[] = [
 // o que fazia várias permissões não surtirem efeito.
 // ---------------------------------------------------------------------------
 const MODULO_EMOJI: Record<string, string> = {
-  dashboard: "📊", atendimentos: "📋", corretoras: "🏢", termos: "📄", contatos: "👥",
+  dashboard: "📊", atendimentos: "📋", comercial: "🎯", corretoras: "🏢", termos: "📄", contatos: "👥",
   sinistros: "🔍", lancamentos_financeiros: "💰", agenda: "📅", documentos: "📁",
   emails: "📧", mensagens: "💬", pid: "📈", ouvidoria: "🛡️", contratos: "✍️",
   talka: "🎥", comunicados: "📢", gestao: "⚙️", formularios: "📝", ppr: "✅",
