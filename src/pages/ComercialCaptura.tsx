@@ -11,12 +11,12 @@ import { MaskedInput } from "@/components/ui/masked-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-/** Logo da Vangard (o mesmo do cabeçalho do sistema). Quem chega pelo QR não está logado,
+/** Logo da Vangard. Quem chega pelo QR não está logado,
  * então não dá para usar o logo da configuração do usuário. */
-const LOGO = "/images/logo-vg.png";
+const LOGO = "/images/logo-vangard.png";
 
 function Logo() {
-  return <img src={LOGO} alt="Vangard Gestora" className="h-20 w-auto mx-auto object-contain" />;
+  return <img src={LOGO} alt="Vangard Gestora" className="h-14 w-auto mx-auto mb-3 object-contain" />;
 }
 
 interface FunilPublico {
