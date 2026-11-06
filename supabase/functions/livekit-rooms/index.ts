@@ -492,7 +492,7 @@ Deno.serve(async (req) => {
 
       if (error || !invite) throw new Error("Convite não encontrado");
       if (new Date(invite.expires_at) < new Date()) throw new Error("Convite expirado");
-      if (invite.meeting_rooms?.status !== "ativa") throw new Error("Sala não está ativa");
+      if ((invite.meeting_rooms as unknown as { status?: string } | null)?.status !== "ativa") throw new Error("Sala não está ativa");
 
       return new Response(JSON.stringify({ valid: true, room: invite.meeting_rooms }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -1075,7 +1075,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: (err as Error)?.message ?? "Erro inesperado" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

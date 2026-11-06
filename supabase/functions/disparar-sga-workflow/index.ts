@@ -345,7 +345,7 @@ serve(async (req) => {
         } catch (e) {
           console.warn('[SGA Workflow] Falha ao calcular data incremental, usando 01/01/2000:', e);
         }
-        const smartInicio: string | null = smart;
+        const smartInicio: string = smart ?? "";
         if (smartInicio) {
           const [yy, mm, dd] = smartInicio.split('-');
           dataInicio = `${dd}/${mm}/${yy}`;
