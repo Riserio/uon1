@@ -56,7 +56,10 @@ serve(async (req) => {
       .select('id')
       .eq('corretora_id', corretora_id)
       .eq('ativo', true)
-      .single();
+      // .single() falhava ("Nenhuma importação ativa") se houvesse 2 ativas.
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (!importacao) {
       throw new Error('Nenhuma importação ativa encontrada');

@@ -227,9 +227,16 @@ async function generateData(supabase: any, source: string, corretora_id: string)
   const json = await res.json();
   if (!res.ok || !json?.success) throw new Error(json?.error || "Falha ao gerar dados");
   const avisos: string[] = Array.isArray(json.avisos) ? json.avisos : [];
-  // Resumo geral: se COBRANÇA e EVENTOS falharam juntos, não envia mensagem com traços.
-  if (source === "resumo_geral" && json.modulos_incluidos && !json.modulos_incluidos.cobranca && !json.modulos_incluidos.eventos) {
-    throw new Error(`Cobrança e eventos indisponíveis — envio cancelado. ${avisos.join("; ")}`.trim());
+  // Resumo geral: a COBRANÇA ocupa 8 das 13 variáveis do template. Sem ela a
+  // mensagem sai cheia de "-" (foi o que aconteceu com União/Protev/AASC Sul em
+  // 06/11). Não envia relatório incompleto: falha, registra o motivo e o
+  // runner tenta de novo mais tarde no mesmo dia.
+  if (source === "resumo_geral" && json.modulos_incluidos && !json.modulos_incluidos.cobranca) {
+    throw new Error(`Cobrança indisponível — envio adiado. ${avisos.join("; ")}`.trim());
+  }
+  // Base zerada com cobrança presente = dado de base faltando, não "0 placas".
+  if (source === "resumo_geral" && String(json.dados?.base_placas_ativas ?? "0") === "0") {
+    throw new Error(`Placas ativas zeradas na base — envio adiado. ${avisos.join("; ")}`.trim());
   }
   return { ...(json.dados || {}), __avisos: avisos };
 }
@@ -385,7 +392,7 @@ async function sendTemplate(
   return json.messages?.[0]?.id || null;
 }
 
-async function runOne(supabase: any, schedule: any) {
+async function runOne(supabase: any, schedule: any, opts: { manual?: boolean } = {}) {
   const now = new Date();
   try {
     const { data: corretora } = await supabase
@@ -464,13 +471,25 @@ async function runOne(supabase: any, schedule: any) {
       .eq("id", schedule.id);
     return { ok: results.some((result) => result.includes(":ok")), results };
   } catch (e: any) {
+    // Antes: falhou → próximo envio só amanhã, e ninguém recebia nada. Agora
+    // tenta de novo no próximo tick do cron (55 min — o cron roda de hora em hora) enquanto for dia útil de envio (até 18h SP), para
+    // dar tempo da sincronização Hinova terminar; depois disso, volta ao
+    // agendamento normal. O motivo fica em last_error (tela de agendamentos).
+    const sp = toSPDate(now);
+    // Envio manual ("Enviar agora") que falha não mexe no agendamento — senão
+    // geraria um envio automático extra no mesmo dia.
+    const retry = opts.manual
+      ? (schedule.next_run_at ? new Date(schedule.next_run_at) : computeNextRun(schedule, now))
+      : sp.hh < 18
+        ? new Date(now.getTime() + 55 * 60 * 1000)
+        : computeNextRun(schedule, now);
     await supabase
       .from("whatsapp_template_schedules")
       .update({
         last_run_at: now.toISOString(),
         last_status: "failed",
         last_error: e.message,
-        next_run_at: computeNextRun(schedule, now).toISOString(),
+        next_run_at: retry.toISOString(),
       })
       .eq("id", schedule.id);
     return { ok: false, results: [], error: e.message };
@@ -499,7 +518,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const result = await runOne(supabase, sch);
+    const result = await runOne(supabase, sch, { manual: true });
     return new Response(JSON.stringify({ ...result, ran: result.ok ? 1 : 0 }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

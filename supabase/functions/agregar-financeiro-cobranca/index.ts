@@ -98,7 +98,14 @@ serve(async (req) => {
     }
 
     // Conjunto de meses a atualizar (união de faturamento e recebido).
-    const meses = new Set<string>([...Object.keys(fat), ...Object.keys(rec)]);
+    // Nunca grava meses futuros (boletos já emitidos para os próximos meses):
+    // isso criava linhas "dez/2026, jan/2027" no PID que viravam o "mês mais
+    // recente" no BI e nos relatórios.
+    const agoraSP = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const mesAtual = `${agoraSP.getUTCFullYear()}-${String(agoraSP.getUTCMonth() + 1).padStart(2, "0")}`;
+    const meses = new Set<string>(
+      [...Object.keys(fat), ...Object.keys(rec)].filter((m) => m <= mesAtual),
+    );
     let atualizados = 0;
 
     for (const mesRef of meses) {

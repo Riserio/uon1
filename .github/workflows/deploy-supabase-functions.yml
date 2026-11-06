@@ -45,8 +45,9 @@ jobs:
             scheduler-sga-hinova \
             scheduler-mgf-hinova \
             scheduler-cobranca-hinova \
-                        gerar-resumo-cobranca \
-                                    gerar-resumo-geral \
+            agregar-financeiro-cobranca \
+            gerar-resumo-cobranca \
+            gerar-resumo-geral \
             gerar-resumo-eventos \
             gerar-pdf-resumo-geral \
             whatsapp-template-schedule-runner \

@@ -93,19 +93,41 @@ export default function CobrancaHistoricoImportacoes({ corretoraId, onImportacao
   const handleActivate = async (importacaoId: string) => {
     setActivating(importacaoId);
     try {
-      // Primeiro, desativar todas as importações desta corretora
-      const { error: deactivateError } = await supabase
+      // As importações da API vêm em par complementar — "API cobrança
+      // (histórico)" + "API cobrança (recente)" — e precisam ficar ativas
+      // juntas (o BI e o resumo somam as duas). Ativar uma delas ativa o par;
+      // antes, ativar a "recente" desativava o histórico e o BI perdia todo o
+      // passado da associação.
+      const PAR_API = ["API cobrança (histórico)", "API cobrança (recente)"];
+      const { data: todas, error: listError } = await supabase
         .from("cobranca_importacoes")
-        .update({ ativo: false })
-        .eq("corretora_id", corretoraId);
+        .select("id, nome_arquivo, created_at")
+        .eq("corretora_id", corretoraId)
+        .order("created_at", { ascending: false });
+      if (listError) throw listError;
 
-      if (deactivateError) throw deactivateError;
+      const selecionada = (todas || []).find((i) => i.id === importacaoId);
+      const idsAtivar = new Set<string>([importacaoId]);
+      if (selecionada && PAR_API.includes(selecionada.nome_arquivo || "")) {
+        for (const nome of PAR_API) {
+          const maisRecente = (todas || []).find((i) => i.nome_arquivo === nome);
+          if (maisRecente) idsAtivar.add(maisRecente.id);
+        }
+      }
+      const idsDesativar = (todas || []).map((i) => i.id).filter((id) => !idsAtivar.has(id));
 
-      // Depois, ativar a importação selecionada
+      if (idsDesativar.length) {
+        const { error: deactivateError } = await supabase
+          .from("cobranca_importacoes")
+          .update({ ativo: false })
+          .in("id", idsDesativar);
+        if (deactivateError) throw deactivateError;
+      }
+
       const { error: activateError } = await supabase
         .from("cobranca_importacoes")
         .update({ ativo: true, updated_at: new Date().toISOString() })
-        .eq("id", importacaoId);
+        .in("id", [...idsAtivar]);
 
       if (activateError) throw activateError;
 
