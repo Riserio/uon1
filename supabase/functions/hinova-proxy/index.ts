@@ -88,7 +88,7 @@ function parseAssociadoAutocomplete(payload: string, _searchTerm: string): Recor
   try {
     const parsed = JSON.parse(payload);
     if (Array.isArray(parsed)) {
-      return parsed.map((item, i) => {
+      return parsed.map((item, i): Record<string, string> | null => {
         if (typeof item === "string") return { id: String(i), nome: item };
         if (item && typeof item === "object") {
           const r = item as Record<string, unknown>;

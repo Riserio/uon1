@@ -323,7 +323,7 @@ serve(async (req) => {
       }
 
       // Atualizar status para executando
-      if (legacyConfig?.id) {
+      if (configId) {
         await supabase
           .from("mgf_automacao_config")
           .update({
@@ -331,7 +331,7 @@ serve(async (req) => {
             ultimo_status: 'executando',
             ultimo_erro: null,
           })
-          .eq("id", legacyConfig.id);
+          .eq("id", configId);
       }
 
       // Preparar inputs para o workflow
@@ -383,14 +383,14 @@ serve(async (req) => {
           })
           .eq("id", execucao.id);
 
-        if (legacyConfig?.id) {
+        if (configId) {
           await supabase
             .from("mgf_automacao_config")
             .update({
               ultimo_status: 'erro',
               ultimo_erro: `Erro ao disparar GitHub Actions: ${dispatchResponse.status}`,
             })
-            .eq("id", legacyConfig.id);
+            .eq("id", configId);
         }
 
         return new Response(

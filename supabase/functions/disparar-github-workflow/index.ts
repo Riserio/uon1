@@ -234,15 +234,16 @@ serve(async (req) => {
       const skipDailyGate = bypass_daily_limit === true && isServiceRole;
       // "Hoje" no fuso de São Paulo (created_at é UTC) — evita gate diário errado na virada do dia
       const hoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const { data: execucoesHoje } = skipDailyGate ? { data: [] as any[] } : await supabase
+      const { data: execucoesHojeRaw } = skipDailyGate ? { data: [] as any[] } : await supabase
         .from("cobranca_automacao_execucoes")
         .select("id, status")
         .eq("corretora_id", corretora_id)
         .gte("created_at", new Date(Date.now() - 30 * 60 * 1000).toISOString())
         .in("status", ["executando"])
         .limit(1);
+      const execucoesHoje: any[] = (execucoesHojeRaw as any[] | null) ?? [];
 
-      if (!skipDailyGate && execucoesHoje && execucoesHoje.length > 0) {
+      if (!skipDailyGate && execucoesHoje.length > 0) {
         const st = execucoesHoje[0].status;
         console.log(`[GitHub Workflow] Corretora ${corretora_id} já tem execução '${st}' hoje, bloqueando disparo`);
         return new Response(
