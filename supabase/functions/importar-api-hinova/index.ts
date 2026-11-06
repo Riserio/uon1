@@ -387,8 +387,7 @@ serve(async (req) => {
     if (modulo !== "eventos" && modulo !== "mgf" && modulo !== "cobranca" && modulo !== "base") {
       return new Response(
         JSON.stringify({
-          debug_associado: assocDebug,
-          debug_veiculo_keys: veiculos && veiculos[0] ? Object.keys(veiculos[0]) : null, success: false, message: `Módulo '${modulo}' ainda não implementado na API` }),
+          success: false, message: `Módulo '${modulo}' ainda não implementado na API` }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -483,7 +482,7 @@ serve(async (req) => {
               `POST /listar/veiculo situacao=${cod} pag=${pagina} → ${r.status}${arr ? ` (${arr.length})` : ""}`,
             );
             if (!r.ok || !arr) break;
-            veiculos = (veiculos || []).concat(arr);
+            veiculos = (veiculos || ([] as any[])).concat(arr);
             endpointOk = "POST /listar/veiculo";
             totalPaginas = Math.min(Number(j?.numero_paginas) || 1, 20);
             pagina++;
