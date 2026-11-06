@@ -16,7 +16,9 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { corretora_id } = await req.json();
+    // mes_referencia (opcional, "aaaa-mm"): usado pelo resumo geral para que
+    // os eventos sejam do MESMO mês da cobrança/base (dias 1–6 = mês anterior).
+    const { corretora_id, mes_referencia: mesReferenciaParam } = await req.json();
 
     if (!corretora_id) {
       throw new Error('corretora_id é obrigatório');
@@ -34,11 +36,14 @@ serve(async (req) => {
     // Ajustar para UTC-3 (São Paulo)
     const now = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-    let mesReferencia = `${meses[now.getUTCMonth()]} de ${now.getUTCFullYear()}`;
-    
-    // Calculate first and last day of current month
-    const primeiroDiaMes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const ultimoDiaMes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+    const mesFixo = typeof mesReferenciaParam === 'string' ? mesReferenciaParam.match(/^(\d{4})-(\d{2})$/) : null;
+    const anoBase = mesFixo ? Number(mesFixo[1]) : now.getUTCFullYear();
+    const mesBase0 = mesFixo ? Number(mesFixo[2]) - 1 : now.getUTCMonth();
+    let mesReferencia = `${meses[mesBase0]} de ${anoBase}`;
+
+    // Calculate first and last day of the reference month
+    const primeiroDiaMes = new Date(Date.UTC(anoBase, mesBase0, 1));
+    const ultimoDiaMes = new Date(Date.UTC(anoBase, mesBase0 + 1, 0));
     
     let dataInicio = primeiroDiaMes.toISOString().split('T')[0];
     let dataFim = ultimoDiaMes.toISOString().split('T')[0];
@@ -89,7 +94,8 @@ serve(async (req) => {
     };
 
     let eventos = await carregarEventosPeriodo(dataInicio, dataFim);
-    if (eventos.length === 0) {
+    // Com mês fixo pedido pelo chamador, não troca de mês (zero eventos é real).
+    if (eventos.length === 0 && !mesFixo) {
       const hoje = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().split('T')[0];
       const { data: ultimoEvento } = await supabase
         .from('sga_eventos')

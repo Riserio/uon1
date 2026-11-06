@@ -82,12 +82,20 @@ serve(async (req) => {
     // Chama um gerador existente; em caso de falha tenta 1 vez mais após ~3 s.
     // Se ainda falhar, retorna null (seção é omitida) e registra o motivo em `avisos`.
     const avisos: string[] = [];
+    // Mês de referência ÚNICO do relatório (mesma regra da cobrança: até o
+    // dia 6 usa o mês anterior). Passado a cobrança E eventos para o resumo
+    // não misturar outubro na cobrança com eventos de novembro.
+    const refDate = now.getUTCDate() <= 6
+      ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const mesReferenciaRelatorio = `${refDate.getUTCFullYear()}-${pad(refDate.getUTCMonth() + 1)}`;
+
     const chamar = async (fn: string): Promise<{ json: any | null; erro: string | null }> => {
       try {
         const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}` },
-          body: JSON.stringify({ corretora_id }),
+          body: JSON.stringify({ corretora_id, mes_referencia: mesReferenciaRelatorio }),
         });
         const json = await res.json().catch(() => null);
         if (json?.success) return { json, erro: null };
@@ -201,7 +209,11 @@ serve(async (req) => {
         }
         return null;
       };
-      const alvo = refDoRelatorio();
+      // Sem cobrança (seção omitida), usa o mês de referência do próprio relatório.
+      const alvo = refDoRelatorio() ?? {
+        ano: Number(mesReferenciaRelatorio.slice(0, 4)),
+        mes: Number(mesReferenciaRelatorio.slice(5, 7)),
+      };
 
       // Placas ativas do mês de referência; sem referência, cai no mais recente.
       let pidQuery = supabase
