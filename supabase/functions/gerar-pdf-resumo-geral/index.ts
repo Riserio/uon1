@@ -106,6 +106,21 @@ serve(async (req) => {
       }
       const { data: pidRow } = await pidQuery.limit(1).maybeSingle();
       placasAtivas = Number((pidRow as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
+      // Mesmo fallback do gerar-resumo-geral: mês sem placas gravadas usa o
+      // último mês até a referência que tenha placas.
+      if (!placasAtivas && alvo) {
+        const { data: ultimoPid } = await supabase
+          .from("pid_operacional")
+          .select("placas_ativas, ano, mes")
+          .eq("corretora_id", corretora_id)
+          .gt("placas_ativas", 0)
+          .or(`ano.lt.${alvo.ano},and(ano.eq.${alvo.ano},mes.lte.${alvo.mes})`)
+          .order("ano", { ascending: false })
+          .order("mes", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        placasAtivas = Number((ultimoPid as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
+      }
 
       const { data: impBase } = await supabase
         .from("estudo_base_importacoes")

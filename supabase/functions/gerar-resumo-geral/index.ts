@@ -215,6 +215,22 @@ serve(async (req) => {
       }
       const { data: pidRow } = await pidQuery.limit(1).maybeSingle();
       basePlacasAtivas = Number((pidRow as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
+      // Mês de referência sem placas gravadas (linha criada só com campos
+      // financeiros, ou ainda inexistente): usa o último mês ATÉ a referência
+      // que tenha placas, em vez de mandar "0" no relatório.
+      if (!basePlacasAtivas && alvo) {
+        const { data: ultimoPid } = await supabase
+          .from("pid_operacional")
+          .select("placas_ativas, ano, mes")
+          .eq("corretora_id", corretora_id)
+          .gt("placas_ativas", 0)
+          .or(`ano.lt.${alvo.ano},and(ano.eq.${alvo.ano},mes.lte.${alvo.mes})`)
+          .order("ano", { ascending: false })
+          .order("mes", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        basePlacasAtivas = Number((ultimoPid as { placas_ativas?: number } | null)?.placas_ativas ?? 0);
+      }
 
       const { data: impBase } = await supabase
         .from("estudo_base_importacoes")
