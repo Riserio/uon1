@@ -472,15 +472,22 @@ async function runOne(supabase: any, schedule: any, opts: { manual?: boolean } =
     return { ok: results.some((result) => result.includes(":ok")), results };
   } catch (e: any) {
     // Antes: falhou → próximo envio só amanhã, e ninguém recebia nada. Agora
-    // tenta de novo no próximo tick do cron (55 min — o cron roda de hora em hora) enquanto for dia útil de envio (até 18h SP), para
-    // dar tempo da sincronização Hinova terminar; depois disso, volta ao
-    // agendamento normal. O motivo fica em last_error (tela de agendamentos).
+    // tenta de novo no próximo tick do cron (55 min — o cron roda de hora em
+    // hora), no MÁXIMO 3 tentativas no dia (ex.: 8h, 9h e 10h), para dar tempo
+    // da sincronização Hinova terminar sem gastar requisições o dia inteiro.
+    // Depois disso, volta ao agendamento normal (dia seguinte). O motivo fica
+    // em last_error (tela de agendamentos).
     const sp = toSPDate(now);
+    const [hSend, mSend] = String(schedule.send_time || "08:00").split(":").map(Number);
+    const horarioHoje = spWallToUtc(sp.y, sp.m, sp.day, hSend || 0, mSend || 0);
+    const minutosDesdeHorario = (now.getTime() - horarioHoje.getTime()) / 60000;
+    // 1ª tentativa ≈ 0 min, 2ª ≈ 60 min, 3ª ≈ 120 min → só reagenda nas duas primeiras.
+    const podeRetentar = minutosDesdeHorario >= -5 && minutosDesdeHorario < 110;
     // Envio manual ("Enviar agora") que falha não mexe no agendamento — senão
     // geraria um envio automático extra no mesmo dia.
     const retry = opts.manual
       ? (schedule.next_run_at ? new Date(schedule.next_run_at) : computeNextRun(schedule, now))
-      : sp.hh < 18
+      : podeRetentar
         ? new Date(now.getTime() + 55 * 60 * 1000)
         : computeNextRun(schedule, now);
     await supabase
