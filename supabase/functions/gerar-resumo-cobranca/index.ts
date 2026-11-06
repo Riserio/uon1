@@ -62,15 +62,26 @@ serve(async (req) => {
     // (histórico)" (backfill de registros antigos, mantida via cron) e uma
     // "recente" (snapshot diário do robô GitHub). As duas são complementares
     // e devem ser somadas, não tratadas como duplicatas.
-    let importacaoIds: string[] = [];
+    //
+    // MÊS ANTERIOR (dias 1–6): antes pegava UMA importação "do mês" por nome
+    // ou por created_at e, sem achar, a inativa mais recente. Com a
+    // integração via API isso quebra: a importação ATIVA "API cobrança
+    // dd/mm/aaaa–dd/mm/aaaa" é reaproveitada para sempre (merge incremental),
+    // não tem "aaaa-mm" no nome nem foi criada no mês — e as inativas antigas
+    // têm os boletos purgados pela rotina de economia. Resultado: relatório
+    // do dia 1 ao 6 saía todo ZERADO. Agora testamos as candidatas em ordem
+    // e usamos a primeira que realmente tem boletos com vencimento no mês de
+    // referência (a RPC já filtra por vencimento, então a ativa serve).
+    const { data: ativas } = await supabase
+      .from("cobranca_importacoes")
+      .select("id")
+      .eq("corretora_id", corretora_id)
+      .eq("ativo", true);
+    const idsAtivas = (ativas || []).map((r: { id: string }) => r.id);
 
+    const candidatas: string[][] = [];
     if (!usandoMesAnterior) {
-      const { data: ativas } = await supabase
-        .from("cobranca_importacoes")
-        .select("id")
-        .eq("corretora_id", corretora_id)
-        .eq("ativo", true);
-      importacaoIds = (ativas || []).map((r: { id: string }) => r.id);
+      if (idsAtivas.length) candidatas.push(idsAtivas);
     } else {
       const { data: byName } = await supabase
         .from("cobranca_importacoes")
@@ -80,41 +91,45 @@ serve(async (req) => {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (byName) candidatas.push([byName.id]);
 
-      if (byName) {
-        importacaoIds = [byName.id];
-      } else {
-        const [refY, refM] = mesReferencia.split("-").map(Number);
-        const inicioMes = new Date(Date.UTC(refY, refM - 1, 1)).toISOString();
-        const fimMes = new Date(Date.UTC(refY, refM, 1)).toISOString();
+      if (idsAtivas.length) candidatas.push(idsAtivas);
 
-        const { data: byDate } = await supabase
-          .from("cobranca_importacoes")
-          .select("id")
-          .eq("corretora_id", corretora_id)
-          .gte("created_at", inicioMes)
-          .lt("created_at", fimMes)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      const [refY, refM] = mesReferencia.split("-").map(Number);
+      const inicioMes = new Date(Date.UTC(refY, refM - 1, 1)).toISOString();
+      const fimMes = new Date(Date.UTC(refY, refM, 1)).toISOString();
+      const { data: byDate } = await supabase
+        .from("cobranca_importacoes")
+        .select("id")
+        .eq("corretora_id", corretora_id)
+        .gte("created_at", inicioMes)
+        .lt("created_at", fimMes)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (byDate) candidatas.push([byDate.id]);
 
-        if (byDate) {
-          importacaoIds = [byDate.id];
-        } else {
-          const { data: inactive } = await supabase
-            .from("cobranca_importacoes")
-            .select("id")
-            .eq("corretora_id", corretora_id)
-            .eq("ativo", false)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          importacaoIds = inactive ? [inactive.id] : [];
-        }
-      }
+      const { data: inactive } = await supabase
+        .from("cobranca_importacoes")
+        .select("id")
+        .eq("corretora_id", corretora_id)
+        .eq("ativo", false)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (inactive) candidatas.push([inactive.id]);
     }
 
-    if (importacaoIds.length === 0) {
+    // Remove candidatas repetidas (mesmo conjunto de ids).
+    const vistos = new Set<string>();
+    const candidatasUnicas = candidatas.filter((ids) => {
+      const k = [...ids].sort().join(",");
+      if (vistos.has(k)) return false;
+      vistos.add(k);
+      return true;
+    });
+
+    if (candidatasUnicas.length === 0) {
       throw new Error("Nenhuma importação ativa encontrada");
     }
 
@@ -135,16 +150,29 @@ serve(async (req) => {
     const tiposCfg = (cfgInad as { tipos_boleto_relatorio?: string[] | null } | null)?.tipos_boleto_relatorio;
     const tiposRelatorio: string[] = Array.isArray(tiposCfg) && tiposCfg.length > 0 ? tiposCfg : ["FECHAMENTO"];
 
-    const { data: metrics, error: metricsError } = await supabase.rpc("calcular_resumo_cobranca", {
-      p_importacao_ids: importacaoIds,
-      p_mes_referencia: mesReferencia,
-      p_somente_vencidos: somenteVencidos,
-      p_tipos: tiposRelatorio,
-    });
+    // deno-lint-ignore no-explicit-any
+    let metrics: any = null;
+    for (const ids of candidatasUnicas) {
+      const { data, error: metricsError } = await supabase.rpc("calcular_resumo_cobranca", {
+        p_importacao_ids: ids,
+        p_mes_referencia: mesReferencia,
+        p_somente_vencidos: somenteVencidos,
+        p_tipos: tiposRelatorio,
+      });
+      if (metricsError) {
+        console.error("[gerar-resumo-cobranca] Error calculando métricas:", metricsError);
+        throw metricsError;
+      }
+      metrics = data;
+      const temBoletos = Number(data?.total_gerados || 0) > 0 || Number(data?.outros_total_qtd || 0) > 0;
+      if (temBoletos) break;
+      console.warn(`[gerar-resumo-cobranca] Importação(ões) ${ids.join(",")} sem boletos em ${mesReferencia}; tentando próxima.`);
+    }
 
-    if (metricsError) {
-      console.error("[gerar-resumo-cobranca] Error calculando métricas:", metricsError);
-      throw metricsError;
+    // Nenhuma candidata tem boletos do mês: falha explícita (o resumo geral
+    // omite a seção e registra o aviso) em vez de mandar tudo zerado.
+    if (!metrics || (Number(metrics.total_gerados || 0) === 0 && Number(metrics.outros_total_qtd || 0) === 0)) {
+      throw new Error(`Nenhum boleto com vencimento em ${mesReferencia} nas importações da associação`);
     }
 
     const totalGerados = metrics?.total_gerados || 0;
