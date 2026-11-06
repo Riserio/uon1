@@ -130,8 +130,17 @@ async function getOrCreateImportacaoAtiva(
     const apiAtiva = (ativas as Array<{ id: string; nome_arquivo?: string | null }>).find((a) => isApiName(a.nome_arquivo));
     if (apiAtiva) {
       const id = apiAtiva.id;
-      // Higieniza qualquer outra ativa (manual ou duplicata) além da API.
-      await supabase.from(table).update({ ativo: false }).eq("corretora_id", corretoraId).neq("id", id);
+      // Higieniza qualquer outra ativa (manual ou duplicata) além da API —
+      // MAS preserva o par "API … (histórico)" + "API … (recente)": são
+      // complementares por desenho (somados no BI/resumo). Desativar o
+      // histórico aqui apagava todo o passado do BI da associação.
+      const isParApi = (n?: string | null) => /^API\b.*\((histórico|recente)\)\s*$/i.test(String(n ?? "").trim());
+      const idsDesativar = (ativas as Array<{ id: string; nome_arquivo?: string | null }>)
+        .filter((a) => a.id !== id && !isParApi(a.nome_arquivo))
+        .map((a) => a.id);
+      if (idsDesativar.length) {
+        await supabase.from(table).update({ ativo: false }).in("id", idsDesativar);
+      }
       return { id, isNova: false };
     }
     // Ativa(s) são manuais → desativa todas; segue pra criar a API ativa.
