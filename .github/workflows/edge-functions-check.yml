@@ -1,0 +1,102 @@
+name: Edge functions — checagem e lista para publicar
+
+# O Supabase deste projeto é o Lovable Cloud: NÃO temos access token do
+# Supabase, então o GitHub não consegue publicar edge functions. (O workflow
+# antigo tentava `supabase functions deploy`, falhava por falta de token desde
+# sempre e escondia o erro com `|| echo FALHOU` até 15/10/2026.)
+#
+# Fluxo real de publicação (ver docs/DEPLOY.md):
+#   1. código entra no main pelo GitHub (PR);
+#   2. o Lovable sincroniza o commit;
+#   3. as funções alteradas são publicadas por UMA mensagem curta ao agente do
+#      Lovable ("Somente DEPLOY ... publique X, Y"), sem alterar código.
+#
+# Este workflow faz a parte que dá para fazer sem chave:
+#   - `deno check` em cada função alterada — o build do Lovable recusa a
+#     publicação quando há erro de tipo, e aí o agente "corrige" arquivos por
+#     conta própria (gastando créditos). Pegamos o erro antes, no PR;
+#   - imprime no resumo do run a lista exata de funções a publicar.
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/**'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Funções alteradas
+        id: changed
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            BASE="${{ github.event.before }}"
+          else
+            BASE="$(git rev-parse HEAD~1)"
+          fi
+          if ! git cat-file -e "$BASE" 2>/dev/null || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse HEAD~1)"
+          fi
+          # _shared/ muda o comportamento de quem importa: nesse caso checa tudo.
+          if git diff --name-only "$BASE" HEAD -- supabase/functions/_shared | grep -q .; then
+            FNS=$(ls -d supabase/functions/*/ | xargs -n1 basename | grep -v '^_' || true)
+          else
+            FNS=$(git diff --name-only "$BASE" HEAD -- supabase/functions \
+              | awk -F/ '{print $3}' | grep -v '^_' | sort -u || true)
+          fi
+          # Só as que ainda existem.
+          LISTA=""
+          for f in $FNS; do [ -f "supabase/functions/$f/index.ts" ] && LISTA="$LISTA $f"; done
+          echo "fns=$(echo $LISTA)" >> "$GITHUB_OUTPUT"
+          echo "Funções alteradas:$LISTA"
+
+      - name: deno check
+        if: steps.changed.outputs.fns != ''
+        run: |
+          FALHAS=""
+          for fn in ${{ steps.changed.outputs.fns }}; do
+            echo "== deno check $fn =="
+            if ! deno check --quiet "supabase/functions/$fn/index.ts"; then
+              echo "::error::Erro de tipo em $fn — o Lovable vai recusar a publicação"
+              FALHAS="$FALHAS $fn"
+            fi
+          done
+          if [ -n "$FALHAS" ]; then
+            echo "::error::Corrigir antes de publicar:$FALHAS"
+            exit 1
+          fi
+
+      - name: Resumo — o que publicar no Lovable
+        if: always() && steps.changed.outputs.fns != ''
+        run: |
+          {
+            echo "### Edge functions a publicar via Lovable"
+            echo
+            echo "Commit: \`${GITHUB_SHA::7}\`"
+            echo
+            for fn in ${{ steps.changed.outputs.fns }}; do echo "- \`$fn\`"; done
+            echo
+            echo "Mensagem para o agente do Lovable (depois que o commit sincronizar):"
+            echo
+            echo '```'
+            echo "Somente DEPLOY. Confirme que o código está no commit ${GITHUB_SHA::7}; se não estiver, aguarde a sincronização."
+            echo "Publique exatamente como estão: ${{ steps.changed.outputs.fns }}"
+            echo "Não altere arquivos nem aplique migrations. Se o build acusar erro de tipo, me diga qual em vez de corrigir."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
