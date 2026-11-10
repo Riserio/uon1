@@ -164,15 +164,18 @@ serve(async (req) => {
         throw metricsError;
       }
       metrics = data;
-      const temBoletos = Number(data?.total_gerados || 0) > 0 || Number(data?.outros_total_qtd || 0) > 0;
+      // Só conta como "tem dados" se houver boletos dos tipos do relatório
+      // (mensalidade/FECHAMENTO). Antes, 15 boletos de instalação bastavam e o
+      // relatório da AASC Sul saiu com R$ 0,00 / 0 boletos / 0% em 07–09/11.
+      const temBoletos = Number(data?.total_gerados || 0) > 0;
       if (temBoletos) break;
       console.warn(`[gerar-resumo-cobranca] Importação(ões) ${ids.join(",")} sem boletos em ${mesReferencia}; tentando próxima.`);
     }
 
     // Nenhuma candidata tem boletos do mês: falha explícita (o resumo geral
     // omite a seção e registra o aviso) em vez de mandar tudo zerado.
-    if (!metrics || (Number(metrics.total_gerados || 0) === 0 && Number(metrics.outros_total_qtd || 0) === 0)) {
-      throw new Error(`Nenhum boleto com vencimento em ${mesReferencia} nas importações da associação`);
+    if (!metrics || Number(metrics.total_gerados || 0) === 0) {
+      throw new Error(`Nenhum boleto de ${tiposRelatorio.join("/")} com vencimento em ${mesReferencia} nas importações da associação`);
     }
 
     const totalGerados = metrics?.total_gerados || 0;
