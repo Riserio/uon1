@@ -8,12 +8,14 @@ import DispositivosPonto from "@/pages/DispositivosPonto";
 import { useDispositivosPendentes } from "@/hooks/useDispositivosPendentes";
 import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/ui/page-header";
+import { usePermissoes } from "@/hooks/usePermissoes";
 
 export default function Gestao() {
   const { userRole } = useAuth();
   const canSeeAdmin = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
   const canSeeAnalise = canSeeAdmin;
   const dispositivosPendentes = useDispositivosPendentes();
+  const { podeVer } = usePermissoes();
   const [activeTab, setActiveTab] = useState(canSeeAdmin ? "dashboard" : "jornada");
 
   useEffect(() => {
@@ -31,7 +33,12 @@ export default function Gestao() {
     { id: "jornada", label: "Jornada de Trabalho", icon: CalendarClock, visible: true, description: "Controle de ponto e banco de horas", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
     { id: "analise", label: "Análise de Funcionário", icon: Activity, visible: canSeeAnalise, description: "Desempenho e feedback individual", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
     { id: "dispositivos", label: "Dispositivos do Ponto", icon: ShieldCheck, visible: canSeeAdmin, description: "Aprovação de máquinas para bater ponto", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400", badge: dispositivosPendentes },
-  ].filter(tab => tab.visible);
+  ].filter(tab => tab.visible && podeVer("gestao", tab.id));
+  const idsVisiveis = tabs.map((t) => t.id).join(",");
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.some((t) => t.id === activeTab)) setActiveTab(tabs[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsVisiveis, activeTab]);
 
   return (
     <div className="min-h-screen bg-background">

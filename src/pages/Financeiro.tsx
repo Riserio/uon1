@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { PageHeader } from "@/components/ui/page-header";
+import { usePermissoes } from "@/hooks/usePermissoes";
 
 import FinanceiroVisaoGeral from "@/components/financeiro/FinanceiroVisaoGeral";
 import FinanceiroContasReceber from "@/components/financeiro/FinanceiroContasReceber";
@@ -44,6 +45,7 @@ import { Tags } from "lucide-react";
 
 export default function Financeiro() {
   const [activeTab, setActiveTab] = useState("visao-geral");
+  const { podeVer } = usePermissoes();
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>("administradora");
   const [selectedCorretoraName, setSelectedCorretoraName] = useState("ADMINISTRADORA");
@@ -117,7 +119,12 @@ export default function Financeiro() {
     { value: "notas-fiscais", label: "Nota Fiscal", icon: FileText },
     { value: "centros-custo", label: "Centro de Custo", icon: PiggyBank },
     { value: "categorias", label: "Categorias", icon: Tags },
-  ];
+  ].filter((t) => podeVer("lancamentos_financeiros", t.value));
+  const idsVisiveis = tabs.map((t) => t.value).join(",");
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.some((t) => t.value === activeTab)) setActiveTab(tabs[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsVisiveis, activeTab]);
 
   if (loading) {
     return (

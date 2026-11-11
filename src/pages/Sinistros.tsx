@@ -15,6 +15,7 @@ import { ClaimCard, Claim } from "@/components/ClaimCard";
 import { AcompanhamentoSinistroDialog } from "@/components/AcompanhamentoSinistroDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useFluxoPermissions } from "@/hooks/useFluxoPermissions";
+import { usePermissoes } from "@/hooks/usePermissoes";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from "recharts";
@@ -42,6 +43,12 @@ export default function Sinistros() {
   const { user } = useAuth();
   const { canViewFluxo } = useFluxoPermissions(user?.id);
   const [activeTab, setActiveTab] = useState<TabType>("acompanhamento");
+  const { podeVer } = usePermissoes();
+  const abasVisiveis = (["acompanhamento", "vistorias", "dashboard"] as TabType[]).filter((t) => podeVer("sinistros", t));
+  useEffect(() => {
+    if (abasVisiveis.length > 0 && !abasVisiveis.includes(activeTab)) setActiveTab(abasVisiveis[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abasVisiveis.join(","), activeTab]);
   const [vistorias, setVistorias] = useState<Vistoria[]>([]);
   const [loading, setLoading] = useState(false);
   const [claims, setClaims] = useState<Claim[]>([]);
@@ -251,15 +258,15 @@ export default function Sinistros() {
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)}>
         <div className="flex items-center justify-between gap-2">
           <TabsList className="rounded-xl bg-muted/50 p-1">
-            <TabsTrigger value="acompanhamento" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            {abasVisiveis.includes("acompanhamento") && <TabsTrigger value="acompanhamento" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <FileText className="h-4 w-4" /> Painel
-            </TabsTrigger>
-            <TabsTrigger value="vistorias" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            </TabsTrigger>}
+            {abasVisiveis.includes("vistorias") && <TabsTrigger value="vistorias" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Camera className="h-4 w-4" /> Vistorias
-            </TabsTrigger>
-            <TabsTrigger value="dashboard" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            </TabsTrigger>}
+            {abasVisiveis.includes("dashboard") && <TabsTrigger value="dashboard" className="gap-1.5 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <BarChart3 className="h-4 w-4" /> Dashboard
-            </TabsTrigger>
+            </TabsTrigger>}
           </TabsList>
           <Button variant="ghost" onClick={() => navigate('/sinistros/configuracoes')} className="gap-1.5 rounded-xl">
             <Settings className="h-4 w-4" /> <span className="hidden sm:inline">Configurações</span>
