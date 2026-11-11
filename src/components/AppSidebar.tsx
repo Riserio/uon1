@@ -328,6 +328,11 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
           <LogOut className="h-4 w-4 flex-shrink-0" />
           {!collapsed && <span>Sair</span>}
         </button>
+        {!collapsed && (
+          <p className="px-3 pt-1 text-[10px] text-muted-foreground/60" title="Versão publicada">
+            versão {__BUILD_TIME__}
+          </p>
+        )}
       </div>
     </div>
   );
