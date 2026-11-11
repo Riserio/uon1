@@ -135,3 +135,101 @@ export const MENU_PERMISSION_ITEMS: MenuPermissionItem[] = [
   ...SYSTEM_MODULES.map((m) => ({ id: m.id, label: m.label, icon: MODULO_EMOJI[m.id] ?? "•" })),
   ...PERMISSOES_EXTRAS.map((e) => ({ id: e.id, label: e.label, icon: MODULO_EMOJI[e.id] ?? "•" })),
 ];
+
+// ---------------------------------------------------------------------------
+// Subitens de módulo (abas/áreas internas que podem ser liberadas por cargo).
+// Gravados na MESMA tabela de permissões com a chave "modulo:subitem" — não
+// exige migration. Regra: subitem sem registro herda o módulo; módulo bloqueado
+// bloqueia todos os subitens.
+//
+// AO CRIAR UMA ABA NOVA num módulo listado aqui, adicione o subitem e filtre a
+// aba na tela com `podeVer(modulo, subitem)` (hook usePermissoes).
+// ---------------------------------------------------------------------------
+export interface SubitemModulo {
+  id: string;
+  label: string;
+}
+
+export const SUBITENS_MODULO: Record<string, SubitemModulo[]> = {
+  atendimentos: [
+    { id: "administradora", label: "Gestão Administradora" },
+    { id: "associacao", label: "Gestão Associação" },
+  ],
+  comercial: [
+    { id: "funil", label: "Funil" },
+    { id: "vendedores", label: "Vendedores" },
+  ],
+  pid: [
+    { id: "dashboard", label: "Visão Geral" },
+    { id: "estudo-base", label: "Estudo de Base" },
+    { id: "historico", label: "Histórico" },
+    { id: "importacao", label: "Importação" },
+  ],
+  sinistros: [
+    { id: "acompanhamento", label: "Painel" },
+    { id: "vistorias", label: "Vistorias" },
+    { id: "dashboard", label: "Dashboard" },
+  ],
+  lancamentos_financeiros: [
+    { id: "visao-geral", label: "Visão Geral" },
+    { id: "a-receber", label: "A Receber" },
+    { id: "a-pagar", label: "A Pagar" },
+    { id: "fluxo-caixa", label: "Fluxo de Caixa" },
+    { id: "lancamentos", label: "Lançamentos" },
+    { id: "conciliacao", label: "Conciliação" },
+    { id: "historico", label: "Histórico" },
+    { id: "notas-fiscais", label: "Nota Fiscal" },
+    { id: "centros-custo", label: "Centro de Custo" },
+    { id: "categorias", label: "Categorias" },
+  ],
+  gestao: [
+    { id: "dashboard", label: "Dashboard" },
+    { id: "jornada", label: "Jornada de Trabalho" },
+    { id: "analise", label: "Análise de Funcionário" },
+    { id: "dispositivos", label: "Dispositivos do Ponto" },
+  ],
+};
+
+export const chavePermissao = (modulo: string, subitem?: string) =>
+  subitem ? `${modulo}:${subitem}` : modulo;
+
+/**
+ * Rota de cada módulo — usada para bloquear acesso direto pela URL quando o
+ * módulo não está liberado. Mantenha em sincronia com o AppSidebar.
+ */
+export const ROTA_MODULO: Record<string, string> = {
+  atendimentos: "/atendimentos",
+  comercial: "/comercial",
+  corretoras: "/corretoras",
+  termos: "/termos",
+  contatos: "/contatos",
+  sinistros: "/sinistros",
+  lancamentos_financeiros: "/financeiro",
+  agenda: "/agenda",
+  documentos: "/documentos",
+  emails: "/central-atendimento",
+  mensagens: "/mensagens",
+  sga: "/sga",
+  pid: "/pid",
+  ouvidoria: "/ouvidoria-backoffice",
+  contratos: "/uon1sign",
+  talka: "/video",
+  comunicados: "/comunicados",
+  links: "/links",
+  gestao: "/gestao",
+  formularios: "/formularios",
+  ppr: "/ppr",
+  debitos_veiculares: "/debitos-veiculares",
+  biblioteca: "/biblioteca",
+};
+
+/** Módulo dono de um caminho (o prefixo mais longo vence). */
+export function moduloDaRota(pathname: string): string | null {
+  let melhor: { id: string; len: number } | null = null;
+  for (const [id, rota] of Object.entries(ROTA_MODULO)) {
+    if (pathname === rota || pathname.startsWith(rota + "/")) {
+      if (!melhor || rota.length > melhor.len) melhor = { id, len: rota.length };
+    }
+  }
+  return melhor?.id ?? null;
+}

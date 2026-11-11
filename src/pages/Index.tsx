@@ -16,6 +16,7 @@ import { UserProfile } from "@/components/UserProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { toast as sonnerToast } from "sonner";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { usePermissoes } from "@/hooks/usePermissoes";
 import { useAuth } from "@/hooks/useAuth";
 import { useOverdueAtendimentos } from "@/hooks/useOverdueAtendimentos";
 import { useFluxoPermissions } from "@/hooks/useFluxoPermissions";
@@ -58,6 +59,13 @@ const Index = () => {
   const [concluirFluxoDialogOpen, setConcluirFluxoDialogOpen] = useState(false);
   const [gestaoAssociacaoConfigOpen, setGestaoAssociacaoConfigOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("administradora");
+  const { podeVer } = usePermissoes();
+  const verAdministradora = podeVer("atendimentos", "administradora");
+  const verAssociacao = podeVer("atendimentos", "associacao");
+  useEffect(() => {
+    if (activeTab === "administradora" && !verAdministradora && verAssociacao) setActiveTab("associacao");
+    if (activeTab === "associacao" && !verAssociacao && verAdministradora) setActiveTab("administradora");
+  }, [activeTab, verAdministradora, verAssociacao]);
   const [gestaoAssociacaoKey, setGestaoAssociacaoKey] = useState(0);
   const [gestaoAssocCorretoraId, setGestaoAssocCorretoraId] = useState<string | null>(null);
   const [gestaoAssocCorretoras, setGestaoAssocCorretoras] = useState<{ id: string; nome: string }[]>([]);
@@ -847,8 +855,8 @@ const Index = () => {
               </div>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="ml-4">
                 <TabsList>
-                  <TabsTrigger value="administradora">Gestão Administradora</TabsTrigger>
-                  <TabsTrigger value="associacao">Gestão Associação</TabsTrigger>
+                  {verAdministradora && <TabsTrigger value="administradora">Gestão Administradora</TabsTrigger>}
+                  {verAssociacao && <TabsTrigger value="associacao">Gestão Associação</TabsTrigger>}
                 </TabsList>
               </Tabs>
             </div>

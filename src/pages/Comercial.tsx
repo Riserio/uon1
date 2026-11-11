@@ -14,6 +14,7 @@ import { VendedoresTab } from "@/components/comercial/VendedoresTab";
 import { FunilConfigDialog } from "@/components/comercial/FunilConfigDialog";
 import type { ComercialEtapa, ComercialFunil, ComercialLead, ComercialVendedor } from "@/components/comercial/types";
 import { somenteDigitos } from "@/components/comercial/utils";
+import { usePermissoes } from "@/hooks/usePermissoes";
 
 const TODOS = "__todos__";
 const SEM_VENDEDOR = "__sem__";
@@ -28,6 +29,9 @@ export default function Comercial() {
     }
   });
   const [busca, setBusca] = useState("");
+  const { podeVer } = usePermissoes();
+  const verFunil = podeVer("comercial", "funil");
+  const verVendedores = podeVer("comercial", "vendedores");
   const [filtroVendedor, setFiltroVendedor] = useState(TODOS);
   const [filtroProduto, setFiltroProduto] = useState(TODOS);
   const [leadAberto, setLeadAberto] = useState<{ lead: ComercialLead | null; etapaId?: string } | null>(null);
@@ -178,13 +182,13 @@ export default function Comercial() {
           </CardContent>
         </Card>
       ) : (
-        <Tabs defaultValue="funil" className="space-y-4">
+        <Tabs key={`${verFunil}-${verVendedores}`} defaultValue={verFunil ? "funil" : "vendedores"} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="funil">Funil</TabsTrigger>
-            <TabsTrigger value="vendedores">Vendedores</TabsTrigger>
+            {verFunil && <TabsTrigger value="funil">Funil</TabsTrigger>}
+            {verVendedores && <TabsTrigger value="vendedores">Vendedores</TabsTrigger>}
           </TabsList>
 
-          <TabsContent value="funil" className="space-y-4">
+          {verFunil && <TabsContent value="funil" className="space-y-4">
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
               <Resumo rotulo="Em andamento" valor={resumo.andamento} />
               <Resumo rotulo="Fechados" valor={resumo.ganhos} classe="text-green-600" />
@@ -242,11 +246,11 @@ export default function Comercial() {
               vendedores={vendedores}
               onAbrir={(lead, etapaId) => setLeadAberto({ lead, etapaId })}
             />
-          </TabsContent>
+          </TabsContent>}
 
-          <TabsContent value="vendedores">
+          {verVendedores && <TabsContent value="vendedores">
             <VendedoresTab funil={funil} vendedores={vendedores} leads={leads} ganhoIds={ganhoIds} />
-          </TabsContent>
+          </TabsContent>}
         </Tabs>
       )}
 

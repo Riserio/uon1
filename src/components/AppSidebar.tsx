@@ -11,49 +11,12 @@ import { useModulosDesabilitados } from "@/hooks/useModulosDesabilitados";
 import { SYSTEM_MODULES, GRUPO_LABEL, GRUPO_ORDEM, GRUPO_RECOLHIDO_PADRAO, GRUPO_ICONE, type ModuloGrupo } from "@/config/modulos";
 import { useOuvidoriaPendentes } from "@/hooks/useOuvidoriaPendentes";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { supabase } from "@/integrations/supabase/client";
+import { usePermissoes } from "@/hooks/usePermissoes";
 import { cn } from "@/lib/utils";
 import { useLocation } from "react-router-dom";
 
-// ---------------- PERMISSÕES DE MENU POR ROLE ----------------
-
-type MenuPermission = {
-  pode_visualizar: boolean;
-  pode_editar: boolean;
-};
-type MenuPermissionMap = Record<string, MenuPermission>;
-type RoleType = "admin" | "administrativo" | "comercial" | "lider" | "superintendente";
-
-function useMenuPermissionsForRole(userRole: string | null) {
-  const [permissions, setPermissions] = useState<MenuPermissionMap>({});
-  useEffect(() => {
-    const loadPermissions = async () => {
-      if (!userRole) { setPermissions({}); return; }
-      const normalizedRole = userRole.toLowerCase() as RoleType;
-      const validRoles: RoleType[] = ["admin", "administrativo", "comercial", "lider", "superintendente"];
-      if (!validRoles.includes(normalizedRole)) { setPermissions({}); return; }
-      try {
-        const { data, error } = await supabase
-          .from("role_menu_permissions")
-          .select("menu_item, pode_visualizar, pode_editar")
-          .eq("role", normalizedRole);
-        if (error) { setPermissions({}); return; }
-        const map: MenuPermissionMap = {};
-        (data || []).forEach((p) => {
-          map[p.menu_item] = { pode_visualizar: p.pode_visualizar, pode_editar: p.pode_editar };
-        });
-        setPermissions(map);
-      } catch { setPermissions({}); }
-    };
-    loadPermissions();
-  }, [userRole]);
-  const canView = (menuId: string) => {
-    const perm = permissions[menuId];
-    if (!perm) return true;
-    return perm.pode_visualizar;
-  };
-  return { canView };
-}
+// Permissões: perfil de sistema → cargo → ajuste individual (usePermissoes).
+// Antes a sidebar lia só o perfil, e o cargo vinculado ao usuário não mudava o menu.
 
 // ---------------- MENU ITEMS ----------------
 
@@ -119,7 +82,7 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
     return () => clearTimeout(t);
   }, [destaque]);
   const { signOut, userRole } = useAuth();
-  const { canView } = useMenuPermissionsForRole(userRole);
+  const { podeVer: canView } = usePermissoes();
   const { isDesabilitado } = useModulosDesabilitados();
   const items = useMenuItems();
 

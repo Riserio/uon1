@@ -6,19 +6,26 @@ import EstudoBaseConteudo from "@/components/estudo-base/EstudoBaseConteudo";
 import { GerenciarUsuariosCorretoraDialog } from "@/components/GerenciarUsuariosCorretoraDialog";
 import BIAdminDashboard from "@/components/bi/BIAdminDashboard";
 import { useBILayout } from "@/contexts/BILayoutContext";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePermissoes } from "@/hooks/usePermissoes";
 import { Users, BarChart3, Calendar, Upload, Database } from "lucide-react";
 export default function PID() {
   const { associacoes, selectedAssociacao, isAdminView } = useBILayout();
   const [usuariosDialogOpen, setUsuariosDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const selectedAssociacaoData = associacoes.find((c) => c.id === selectedAssociacao);
+  const { podeVer } = usePermissoes();
   const tabs = [
     { id: "dashboard", label: "Visão Geral", icon: BarChart3 },
     { id: "estudo-base", label: "Estudo de Base", icon: Database },
     { id: "historico", label: "Histórico", icon: Calendar },
     { id: "importacao", label: "Importação", icon: Upload },
-  ];
+  ].filter((t) => podeVer("pid", t.id));
+  const idsVisiveis = tabs.map((t) => t.id).join(",");
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.some((t) => t.id === activeTab)) setActiveTab(tabs[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsVisiveis, activeTab]);
   return (
     <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
       {isAdminView ? (
