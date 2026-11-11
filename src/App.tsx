@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GuardaModulo } from "@/components/GuardaModulo";
+import { usePermissoes } from "@/hooks/usePermissoes";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
@@ -204,6 +205,15 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return userRole === 'superintendente' ? <>{children}</> : <Navigate to="/dashboard" replace />;
 }
 
+// Configurações: superintendente sempre; demais só se o cargo liberar explicitamente.
+function ConfiguracoesRoute({ children }: { children: React.ReactNode }) {
+  const { userRole } = useAuth();
+  const { podeAcessarConfiguracoes, carregando } = usePermissoes();
+  if (userRole === 'superintendente') return <>{children}</>;
+  if (carregando) return null;
+  return podeAcessarConfiguracoes() ? <>{children}</> : <Navigate to="/dashboard" replace />;
+}
+
 // Componente para redirecionar baseado no domínio e status de login
 function DomainBasedRoute() {
   const { user, loading } = useAuth();
@@ -311,7 +321,7 @@ const App = () => (
                 <Route path="/central-whatsapp" element={<Navigate to="/central-atendimento" replace />} />
                 <Route path="/whatsapp-flows" element={<Navigate to="/central-atendimento" replace />} />
                 <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
-                <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
+                <Route path="/configuracoes" element={<ProtectedRoute><ConfiguracoesRoute><Configuracoes /></ConfiguracoesRoute></ProtectedRoute>} />
                 <Route path="/reportar-problema" element={<ProtectedRoute><ReportarProblema /></ProtectedRoute>} />
                 <Route path="/sga" element={<ProtectedRoute><SGABusca /></ProtectedRoute>} />
                 <Route element={<ProtectedRoute><BILayout /></ProtectedRoute>}>

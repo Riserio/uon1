@@ -138,7 +138,8 @@ export function resumoAcesso(mapaEfetivo: MapaPermissoes) {
 
 /** Ponto de partida de um cargo novo: só o essencial liberado. */
 export function permissoesIniciaisCargo(): MapaPermissoes {
-  const essenciais = new Set(["dashboard", "ajuda", "configuracoes"]);
+  // Configurações começa oculto: liberar dá acesso a ajustes do sistema.
+  const essenciais = new Set(["dashboard", "ajuda"]);
   const out: MapaPermissoes = {};
   MENU_PERMISSION_ITEMS.forEach((it) => {
     const p = essenciais.has(it.id)

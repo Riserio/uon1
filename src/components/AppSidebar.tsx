@@ -82,7 +82,7 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
     return () => clearTimeout(t);
   }, [destaque]);
   const { signOut, userRole } = useAuth();
-  const { podeVer: canView } = usePermissoes();
+  const { podeVer: canView, podeAcessarConfiguracoes } = usePermissoes();
   const { isDesabilitado } = useModulosDesabilitados();
   const items = useMenuItems();
 
@@ -308,7 +308,7 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
         </NavLink>
         {/* Configuracoes fixo no rodape: e acesso frequente e estava perdido no
             meio da lista de ferramentas, que rola. */}
-        <NavLink
+        {podeAcessarConfiguracoes() && <NavLink
           to="/configuracoes"
           onClick={() => onNavigate?.()}
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
@@ -316,7 +316,7 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
         >
           <Settings className="h-4 w-4 flex-shrink-0" />
           {!collapsed && <span>Configurações</span>}
-        </NavLink>
+        </NavLink>}
         <button
           onClick={() => { signOut(); onNavigate?.(); }}
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm w-full text-orange-500 hover:bg-orange-500/10 transition-colors"

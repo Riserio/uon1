@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissoes } from "@/hooks/usePermissoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -277,7 +278,10 @@ export default function Configuracoes() {
   };
 
   const { userRole } = useAuth();
-  const canManageUsers = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
+  const { podeAcessarConfiguracoes } = usePermissoes();
+  const canManageUsers =
+    (userRole === "admin" || userRole === "administrativo" || userRole === "superintendente") &&
+    podeAcessarConfiguracoes("usuarios");
 
   const sections = [
     { id: "aparencia", label: "Aparência", icon: Palette, description: "Cores e personalização visual" },
@@ -289,7 +293,15 @@ export default function Configuracoes() {
     { id: "seguranca", label: "Segurança", icon: Shield, description: "Configurações de acesso" },
     { id: "notificacoes", label: "Notificações", icon: Bell, description: "Alertas e avisos" },
     { id: "documentacao", label: "Documentação", icon: BookOpen, description: "Arquitetura, regras de negócio e integrações" },
-  ];
+  ].filter((sec) => podeAcessarConfiguracoes(sec.id));
+
+  useEffect(() => {
+    if (sections.length > 0 && !sections.some((sec) => sec.id === activeSection)) setActiveSection(sections[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections.map((sec) => sec.id).join(","), activeSection]);
+  // Nunca renderiza uma seção que o cargo não libera (nem por um instante)
+  const secaoVisivel = sections.some((sec) => sec.id === activeSection) ? activeSection : null;
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -333,7 +345,7 @@ export default function Configuracoes() {
           {/* Content */}
           <div className="space-y-6 min-w-0">
             {/* APARÊNCIA */}
-            {activeSection === "aparencia" && (
+            {secaoVisivel === "aparencia" && (
               <>
                 <div className="rounded-2xl border border-border/50 bg-card p-5 sm:p-6 space-y-6">
                   <div>
@@ -389,7 +401,7 @@ export default function Configuracoes() {
             )}
 
             {/* IMAGENS */}
-            {activeSection === "imagens" && (
+            {secaoVisivel === "imagens" && (
               <div className="space-y-4">
                 {/* Logo */}
                 <div className="rounded-2xl border border-border/50 bg-card p-5 sm:p-6 space-y-4">
@@ -491,19 +503,19 @@ export default function Configuracoes() {
             )}
 
             {/* USUÁRIOS */}
-            {activeSection === "usuarios" && canManageUsers && (
+            {secaoVisivel === "usuarios" && canManageUsers && (
               <div className="rounded-2xl border border-border/50 bg-card p-2 sm:p-3 min-w-0 overflow-x-hidden">
                 <Usuarios />
               </div>
             )}
 
             {/* COMPARTILHAMENTO */}
-            {activeSection === "compartilhamento" && <BrandingCompartilhamento />}
+            {secaoVisivel === "compartilhamento" && <BrandingCompartilhamento />}
 
-            {activeSection === "modulos" && canManageUsers && <GestaoModulosConfig />}
+            {secaoVisivel === "modulos" && canManageUsers && <GestaoModulosConfig />}
 
             {/* SEGURANÇA */}
-            {activeSection === "seguranca" && (
+            {secaoVisivel === "seguranca" && (
               <div className="rounded-2xl border border-border/50 bg-card p-5 sm:p-6 space-y-6">
                 <div>
                   <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -539,7 +551,7 @@ export default function Configuracoes() {
             )}
 
             {/* NOTIFICAÇÕES */}
-            {activeSection === "notificacoes" && (
+            {secaoVisivel === "notificacoes" && (
               <div className="rounded-2xl border border-border/50 bg-card p-5 sm:p-6 space-y-6">
                 <div>
                   <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -601,8 +613,8 @@ export default function Configuracoes() {
             )}
 
             {/* DOCUMENTAÇÃO */}
-            {activeSection === "documentacao" && <Documentacao />}
-            {activeSection === "tipos_boleto" && userRole === "admin" && <TiposBoletoLegendaAdmin />}
+            {secaoVisivel === "documentacao" && <Documentacao />}
+            {secaoVisivel === "tipos_boleto" && userRole === "admin" && <TiposBoletoLegendaAdmin />}
           </div>
         </div>
       </div>
