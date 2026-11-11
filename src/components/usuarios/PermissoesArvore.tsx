@@ -207,6 +207,9 @@ export function PermissoesArvore({
                         <p className={cn("text-sm font-medium truncate", nivel === "nenhum" && "text-muted-foreground")}>
                           {it.label}
                         </p>
+                        {it.id === "configuracoes" && (
+                          <p className="text-[11px] text-amber-600">Oculto = some do menu. Superintendente sempre vê.</p>
+                        )}
                         {subs.length > 0 && (
                           <p className="text-[11px] text-muted-foreground">
                             {subs.length} áreas{subsRestritos > 0 && nivel !== "nenhum" ? ` · ${subsRestritos} com acesso diferente` : ""}

@@ -16,6 +16,8 @@ interface Efetivas {
   role: string | null;
   cargoId: string | null;
   mapa: MapaPermissoes;
+  /** Só o que cargo + ajuste individual dizem (sem o padrão do perfil). */
+  mapaCargoUsuario: MapaPermissoes;
 }
 
 async function carregar(userId: string): Promise<Efetivas> {
@@ -27,7 +29,7 @@ async function carregar(userId: string): Promise<Efetivas> {
   const role = (roleRow?.role as string) ?? null;
   const cargoId = (profile as any)?.cargo_id ?? null;
 
-  if (role && ACESSO_TOTAL_ROLES.includes(role)) return { role, cargoId, mapa: {} };
+  if (role && ACESSO_TOTAL_ROLES.includes(role)) return { role, cargoId, mapa: {}, mapaCargoUsuario: {} };
 
   const [{ data: rolePerms }, cargoRes] = await Promise.all([
     role
@@ -38,10 +40,12 @@ async function carregar(userId: string): Promise<Efetivas> {
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
+  const mapaCargoUsuario = mesclarPermissoes(linhasParaMapa(cargoRes.data as any), linhasParaMapa(userPerms as any));
   return {
     role,
     cargoId,
-    mapa: mesclarPermissoes(linhasParaMapa(rolePerms as any), linhasParaMapa(cargoRes.data as any), linhasParaMapa(userPerms as any)),
+    mapa: mesclarPermissoes(linhasParaMapa(rolePerms as any), mapaCargoUsuario),
+    mapaCargoUsuario,
   };
 }
 
@@ -79,8 +83,25 @@ export function usePermissoes() {
     [data, acessoTotal],
   );
 
+  /**
+   * Configurações: superintendente/admin sempre entram. Os demais só quando o
+   * cargo (ou ajuste individual) libera EXPLICITAMENTE — ausência de regra não
+   * abre as configurações do sistema para ninguém.
+   */
+  const podeAcessarConfiguracoes = useCallback(
+    (subitem?: string) => {
+      if (acessoTotal) return true;
+      if (!data) return false;
+      const explicito = data.mapaCargoUsuario["configuracoes"];
+      if (!explicito?.pode_visualizar) return false;
+      return subitem ? resolver(data.mapaCargoUsuario, "configuracoes", subitem).pode_visualizar : true;
+    },
+    [data, acessoTotal],
+  );
+
   return {
     carregando: isLoading,
+    podeAcessarConfiguracoes,
     role: data?.role ?? null,
     cargoId: data?.cargoId ?? null,
     permissoes: data?.mapa ?? {},

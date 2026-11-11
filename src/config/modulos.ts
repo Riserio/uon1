@@ -182,6 +182,17 @@ export const SUBITENS_MODULO: Record<string, SubitemModulo[]> = {
     { id: "centros-custo", label: "Centro de Custo" },
     { id: "categorias", label: "Categorias" },
   ],
+  configuracoes: [
+    { id: "aparencia", label: "Aparência" },
+    { id: "imagens", label: "Imagens" },
+    { id: "compartilhamento", label: "Compartilhamento" },
+    { id: "usuarios", label: "Usuários" },
+    { id: "modulos", label: "Módulos" },
+    { id: "tipos_boleto", label: "Tipos de boleto" },
+    { id: "seguranca", label: "Segurança" },
+    { id: "notificacoes", label: "Notificações" },
+    { id: "documentacao", label: "Documentação" },
+  ],
   gestao: [
     { id: "dashboard", label: "Dashboard" },
     { id: "jornada", label: "Jornada de Trabalho" },

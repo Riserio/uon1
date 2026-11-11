@@ -3,7 +3,16 @@ import { GRUPO_LABEL, GRUPO_ORDEM, MENU_PERMISSION_ITEMS, SUBITENS_MODULO, SYSTE
 import { resolver, type MapaPermissoes } from "@/lib/permissoes";
 
 /** Prévia somente-leitura do que a pessoa vai enxergar com o cargo escolhido. */
-export function ResumoAcesso({ mapa, acessoTotal }: { mapa: MapaPermissoes; acessoTotal?: boolean }) {
+export function ResumoAcesso({
+  mapa,
+  mapaExplicito,
+  acessoTotal,
+}: {
+  mapa: MapaPermissoes;
+  /** Cargo + ajuste individual. Configurações só aparece se liberado aqui. */
+  mapaExplicito?: MapaPermissoes;
+  acessoTotal?: boolean;
+}) {
   if (acessoTotal) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
@@ -14,7 +23,11 @@ export function ResumoAcesso({ mapa, acessoTotal }: { mapa: MapaPermissoes; aces
   }
 
   const grupoDe = (id: string) => SYSTEM_MODULES.find((m) => m.id === id)?.grupo ?? "interno";
-  const visiveis = MENU_PERMISSION_ITEMS.filter((it) => resolver(mapa, it.id).pode_visualizar);
+  const visiveis = MENU_PERMISSION_ITEMS.filter((it) =>
+    it.id === "configuracoes"
+      ? !!mapaExplicito?.configuracoes?.pode_visualizar
+      : resolver(mapa, it.id).pode_visualizar,
+  );
 
   if (visiveis.length === 0) {
     return (

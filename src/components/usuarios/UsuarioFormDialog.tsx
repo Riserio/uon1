@@ -254,6 +254,10 @@ export function UsuarioFormDialog(props: Props) {
       ),
     [permsRole, permsCargo, role, form.cargo_id, ajustesIndividuais],
   );
+  const mapaExplicito = useMemo(
+    () => mesclarPermissoes(form.cargo_id ? permsCargo[form.cargo_id] : undefined, ajustesIndividuais),
+    [permsCargo, form.cargo_id, ajustesIndividuais],
+  );
   const previaCarregando = !!form.cargo_id && !permsCargo[form.cargo_id];
   const qtdAjustes = Object.keys(ajustesIndividuais).length;
   const cargoSel = cargos.find((c) => c.id === form.cargo_id) || null;
@@ -734,7 +738,7 @@ export function UsuarioFormDialog(props: Props) {
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <ResumoAcesso mapa={mapaPrevia} />
+                <ResumoAcesso mapa={mapaPrevia} mapaExplicito={mapaExplicito} />
               )}
             </div>
           )}
