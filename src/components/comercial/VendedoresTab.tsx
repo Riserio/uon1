@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { MessageCircle, Pencil, Plus, QrCode, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,9 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ComercialFunil, ComercialLead, ComercialVendedor } from "./types";
 import { QrCodeDialog } from "./QrCodeDialog";
 import { formatarWhatsapp, linkCaptura, linkWhatsapp, slugify, somenteDigitos } from "./utils";
+
+const SEM_USUARIO = "__sem_usuario__";
 
 interface Props {
   funil: ComercialFunil;
@@ -23,6 +26,15 @@ interface Props {
 
 export function VendedoresTab({ funil, vendedores, leads, ganhoIds }: Props) {
   const qc = useQueryClient();
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ["comercial_usuarios_vinculaveis"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, nome").eq("ativo", true).order("nome");
+      if (error) throw error;
+      return (data ?? []) as { id: string; nome: string }[];
+    },
+  });
   const [editando, setEditando] = useState<ComercialVendedor | null>(null);
   const [aberto, setAberto] = useState(false);
   const [nome, setNome] = useState("");
@@ -30,6 +42,7 @@ export function VendedoresTab({ funil, vendedores, leads, ganhoIds }: Props) {
   const [codigoEditado, setCodigoEditado] = useState(false);
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
+  const [profileId, setProfileId] = useState<string>(SEM_USUARIO);
   const [qr, setQr] = useState<{ titulo: string; subtitulo: string; link: string } | null>(null);
 
   const abrir = (v: ComercialVendedor | null) => {
@@ -39,6 +52,7 @@ export function VendedoresTab({ funil, vendedores, leads, ganhoIds }: Props) {
     setCodigoEditado(!!v);
     setWhatsapp(somenteDigitos(v?.whatsapp));
     setEmail(v?.email ?? "");
+    setProfileId(v?.profile_id ?? SEM_USUARIO);
     setAberto(true);
   };
 
@@ -48,10 +62,18 @@ export function VendedoresTab({ funil, vendedores, leads, ganhoIds }: Props) {
     mutationFn: async () => {
       const c = slugify(codigo || nome);
       if (nome.trim().length < 2 || !c) throw new Error("Informe o nome do vendedor");
-      const payload = { nome: nome.trim(), codigo: c, whatsapp: somenteDigitos(whatsapp) || null, email: email.trim() || null };
+      const payload = {
+        nome: nome.trim(),
+        codigo: c,
+        whatsapp: somenteDigitos(whatsapp) || null,
+        email: email.trim() || null,
+        profile_id: profileId === SEM_USUARIO ? null : profileId,
+      };
       const q = (supabase as any).from("comercial_vendedores");
       const { error } = editando ? await q.update(payload).eq("id", editando.id) : await q.insert(payload);
       if (error) {
+        if (error.code === "23505" && String(error.message).includes("profile_id"))
+          throw new Error("Esse usuário já está vinculado a outro vendedor");
         if (error.code === "23505") throw new Error(`O código “${c}” já é de outro vendedor`);
         throw error;
       }
@@ -212,6 +234,25 @@ export function VendedoresTab({ funil, vendedores, leads, ganhoIds }: Props) {
                 <Label>E-mail</Label>
                 <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Usuário do sistema</Label>
+              <Select value={profileId} onValueChange={setProfileId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-[280px]">
+                  <SelectItem value={SEM_USUARIO}>Não vinculado</SelectItem>
+                  {usuarios.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Quem tiver cargo com “Leads de todos os vendedores” oculto vê só os leads deste vendedor.
+              </p>
             </div>
           </div>
           <DialogFooter>

@@ -25,6 +25,8 @@ export interface ComercialVendedor {
   whatsapp: string | null;
   email: string | null;
   ativo: boolean;
+  /** Usuário do sistema que é este vendedor (para "ver só os próprios leads"). */
+  profile_id?: string | null;
 }
 
 export interface ComercialLead {
