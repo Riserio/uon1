@@ -6,9 +6,23 @@ import { supabase } from "@/integrations/supabase/client";
  * Fonte: tabela `modulos_desabilitados` (presença da linha = desabilitado).
  * Leitura liberada a qualquer autenticado; escrita restrita a admin/superintendente via RLS.
  */
+const CHAVE_CACHE = "uon1_modulos_desabilitados_v1";
+
+function lerCache(): Set<string> | null {
+  try {
+    const raw = localStorage.getItem(CHAVE_CACHE);
+    return raw ? new Set(JSON.parse(raw) as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function useModulosDesabilitados() {
-  const [desabilitados, setDesabilitados] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  // Começa com a última lista conhecida: o menu não mostra módulos
+  // desabilitados por um instante a cada carregamento.
+  const [cache] = useState(lerCache);
+  const [desabilitados, setDesabilitados] = useState<Set<string>>(cache ?? new Set());
+  const [loading, setLoading] = useState(cache === null);
 
   const carregar = useCallback(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,7 +32,13 @@ export function useModulosDesabilitados() {
       console.warn("[modulos] não foi possível carregar módulos desabilitados:", error.message);
       setDesabilitados(new Set());
     } else {
-      setDesabilitados(new Set((data ?? []).map((r: { modulo_id: string }) => r.modulo_id)));
+      const ids = (data ?? []).map((r: { modulo_id: string }) => r.modulo_id);
+      setDesabilitados(new Set(ids));
+      try {
+        localStorage.setItem(CHAVE_CACHE, JSON.stringify(ids));
+      } catch {
+        /* sem cache */
+      }
     }
     setLoading(false);
   }, []);

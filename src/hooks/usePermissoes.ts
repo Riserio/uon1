@@ -54,12 +54,41 @@ async function carregar(userId: string): Promise<Efetivas> {
  * Uma única consulta compartilhada por toda a aplicação (react-query), em vez
  * de cada tela abrir suas próprias requisições e canais realtime.
  */
+const CHAVE_CACHE = (uid: string) => `uon1_permissoes_v1_${uid}`;
+
+function lerCache(uid?: string): Efetivas | undefined {
+  if (!uid) return undefined;
+  try {
+    const raw = localStorage.getItem(CHAVE_CACHE(uid));
+    return raw ? (JSON.parse(raw) as Efetivas) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function gravarCache(uid: string, e: Efetivas) {
+  try {
+    localStorage.setItem(CHAVE_CACHE(uid), JSON.stringify(e));
+  } catch {
+    /* modo privado / cota: segue sem cache */
+  }
+}
+
 export function usePermissoes() {
   const { user } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: [PERMISSOES_QUERY_KEY, user?.id],
-    queryFn: () => carregar(user!.id),
+    queryFn: async () => {
+      const e = await carregar(user!.id);
+      gravarCache(user!.id, e);
+      return e;
+    },
     enabled: !!user?.id,
+    // Última permissão conhecida deste usuário: o menu já abre certo, sem
+    // mostrar tudo e depois esconder. initialDataUpdatedAt=0 força buscar a
+    // versão atual do banco logo em seguida.
+    initialData: () => lerCache(user?.id),
+    initialDataUpdatedAt: 0,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: true,
   });
@@ -68,8 +97,10 @@ export function usePermissoes() {
 
   const podeVer = useCallback(
     (modulo: string, subitem?: string) => {
-      // Enquanto carrega, não esconde nada (evita "piscar" o menu vazio).
-      if (!data || acessoTotal) return true;
+      // Sem permissão carregada ainda: não mostra nada. Mostrar tudo e depois
+      // esconder fazia o menu "piscar" com módulos que a pessoa não tem.
+      if (!data) return false;
+      if (acessoTotal) return true;
       return resolver(data.mapa, modulo, subitem).pode_visualizar;
     },
     [data, acessoTotal],
@@ -77,7 +108,8 @@ export function usePermissoes() {
 
   const podeEditar = useCallback(
     (modulo: string, subitem?: string) => {
-      if (!data || acessoTotal) return true;
+      if (!data) return false;
+      if (acessoTotal) return true;
       return resolver(data.mapa, modulo, subitem).pode_editar;
     },
     [data, acessoTotal],
