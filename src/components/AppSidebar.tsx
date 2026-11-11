@@ -83,7 +83,7 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
   }, [destaque]);
   const { signOut, userRole } = useAuth();
   const { podeVer: canView, podeAcessarConfiguracoes } = usePermissoes();
-  const { isDesabilitado } = useModulosDesabilitados();
+  const { isDesabilitado, loading: carregandoModulos } = useModulosDesabilitados();
   const items = useMenuItems();
 
   // Guarda de consistencia: item de menu que nao esta em SYSTEM_MODULES aparece
@@ -186,7 +186,11 @@ function SidebarMenuContent({ collapsed, onNavigate, onExpandir }: { collapsed: 
       {/* Menu */}
       <div className="flex-1 overflow-y-auto py-2 scrollbar-hide">
         {groups.map((group, gi) => {
-          const groupItems = items.filter((i) => i.group === group.key && canView(i.id) && (i.id === "configuracoes" || !isDesabilitado(i.id)));
+          // Primeiro acesso (sem cache): espera saber o que está desabilitado
+          // antes de desenhar, em vez de mostrar tudo e depois esconder.
+          const groupItems = carregandoModulos
+            ? []
+            : items.filter((i) => i.group === group.key && canView(i.id) && (i.id === "configuracoes" || !isDesabilitado(i.id)));
           if (groupItems.length === 0) return null;
           const aberto = !collapsed && (group.key === "inicio" || abertos.has(group.key));
             const temAtivo = groupItems.some((i) => location.pathname.startsWith(i.to));
