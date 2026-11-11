@@ -37,6 +37,8 @@ interface Props {
   lead: ComercialLead | null;
   /** Etapa sugerida ao criar (ex.: quando a mudança de etapa exige motivo). */
   etapaInicialId?: string | null;
+  /** Usuário que só vê os próprios leads: o lead fica sempre com ele. */
+  vendedorFixoId?: string | null;
 }
 
 type Form = {
@@ -53,7 +55,7 @@ type Form = {
   observacoes: string;
 };
 
-export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead, etapaInicialId }: Props) {
+export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead, etapaInicialId, vendedorFixoId }: Props) {
   const qc = useQueryClient();
   const [form, setForm] = useState<Form>(vazio());
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
@@ -64,7 +66,7 @@ export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead
       associacao: "",
       cargo: "",
       whatsapp: "",
-      vendedor_id: NENHUM,
+      vendedor_id: vendedorFixoId ?? NENHUM,
       produto: NENHUM,
       indicacao_externa: false,
       indicador_nome: "",
@@ -209,7 +211,7 @@ export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead
             </div>
             <div className="space-y-2">
               <Label>Vendedor</Label>
-              <Select value={form.vendedor_id} onValueChange={(v) => set("vendedor_id", v)}>
+              <Select value={form.vendedor_id} onValueChange={(v) => set("vendedor_id", v)} disabled={!!vendedorFixoId}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

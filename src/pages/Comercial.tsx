@@ -15,6 +15,7 @@ import { FunilConfigDialog } from "@/components/comercial/FunilConfigDialog";
 import type { ComercialEtapa, ComercialFunil, ComercialLead, ComercialVendedor } from "@/components/comercial/types";
 import { somenteDigitos } from "@/components/comercial/utils";
 import { usePermissoes } from "@/hooks/usePermissoes";
+import { useAuth } from "@/hooks/useAuth";
 
 const TODOS = "__todos__";
 const SEM_VENDEDOR = "__sem__";
@@ -32,6 +33,10 @@ export default function Comercial() {
   const { podeVer } = usePermissoes();
   const verFunil = podeVer("comercial", "funil");
   const verVendedores = podeVer("comercial", "vendedores");
+  // Cargo com "Leads de todos os vendedores" oculto: só os próprios leads.
+  // O banco (RLS) já devolve só esses; aqui a tela só se adapta.
+  const veTodosLeads = podeVer("comercial", "todos-leads");
+  const { user } = useAuth();
   const [filtroVendedor, setFiltroVendedor] = useState(TODOS);
   const [filtroProduto, setFiltroProduto] = useState(TODOS);
   const [leadAberto, setLeadAberto] = useState<{ lead: ComercialLead | null; etapaId?: string } | null>(null);
@@ -106,6 +111,8 @@ export default function Comercial() {
     },
   });
 
+  const meuVendedor = vendedores.find((v) => v.profile_id && v.profile_id === user?.id) ?? null;
+
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     const termoDigitos = somenteDigitos(busca);
@@ -160,7 +167,7 @@ export default function Comercial() {
             <Button variant="outline" onClick={() => setConfig("novo")}>
               <Plus className="h-4 w-4 mr-1" /> Funil
             </Button>
-            {funil && etapas.length > 0 && (
+            {funil && etapas.length > 0 && (veTodosLeads || meuVendedor) && (
               <Button onClick={() => setLeadAberto({ lead: null })}>
                 <Plus className="h-4 w-4 mr-1" /> Novo lead
               </Button>
@@ -189,6 +196,13 @@ export default function Comercial() {
           </TabsList>
 
           {verFunil && <TabsContent value="funil" className="space-y-4">
+            {!veTodosLeads && (
+              <div className="rounded-xl border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+                {meuVendedor
+                  ? <>Você vê apenas os leads de <strong className="text-foreground">{meuVendedor.nome}</strong>.</>
+                  : "Seu usuário ainda não está vinculado a um vendedor — peça para vincular em Comercial → Vendedores."}
+              </div>
+            )}
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
               <Resumo rotulo="Em andamento" valor={resumo.andamento} />
               <Resumo rotulo="Fechados" valor={resumo.ganhos} classe="text-green-600" />
@@ -210,7 +224,7 @@ export default function Comercial() {
                   onChange={(e) => setBusca(e.target.value)}
                 />
               </div>
-              <Select value={filtroVendedor} onValueChange={setFiltroVendedor}>
+              {veTodosLeads && <Select value={filtroVendedor} onValueChange={setFiltroVendedor}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -223,7 +237,7 @@ export default function Comercial() {
                     </SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
+              </Select>}
               <Select value={filtroProduto} onValueChange={setFiltroProduto}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue />
@@ -263,6 +277,7 @@ export default function Comercial() {
           vendedores={vendedores}
           lead={leadAberto?.lead ?? null}
           etapaInicialId={leadAberto?.etapaId ?? null}
+          vendedorFixoId={veTodosLeads ? null : meuVendedor?.id ?? null}
         />
       )}
 

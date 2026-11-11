@@ -158,6 +158,9 @@ export const SUBITENS_MODULO: Record<string, SubitemModulo[]> = {
   comercial: [
     { id: "funil", label: "Funil" },
     { id: "vendedores", label: "Vendedores" },
+    // Oculto = só vê os leads em que é o vendedor responsável (RLS no banco:
+    // comercial_pode_ver_lead). O usuário precisa estar vinculado a um vendedor.
+    { id: "todos-leads", label: "Leads de todos os vendedores" },
   ],
   pid: [
     { id: "dashboard", label: "Visão Geral" },
