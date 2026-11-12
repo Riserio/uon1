@@ -158,9 +158,10 @@ export const SUBITENS_MODULO: Record<string, SubitemModulo[]> = {
   comercial: [
     { id: "funil", label: "Funil" },
     { id: "vendedores", label: "Vendedores" },
-    // Oculto = só vê os leads em que é o vendedor responsável (RLS no banco:
-    // comercial_pode_ver_lead). O usuário precisa estar vinculado a um vendedor.
-    { id: "todos-leads", label: "Leads de todos os vendedores" },
+    // Liberado = visão geral do Comercial (como administrador). Sem isso vale a
+    // hierarquia (RLS no banco: comercial_nivel / comercial_pode_ver):
+    // Vendedor → próprios; Líder → equipe; Gerente (Administrativo) → suas equipes.
+    { id: "todos-leads", label: "Visão geral (todos os leads e cotações)" },
   ],
   pid: [
     { id: "dashboard", label: "Visão Geral" },
