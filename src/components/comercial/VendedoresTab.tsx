@@ -22,9 +22,11 @@ interface Props {
   vendedores: ComercialVendedor[];
   leads: ComercialLead[];
   ganhoIds: Set<string>;
+  /** Gerente/Admin cadastram e editam vendedores (o banco também exige). */
+  podeGerir: boolean;
 }
 
-export function VendedoresTab({ funil, vendedores, leads, ganhoIds }: Props) {
+export function VendedoresTab({ funil, vendedores, leads, ganhoIds, podeGerir }: Props) {
   const qc = useQueryClient();
   const { data: usuarios = [] } = useQuery({
     queryKey: ["comercial_usuarios_vinculaveis"],
@@ -120,9 +122,11 @@ export function VendedoresTab({ funil, vendedores, leads, ganhoIds }: Props) {
           >
             <QrCode className="h-4 w-4 mr-1" /> QR geral
           </Button>
-          <Button onClick={() => abrir(null)}>
-            <Plus className="h-4 w-4 mr-1" /> Novo vendedor
-          </Button>
+          {podeGerir && (
+            <Button onClick={() => abrir(null)}>
+              <Plus className="h-4 w-4 mr-1" /> Novo vendedor
+            </Button>
+          )}
         </div>
       </div>
 
@@ -146,8 +150,13 @@ export function VendedoresTab({ funil, vendedores, leads, ganhoIds }: Props) {
                       <p className="font-semibold truncate">{v.nome}</p>
                       <p className="text-xs text-muted-foreground truncate">/c/{funil.slug}/{v.codigo}</p>
                     </div>
-                    <Switch checked={v.ativo} onCheckedChange={() => alternarAtivo.mutate(v)} title="Ativo" />
+                    <Switch checked={v.ativo} onCheckedChange={() => alternarAtivo.mutate(v)} title="Ativo" disabled={!podeGerir} />
                   </div>
+                  {podeGerir && !v.profile_id && (
+                    <p className="text-[11px] text-amber-700">
+                      Sem usuário vinculado — os leads deste vendedor só aparecem para o administrador.
+                    </p>
+                  )}
                   <div className="flex gap-4 text-xs text-muted-foreground tabular-nums">
                     <span>{s.total} leads neste funil</span>
                     <span>{s.ganhos} fechados</span>
@@ -168,9 +177,11 @@ export function VendedoresTab({ funil, vendedores, leads, ganhoIds }: Props) {
                     >
                       <QrCode className="h-3.5 w-3.5 mr-1" /> QR code
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => abrir(v)}>
-                      <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
-                    </Button>
+                    {podeGerir && (
+                      <Button size="sm" variant="outline" onClick={() => abrir(v)}>
+                        <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
+                      </Button>
+                    )}
                     {zap && (
                       <Button size="sm" variant="outline" asChild>
                         <a href={zap} target="_blank" rel="noopener noreferrer">

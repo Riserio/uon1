@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { MessageCircle, Trash2 } from "lucide-react";
+import { Archive, FileText, Lock, MessageCircle, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { ComercialEtapa, ComercialFunil, ComercialLead, ComercialVendedor } from "./types";
+import { ComentariosPanel } from "./ComentariosPanel";
+import { CotacaoDialog } from "./CotacaoDialog";
+import { STATUS_COTACAO, type ComercialCotacao, type ComercialEtapa, type ComercialFunil, type ComercialLead, type ComercialVendedor } from "./types";
 import { linkWhatsapp, somenteDigitos } from "./utils";
 
 const NENHUM = "__nenhum__";
@@ -37,8 +39,16 @@ interface Props {
   lead: ComercialLead | null;
   /** Etapa sugerida ao criar (ex.: quando a mudança de etapa exige motivo). */
   etapaInicialId?: string | null;
-  /** Usuário que só vê os próprios leads: o lead fica sempre com ele. */
+  /** Usuário que só cria para si (Vendedor/Líder): o lead novo fica com ele. */
   vendedorFixoId?: string | null;
+  /** Pode alterar este lead (dono, ou gerente da equipe, ou admin). Sem isso: leitura + comentário. */
+  podeEditar: boolean;
+  /** Gerente/Admin: transfere e arquiva. */
+  gestor: boolean;
+  /** Vendedores que o usuário pode escolher (null = todos). */
+  vendedoresPermitidos?: Set<string> | null;
+  /** Pode editar os registros do vendedor (para as cotações do lead). */
+  podeEditarVendedor: (vendedorId: string | null | undefined) => boolean;
 }
 
 type Form = {
@@ -55,10 +65,24 @@ type Form = {
   observacoes: string;
 };
 
-export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead, etapaInicialId, vendedorFixoId }: Props) {
+export function LeadDialog({
+  open,
+  onOpenChange,
+  funil,
+  etapas,
+  vendedores,
+  lead,
+  etapaInicialId,
+  vendedorFixoId,
+  podeEditar,
+  gestor,
+  vendedoresPermitidos,
+  podeEditarVendedor,
+}: Props) {
   const qc = useQueryClient();
   const [form, setForm] = useState<Form>(vazio());
-  const [confirmarExclusao, setConfirmarExclusao] = useState(false);
+  const [confirmarArquivo, setConfirmarArquivo] = useState(false);
+  const [cotacaoAberta, setCotacaoAberta] = useState<{ cotacao: ComercialCotacao | null } | null>(null);
 
   function vazio(): Form {
     return {
@@ -117,6 +141,20 @@ export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead
     },
   });
 
+  const { data: cotacoes = [] } = useQuery({
+    queryKey: ["comercial_cotacoes", "lead", lead?.id],
+    enabled: open && !!lead,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("comercial_cotacoes")
+        .select("*")
+        .eq("lead_id", lead!.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as ComercialCotacao[];
+    },
+  });
+
   const salvar = useMutation({
     mutationFn: async () => {
       if (form.nome.trim().length < 2) throw new Error("Informe o nome do cliente");
@@ -124,6 +162,8 @@ export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead
       if (zap && zap.length < 10) throw new Error("WhatsApp incompleto — informe com DDD");
       if (form.indicacao_externa && !form.indicador_nome.trim()) throw new Error("Informe o nome do indicador");
       if (exigeMotivo && !form.motivo_perda.trim()) throw new Error("Informe o motivo do cancelamento");
+      if (!lead && form.vendedor_id === NENHUM && !vendedorFixoId && vendedoresPermitidos)
+        throw new Error("Escolha o vendedor responsável");
       const payload = {
         funil_id: funil.id,
         etapa_id: form.etapa_id,
@@ -131,7 +171,7 @@ export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead
         associacao: form.associacao.trim() || null,
         cargo: form.cargo.trim() || null,
         whatsapp: zap || null,
-        vendedor_id: form.vendedor_id === NENHUM ? null : form.vendedor_id,
+        vendedor_id: !lead && vendedorFixoId ? vendedorFixoId : form.vendedor_id === NENHUM ? null : form.vendedor_id,
         produto: form.produto === NENHUM ? null : form.produto,
         indicacao_externa: form.indicacao_externa,
         indicador_nome: form.indicacao_externa ? form.indicador_nome.trim() : null,
@@ -145,21 +185,26 @@ export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead
     onSuccess: () => {
       toast.success(lead ? "Lead atualizado" : "Lead cadastrado");
       qc.invalidateQueries({ queryKey: ["comercial_leads", funil.id] });
+      qc.invalidateQueries({ queryKey: ["comercial_cotacoes"] });
       if (lead) qc.invalidateQueries({ queryKey: ["comercial_lead_historico", lead.id] });
       onOpenChange(false);
     },
     onError: (e: any) => toast.error(e.message),
   });
 
-  const excluir = useMutation({
+  // Ninguém exclui: gerente/admin arquivam (some do funil, fica no histórico e na auditoria).
+  const arquivar = useMutation({
     mutationFn: async () => {
-      const { error } = await (supabase as any).from("comercial_leads").delete().eq("id", lead!.id);
+      const { error } = await (supabase as any)
+        .from("comercial_leads")
+        .update({ arquivado_em: lead!.arquivado_em ? null : new Date().toISOString() })
+        .eq("id", lead!.id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Lead excluído");
+      toast.success(lead?.arquivado_em ? "Lead desarquivado" : "Lead arquivado");
       qc.invalidateQueries({ queryKey: ["comercial_leads", funil.id] });
-      setConfirmarExclusao(false);
+      setConfirmarArquivo(false);
       onOpenChange(false);
     },
     onError: (e: any) => toast.error(e.message),
@@ -167,17 +212,31 @@ export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead
 
   const nomeEtapa = (id: string | null) => etapas.find((e) => e.id === id)?.nome ?? "—";
   const zapLink = linkWhatsapp(form.whatsapp);
-  const vendedoresOpcoes = vendedores.filter((v) => v.ativo || v.id === form.vendedor_id);
+  const vendedoresOpcoes = vendedores.filter(
+    (v) => v.id === form.vendedor_id || (v.ativo && (!vendedoresPermitidos || vendedoresPermitidos.has(v.id))),
+  );
+  const vendedorTravado = lead ? !gestor || !podeEditar : !!vendedorFixoId;
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{lead ? "Editar lead" : "Novo lead"}</DialogTitle>
+            <DialogTitle>{!lead ? "Novo lead" : podeEditar ? "Editar lead" : "Lead"}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {lead && !podeEditar && (
+            <div className="rounded-xl border bg-muted/30 px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+              <Lock className="h-4 w-4 shrink-0" /> Modo leitura — lead de outro vendedor da sua equipe. Você pode comentar.
+            </div>
+          )}
+          {lead?.arquivado_em && (
+            <div className="rounded-xl border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+              Arquivado em {format(new Date(lead.arquivado_em), "dd/MM/yyyy", { locale: ptBR })}.
+            </div>
+          )}
+
+          <fieldset disabled={!podeEditar} className="grid gap-4 sm:grid-cols-2 min-w-0">
             <div className="space-y-2 sm:col-span-2">
               <Label>Nome *</Label>
               <Input autoFocus={!lead} value={form.nome} onChange={(e) => set("nome", e.target.value)} />
@@ -211,7 +270,7 @@ export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead
             </div>
             <div className="space-y-2">
               <Label>Vendedor</Label>
-              <Select value={form.vendedor_id} onValueChange={(v) => set("vendedor_id", v)} disabled={!!vendedorFixoId}>
+              <Select value={form.vendedor_id} onValueChange={(v) => set("vendedor_id", v)} disabled={vendedorTravado}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -301,7 +360,49 @@ export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead
               <Label>Observações</Label>
               <Textarea rows={4} value={form.observacoes} onChange={(e) => set("observacoes", e.target.value)} />
             </div>
-          </div>
+          </fieldset>
+
+          {lead && (
+            <div className="rounded-xl border p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" /> Cotações
+                </p>
+                {podeEditar && (
+                  <Button size="sm" variant="outline" onClick={() => setCotacaoAberta({ cotacao: null })}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Nova cotação
+                  </Button>
+                )}
+              </div>
+              {cotacoes.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhuma cotação.</p>
+              ) : (
+                cotacoes.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCotacaoAberta({ cotacao: c })}
+                    className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50 text-left"
+                  >
+                    <span className="truncate">
+                      nº {c.numero} · {c.produto || "Sem produto"}
+                      {c.arquivado_em && <span className="text-muted-foreground"> (arquivada)</span>}
+                    </span>
+                    <span className="flex items-center gap-2 shrink-0">
+                      <span className="tabular-nums">
+                        {Number(c.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_COTACAO[c.status].classe}`}>
+                        {STATUS_COTACAO[c.status].label}
+                      </span>
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
+          {lead && <ComentariosPanel entidade="lead" entidadeId={lead.id} />}
 
           {lead && (
             <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
@@ -324,45 +425,61 @@ export function LeadDialog({ open, onOpenChange, funil, etapas, vendedores, lead
           )}
 
           <DialogFooter className="gap-2 sm:justify-between">
-            {lead ? (
-              <Button variant="ghost" className="text-destructive" onClick={() => setConfirmarExclusao(true)}>
-                <Trash2 className="h-4 w-4 mr-1" /> Excluir
+            {lead && gestor && podeEditar ? (
+              <Button variant="ghost" onClick={() => setConfirmarArquivo(true)}>
+                <Archive className="h-4 w-4 mr-1" /> {lead.arquivado_em ? "Desarquivar" : "Arquivar"}
               </Button>
             ) : (
               <span />
             )}
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
+                {podeEditar ? "Cancelar" : "Fechar"}
               </Button>
-              <Button onClick={() => salvar.mutate()} disabled={salvar.isPending}>
-                Salvar
-              </Button>
+              {podeEditar && (
+                <Button onClick={() => salvar.mutate()} disabled={salvar.isPending}>
+                  Salvar
+                </Button>
+              )}
             </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={confirmarExclusao} onOpenChange={setConfirmarExclusao}>
+      <AlertDialog open={confirmarArquivo} onOpenChange={setConfirmarArquivo}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir o lead “{lead?.nome}”?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {lead?.arquivado_em ? "Desarquivar" : "Arquivar"} o lead “{lead?.nome}”?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              O lead e o histórico dele são apagados. Para tirar do funil sem perder o registro, mova para a etapa de
-              cancelado.
+              {lead?.arquivado_em
+                ? "O lead volta para o funil."
+                : "O lead sai do funil, mas o registro, as cotações e o histórico ficam guardados (nada é excluído)."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => excluir.mutate()}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Excluir
+            <AlertDialogAction onClick={() => arquivar.mutate()}>
+              {lead?.arquivado_em ? "Desarquivar" : "Arquivar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {lead && (
+        <CotacaoDialog
+          open={!!cotacaoAberta}
+          onOpenChange={(o) => !o && setCotacaoAberta(null)}
+          leadId={lead.id}
+          leadNome={lead.nome}
+          produtos={funil.produtos}
+          produtoSugerido={lead.produto}
+          cotacao={cotacaoAberta?.cotacao ?? null}
+          podeEditar={podeEditarVendedor(cotacaoAberta?.cotacao?.vendedor_id ?? lead.vendedor_id)}
+          gestor={gestor}
+        />
+      )}
     </>
   );
 }

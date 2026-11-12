@@ -20,9 +20,11 @@ interface Props {
   leads: ComercialLead[];
   vendedores: ComercialVendedor[];
   onAbrir: (lead: ComercialLead, etapaId?: string) => void;
+  /** Só arrasta quem pode editar o lead (Líder vê a equipe em modo leitura). */
+  podeMover: (lead: ComercialLead) => boolean;
 }
 
-export function ComercialKanban({ funilId, etapas, leads, vendedores, onAbrir }: Props) {
+export function ComercialKanban({ funilId, etapas, leads, vendedores, onAbrir, podeMover }: Props) {
   const qc = useQueryClient();
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [visiveis, setVisiveis] = useState<Record<string, number>>({});
@@ -52,7 +54,7 @@ export function ComercialKanban({ funilId, etapas, leads, vendedores, onAbrir }:
   const soltar = (etapa: ComercialEtapa) => {
     const lead = leads.find((l) => l.id === arrastando);
     setArrastando(null);
-    if (!lead || lead.etapa_id === etapa.id) return;
+    if (!lead || lead.etapa_id === etapa.id || !podeMover(lead)) return;
     // Cancelamento pede motivo: abre o lead já na etapa de destino.
     if (etapa.tipo === "perdido") {
       onAbrir(lead, etapa.id);
@@ -84,7 +86,7 @@ export function ComercialKanban({ funilId, etapas, leads, vendedores, onAbrir }:
                   return (
                     <div
                       key={lead.id}
-                      draggable
+                      draggable={podeMover(lead)}
                       onDragStart={() => setArrastando(lead.id)}
                       onDragEnd={() => setArrastando(null)}
                       onClick={() => onAbrir(lead)}
