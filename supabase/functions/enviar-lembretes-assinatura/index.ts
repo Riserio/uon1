@@ -71,12 +71,14 @@ serve(async (req) => {
       .from("contratos")
       .select(`
         id, numero, titulo, link_token, link_expires_at, lembrete_dias, lembrete_ativo,
-        created_at, corretora_id,
+        created_at, created_by, corretora_id,
         corretoras:corretora_id(nome, logo_url),
         contrato_assinaturas(*)
       `)
       .eq("status", "aguardando_assinatura")
-      .eq("lembrete_ativo", true);
+      .eq("lembrete_ativo", true)
+      // Fluxo 2 (uoniSign v2) tem lembretes próprios na função `uonisign`
+      .eq("fluxo_versao", 1);
 
     if (error) throw error;
 
@@ -131,8 +133,18 @@ serve(async (req) => {
             remetenteNome: remetente,
           });
 
+          // Antes saía de onboarding@resend.dev (endereço de teste do Resend, que
+          // só entrega para o dono da conta): usa o remetente configurado.
+          const { data: rc } = await supabase
+            .from("resend_config")
+            .select("from_name, from_email")
+            .eq("user_id", c.created_by)
+            .maybeSingle();
+          const from = rc?.from_email
+            ? `${rc.from_name || remetente} <${rc.from_email}>`
+            : `${remetente} <vangard@uon1.com.br>`;
           await resend.emails.send({
-            from: `${remetente} <onboarding@resend.dev>`,
+            from,
             to: [a.email],
             subject: `Lembrete: assine o contrato ${c.numero || c.titulo}`,
             html,

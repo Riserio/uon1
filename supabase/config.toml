@@ -128,3 +128,6 @@ verify_jwt = false
 
 [functions.enviar-push-onesignal]
 verify_jwt = false
+
+[functions.uonisign]
+verify_jwt = false

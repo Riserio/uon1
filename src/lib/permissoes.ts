@@ -9,7 +9,7 @@
  * herda o módulo; módulo sem "ver" bloqueia todos os subitens.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { MENU_PERMISSION_ITEMS, SUBITENS_MODULO, chavePermissao } from "@/config/modulos";
+import { MENU_PERMISSION_ITEMS, SUBITENS_EXPLICITOS, SUBITENS_MODULO, chavePermissao } from "@/config/modulos";
 
 export interface Permissao {
   pode_visualizar: boolean;
@@ -44,8 +44,9 @@ export function resolver(mapa: MapaPermissoes, modulo: string, subitem?: string)
   const mod = mapa[modulo] ?? { pode_visualizar: true, pode_editar: true };
   if (!mod.pode_visualizar) return { pode_visualizar: false, pode_editar: false };
   if (!subitem) return mod;
-  const sub = mapa[chavePermissao(modulo, subitem)];
-  if (!sub) return mod;
+  const chave = chavePermissao(modulo, subitem);
+  const sub = mapa[chave];
+  if (!sub) return SUBITENS_EXPLICITOS.has(chave) ? { pode_visualizar: false, pode_editar: false } : mod;
   return {
     pode_visualizar: sub.pode_visualizar,
     // não dá para editar um subitem de um módulo só-leitura
@@ -87,6 +88,11 @@ export function compactarParaGravar(mapa: MapaPermissoes): MapaPermissoes {
       const k = chavePermissao(it.id, s.id);
       const sub = mapa[k];
       if (!sub) return;
+      // Subitem explícito: grava sempre que liberado (sem linha = bloqueado)
+      if (SUBITENS_EXPLICITOS.has(k)) {
+        if (sub.pode_visualizar) out[k] = sub;
+        return;
+      }
       if (sub.pode_visualizar !== mod.pode_visualizar || sub.pode_editar !== mod.pode_editar) {
         out[k] = sub;
       }

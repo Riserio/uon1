@@ -163,6 +163,12 @@ export const SUBITENS_MODULO: Record<string, SubitemModulo[]> = {
     // Vendedor → próprios; Líder → equipe; Gerente (Administrativo) → suas equipes.
     { id: "todos-leads", label: "Visão geral (todos os leads e cotações)" },
   ],
+  contratos: [
+    // uoniSign: valem só quando LIBERADOS explicitamente (sem registro = não).
+    // Sem nenhum dos dois vale a hierarquia: vendedor → próprios; líder/gerente → equipe.
+    { id: "admin", label: "Administrador uoniSign (todos, cancelar, corrigir contato, modelos)" },
+    { id: "operador", label: "Operador uoniSign (ver todos, reenviar, baixar)" },
+  ],
   pid: [
     { id: "dashboard", label: "Visão Geral" },
     { id: "estudo-base", label: "Estudo de Base" },
@@ -204,6 +210,17 @@ export const SUBITENS_MODULO: Record<string, SubitemModulo[]> = {
     { id: "dispositivos", label: "Dispositivos do Ponto" },
   ],
 };
+
+/**
+ * Subitens que NÃO herdam o módulo: sem registro = bloqueado. São permissões
+ * "a mais" (visão geral, administração), checadas também no banco
+ * (comercial_flag_visao_geral, uonisign_flag), que só valem quando liberadas.
+ */
+export const SUBITENS_EXPLICITOS = new Set<string>([
+  "comercial:todos-leads",
+  "contratos:admin",
+  "contratos:operador",
+]);
 
 export const chavePermissao = (modulo: string, subitem?: string) =>
   subitem ? `${modulo}:${subitem}` : modulo;

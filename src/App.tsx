@@ -76,6 +76,7 @@ const TermosServico = lazyWithRetry(() => import("./pages/TermosServico"));
 const Gestao = lazyWithRetry(() => import("./pages/Gestao"));
 const Uon1Sign = lazyWithRetry(() => import("./pages/Uon1Sign"));
 const ContratoAssinatura = lazyWithRetry(() => import("./pages/ContratoAssinatura"));
+const AssinarContrato = lazyWithRetry(() => import("./pages/AssinarContrato"));
 const CentralAtendimento = lazyWithRetry(() => import("./pages/CentralAtendimento"));
 const Biblioteca = lazyWithRetry(() => import("./pages/Biblioteca"));
 const EstudoRegulatorio = lazyWithRetry(() => import("./pages/EstudoRegulatorio"));
@@ -276,6 +277,7 @@ const App = () => (
             <Route path="/vistoria/:token/termos" element={<VistoriaPublicaTermos />} />
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
               <Route path="/contrato/:token" element={<ContratoAssinatura />} />
+              <Route path="/assinar/:token" element={<AssinarContrato />} />
               <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
               <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
               <Route path="/termos-de-servico" element={<TermosServico />} />
