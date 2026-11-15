@@ -17,13 +17,25 @@ import { MetaTemplatesManager } from "./MetaTemplatesManager";
 interface Template {
   id: string;
   nome: string;
-  tipo: "cobranca" | "eventos" | "mgf" | "geral" | "manual";
+  tipo: "cobranca" | "eventos" | "mgf" | "geral" | "manual" | "contrato";
   mensagem: string;
   formato: "texto" | "html";
   ativo: boolean;
 }
 
 const TAGS_BY_TYPE: Record<string, { tag: string; descricao: string }[]> = {
+  // Uon1 Sign: textos de referência das mensagens de contrato. O envio real
+  // usa os templates aprovados na Meta (Uon1 Sign → Mensagens → WhatsApp).
+  contrato: [
+    { tag: "{nome}", descricao: "Nome do signatário" },
+    { tag: "{contrato}", descricao: "Título do contrato" },
+    { tag: "{numero}", descricao: "Número do contrato" },
+    { tag: "{empresa}", descricao: "Quem enviou (contratada)" },
+    { tag: "{prazo}", descricao: "Data limite para assinar" },
+    { tag: "{dias}", descricao: "Dias desde o envio (lembrete)" },
+    { tag: "{assunto}", descricao: "Situação (aviso)" },
+    { tag: "{codigo}", descricao: "Código de confirmação" },
+  ],
   cobranca: [
     { tag: "{nome_associacao}", descricao: "Nome da associação" },
     { tag: "{data_atual}", descricao: "Data atual" },
@@ -79,6 +91,14 @@ const TAGS_BY_TYPE: Record<string, { tag: string; descricao: string }[]> = {
 
 // Sample data for preview
 const SAMPLE_DATA: Record<string, string> = {
+  "{nome}": "Ana Souza",
+  "{contrato}": "Adesão — Assistência 24h e Rastreamento",
+  "{numero}": "CON-2026-000017",
+  "{empresa}": "Vangard Gestora",
+  "{prazo}": "29/11/2026",
+  "{dias}": "3",
+  "{assunto}": "Contrato cancelado",
+  "{codigo}": "482913",
   "{nome_associacao}": "Associação Exemplo",
   "{data_atual}": new Date().toLocaleDateString("pt-BR"),
   "{percentual_inadimplencia}": "12,5%",
@@ -280,6 +300,8 @@ export function WhatsAppTemplates() {
         return "bg-purple-100 text-purple-800";
       case "geral":
         return "bg-indigo-100 text-indigo-800";
+      case "contrato":
+        return "bg-emerald-100 text-emerald-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -402,6 +424,7 @@ export function WhatsAppTemplates() {
                           <SelectItem value="eventos">Eventos</SelectItem>
                           <SelectItem value="mgf">MGF</SelectItem>
                           <SelectItem value="geral">Geral (Consolidado)</SelectItem>
+                          <SelectItem value="contrato">Contratos (Uon1 Sign)</SelectItem>
                           <SelectItem value="manual">Manual</SelectItem>
                         </SelectContent>
                       </Select>
@@ -428,6 +451,14 @@ export function WhatsAppTemplates() {
                       Este texto é só uma referência — o envio real do tipo Geral acontece pelo template aprovado na
                       Meta (aba "Templates Meta" → relatorio_geral), que já inclui o PDF anexado e o botão "Abrir
                       Painel". Use a Prévia abaixo para ver como chega no WhatsApp.
+                    </p>
+                  )}
+
+                  {novoTemplate.tipo === "contrato" && (
+                    <p className="text-xs text-muted-foreground bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 rounded-lg px-3 py-2">
+                      Este texto é só uma referência — as mensagens de contrato saem pelos templates aprovados na Meta
+                      (aba "Templates Meta"), ligados em Uon1 Sign → Mensagens → WhatsApp. Para mudar o que o cliente
+                      recebe, altere o template na Meta mantendo as variáveis na mesma ordem.
                     </p>
                   )}
 

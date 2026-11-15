@@ -75,6 +75,7 @@ export function WhatsAppEnvioManual() {
       .from('whatsapp_templates')
       .select('*')
       .eq('ativo', true)
+      .neq('tipo', 'contrato') // referências do Uon1 Sign não são para envio manual
       .order('nome');
 
     if (data) {
