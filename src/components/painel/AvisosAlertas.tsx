@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import { AlertTriangle, BellRing, CheckCircle2, Clock, FileSignature, FileWarning, Hourglass, Mail, MessageSquare, ThumbsUp, Users } from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ROTA_MODULO } from "@/config/modulos";
 import { Cabecalho, CARTAO } from "./comum";
 import type { DadosComercial, DadosContratos } from "./dados";
@@ -74,25 +73,25 @@ export function AvisosAlertas({
   avisos.sort((a, b) => ordem[a.tom] - ordem[b.tom]);
 
   return (
-    <Card className={CARTAO}>
-      <CardHeader className="pb-3 pt-4 px-5">
+    <section className={`${CARTAO} p-5 space-y-4 h-full`}>
+      <div>
         <Cabecalho
           icone={BellRing}
           cor="bg-rose-500/10 text-rose-600"
           titulo="Avisos e alertas"
           direita={avisos.length ? <span className="text-xs text-muted-foreground">{avisos.length} para ver</span> : undefined}
         />
-      </CardHeader>
-      <CardContent className="px-5 pb-5">
+      </div>
+      <div>
         {avisos.length === 0 ? (
           <div className="text-center py-8">
             <CheckCircle2 className="h-8 w-8 text-emerald-500/60 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">Tudo em dia. Nada pede sua atenção agora.</p>
           </div>
         ) : (
-          <div className="space-y-1.5 max-h-[340px] overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-[470px] overflow-y-auto pr-1">
             {avisos.map((a) => (
-              <Link key={a.texto} to={a.para} className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-muted/40 hover:bg-muted/60 transition-colors">
+              <Link key={a.texto} to={a.para} className="flex items-center gap-3 rounded-2xl px-3.5 py-3 bg-muted/40 hover:bg-muted/70 transition-colors">
                 <a.icone className={`h-4 w-4 shrink-0 ${TOM[a.tom].icone}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium leading-snug">{a.texto}</p>
@@ -103,7 +102,7 @@ export function AvisosAlertas({
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

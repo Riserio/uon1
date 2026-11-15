@@ -58,48 +58,57 @@ export default function Dashboard() {
   }, []);
   const primeiroNome = (nome ?? "").trim().split(/\s+/)[0];
 
+  // Uma frase com o que espera o usuário hoje, no lugar de uma fileira de números
+  const resumo = useMemo(() => {
+    const partes: string[] = [];
+    const k = verContratos ? contratos.data : undefined;
+    const c = verComercial ? comercial.data : undefined;
+    const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+    if (k?.aAssinar.length) partes.push(plural(k.aAssinar.length, "contrato esperando assinatura", "contratos esperando assinatura"));
+    if (c?.cotacoes.aguardando) partes.push(plural(c.cotacoes.aguardando, "proposta aguardando aceite", "propostas aguardando aceite"));
+    if (c?.aceitasSemContrato.length) partes.push(plural(c.aceitasSemContrato.length, "proposta aceita para virar contrato", "propostas aceitas para virar contrato"));
+    if (!partes.length) return null;
+    return partes.length === 1 ? partes[0] : `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}`;
+  }, [verContratos, verComercial, contratos.data, comercial.data]);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="w-full px-4 md:px-6 py-4 md:py-6 space-y-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-4 min-w-0">
             {logoUrl ? (
-              <img src={logoUrl} alt="Logo" className="h-11 object-contain" />
+              <img src={logoUrl} alt="Logo" className="h-12 object-contain shrink-0" />
             ) : (
-              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
                 <Target className="h-5 w-5 text-primary" />
               </div>
             )}
             <div className="min-w-0">
-              <h1 className="font-bold text-2xl tracking-tight truncate">
+              <h1 className="font-bold text-2xl sm:text-3xl tracking-tight">
                 {saudacao}
-                {primeiroNome ? `, ${primeiroNome}` : ""}!
+                {primeiroNome ? `, ${primeiroNome}` : ""}
               </h1>
-              <p className="text-muted-foreground capitalize text-sm">{format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}</p>
+              <p className="text-muted-foreground text-sm sm:text-base">
+                <span className="capitalize">{format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}</span>
+                {resumo ? `. Você tem ${resumo}.` : ""}
+              </p>
             </div>
           </div>
           <UserProfile />
         </div>
 
-        {/* Notícias do mercado + comunicados internos, na largura toda */}
-        <RadarMercado admin={admin} />
-
-        {/* O que pede ação + agenda */}
-        <div className="grid gap-4 xl:grid-cols-5">
-          <div className="xl:col-span-2">
-            <AvisosAlertas
-              comercial={verComercial ? comercial.data : undefined}
-              contratos={verContratos ? contratos.data : undefined}
-              gestorComercial={gestor}
-              whatsapp={whatsapp}
-              mensagens={mensagens}
-              usuariosPendentes={admin ? pendentes : 0}
-              podeVer={podeVer}
-            />
-          </div>
-          <div className="xl:col-span-3">
-            <AgendaPainel podeAgenda={verAgenda} podeReunioes={verReunioes} />
-          </div>
+        {/* Radar do mercado ao lado do que pede ação */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <RadarMercado admin={admin} />
+          <AvisosAlertas
+            comercial={verComercial ? comercial.data : undefined}
+            contratos={verContratos ? contratos.data : undefined}
+            gestorComercial={gestor}
+            whatsapp={whatsapp}
+            mensagens={mensagens}
+            usuariosPendentes={admin ? pendentes : 0}
+            podeVer={podeVer}
+          />
         </div>
 
         {/* Resumo comercial e contratos: só o que a hierarquia do usuário alcança */}
@@ -117,6 +126,8 @@ export default function Dashboard() {
             )}
           </div>
         )}
+
+        {(verAgenda || verReunioes) && <AgendaPainel podeAgenda={verAgenda} podeReunioes={verReunioes} />}
 
         {admin && <PainelOperacional comercial={comercial.data} contratos={contratos.data} />}
       </div>

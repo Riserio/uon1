@@ -8,7 +8,6 @@ import { Calendar, Check, ChevronLeft, ChevronRight, Plus, Video } from "lucide-
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Cabecalho, CARTAO } from "./comum";
 
 interface Item {
@@ -92,7 +91,7 @@ export function AgendaPainel({ podeAgenda, podeReunioes }: { podeAgenda: boolean
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{i.titulo}</p>
         <p className="text-[11px] text-muted-foreground">
-          {format(parseISO(i.inicio), comData ? "EEE, dd/MM · HH:mm" : "HH:mm", { locale: ptBR })} · {i.tipo === "reuniao" ? "Reunião" : "Evento"}
+          {format(parseISO(i.inicio), comData ? "EEE, dd/MM 'às' HH:mm" : "HH:mm", { locale: ptBR })}, {i.tipo === "reuniao" ? "reunião" : "evento"}
         </p>
       </div>
       {i.tipo === "reuniao" ? (
@@ -116,8 +115,8 @@ export function AgendaPainel({ podeAgenda, podeReunioes }: { podeAgenda: boolean
   );
 
   return (
-    <Card className={CARTAO}>
-      <CardHeader className="pb-3 pt-4 px-5">
+    <section className={`${CARTAO} p-5 space-y-4 h-full`}>
+      <div>
         <Cabecalho
           icone={Calendar}
           cor="bg-primary/10 text-primary"
@@ -139,8 +138,8 @@ export function AgendaPainel({ podeAgenda, podeReunioes }: { podeAgenda: boolean
             </div>
           }
         />
-      </CardHeader>
-      <CardContent className="px-5 pb-5">
+      </div>
+      <div>
         <div className="flex flex-col sm:flex-row gap-5">
           <div className="shrink-0 sm:w-[250px]">
             <div className="flex items-center justify-between mb-2">
@@ -185,7 +184,7 @@ export function AgendaPainel({ podeAgenda, podeReunioes }: { podeAgenda: boolean
             </div>
           </div>
 
-          <div className="flex-1 min-w-0 space-y-3">
+          <div className="flex-1 min-w-0 grid gap-4 lg:grid-cols-2 content-start">
             {dia && (
               <div>
                 <p className="text-xs font-semibold capitalize text-muted-foreground mb-1">{format(dia, "EEEE, dd 'de' MMMM", { locale: ptBR })}</p>
@@ -206,7 +205,7 @@ export function AgendaPainel({ podeAgenda, podeReunioes }: { podeAgenda: boolean
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

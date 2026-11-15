@@ -110,6 +110,8 @@ export interface ProdutoContrato {
   produto: string;
   template_id: string | null;
   valores: Record<string, string>;
+  /** Preço mínimo por campo de valor: o vendedor não grava abaixo disso. */
+  minimos?: Record<string, string>;
   travados: string[];
   ativo: boolean;
 }

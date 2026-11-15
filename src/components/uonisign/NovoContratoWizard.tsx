@@ -42,7 +42,7 @@ interface Props {
   /** Administrador Uon1 Sign: pode abrir a configuração do modelo direto do aviso */
   onConfigurarModelo?: () => void;
   /** Contrato nascido de uma cotação do Comercial: modelo e valores já definidos */
-  inicial?: { template_id: string; dados: Dados; cotacao_id: string } | null;
+  inicial?: { template_id: string; dados: Dados; cotacao_id: string; telefone?: string; whatsapp?: boolean } | null;
 }
 
 const ETAPAS = ["Modelo", "Dados", "Conferência", "Signatários"];
@@ -216,6 +216,14 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho, onCon
       setPdfUrl(reg.url);
       setHash(reg.hash);
       setSigEmail((r.contrato.contratante_email ?? dados.Email ?? "").toLowerCase());
+      // Celular já conhecido (cotação ou formulário): não precisa digitar de novo
+      if (!sigCelular) {
+        const daCotacao = soDigitos(inicial?.telefone ?? "");
+        const doFormulario = soDigitos(dados.Telefone_do_Responsavel ?? "");
+        const tel = daCotacao.length === 11 ? daCotacao : doFormulario.length === 11 ? doFormulario : "";
+        if (tel) setSigCelular(tel);
+        if (daCotacao.length === 11 && inicial?.whatsapp) setSigWhatsapp(true);
+      }
       setEtapa(2);
       qc.invalidateQueries({ queryKey: ["contratos"] });
     } catch (e) {
@@ -411,7 +419,7 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho, onCon
                   <Input id="sig-email" type="email" value={sigEmail} onChange={(e) => setSigEmail(e.target.value)} />
                 </div>
                 <div>
-                  <Label htmlFor="sig-cel">Celular com WhatsApp {sigWhatsapp ? "" : "(opcional)"}</Label>
+                  <Label htmlFor="sig-cel">Celular do signatário</Label>
                   <Input
                     id="sig-cel"
                     inputMode="tel"
@@ -423,7 +431,7 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho, onCon
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={sigWhatsapp} onCheckedChange={setSigWhatsapp} />
-                <MessageCircle className="h-4 w-4 text-emerald-600" /> Também enviar convite, código e cópia por WhatsApp
+                <MessageCircle className="h-4 w-4 text-emerald-600" /> Enviar também pelo WhatsApp (convite, código e cópia)
               </label>
               <p className="text-xs text-muted-foreground">
                 Para corrigir nome ou CPF, volte ao formulário. O e-mail sempre recebe o convite.

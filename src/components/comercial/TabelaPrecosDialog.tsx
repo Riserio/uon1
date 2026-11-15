@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileSignature, Lock } from "lucide-react";
+import { ArrowDownToLine, FileSignature, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CampoFormulario } from "@/components/uonisign/NovoContratoWizard";
-import { validarCampo, type Dados } from "../../../supabase/functions/uonisign/modelo";
+import { lerMoeda, validarCampo, type Dados } from "../../../supabase/functions/uonisign/modelo";
 import { camposComerciais, useProdutosContrato } from "./produtosContrato";
 
 const NENHUM = "__nenhum__";
@@ -33,6 +33,8 @@ export function TabelaPrecosDialog({ open, onOpenChange, produtos }: Props) {
   const [modeloId, setModeloId] = useState(NENHUM);
   const [valores, setValores] = useState<Dados>({});
   const [travados, setTravados] = useState<string[]>([]);
+  const [minimos, setMinimos] = useState<Dados>({});
+  const [comMinimo, setComMinimo] = useState<string[]>([]);
 
   useEffect(() => {
     if (open && !produto && lista.length) setProduto(lista[0]);
@@ -45,6 +47,8 @@ export function TabelaPrecosDialog({ open, onOpenChange, produtos }: Props) {
     setModeloId(cfg?.template_id ?? NENHUM);
     setValores({ ...(cfg?.valores ?? {}) });
     setTravados([...(cfg?.travados ?? [])]);
+    setMinimos({ ...(cfg?.minimos ?? {}) });
+    setComMinimo(Object.keys(cfg?.minimos ?? {}));
   }, [open, data, produto]);
 
   const modelo = modeloId === NENHUM ? null : (data?.modeloPorId.get(modeloId) ?? null);
@@ -61,12 +65,22 @@ export function TabelaPrecosDialog({ open, onOpenChange, produtos }: Props) {
         limpos[c.chave] = v;
       }
       const chaves = new Set(campos.map((c) => c.chave));
+      const minimosLimpos: Dados = {};
+      for (const c of campos.filter((x) => x.tipo === "moeda" && comMinimo.includes(x.chave))) {
+        const m = (minimos[c.chave] ?? "").trim();
+        if (!m) throw new Error(`${c.rotulo}: informe o valor mínimo ou desmarque a opção`);
+        const n = lerMoeda(m);
+        if (!Number.isFinite(n) || n <= 0) throw new Error(`${c.rotulo}: valor mínimo inválido`);
+        if (limpos[c.chave] && lerMoeda(limpos[c.chave]) < n) throw new Error(`${c.rotulo}: o valor padrão está abaixo do mínimo`);
+        minimosLimpos[c.chave] = m;
+      }
       const { data: u } = await supabase.auth.getUser();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any).from("comercial_produtos_contrato").upsert({
         produto,
         template_id: modelo?.id ?? null,
         valores: limpos,
+        minimos: minimosLimpos,
         // só trava o que tem valor definido
         travados: travados.filter((k) => chaves.has(k) && limpos[k]),
         ativo: true,
@@ -91,7 +105,7 @@ export function TabelaPrecosDialog({ open, onOpenChange, produtos }: Props) {
           </DialogTitle>
           <DialogDescription>
             Ligue cada produto a um modelo de contrato do Uon1 Sign e defina os valores padrão. Eles entram prontos na cotação; os
-            marcados como travados o vendedor não altera.
+            marcados como travados o vendedor não altera, e o valor mínimo impede preço abaixo do definido.
           </DialogDescription>
         </DialogHeader>
 
@@ -155,6 +169,26 @@ export function TabelaPrecosDialog({ open, onOpenChange, produtos }: Props) {
                     />
                     <Lock className="h-3 w-3" /> Vendedor não altera
                   </label>
+                  {c.tipo === "moeda" && (
+                    <>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          checked={comMinimo.includes(c.chave)}
+                          disabled={travados.includes(c.chave)}
+                          onCheckedChange={(v) => setComMinimo((t) => (v === true ? [...new Set([...t, c.chave])] : t.filter((k) => k !== c.chave)))}
+                        />
+                        <ArrowDownToLine className="h-3 w-3" /> Definir valor mínimo
+                      </label>
+                      {comMinimo.includes(c.chave) && !travados.includes(c.chave) && (
+                        <CampoFormulario
+                          campo={{ ...c, chave: `${c.chave}__min`, rotulo: "Valor mínimo (R$)", obrigatorio: false, ajuda: "O vendedor não grava cotação abaixo deste valor", clausula: undefined }}
+                          valor={minimos[c.chave] ?? ""}
+                          onChange={(v) => setMinimos((x) => ({ ...x, [c.chave]: v }))}
+                          onBlur={() => {}}
+                        />
+                      )}
+                    </>
+                  )}
                 </div>
               ))}
             </div>

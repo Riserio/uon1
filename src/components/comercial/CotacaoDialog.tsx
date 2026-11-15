@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { Archive, Ban, Check, Lock, Undo2 } from "lucide-react";
+import { Archive, Ban, Check, FileSignature, Loader2, Lock, Send, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,9 +12,10 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CampoFormulario } from "@/components/uonisign/NovoContratoWizard";
-import { validarDados, type Dados } from "../../../supabase/functions/uonisign/modelo";
+import { formatarMoeda, lerMoeda, validarDados, type Dados } from "../../../supabase/functions/uonisign/modelo";
+import { useComercialAcesso } from "@/hooks/useComercialAcesso";
 import { ComentariosPanel } from "./ComentariosPanel";
-import { PropostaContrato } from "./PropostaContrato";
+import { PropostaContrato, type ModoProposta, type PropostaContratoRef } from "./PropostaContrato";
 import { camposComerciais, termosIniciais, totalDosTermos, useProdutosContrato } from "./produtosContrato";
 import { COTACAO_TRAVADA, STATUS_COTACAO, situacaoCotacao, type ComercialCotacao, type CotacaoStatus } from "./types";
 
@@ -44,13 +45,29 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
   const [motivo, setMotivo] = useState("");
   const [pedindoCancelamento, setPedindoCancelamento] = useState(false);
   // Valores da proposta: campos de preço e vigência do modelo de contrato do produto
+  const propostaRef = useRef<PropostaContratoRef>(null);
+  const [modoProposta, setModoProposta] = useState<ModoProposta>("enviar");
+  const [estadoProposta, setEstadoProposta] = useState({ podeAgir: false, ocupado: false, podeEnviar: false });
   const [termos, setTermos] = useState<Dados>({});
   const [tocados, setTocados] = useState<Record<string, boolean>>({});
   const { data: pc } = useProdutosContrato(open);
   const cfg = produto === NENHUM ? null : (pc?.configs.get(produto) ?? null);
   const modelo = cfg?.ativo && cfg.template_id ? (pc?.modeloPorId.get(cfg.template_id) ?? null) : null;
   const itens = useMemo(() => camposComerciais(modelo), [modelo]);
-  const errosTermos = useMemo(() => validarDados(itens, termos), [itens, termos]);
+  const { nivel } = useComercialAcesso();
+  const errosTermos = useMemo(() => {
+    const e = validarDados(itens, termos);
+    // preço mínimo da tabela (administrador é livre, como no banco)
+    if (nivel !== "admin") {
+      for (const [k, min] of Object.entries(cfg?.minimos ?? {})) {
+        const v = lerMoeda(termos[k] ?? "");
+        const m = lerMoeda(min);
+        if (!e[k] && Number.isFinite(v) && Number.isFinite(m) && v < m) e[k] = `Mínimo ${formatarMoeda(m)}`;
+      }
+    }
+    return e;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itens, termos, cfg, nivel]);
   const totalAuto = useMemo(() => totalDosTermos(modelo, termos), [modelo, termos]);
   const aceita = !!cotacao?.aceite_em && cotacao.status !== "recusada";
 
@@ -63,6 +80,7 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
     setMotivo(cotacao?.motivo_cancelamento ?? "");
     setPedindoCancelamento(false);
     setTocados({});
+    setModoProposta("enviar");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cotacao?.id]);
 
@@ -218,9 +236,15 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
                   return (
                     <CampoFormulario
                       key={c.chave}
-                      campo={travado ? { ...c, ajuda: "Definido na tabela de preços" } : c}
+                      campo={
+                        travado
+                          ? { ...c, ajuda: "Definido na tabela de preços" }
+                          : cfg?.minimos?.[c.chave]
+                            ? { ...c, ajuda: `Mínimo ${formatarMoeda(lerMoeda(cfg.minimos[c.chave]))}` }
+                            : c
+                      }
                       valor={termos[c.chave] ?? ""}
-                      erro={tocados[c.chave] ? errosTermos[c.chave] : undefined}
+                      erro={tocados[c.chave] || errosTermos[c.chave]?.startsWith("Mínimo") ? errosTermos[c.chave] : undefined}
                       desabilitado={!editavel || aceita || travado}
                       onChange={(v) => setTermos((t) => ({ ...t, [c.chave]: v }))}
                       onBlur={() => setTocados((t) => ({ ...t, [c.chave]: true }))}
@@ -294,7 +318,12 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
 
         {modelo && (
           <PropostaContrato
+            ref={propostaRef}
             cotacao={cotacao}
+            leadId={leadId}
+            modo={modoProposta}
+            onModo={setModoProposta}
+            onEstado={setEstadoProposta}
             templateId={modelo.id}
             termos={termos}
             leadNome={leadNome}
@@ -366,10 +395,30 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Fechar
             </Button>
-            {editavel && (
-              <Button onClick={() => gravar.mutate({})} disabled={gravar.isPending}>
-                Salvar
-              </Button>
+            {modelo && estadoProposta.podeAgir ? (
+              <>
+                {editavel && !aceita && (
+                  <Button variant="outline" onClick={() => gravar.mutate({})} disabled={gravar.isPending || estadoProposta.ocupado}>
+                    Só salvar
+                  </Button>
+                )}
+                <Button onClick={() => propostaRef.current?.executar()} disabled={estadoProposta.ocupado || gravar.isPending}>
+                  {estadoProposta.ocupado ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : modoProposta === "enviar" && estadoProposta.podeEnviar ? (
+                    <Send className="h-4 w-4 mr-1" />
+                  ) : (
+                    <FileSignature className="h-4 w-4 mr-1" />
+                  )}
+                  {modoProposta === "enviar" && estadoProposta.podeEnviar ? "Salvar e enviar" : "Salvar e preencher"}
+                </Button>
+              </>
+            ) : (
+              editavel && (
+                <Button onClick={() => gravar.mutate({})} disabled={gravar.isPending}>
+                  Salvar
+                </Button>
+              )
             )}
           </div>
         </DialogFooter>

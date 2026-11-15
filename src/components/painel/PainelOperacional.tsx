@@ -4,7 +4,6 @@ import { formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Activity, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ROTA_MODULO } from "@/config/modulos";
 import { brl, Cabecalho, CARTAO, Indicador } from "./comum";
@@ -104,17 +103,17 @@ export function PainelOperacional({ comercial, contratos }: { comercial?: DadosC
   };
 
   return (
-    <Card className={CARTAO}>
-      <CardHeader className="pb-3 pt-4 px-5">
-        <Cabecalho icone={Activity} cor="bg-violet-500/10 text-violet-600" titulo="Painel operacional" subtitulo="Visão da operação inteira · administrador e superintendente" />
-      </CardHeader>
-      <CardContent className="px-5 pb-5">
+    <section className={`${CARTAO} p-5 space-y-4 h-full`}>
+      <div>
+        <Cabecalho icone={Activity} cor="bg-violet-500/10 text-violet-600" titulo="Painel operacional" subtitulo="A operação inteira, para administrador e superintendente" />
+      </div>
+      <div>
         {isLoading || !data ? (
           <Skeleton className="h-48 rounded-xl" />
         ) : (
           <div className="grid gap-5 lg:grid-cols-3">
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Base e equipe</p>
+              <p className="text-xs font-semibold text-muted-foreground">Base e equipe</p>
               <div className="grid grid-cols-2 gap-2">
                 <Indicador valor={n(data.associacoes)} rotulo="Associações" para={ROTA_MODULO.corretoras} />
                 <Indicador valor={n(data.usuarios)} rotulo="Usuários ativos" detalhe={data.pendentes ? `${data.pendentes} aguardando aprovação` : undefined} para="/usuarios" />
@@ -124,7 +123,7 @@ export function PainelOperacional({ comercial, contratos }: { comercial?: DadosC
             </div>
 
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Saúde da operação · 7 dias</p>
+              <p className="text-xs font-semibold text-muted-foreground">Saúde da operação nos últimos 7 dias</p>
               <div className="space-y-1.5">
                 {data.sincronizacao.map((s) => (
                   <Linha key={s.nome} ok={!s.erros} titulo={`Sincronização ${s.nome}`} detalhe={s.erros == null ? "sem leitura" : s.erros ? `${s.erros} execução(ões) com erro` : "sem erros"} />
@@ -132,7 +131,7 @@ export function PainelOperacional({ comercial, contratos }: { comercial?: DadosC
                 <Linha
                   ok={!data.emailErro}
                   titulo="E-mails"
-                  detalhe={`${n(data.emailOk)} enviados${data.emailErro ? ` · ${data.emailErro} com falha` : " · sem falhas"}`}
+                  detalhe={`${n(data.emailOk)} enviados, ${data.emailErro ? `${data.emailErro} com falha` : "sem falhas"}`}
                   para={ROTA_MODULO.emails}
                 />
                 <Linha ok={!data.waFalha} titulo="WhatsApp dos contratos" detalhe={data.waFalha ? `${data.waFalha} envio(s) não entregue(s)` : "sem falhas de entrega"} para={ROTA_MODULO.contratos} />
@@ -149,7 +148,7 @@ export function PainelOperacional({ comercial, contratos }: { comercial?: DadosC
                     fontesErro.length
                       ? `Sem leitura de: ${fontesErro.map((f) => f.nome).join(", ")}`
                       : ultimaColeta
-                        ? `${data.fontes.filter((f) => f.ativo).length} fontes · lido ${formatDistanceToNow(parseISO(ultimaColeta), { addSuffix: true, locale: ptBR })}`
+                        ? `${data.fontes.filter((f) => f.ativo).length} fontes, lido ${formatDistanceToNow(parseISO(ultimaColeta), { addSuffix: true, locale: ptBR })}`
                         : "aguardando a primeira leitura"
                   }
                 />
@@ -157,7 +156,7 @@ export function PainelOperacional({ comercial, contratos }: { comercial?: DadosC
             </div>
 
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Propostas em aberto por vendedor</p>
+              <p className="text-xs font-semibold text-muted-foreground">Propostas em aberto por vendedor</p>
               {ranking.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4">Nenhuma proposta em aberto.</p>
               ) : (
@@ -167,7 +166,7 @@ export function PainelOperacional({ comercial, contratos }: { comercial?: DadosC
                       <div className="flex items-center justify-between gap-2 text-sm">
                         <span className="truncate font-medium">{r.nome}</span>
                         <span className="tabular-nums text-muted-foreground shrink-0">
-                          {r.n} · {brl(r.valor)}
+                          {r.n} {r.n === 1 ? "proposta" : "propostas"}, {brl(r.valor)}
                         </span>
                       </div>
                       <div className="h-1.5 rounded-full bg-muted mt-1 overflow-hidden">
@@ -180,7 +179,7 @@ export function PainelOperacional({ comercial, contratos }: { comercial?: DadosC
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
