@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronDown, ChevronRight, ExternalLink, FilePlus2, Link2, Loader2, Search, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ExternalLink, FilePlus2, Link2, Loader2, Search, ShieldAlert, ShieldCheck } from "lucide-react";
 import { trust, urlValidacao } from "@/lib/trust";
 import { meuNivel } from "@/lib/uonisign/api";
 import { bytesParaBase64 } from "@/lib/uonisign/pdf";
@@ -31,6 +32,7 @@ const STATUS: Record<string, string> = {
 /** Painel interno do Uon1 Trust: documentos, histórico encadeado e verificação da cadeia. */
 export default function Uon1Trust() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState<string | null>(null);
@@ -86,7 +88,15 @@ export default function Uon1Trust() {
   if (nivel !== "admin" && nivel !== "operador") {
     return (
       <div className="container mx-auto py-6 px-6">
-        <PageHeader icon={ShieldCheck} title="Uon1 Trust" />
+        <PageHeader
+          icon={ShieldCheck}
+          title="Uon1 Trust"
+          actions={
+            <Button variant="ghost" onClick={() => navigate("/uon1sign")}>
+              <ArrowLeft className="h-4 w-4 mr-2" /> Uon1 Sign
+            </Button>
+          }
+        />
         <p className="text-sm text-muted-foreground mt-6">Acesso restrito ao Administrador e ao Operador uoniSign.</p>
       </div>
     );
@@ -101,6 +111,9 @@ export default function Uon1Trust() {
           subtitle="Autenticidade, integridade e rastreabilidade dos documentos emitidos"
           actions={
             <>
+              <Button variant="ghost" onClick={() => navigate("/uon1sign")}>
+                <ArrowLeft className="h-4 w-4 mr-2" /> Uon1 Sign
+              </Button>
               <Button variant="outline" onClick={() => window.open("/validar", "_blank", "noopener")}>
                 <ExternalLink className="h-4 w-4 mr-2" /> Página de validação
               </Button>
