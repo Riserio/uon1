@@ -84,6 +84,11 @@ export default function AssinarContrato() {
             {p.contrato.titulo} — todas as partes assinaram{p.contrato.concluido_em ? ` em ${fmt(p.contrato.concluido_em)}` : ""}.
           </p>
           {baixar}
+          {p.contrato.codigo_verificacao && (
+            <a href={`/validar/${p.contrato.codigo_verificacao}`} className="text-xs text-primary underline flex items-center justify-center gap-1">
+              <ShieldCheck className="h-3.5 w-3.5" /> Conferir autenticidade (código {p.contrato.codigo_verificacao})
+            </a>
+          )}
         </Tela>
       );
     case "processando":

@@ -3,6 +3,7 @@
 // em/i, br, ul/ol/li. Gerado UMA vez na conferência; o servidor calcula o hash
 // desses bytes e é exatamente esse arquivo que os signatários assinam (RN09).
 import jsPDF from "jspdf";
+import { qrModulos } from "@/lib/trust";
 
 interface Trecho {
   texto: string;
@@ -65,6 +66,9 @@ const ESTILO: Record<Bloco["tipo"], { tam: number; antes: number; depois: number
 export interface OpcoesPdf {
   numero: string;
   titulo: string;
+  /** Uon1 Trust: código de verificação e endereço de validação (QR no rodapé) */
+  codigoVerificacao?: string | null;
+  urlValidacao?: string | null;
 }
 
 export function gerarPdfContrato(html: string, opts: OpcoesPdf): Uint8Array {
@@ -74,7 +78,8 @@ export function gerarPdfContrato(html: string, opts: OpcoesPdf): Uint8Array {
   const A = pdf.internal.pageSize.getHeight();
   const margemX = 22;
   const topo = 22;
-  const base = A - 20;
+  const comQr = Boolean(opts.codigoVerificacao && opts.urlValidacao);
+  const base = A - (comQr ? 26 : 20);
   const largura = L - margemX * 2;
   const PT = 0.3528; // mm por ponto
   let y = topo;
@@ -175,15 +180,29 @@ export function gerarPdfContrato(html: string, opts: OpcoesPdf): Uint8Array {
     y += est.depois;
   }
 
-  // Rodapé com número do contrato e paginação
+  // Rodapé: número do contrato, código de verificação (Uon1 Trust), QR e paginação
   const total = pdf.getNumberOfPages();
+  const qr = comQr ? qrModulos(opts.urlValidacao!) : null;
+  const ladoQr = 15;
   for (let i = 1; i <= total; i++) {
     pdf.setPage(i);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(7.5);
     pdf.setTextColor(120);
-    pdf.text(`Contrato nº ${opts.numero}`, margemX, A - 10);
-    pdf.text(`Página ${i} de ${total}`, L - margemX, A - 10, { align: "right" });
+    if (qr && qr.tamanho) {
+      const x0 = L - margemX - ladoQr;
+      const y0 = A - 8 - ladoQr;
+      const m = ladoQr / qr.tamanho;
+      pdf.setFillColor(0, 0, 0);
+      qr.quadrados.forEach(([x, y, w]) => pdf.rect(x0 + x * m, y0 + y * m, w * m + 0.01, m + 0.01, "F"));
+      pdf.text(`Contrato nº ${opts.numero}`, margemX, A - 15);
+      pdf.text(`Código de verificação Uon1 Trust: ${opts.codigoVerificacao}`, margemX, A - 11.5);
+      pdf.text(`Confira a autenticidade em ${opts.urlValidacao}`, margemX, A - 8);
+      pdf.text(`Página ${i} de ${total}`, x0 - 3, A - 8, { align: "right" });
+    } else {
+      pdf.text(`Contrato nº ${opts.numero}`, margemX, A - 10);
+      pdf.text(`Página ${i} de ${total}`, L - margemX, A - 10, { align: "right" });
+    }
     pdf.setTextColor(0);
   }
   return new Uint8Array(pdf.output("arraybuffer"));

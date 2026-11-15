@@ -141,6 +141,20 @@ export default function DetalheContratoDialog({ contrato, nivel, souDono, open, 
           {contrato.guardar_ate && <Info rotulo="Guarda até" valor={fmt(contrato.guardar_ate, false)} />}
         </div>
 
+        {contrato.trust_codigo && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-900/10 p-3 text-sm flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-emerald-700" /> Uon1 Trust · código <strong className="font-mono">{contrato.trust_codigo}</strong>
+              {!contrato.trust_documento_id && <span className="text-xs text-muted-foreground">(registrado ao enviar)</span>}
+            </span>
+            {contrato.trust_documento_id && (
+              <Button size="sm" variant="outline" onClick={() => window.open(`/validar/${contrato.trust_codigo}`, "_blank", "noopener")}>
+                Validação pública
+              </Button>
+            )}
+          </div>
+        )}
+
         {contrato.status === "recusado" && contrato.motivo_recusa && (
           <Aviso cor="red" texto={`Recusado em ${fmt(contrato.recusado_em)}. Motivo: ${contrato.motivo_recusa}`} />
         )}

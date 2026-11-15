@@ -1,4 +1,5 @@
 import { useMemo, useState, useDeferredValue } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +32,7 @@ import {
   UploadCloud,
   Settings2,
   PlayCircle,
+  ShieldCheck,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -370,6 +372,7 @@ function ContratoCard(props: ContratoCardProps) {
 // ---------------------------------------------------------------------------
 export default function Uon1Sign() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { markAsViewed, isViewed } = useSignedContracts();
   const queryClient = useQueryClient();
 
@@ -562,6 +565,11 @@ export default function Uon1Sign() {
           subtitle="Geração e assinatura de contratos"
           actions={
             <>
+              {(nivel === "admin" || nivel === "operador") && (
+                <Button variant="outline" onClick={() => navigate("/trust")}>
+                  <ShieldCheck className="h-4 w-4 mr-2" /> Uon1 Trust
+                </Button>
+              )}
               {ehAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -131,3 +131,6 @@ verify_jwt = false
 
 [functions.uonisign]
 verify_jwt = false
+
+[functions.uon1-trust]
+verify_jwt = false

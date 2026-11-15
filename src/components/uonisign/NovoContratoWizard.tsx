@@ -28,6 +28,7 @@ import {
 } from "../../../supabase/functions/uonisign/modelo";
 import { uonisign, ErroUoniSign, ContratoV2 } from "@/lib/uonisign/api";
 import { gerarPdfContrato, bytesParaBase64 } from "@/lib/uonisign/pdf";
+import { urlValidacao } from "@/lib/trust";
 import PdfViewer from "./PdfViewer";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -173,7 +174,13 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho }: Pro
         return;
       }
       setOcupado("Gerando o PDF…");
-      const bytes = gerarPdfContrato(r.contrato.conteudo_html, { numero: r.contrato.numero, titulo: r.contrato.titulo });
+      const codigo = r.contrato.trust_codigo as string | null;
+      const bytes = gerarPdfContrato(r.contrato.conteudo_html, {
+        numero: r.contrato.numero,
+        titulo: r.contrato.titulo,
+        codigoVerificacao: codigo,
+        urlValidacao: codigo ? urlValidacao(codigo) : null,
+      });
       const reg = await uonisign.registrarPdf(r.contrato.id, bytesParaBase64(bytes));
       setPdfUrl(reg.url);
       setHash(reg.hash);

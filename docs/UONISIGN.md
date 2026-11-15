@@ -77,15 +77,16 @@ Esses dois subitens (e o `comercial:todos-leads`) só valem quando **liberados**
    - `uonisign_aviso` (Utilidade): "Olá, {{1}}. Atualização sobre o contrato {{2}}: {{3}}."
    Os nomes podem ser trocados pelos secrets `UONISIGN_WA_TEMPLATE_<TIPO>`.
 6. Opcional: `UONISIGN_EMAIL_FROM` (remetente padrão quando o vendedor não tem `resend_config`).
+7. Aplicar também `0041_uon1_trust.sql` e publicar `uon1-trust` (ver `docs/UON1_TRUST.md`).
 
-## Lacre ICP-Brasil e carimbo de tempo (Q4) — preparado, desligado
+## Lacre ICP-Brasil, carimbo do tempo e validação pública → Uon1 Trust
 
-O certificado da empresa precisa ficar em cofre/HSM, o que o Lovable Cloud não oferece. Quando houver um serviço de lacre (próprio ou de terceiro), configurar:
+Desde 14/11/2026 essa parte é do **Uon1 Trust** (`docs/UON1_TRUST.md`). O uoniSign:
 
-- `UONISIGN_LACRE_URL` — recebe `POST {contrato_id, hash, pdf_base64}` e devolve `{pdf_base64, carimbo_tempo_em}` (PDF com assinatura PAdES + carimbo de ACT credenciada);
-- `UONISIGN_LACRE_TOKEN` — Bearer enviado ao serviço.
-
-Com isso ligado, o contrato só vira "Assinado" (e as cópias só saem) depois do lacre; falhas ficam em "Assinado — processando", com nova tentativa a cada hora e alerta aos admins após 1 hora. Sem o serviço, conclui com relatório + hash e mostra "lacre não configurado".
+- reserva o **código de verificação** ao gerar o contrato e imprime código, link e QR no rodapé do PDF;
+- registra no Trust a versão **original** ao enviar, cada **assinatura** (evento público, sem dados pessoais) e a versão **assinada** (ou **selada**) na conclusão;
+- marca o documento como **sem validade** no Trust quando o contrato é recusado, cancelado ou expira;
+- pede o selo ao Trust (`UON1TRUST_SELO_URL`; os nomes antigos `UONISIGN_LACRE_URL/TOKEN` continuam aceitos). Com o selo ligado, o contrato só vira "Assinado" depois dele.
 
 ## Pendências da spec que continuam abertas
 

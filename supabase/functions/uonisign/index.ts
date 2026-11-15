@@ -32,13 +32,21 @@ import {
   deBase64,
   enviarEmail,
   enviarWhatsApp,
-  lacrarPdf,
-  lacreConfigurado,
   layoutEmail,
   linkAssinatura,
   paraBase64,
   sha256Hex,
 } from "./servicos.ts";
+import {
+  encerrarDocumento,
+  garantirDocumento,
+  gerarCodigo,
+  registrarEvento,
+  registrarVersao,
+  selarPdf,
+  seloConfigurado,
+  urlValidacao,
+} from "../uon1-trust/nucleo.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -221,6 +229,43 @@ async function falhaIntegridade(c: Ctx, k: Row, assinaturaId: string | null) {
 }
 
 // ---------------------------------------------------------------------------
+// Uon1 Trust — registro de autenticidade (falha aqui não trava a assinatura;
+// fica registrada na trilha do contrato para nova tentativa/ação do admin)
+// ---------------------------------------------------------------------------
+const EMISSOR = Deno.env.get("UON1TRUST_EMISSOR_PADRAO") || "vangard";
+
+async function trustDocumento(c: Ctx, k: Row): Promise<string> {
+  if (k.trust_documento_id) return k.trust_documento_id;
+  let codigo = k.trust_codigo as string | null;
+  if (!codigo) {
+    codigo = gerarCodigo();
+    await c.db.from("contratos").update({ trust_codigo: codigo }).eq("id", k.id);
+  }
+  const { data: t } = await c.db.from("contrato_templates").select("titulo").eq("id", k.template_id).maybeSingle();
+  const docId = await garantirDocumento(c.db, {
+    codigo,
+    emissor: EMISSOR,
+    origem: "uonisign",
+    origem_id: k.id,
+    tipo: "contrato",
+    titulo_publico: `Contrato nº ${k.numero}${t?.titulo ? ` — ${t.titulo}` : ""}`,
+    ator_id: c.uid,
+  });
+  await c.db.from("contratos").update({ trust_documento_id: docId, trust_codigo: codigo }).eq("id", k.id);
+  k.trust_documento_id = docId;
+  k.trust_codigo = codigo;
+  return docId;
+}
+
+async function trustSeguro(c: Ctx, k: Row, rotulo: string, fn: (docId: string) => Promise<unknown>) {
+  try {
+    await fn(await trustDocumento(c, k));
+  } catch (e) {
+    await evento(c, k.id, "trust_falhou", `Uon1 Trust (${rotulo}): ${String((e as Error)?.message ?? e).slice(0, 300)}`, { sistema: true });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Mensagens aos signatários
 // ---------------------------------------------------------------------------
 async function enviarConvite(c: Ctx, k: Row, s: Row, motivo: "convite" | "reenvio" | "lembrete", diasAguardando = 0) {
@@ -391,6 +436,8 @@ async function acaoCriar(c: Ctx, body: Row) {
     // PDF anterior descartado ao voltar e editar (US04)
     pdf_original_path: null,
     hash_original: null,
+    // Código de verificação do Uon1 Trust: impresso (com QR) no rodapé do PDF
+    trust_codigo: k?.trust_codigo ?? gerarCodigo(),
   };
 
   if (!k) {
@@ -518,6 +565,16 @@ async function acaoEnviar(c: Ctx, body: Row) {
     .eq("id", k.id);
   if (error) throw new Erro(500, error.message);
   await evento(c, k.id, "enviado", `Contrato enviado para assinatura. Prazo: ${prazoDias} dias.`);
+  await trustSeguro(c, k, "registro do original", async (docId) => {
+    await registrarVersao(c.db, docId, {
+      tipo: "original",
+      bytes: await baixar(c, k.pdf_original_path),
+      bucket: BUCKET,
+      path: k.pdf_original_path,
+      descricao: "Contrato emitido e enviado para assinatura",
+      ator_id: c.uid,
+    });
+  });
   return json({ ok: true, whatsapp: envio.whatsapp });
 }
 
@@ -612,6 +669,9 @@ async function acaoCancelar(c: Ctx, body: Row) {
     (await signatarios(c, k.id)).map((s) => s.id),
   ).is("usado_em", null);
   await evento(c, k.id, "cancelado", `Contrato cancelado. Motivo: ${motivo}`);
+  if (k.trust_documento_id) {
+    await encerrarDocumento(c.db, k.trust_documento_id, "cancelado", "Contrato cancelado pelo emissor antes da conclusão", c.uid);
+  }
   if (k.status !== "rascunho") {
     await avisarSignatarios(c, k, "Contrato cancelado", `O contrato <strong>${esc(k.titulo)}</strong> (nº ${esc(k.numero)}) foi cancelado e o link de assinatura deixou de valer.`);
   }
@@ -670,6 +730,8 @@ async function acaoPubAbrir(c: Ctx, body: Row) {
       concluido_em: k.concluido_em,
       lacre_status: k.lacre_status,
       hash: k.hash_original,
+      codigo_verificacao: k.trust_documento_id ? k.trust_codigo : null,
+      url_validacao: k.trust_documento_id && k.trust_codigo ? urlValidacao(k.trust_codigo) : null,
     },
     signatario: {
       nome: s.nome,
@@ -834,6 +896,15 @@ async function acaoPubAssinar(c: Ctx, body: Row) {
     dados: { hash_documento: k.hash_original, aceite_termos: true },
   });
 
+  await trustSeguro(c, k, "assinatura", (docId) =>
+    registrarEvento(c.db, docId, {
+      tipo: "assinatura",
+      descricao: `Assinatura da parte ${papelRotulo(s.tipo)} registrada (identificação por código de uso único)`,
+      publico: true,
+      dados: { ordem: s.ordem, hash_documento: k.hash_original },
+    }),
+  );
+
   const sigs = await signatarios(c, k.id);
   const proximo = sigs.find((x) => x.status === "pendente");
   if (proximo) {
@@ -867,6 +938,9 @@ async function acaoPubRecusar(c: Ctx, body: Row) {
   await c.db.from("contrato_assinaturas").update({ status: "recusado", recusado_em: agora, motivo_recusa: motivo }).eq("id", s.id).eq("status", "pendente");
   await c.db.from("contratos").update({ status: "recusado", recusado_em: agora, motivo_recusa: motivo }).eq("id", k.id);
   await evento(c, k.id, "recusado", `Recusado por ${s.nome}. Motivo: ${motivo}`, { assinatura_id: s.id });
+  if (k.trust_documento_id) {
+    await encerrarDocumento(c.db, k.trust_documento_id, "cancelado", "Assinatura recusada por uma das partes: o contrato não foi concluído");
+  }
   await avisarVendedor(c, k, "Contrato recusado", `${esc(s.nome)} (${papelRotulo(s.tipo)}) recusou a assinatura. Motivo: <em>${esc(motivo)}</em>`, true);
   return json({ ok: true });
 }
@@ -918,12 +992,16 @@ async function finalizar(c: Ctx, contratoId: string): Promise<boolean> {
       hashOriginal: k.hash_original,
       concluidoEm,
       linhas,
+      codigoVerificacao: k.trust_codigo,
+      urlValidacao: k.trust_codigo ? urlValidacao(k.trust_codigo) : null,
     });
 
+    // Selo ICP-Brasil + carimbo do tempo pelo Uon1 Trust (quando configurado)
     let lacreStatus = "nao_configurado";
     let carimbo: string | null = null;
-    if (lacreConfigurado()) {
-      const r = await lacrarPdf(final, k.id, await sha256Hex(final));
+    if (seloConfigurado()) {
+      const { data: em } = await c.db.from("trust_emissores").select("slug, cnpj").eq("slug", EMISSOR).maybeSingle();
+      const r = await selarPdf(final, { emissor: { slug: EMISSOR, cnpj: em?.cnpj ?? null }, codigo: k.trust_codigo ?? k.numero, hash: await sha256Hex(final) });
       if (!r.ok) {
         await c.db
           .from("contratos")
@@ -972,6 +1050,21 @@ async function finalizar(c: Ctx, contratoId: string): Promise<boolean> {
       { sistema: true, dados: { hash_final: hashFinal, guardar_ate: guardarAte } },
     );
 
+    await trustSeguro(c, k, "registro do assinado", (docId) =>
+      registrarVersao(c.db, docId, {
+        tipo: lacreStatus === "concluido" ? "selado" : "assinado",
+        bytes: final,
+        bucket: BUCKET,
+        path,
+        descricao:
+          lacreStatus === "concluido"
+            ? "Contrato assinado por todas as partes, com relatório de assinaturas e selo ICP-Brasil"
+            : "Contrato assinado por todas as partes, com relatório de assinaturas",
+        selo_status: lacreStatus === "concluido" ? "concluido" : "nao_configurado",
+        selo_em: lacreStatus === "concluido" ? new Date().toISOString() : null,
+      }),
+    );
+
     // RN14: cópia a cada signatário pelos canais do convite + ao vendedor
     for (const s of sigs) await enviarCopia(c, k, s, final);
     const v = await emailDoUsuario(c, k.created_by);
@@ -1008,6 +1101,9 @@ async function acaoProcessar(c: Ctx) {
       if (!error) {
         resumo.expirados++;
         await evento(c, k.id, "expirado", `Prazo de assinatura encerrado sem a assinatura de ${atual.nome}`, { assinatura_id: atual.id, sistema: true });
+        if (k.trust_documento_id) {
+          await encerrarDocumento(c.db, k.trust_documento_id, "cancelado", "Prazo de assinatura encerrado sem todas as assinaturas: o contrato não foi concluído");
+        }
         await avisarVendedor(c, k, "Contrato expirado", `O prazo de assinatura terminou sem a assinatura de ${esc(atual.nome)}. Para seguir, gere um novo contrato.`);
       }
       continue;

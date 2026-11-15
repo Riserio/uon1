@@ -72,6 +72,8 @@ export interface PaginaAssinatura {
     concluido_em: string | null;
     lacre_status: string | null;
     hash: string | null;
+    codigo_verificacao: string | null;
+    url_validacao: string | null;
   };
   signatario: {
     nome: string;

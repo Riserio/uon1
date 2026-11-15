@@ -1,4 +1,5 @@
-// uoniSign — e-mail (Resend), WhatsApp (Meta Cloud API), lacre e relatório de assinaturas.
+// uoniSign — e-mail (Resend), WhatsApp (Meta Cloud API) e relatório de assinaturas.
+// Hash, selo ICP-Brasil e carimbo do tempo ficam no Uon1 Trust (../uon1-trust).
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 
 export const APP_URL = (Deno.env.get("APP_URL") || "https://uon1.lovable.app").replace(/\/$/, "");
@@ -130,66 +131,8 @@ export async function enviarWhatsApp(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Lacre ICP-Brasil + carimbo de tempo (RN23) — PREPARADO.
-// O certificado da empresa deve ficar em cofre/HSM, fora do Lovable Cloud.
-// Quando o serviço de lacre existir, basta configurar os secrets:
-//   UONISIGN_LACRE_URL   → POST {pdf_base64, contrato_id, hash} → {pdf_base64, carimbo_tempo_em}
-//   UONISIGN_LACRE_TOKEN → Bearer enviado ao serviço
-// Sem esses secrets o contrato é concluído com relatório + hash e
-// lacre_status = 'nao_configurado' (aparece na tela).
-// ---------------------------------------------------------------------------
-export const lacreConfigurado = () => Boolean(Deno.env.get("UONISIGN_LACRE_URL"));
-
-export async function lacrarPdf(
-  pdf: Uint8Array,
-  contratoId: string,
-  hash: string,
-): Promise<{ ok: true; pdf: Uint8Array; carimbo_tempo_em: string | null } | { ok: false; erro: string }> {
-  const url = Deno.env.get("UONISIGN_LACRE_URL");
-  if (!url) return { ok: false, erro: "nao_configurado" };
-  try {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("UONISIGN_LACRE_TOKEN") ?? ""}`,
-      },
-      body: JSON.stringify({ contrato_id: contratoId, hash, pdf_base64: paraBase64(pdf) }),
-      signal: AbortSignal.timeout(60000),
-    });
-    if (!r.ok) return { ok: false, erro: `Lacre ${r.status}: ${(await r.text()).slice(0, 300)}` };
-    const j = await r.json();
-    if (!j?.pdf_base64) return { ok: false, erro: "Serviço de lacre não devolveu o PDF" };
-    return { ok: true, pdf: deBase64(j.pdf_base64), carimbo_tempo_em: j.carimbo_tempo_em ?? null };
-  } catch (e) {
-    return { ok: false, erro: String((e as Error)?.message ?? e) };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Utilitários binários
-// ---------------------------------------------------------------------------
-export function paraBase64(bytes: Uint8Array): string {
-  let s = "";
-  const passo = 0x8000;
-  for (let i = 0; i < bytes.length; i += passo) s += String.fromCharCode(...bytes.subarray(i, i + passo));
-  return btoa(s);
-}
-
-export function deBase64(b64: string): Uint8Array {
-  const limpo = b64.includes(",") ? b64.slice(b64.indexOf(",") + 1) : b64;
-  const bin = atob(limpo);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-export async function sha256Hex(dados: Uint8Array | string): Promise<string> {
-  const bytes = typeof dados === "string" ? new TextEncoder().encode(dados) : dados;
-  const h = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
-  return Array.from(new Uint8Array(h)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+// Hash, base64, selo e carimbo agora são do Uon1 Trust
+export { deBase64, paraBase64, sha256Hex } from "../uon1-trust/nucleo.ts";
 
 // ---------------------------------------------------------------------------
 // Relatório de assinaturas anexado ao PDF (RN23 / seção 11)
@@ -221,7 +164,15 @@ const dataHoraBR = (iso: string) =>
 
 export async function anexarRelatorio(
   original: Uint8Array,
-  info: { numero: string; titulo: string; hashOriginal: string; concluidoEm: string; linhas: LinhaRelatorio[] },
+  info: {
+    numero: string;
+    titulo: string;
+    hashOriginal: string;
+    concluidoEm: string;
+    linhas: LinhaRelatorio[];
+    codigoVerificacao?: string | null;
+    urlValidacao?: string | null;
+  },
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(original);
   const fonte = await doc.embedFont(StandardFonts.Helvetica);
@@ -266,6 +217,11 @@ export async function anexarRelatorio(
   y -= 4;
   escrever("Hash SHA-256 do arquivo assinado pelas partes (o documento original, sem este relatório):", { tam: 8.5 });
   escrever(info.hashOriginal, { tam: 8.5, bold: true });
+  if (info.codigoVerificacao) {
+    y -= 4;
+    escrever(`Código de verificação Uon1 Trust: ${info.codigoVerificacao}`, { tam: 9.5, bold: true, cor: [0.21, 0.17, 0.54] });
+    if (info.urlValidacao) escrever(`Confira a autenticidade em ${info.urlValidacao}`, { tam: 8.5 });
+  }
   y -= 10;
 
   info.linhas.forEach((l, i) => {

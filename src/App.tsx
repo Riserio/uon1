@@ -77,6 +77,8 @@ const Gestao = lazyWithRetry(() => import("./pages/Gestao"));
 const Uon1Sign = lazyWithRetry(() => import("./pages/Uon1Sign"));
 const ContratoAssinatura = lazyWithRetry(() => import("./pages/ContratoAssinatura"));
 const AssinarContrato = lazyWithRetry(() => import("./pages/AssinarContrato"));
+const ValidarDocumento = lazyWithRetry(() => import("./pages/ValidarDocumento"));
+const Uon1Trust = lazyWithRetry(() => import("./pages/Uon1Trust"));
 const CentralAtendimento = lazyWithRetry(() => import("./pages/CentralAtendimento"));
 const Biblioteca = lazyWithRetry(() => import("./pages/Biblioteca"));
 const EstudoRegulatorio = lazyWithRetry(() => import("./pages/EstudoRegulatorio"));
@@ -278,6 +280,8 @@ const App = () => (
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
               <Route path="/contrato/:token" element={<ContratoAssinatura />} />
               <Route path="/assinar/:token" element={<AssinarContrato />} />
+              <Route path="/validar" element={<ValidarDocumento />} />
+              <Route path="/validar/:codigo" element={<ValidarDocumento />} />
               <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
               <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
               <Route path="/termos-de-servico" element={<TermosServico />} />
@@ -338,6 +342,7 @@ const App = () => (
                 <Route path="/ppr" element={<ProtectedRoute><PPR /></ProtectedRoute>} />
                 <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
                 <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
+                <Route path="/trust" element={<ProtectedRoute><Uon1Trust /></ProtectedRoute>} />
                 <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
                 <Route path="/ouvidoria-backoffice" element={<ProtectedRoute><OuvidoriaBackoffice /></ProtectedRoute>} />
                 <Route path="/biblioteca" element={<ProtectedRoute><Biblioteca /></ProtectedRoute>} />
