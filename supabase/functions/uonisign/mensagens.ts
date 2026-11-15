@@ -150,7 +150,7 @@ export const TEMPLATES_META = [
     components: [
       {
         type: "BODY",
-        text: "Olá, {{1}}!\n\nO contrato foi assinado por todas as partes. ✅\n\n📄 Contrato\n- Documento: {{2}}\n- Número: {{3}}\n\n🛡️ Autenticidade\n- Código de verificação: {{4}}\n\nToque no botão abaixo para baixar a sua cópia assinada.",
+        text: "Olá, {{1}}!\n\nO contrato que você assinou foi concluído: todas as partes já assinaram.\n\n📄 Contrato\n- Documento: {{2}}\n- Número: {{3}}\n\n🛡️ Autenticidade\n- Código de verificação: {{4}}\n\nToque no botão abaixo para baixar a sua cópia assinada.",
         example: { body_text: [["Ana Souza", "Adesão — Assistência 24h e Rastreamento", "CON-2026-000017", "RVQC-MGM5-SWMA"]] },
       },
       {
