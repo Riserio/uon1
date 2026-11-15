@@ -98,7 +98,7 @@ export async function carregarImagem(url?: string | null): Promise<ImagemPdf | n
 
 export function gerarPdfContrato(html: string, opts: OpcoesPdf): Uint8Array {
   const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
-  pdf.setProperties({ title: `${opts.numero} — ${opts.titulo}`, subject: "Contrato", creator: "uoniSign" });
+  pdf.setProperties({ title: `${opts.numero} — ${opts.titulo}`, subject: "Contrato", creator: "Uon1 Sign" });
   const L = pdf.internal.pageSize.getWidth();
   const A = pdf.internal.pageSize.getHeight();
   const margemX = 22;

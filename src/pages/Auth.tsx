@@ -333,7 +333,7 @@ export default function Auth() {
           } catch {}
           if (isPreview) {
             toast.error(
-              "Falha de rede no ambiente de Preview. Acesse pelo endereço publicado (ex: https://uon1.lovable.app) ou domínio próprio.",
+              "Falha de rede no ambiente de Preview. Acesse pelo endereço publicado (ex: https://vangard.uon1.com.br) ou domínio próprio.",
               { duration: 10000 }
             );
           } else {

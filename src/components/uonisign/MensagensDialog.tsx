@@ -123,7 +123,7 @@ export default function MensagensDialog({ open, onOpenChange }: { open: boolean;
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Mensagens do uoniSign</DialogTitle>
+          <DialogTitle>Mensagens do Uon1 Sign</DialogTitle>
           <DialogDescription>Textos de e-mail e templates de WhatsApp usados nos convites, códigos, lembretes e avisos.</DialogDescription>
         </DialogHeader>
 
@@ -133,7 +133,7 @@ export default function MensagensDialog({ open, onOpenChange }: { open: boolean;
             <div className="text-sm">
               <p className="font-semibold">E-mail</p>
               <p className="text-muted-foreground">
-                Os textos ficam em <strong>Central de Atendimento → Templates</strong>, nos tipos “uoniSign — …”. Use variáveis como{" "}
+                Os textos ficam em <strong>Central de Atendimento → Templates</strong>, nos tipos “Uon1 Sign — …”. Use variáveis como{" "}
                 <code>{"{{nome}}"}</code>, <code>{"{{contrato}}"}</code>, <code>{"{{link}}"}</code> e <code>{"{{codigo}}"}</code>.
               </p>
             </div>
@@ -161,7 +161,7 @@ export default function MensagensDialog({ open, onOpenChange }: { open: boolean;
               </Button>
               <Button size="sm" variant="outline" onClick={criarPadrao} disabled={criando || !faltamPadrao}>
                 {criando ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1" />}
-                {faltamPadrao ? "Criar templates do uoniSign na Meta" : "Templates do uoniSign já criados"}
+                {faltamPadrao ? "Criar templates do Uon1 Sign na Meta" : "Templates do Uon1 Sign já criados"}
               </Button>
             </div>
           </div>

@@ -332,21 +332,11 @@ function Resultado({
                   {v.selo === "concluido" ? (
                     <Badge className="bg-emerald-600/10 text-emerald-700 border-0">
                       Selo ICP-Brasil
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-muted-foreground">
-                      Sem selo ICP-Brasil
-                    </Badge>
-                  )}
+                    </Badge>) : null}
                   {v.carimbo === "concluido" ? (
                     <Badge className="bg-emerald-600/10 text-emerald-700 border-0">
                       Carimbo do tempo · {fmt(v.carimbo_em)}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-muted-foreground">
-                      Sem carimbo do tempo
-                    </Badge>
-                  )}
+                    </Badge>) : null}
                 </div>
                 <p className="text-[11px] text-muted-foreground font-mono break-all mt-1">
                   SHA-256: {v.hash}

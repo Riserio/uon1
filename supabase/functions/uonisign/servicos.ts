@@ -1,8 +1,8 @@
-// uoniSign — e-mail (Resend), WhatsApp (Meta Cloud API) e relatório de assinaturas.
+// Uon1 Sign — e-mail (Resend), WhatsApp (Meta Cloud API) e relatório de assinaturas.
 // Hash, selo ICP-Brasil e carimbo do tempo ficam no Uon1 Trust (../uon1-trust).
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 
-export const APP_URL = (Deno.env.get("APP_URL") || "https://uon1.lovable.app").replace(/\/$/, "");
+export const APP_URL = (Deno.env.get("APP_URL") || "https://vangard.uon1.com.br").replace(/\/$/, "");
 export const linkAssinatura = (token: string) => `${APP_URL}/assinar/${token}`;
 
 const esc = (s: string) =>
@@ -39,11 +39,11 @@ export function layoutEmail(opts: {
 <body style="margin:0;background:#f5f7fb;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:28px 12px"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden">
-<tr><td style="padding:20px 28px;border-bottom:1px solid #eef2f7;font-weight:700;font-size:17px;color:#362C89">uoniSign</td></tr>
+<tr><td style="padding:20px 28px;border-bottom:1px solid #eef2f7;font-weight:700;font-size:17px;color:#362C89">Uon1 Sign</td></tr>
 <tr><td style="padding:28px">
 ${opts.htmlLivre ? "" : `<h1 style="margin:0 0 14px;font-size:19px;color:#111827">${esc(opts.titulo)}</h1>`}${p}${destaque}${botao}
 </td></tr>
-<tr><td style="padding:14px 28px;border-top:1px solid #eef2f7;color:#9ca3af;font-size:12px;text-align:center">${esc(opts.rodape ?? "Mensagem automática do uoniSign. Não responda este e-mail.")}</td></tr>
+<tr><td style="padding:14px 28px;border-top:1px solid #eef2f7;color:#9ca3af;font-size:12px;text-align:center">${esc(opts.rodape ?? "Mensagem automática do Uon1 Sign. Não responda este e-mail.")}</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -215,7 +215,7 @@ export async function anexarRelatorio(
     }
   };
 
-  escrever("RELATÓRIO DE ASSINATURAS — uoniSign", { tam: 14, bold: true, cor: [0.21, 0.17, 0.54] });
+  escrever("RELATÓRIO DE ASSINATURAS — Uon1 Sign", { tam: 14, bold: true, cor: [0.21, 0.17, 0.54] });
   y -= 4;
   escrever(`Contrato nº ${info.numero} — ${info.titulo}`, { bold: true });
   escrever(`Concluído em ${dataHoraBR(info.concluidoEm)}`);

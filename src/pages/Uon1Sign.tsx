@@ -70,7 +70,7 @@ import { meuNivel, uonisign, STATUS_V2 } from "@/lib/uonisign/api";
 // ---------------------------------------------------------------------------
 // Tipos
 // Fluxo 1 = contratos antigos (link único, Contratada assinando na criação).
-// Fluxo 2 = uoniSign v2 (código por signatário, PDF com hash, ordem de assinatura).
+// Fluxo 2 = Uon1 Sign v2 (código por signatário, PDF com hash, ordem de assinatura).
 // ---------------------------------------------------------------------------
 type ContratoStatus =
   | "rascunho"

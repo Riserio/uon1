@@ -1,4 +1,4 @@
-// uoniSign — textos das mensagens.
+// Uon1 Sign — textos das mensagens.
 // E-mail: templates do sistema (email_templates, tipos uonisign_*), editáveis em
 // Central de Atendimento → Templates. Sem template ativo, vale o texto padrão.
 // WhatsApp: template aprovado na Meta + ordem das variáveis em uonisign_config.
@@ -88,8 +88,8 @@ export const TEMPLATES_META = [
     components: [
       {
         type: "BODY",
-        text: "Olá, {{1}}. Você recebeu o contrato {{2}} para assinatura eletrônica. Para ler e assinar, acesse {{3}} e confirme com o código que enviaremos. Mensagem automática do uoniSign.",
-        example: { body_text: [["Ana", "Contrato PPR nº CON-2026-000017", "https://uon1.lovable.app/assinar/exemplo"]] },
+        text: "Olá, {{1}}. Você recebeu o contrato {{2}} para assinatura eletrônica. Para ler e assinar, acesse {{3}} e confirme com o código que enviaremos. Mensagem automática do Uon1 Sign.",
+        example: { body_text: [["Ana", "Contrato PPR nº CON-2026-000017", "https://vangard.uon1.com.br/assinar/exemplo"]] },
       },
     ],
   },
@@ -108,8 +108,8 @@ export const TEMPLATES_META = [
     components: [
       {
         type: "BODY",
-        text: "Olá, {{1}}. O contrato {{2}} aguarda a sua assinatura há {{3}} dia(s). Para assinar, acesse {{4}} antes do fim do prazo. Mensagem automática do uoniSign.",
-        example: { body_text: [["Ana", "Contrato PPR nº CON-2026-000017", "3", "https://uon1.lovable.app/assinar/exemplo"]] },
+        text: "Olá, {{1}}. O contrato {{2}} aguarda a sua assinatura há {{3}} dia(s). Para assinar, acesse {{4}} antes do fim do prazo. Mensagem automática do Uon1 Sign.",
+        example: { body_text: [["Ana", "Contrato PPR nº CON-2026-000017", "3", "https://vangard.uon1.com.br/assinar/exemplo"]] },
       },
     ],
   },
@@ -119,8 +119,8 @@ export const TEMPLATES_META = [
     components: [
       {
         type: "BODY",
-        text: "Olá, {{1}}. O contrato {{2}} foi assinado por todas as partes. Baixe a sua cópia em {{3}} quando quiser. Mensagem automática do uoniSign.",
-        example: { body_text: [["Ana", "Contrato PPR nº CON-2026-000017", "https://uon1.lovable.app/assinar/exemplo"]] },
+        text: "Olá, {{1}}. O contrato {{2}} foi assinado por todas as partes. Baixe a sua cópia em {{3}} quando quiser. Mensagem automática do Uon1 Sign.",
+        example: { body_text: [["Ana", "Contrato PPR nº CON-2026-000017", "https://vangard.uon1.com.br/assinar/exemplo"]] },
       },
     ],
   },

@@ -1,4 +1,4 @@
-// Chamadas à edge function `uonisign` (fluxo 2 do uoniSign).
+// Chamadas à edge function `uonisign` (fluxo 2 do Uon1 Sign).
 import { supabase } from "@/integrations/supabase/client";
 
 const URL_FUNCAO = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uonisign`;

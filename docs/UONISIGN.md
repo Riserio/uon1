@@ -1,4 +1,4 @@
-# uoniSign v2 — geração e assinatura de contratos
+# Uon1 Sign v2 — geração e assinatura de contratos
 
 Implementa a especificação v2.1 (14/11/2026, PO Miriam M. Soares), com os ajustes
 abaixo. Contratos criados antes continuam no **fluxo 1** (tela e link antigos)
@@ -44,8 +44,8 @@ até terminarem; todo contrato novo nasce no **fluxo 2**.
 
 Configurações → cargo/usuário → módulo **Uon1 Sign**:
 
-- **Administrador uoniSign** (`contratos:admin`) — vê todos, cancela, corrige contato, configura modelos, vê IP na trilha. Superintendente/admin já são.
-- **Operador uoniSign** (`contratos:operador`) — vê todos, reenvia, baixa.
+- **Administrador Uon1 Sign** (`contratos:admin`) — vê todos, cancela, corrige contato, configura modelos, vê IP na trilha. Superintendente/admin já são.
+- **Operador Uon1 Sign** (`contratos:operador`) — vê todos, reenvia, baixa.
 - Sem nenhum dos dois: vendedor (hierarquia acima).
 
 Esses dois subitens (e o `comercial:todos-leads`) só valem quando **liberados**: sem marcação = não. Antes a tela de permissões mostrava como herdado do módulo, mas o banco tratava como bloqueado.
@@ -68,7 +68,7 @@ Esses dois subitens (e o `comercial:todos-leads`) só valem quando **liberados**
 1. Aplicar `0039_uonisign_v2.sql` e depois `0040_uonisign_modelos.sql` (Lovable, sem modificações).
 2. Publicar as funções `uonisign` e `enviar-lembretes-assinatura`.
 3. Publish do front.
-4. **uoniSign → Modelos → Configurar**: CNPJ, endereço e representante da Vangard e o **signatário fixo** (Q3). Enquanto isso, o envio fica bloqueado com aviso.
+4. **Uon1 Sign → Modelos → Configurar**: CNPJ, endereço e representante da Vangard e o **signatário fixo** (Q3). Enquanto isso, o envio fica bloqueado com aviso.
 5. **Templates de WhatsApp** na Meta (Mensagens → Templates), idioma `pt_BR`. Até serem aprovados, o WhatsApp falha e o e-mail segue normalmente:
    - `uonisign_convite` (Utilidade): "Olá, {{1}}. Você recebeu o contrato {{2}} para assinatura eletrônica. Acesse: {{3}}"
    - `uonisign_codigo` (Autenticação): código {{1}} com botão "copiar código"
@@ -81,7 +81,7 @@ Esses dois subitens (e o `comercial:todos-leads`) só valem quando **liberados**
 
 ## Lacre ICP-Brasil, carimbo do tempo e validação pública → Uon1 Trust
 
-Desde 14/11/2026 essa parte é do **Uon1 Trust** (`docs/UON1_TRUST.md`). O uoniSign:
+Desde 14/11/2026 essa parte é do **Uon1 Trust** (`docs/UON1_TRUST.md`). O Uon1 Sign:
 
 - reserva o **código de verificação** ao gerar o contrato e imprime código, link e QR no rodapé do PDF;
 - registra no Trust a versão **original** ao enviar, cada **assinatura** (evento público, sem dados pessoais) e a versão **assinada** (ou **selada**) na conclusão;
@@ -94,6 +94,6 @@ Q1 (perfis definitivos), Q2 (parecer jurídico sobre plataforma própria e dispe
 
 ## Mensagens (e-mail e WhatsApp) — editáveis
 
-- **E-mail:** Central de Atendimento → Templates, tipos “uoniSign — Convite / Código / Lembrete / Contrato assinado / Aviso” (criados pela `0042_uonisign_mensagens.sql`). São da empresa, não do usuário: o Administrador uoniSign vê e edita. Variáveis: `{{nome}}`, `{{contrato}}`, `{{numero}}`, `{{link}}`, `{{prazo}}`, `{{url_validacao}}`; código: `{{codigo}}`, `{{validade}}`; lembrete: `{{dias}}`; aviso: `{{assunto}}`, `{{mensagem}}`. Sem template ativo, vale o texto padrão. Se o texto não tiver o link (ou o código), o sistema acrescenta o botão (ou o código em destaque).
-- **WhatsApp:** Uon1 Sign → Modelos → Mensagens. Mostra o status de cada template na Meta, cria os 5 templates do uoniSign para aprovação (botão) e permite escolher outro template aprovado e o que vai em cada `{{1}}`, `{{2}}`… (`uonisign_config`, chave `whatsapp`).
+- **E-mail:** Central de Atendimento → Templates, tipos “Uon1 Sign — Convite / Código / Lembrete / Contrato assinado / Aviso” (criados pela `0042_uonisign_mensagens.sql`). São da empresa, não do usuário: o Administrador Uon1 Sign vê e edita. Variáveis: `{{nome}}`, `{{contrato}}`, `{{numero}}`, `{{link}}`, `{{prazo}}`, `{{url_validacao}}`; código: `{{codigo}}`, `{{validade}}`; lembrete: `{{dias}}`; aviso: `{{assunto}}`, `{{mensagem}}`. Sem template ativo, vale o texto padrão. Se o texto não tiver o link (ou o código), o sistema acrescenta o botão (ou o código em destaque).
+- **WhatsApp:** Uon1 Sign → Modelos → Mensagens. Mostra o status de cada template na Meta, cria os 5 templates do Uon1 Sign para aprovação (botão) e permite escolher outro template aprovado e o que vai em cada `{{1}}`, `{{2}}`… (`uonisign_config`, chave `whatsapp`).
 - **Enquanto a Meta não aprova:** no detalhe do contrato, “Link no WhatsApp” abre o WhatsApp do usuário com a mensagem pronta (fica registrado na trilha). A assinatura continua exigindo o código, que vai por e-mail.

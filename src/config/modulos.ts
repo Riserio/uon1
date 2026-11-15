@@ -164,10 +164,10 @@ export const SUBITENS_MODULO: Record<string, SubitemModulo[]> = {
     { id: "todos-leads", label: "Visão geral (todos os leads e cotações)" },
   ],
   contratos: [
-    // uoniSign: valem só quando LIBERADOS explicitamente (sem registro = não).
+    // Uon1 Sign: valem só quando LIBERADOS explicitamente (sem registro = não).
     // Sem nenhum dos dois vale a hierarquia: vendedor → próprios; líder/gerente → equipe.
-    { id: "admin", label: "Administrador uoniSign (todos, cancelar, corrigir contato, modelos)" },
-    { id: "operador", label: "Operador uoniSign (ver todos, reenviar, baixar)" },
+    { id: "admin", label: "Administrador Uon1 Sign (todos, cancelar, corrigir contato, modelos)" },
+    { id: "operador", label: "Operador Uon1 Sign (ver todos, reenviar, baixar)" },
   ],
   pid: [
     { id: "dashboard", label: "Visão Geral" },

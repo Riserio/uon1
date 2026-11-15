@@ -6,7 +6,7 @@
 // selo ICP-Brasil (adaptadores plugáveis — desligados até haver provedor).
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 
-export const APP_URL = (Deno.env.get("APP_URL") || "https://uon1.lovable.app").replace(/\/$/, "");
+export const APP_URL = (Deno.env.get("APP_URL") || "https://vangard.uon1.com.br").replace(/\/$/, "");
 export const BUCKET_TRUST = "uon1-trust";
 
 export const urlValidacao = (codigo: string) => `${APP_URL}/validar/${codigo}`;

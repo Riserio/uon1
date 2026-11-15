@@ -1,9 +1,9 @@
--- 2026-11-14 — uoniSign: mensagens editáveis (e-mail e WhatsApp)
+-- 2026-11-14 — Uon1 Sign: mensagens editáveis (e-mail e WhatsApp)
 --
--- E-mail: os textos do uoniSign passam a ser templates do sistema
+-- E-mail: os textos do Uon1 Sign passam a ser templates do sistema
 --   (Central de Atendimento → Templates), tipos uonisign_convite,
 --   uonisign_codigo, uonisign_lembrete, uonisign_concluido e uonisign_aviso.
---   São únicos para a empresa (não por usuário) e o Administrador uoniSign edita.
+--   São únicos para a empresa (não por usuário) e o Administrador Uon1 Sign edita.
 -- WhatsApp: qual template aprovado na Meta é usado em cada mensagem e a ordem
 --   das variáveis ({{1}}, {{2}}...) ficam em uonisign_config (chave 'whatsapp').
 --
@@ -18,7 +18,7 @@ ALTER TABLE public.email_templates ADD CONSTRAINT email_templates_tipo_check CHE
   'ouvidoria', 'ouvidoria_alerta', 'ouvidoria_finalizado', 'contrato_assinatura',
   'uonisign_convite', 'uonisign_codigo', 'uonisign_lembrete', 'uonisign_concluido', 'uonisign_aviso']));
 
--- Administrador uoniSign vê e edita os templates do uoniSign (de qualquer autor)
+-- Administrador Uon1 Sign vê e edita os templates do Uon1 Sign (de qualquer autor)
 DROP POLICY IF EXISTS "uonisign_admin_ve_templates_email" ON public.email_templates;
 CREATE POLICY "uonisign_admin_ve_templates_email" ON public.email_templates
   FOR SELECT TO authenticated
@@ -40,29 +40,29 @@ DECLARE
 BEGIN
   IF v_dono IS NULL THEN RETURN; END IF;
   FOR r IN SELECT * FROM (VALUES
-    ('uonisign_convite', 'uoniSign — Convite para assinatura',
+    ('uonisign_convite', 'Uon1 Sign — Convite para assinatura',
      'Contrato para assinatura: {{contrato}}',
      $t$<p>Olá, {{nome}}.</p>
 <p>O contrato <strong>{{contrato}}</strong> (nº {{numero}}) está pronto para a sua assinatura.</p>
 <p>Para assinar, abra o link, leia o documento e confirme com o código que enviaremos a você. O link vale até <strong>{{prazo}}</strong>.</p>
 <p><a href="{{link}}">Revisar e assinar</a></p>$t$),
-    ('uonisign_codigo', 'uoniSign — Código de assinatura',
+    ('uonisign_codigo', 'Uon1 Sign — Código de assinatura',
      'Código de assinatura: {{codigo}}',
      $t$<p>Olá, {{nome}}.</p>
 <p>Use o código abaixo para confirmar a assinatura do contrato <strong>{{contrato}}</strong> (nº {{numero}}).</p>
 <p style="font-size:28px;letter-spacing:8px;font-weight:700">{{codigo}}</p>
 <p>O código vale por {{validade}} minutos e só pode ser usado uma vez. Se você não pediu este código, ignore esta mensagem.</p>$t$),
-    ('uonisign_lembrete', 'uoniSign — Lembrete de assinatura',
+    ('uonisign_lembrete', 'Uon1 Sign — Lembrete de assinatura',
      'Lembrete: assine o contrato {{numero}}',
      $t$<p>Olá, {{nome}}.</p>
 <p>O contrato <strong>{{contrato}}</strong> (nº {{numero}}) foi enviado há {{dias}} dia(s) e ainda aguarda a sua assinatura. O link vale até <strong>{{prazo}}</strong>.</p>
 <p><a href="{{link}}">Revisar e assinar</a></p>$t$),
-    ('uonisign_concluido', 'uoniSign — Contrato assinado (cópia)',
+    ('uonisign_concluido', 'Uon1 Sign — Contrato assinado (cópia)',
      'Contrato assinado: {{contrato}}',
      $t$<p>Olá, {{nome}}.</p>
 <p>O contrato <strong>{{contrato}}</strong> (nº {{numero}}) foi assinado por todos os signatários. A cópia final, com o relatório de assinaturas, segue anexa.</p>
 <p>Você pode conferir a autenticidade do documento em {{url_validacao}}.</p>$t$),
-    ('uonisign_aviso', 'uoniSign — Aviso (cancelado, recusado, expirado)',
+    ('uonisign_aviso', 'Uon1 Sign — Aviso (cancelado, recusado, expirado)',
      '{{assunto}}: {{contrato}}',
      $t$<p>Olá, {{nome}}.</p>
 <p>{{mensagem}}</p>$t$)
@@ -76,7 +76,7 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- 2) Configuração do uoniSign (WhatsApp)
+-- 2) Configuração do Uon1 Sign (WhatsApp)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.uonisign_config (
   chave text PRIMARY KEY,
@@ -105,3 +105,10 @@ VALUES ('whatsapp', '{
   }
 }'::jsonb)
 ON CONFLICT (chave) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- 3) Nome do produto nos textos dos modelos: "Uon1 Sign"
+-- ---------------------------------------------------------------------------
+UPDATE public.contrato_templates
+   SET conteudo_html = replace(conteudo_html, 'uoniSign', 'Uon1 Sign')
+ WHERE conteudo_html LIKE '%uoniSign%';

@@ -5,7 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/integrations/supabase/client";
 
 const URL_FUNCAO = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/uon1-trust`;
-const URL_PADRAO = "https://uon1.lovable.app";
+const URL_PADRAO = "https://vangard.uon1.com.br";
 
 /** Endereço público do app (nunca o de pré-visualização/localhost). */
 export function urlPublica(): string {

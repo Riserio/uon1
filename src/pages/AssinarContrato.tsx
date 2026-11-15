@@ -173,7 +173,7 @@ export default function AssinarContrato() {
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="sticky top-0 z-30 bg-card/95 backdrop-blur border-b">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+        <div className="w-full px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
           <img src={LOGO} alt="Vangard" className="h-8 object-contain" onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")} />
           <Badge variant="outline" className="gap-1.5 text-emerald-700 border-emerald-200">
             <ShieldCheck className="h-3.5 w-3.5" /> Assinatura com código
@@ -181,7 +181,7 @@ export default function AssinarContrato() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-6 space-y-4 pb-16">
+      <main className="w-full px-4 sm:px-6 lg:px-10 py-6 space-y-4 pb-16">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight break-words">{p.contrato.titulo}</h1>
           <p className="text-sm text-muted-foreground">
@@ -193,7 +193,7 @@ export default function AssinarContrato() {
         <Card className="rounded-2xl">
           <CardContent className="p-4 sm:p-5 space-y-3">
             <h2 className="font-semibold">1. Leia o documento</h2>
-            {p.pdf_url && <PdfViewer url={p.pdf_url} alturaMax="60vh" />}
+            {p.pdf_url && <PdfViewer url={p.pdf_url} alturaMax="75vh" />}
             {baixar}
             {p.contrato.hash && <p className="text-[11px] text-muted-foreground break-all">Hash SHA-256: {p.contrato.hash}</p>}
           </CardContent>

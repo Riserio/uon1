@@ -14,7 +14,7 @@ export default function PdfViewer({ url, alturaMax = "70vh" }: { url: string; al
   const [erro, setErro] = useState(false);
 
   useEffect(() => {
-    const atualizar = () => setLargura(Math.min((caixa.current?.clientWidth ?? 600) - 16, 900));
+    const atualizar = () => setLargura(Math.min((caixa.current?.clientWidth ?? 600) - 16, 1100));
     atualizar();
     window.addEventListener("resize", atualizar);
     return () => window.removeEventListener("resize", atualizar);

@@ -39,7 +39,7 @@ interface Props {
   onOpenChange: (o: boolean) => void;
   /** Continuar um rascunho do fluxo 2 */
   rascunho?: ContratoV2 | null;
-  /** Administrador uoniSign: pode abrir a configuração do modelo direto do aviso */
+  /** Administrador Uon1 Sign: pode abrir a configuração do modelo direto do aviso */
   onConfigurarModelo?: () => void;
 }
 
@@ -474,7 +474,7 @@ function AvisoPendencias({ itens, onConfigurar }: { itens: string[]; onConfigura
           </Button>
         ) : (
           <p className="text-amber-800 dark:text-amber-300">
-            Peça ao administrador do uoniSign para preencher em Modelos → Configurar modelos e signatário. Você pode salvar o rascunho e continuar depois.
+            Peça ao administrador do Uon1 Sign para preencher em Modelos → Configurar modelos e signatário. Você pode salvar o rascunho e continuar depois.
           </p>
         )}
       </div>

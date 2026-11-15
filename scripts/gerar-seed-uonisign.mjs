@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Gera o bloco de carga dos modelos de contrato do uoniSign (fluxo 2) a partir
+// Gera o bloco de carga dos modelos de contrato do Uon1 Sign (fluxo 2) a partir
 // de docs/uonisign/modelos/*.html. Uso:
 //   node scripts/gerar-seed-uonisign.mjs > drizzle/migrations/0040_uonisign_modelos.sql
 // Os modelos só são inseridos se o slug ainda não existir (não sobrescreve
@@ -109,10 +109,10 @@ const q = (s) => `$uonisign$${s}$uonisign$`;
 const json = (v) => `${q(JSON.stringify(v))}::jsonb`;
 
 const out = [];
-out.push(`-- 2026-11-14 — uoniSign: modelos de contrato do fluxo 2 (gerado por scripts/gerar-seed-uonisign.mjs)
+out.push(`-- 2026-11-14 — Uon1 Sign: modelos de contrato do fluxo 2 (gerado por scripts/gerar-seed-uonisign.mjs)
 --
 -- Insere os modelos só se o slug ainda não existir. Antes de usar, o
--- administrador completa em uoniSign → Modelos → Configurar: CNPJ, endereço e
+-- administrador completa em Uon1 Sign → Modelos → Configurar: CNPJ, endereço e
 -- representante da Contratada e o signatário fixo da Vangard (Q3). Enquanto
 -- isso não for feito, o envio fica bloqueado com aviso na tela.
 --

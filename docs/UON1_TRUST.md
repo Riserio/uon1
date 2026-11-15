@@ -2,7 +2,7 @@
 
 Camada de confiança digital do UONI: **autenticidade, integridade e
 rastreabilidade** dos documentos emitidos (hoje, pela Vangard). O primeiro
-módulo a usar é o uoniSign; qualquer outro pode registrar documentos.
+módulo a usar é o Uon1 Sign; qualquer outro pode registrar documentos.
 
 ## O que existe
 
@@ -13,10 +13,10 @@ módulo a usar é o uoniSign; qualquer outro pode registrar documentos.
 | **Histórico de autenticidade encadeado**: cada evento guarda o hash do anterior; `trust_verificar_cadeia()` aponta o primeiro evento adulterado, mesmo que alguém altere o banco direto | pronto |
 | **Validação pública** em `/validar` e `/validar/:codigo`: por código ou pelo PDF (o hash é calculado no navegador; o arquivo não é enviado) | pronto |
 | **QR + código + link** no rodapé de cada página dos contratos | pronto |
-| **Painel interno** em `/trust` (Admin/Operador uoniSign): documentos, versões, histórico com hashes, verificar cadeia, registrar documento avulso, revogar | pronto |
+| **Painel interno** em `/trust` (Admin/Operador Uon1 Sign): documentos, versões, histórico com hashes, verificar cadeia, registrar documento avulso, revogar | pronto |
 | **Carimbo do tempo** (ACT credenciada na ICP-Brasil, RFC 3161) | preparado, desligado |
 | **Selo ICP-Brasil** (PAdES com o certificado do emissor) | preparado, desligado |
-| Assinatura eletrônica de contratos | é do **uoniSign**, que usa o Trust para a prova |
+| Assinatura eletrônica de contratos | é do **Uon1 Sign**, que usa o Trust para a prova |
 
 ## Regras
 
@@ -28,7 +28,7 @@ módulo a usar é o uoniSign; qualquer outro pode registrar documentos.
 ## Peças
 
 - `drizzle/migrations/0041_uon1_trust.sql` — tabelas `trust_emissores`, `trust_documentos`, `trust_versoes`, `trust_eventos`, encadeamento, imutabilidade, RLS, bucket `uon1-trust`, cron horário.
-- `supabase/functions/uon1-trust/` — `index.ts` (validar, validar_hash, verificar_cadeia, registrar, revogar, processar) e `nucleo.ts` (usado também pelo uoniSign).
+- `supabase/functions/uon1-trust/` — `index.ts` (validar, validar_hash, verificar_cadeia, registrar, revogar, processar) e `nucleo.ts` (usado também pelo Uon1 Sign).
 - `src/pages/ValidarDocumento.tsx`, `src/pages/Uon1Trust.tsx`, `src/lib/trust/`.
 
 ## Colocar em produção

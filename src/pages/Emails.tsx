@@ -203,7 +203,7 @@ export default function Emails() {
     const { data, error } = await supabase
       .from("email_templates")
       .select("*")
-      // os templates do uoniSign são da empresa (o Administrador uoniSign vê e edita)
+      // os templates do Uon1 Sign são da empresa (o Administrador Uon1 Sign vê e edita)
       .or(`user_id.eq.${user!.id},tipo.like.uonisign_*`)
       .order("created_at", { ascending: false });
 
@@ -1366,11 +1366,11 @@ export default function Emails() {
                           <option value="ouvidoria_alerta">Ouvidoria - Alerta Associação</option>
                           <option value="ouvidoria_finalizado">Ouvidoria - Finalizado</option>
                           <option value="contrato_assinatura">Contrato - Assinatura (fluxo antigo)</option>
-                          <option value="uonisign_convite">uoniSign - Convite para assinatura</option>
-                          <option value="uonisign_codigo">uoniSign - Código de assinatura</option>
-                          <option value="uonisign_lembrete">uoniSign - Lembrete</option>
-                          <option value="uonisign_concluido">uoniSign - Contrato assinado (cópia)</option>
-                          <option value="uonisign_aviso">uoniSign - Aviso (cancelado, recusado, expirado)</option>
+                          <option value="uonisign_convite">Uon1 Sign - Convite para assinatura</option>
+                          <option value="uonisign_codigo">Uon1 Sign - Código de assinatura</option>
+                          <option value="uonisign_lembrete">Uon1 Sign - Lembrete</option>
+                          <option value="uonisign_concluido">Uon1 Sign - Contrato assinado (cópia)</option>
+                          <option value="uonisign_aviso">Uon1 Sign - Aviso (cancelado, recusado, expirado)</option>
                         </select>
                       </div>
 

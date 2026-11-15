@@ -1,4 +1,4 @@
-// uoniSign — regras do modelo de contrato compartilhadas entre a edge function
+// Uon1 Sign — regras do modelo de contrato compartilhadas entre a edge function
 // (Deno) e as telas (Vite importa este arquivo por caminho relativo).
 // Sem imports: precisa rodar igual nos dois ambientes.
 

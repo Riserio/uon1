@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const APP_URL = Deno.env.get("APP_URL") || "https://uon1.lovable.app";
+const APP_URL = Deno.env.get("APP_URL") || "https://vangard.uon1.com.br";
 
 function buildHtml(opts: {
   signatarioNome: string;
@@ -77,7 +77,7 @@ serve(async (req) => {
       `)
       .eq("status", "aguardando_assinatura")
       .eq("lembrete_ativo", true)
-      // Fluxo 2 (uoniSign v2) tem lembretes próprios na função `uonisign`
+      // Fluxo 2 (Uon1 Sign v2) tem lembretes próprios na função `uonisign`
       .eq("fluxo_versao", 1);
 
     if (error) throw error;

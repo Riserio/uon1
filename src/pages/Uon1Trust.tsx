@@ -97,7 +97,7 @@ export default function Uon1Trust() {
             </Button>
           }
         />
-        <p className="text-sm text-muted-foreground mt-6">Acesso restrito ao Administrador e ao Operador uoniSign.</p>
+        <p className="text-sm text-muted-foreground mt-6">Acesso restrito ao Administrador e ao Operador Uon1 Sign.</p>
       </div>
     );
   }

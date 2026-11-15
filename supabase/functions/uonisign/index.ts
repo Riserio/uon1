@@ -1,4 +1,4 @@
-// uoniSign v2 — geração e assinatura de contratos (spec v2.1, 14/11/2026).
+// Uon1 Sign v2 — geração e assinatura de contratos (spec v2.1, 14/11/2026).
 // Uma função só, com ações:
 //   internas (JWT do usuário): criar, registrar_pdf, enviar, reenviar,
 //     corrigir_contato, cancelar, url
@@ -181,7 +181,7 @@ async function emailDoUsuario(c: Ctx, uid: string): Promise<{ email: string | nu
 async function emailsAdmins(c: Ctx): Promise<string[]> {
   const { data: papeis } = await c.db.from("user_roles").select("user_id").in("role", ["admin", "superintendente"]);
   const ids = [...new Set((papeis ?? []).map((p: Row) => p.user_id))];
-  // Administradores uoniSign por cargo/usuário
+  // Administradores Uon1 Sign por cargo/usuário
   const { data: flags } = await c.db
     .from("user_menu_permissions")
     .select("user_id")
@@ -199,7 +199,7 @@ async function alertarAdmins(c: Ctx, k: Row, assunto: string, texto: string) {
   await enviarEmail({
     from: await remetente(c, k.created_by),
     para,
-    assunto: `[uoniSign] ${assunto} — ${k.numero}`,
+    assunto: `[Uon1 Sign] ${assunto} — ${k.numero}`,
     html: layoutEmail({ titulo: assunto, paragrafos: [esc(texto), `Contrato <strong>${esc(k.numero)}</strong> — ${esc(k.titulo)}`] }),
   });
 }
@@ -444,7 +444,7 @@ async function avisarVendedor(c: Ctx, k: Row, titulo: string, texto: string, adm
   await enviarEmail({
     from: await remetente(c, k.created_by),
     para: [...new Set(para)],
-    assunto: `[uoniSign] ${titulo} — ${k.numero}`,
+    assunto: `[Uon1 Sign] ${titulo} — ${k.numero}`,
     html: layoutEmail({ titulo, paragrafos: [texto, `Contrato <strong>${esc(k.numero)}</strong> — ${esc(k.titulo)}`] }),
   });
 }
@@ -453,7 +453,7 @@ async function avisarVendedor(c: Ctx, k: Row, titulo: string, texto: string, adm
 // Ações internas
 // ---------------------------------------------------------------------------
 async function acaoCriar(c: Ctx, body: Row) {
-  if ((await nivel(c)) === "nenhum") throw new Erro(403, "Sem acesso ao uoniSign");
+  if ((await nivel(c)) === "nenhum") throw new Erro(403, "Sem acesso ao Uon1 Sign");
   const dados: Dados = {};
   for (const [k, v] of Object.entries(body.dados ?? {})) dados[k] = v == null ? "" : String(v).slice(0, 2000);
 
@@ -688,7 +688,7 @@ async function acaoReenviar(c: Ctx, body: Row) {
 }
 
 async function acaoCorrigirContato(c: Ctx, body: Row) {
-  if ((await nivel(c)) !== "admin") throw new Erro(403, "Só o Administrador uoniSign corrige contatos"); // RN19
+  if ((await nivel(c)) !== "admin") throw new Erro(403, "Só o Administrador Uon1 Sign corrige contatos"); // RN19
   const { data: s } = await c.db.from("contrato_assinaturas").select("*").eq("id", body.assinatura_id).maybeSingle();
   if (!s) throw new Erro(404, "Signatário não encontrado");
   const k = await carregarContrato(c, s.contrato_id);
@@ -728,7 +728,7 @@ async function acaoCancelar(c: Ctx, body: Row) {
     if (k.created_by !== c.uid) throw new Erro(403, "Só quem gerou o contrato ou o Administrador pode cancelar"); // RN17
     const sigs = await signatarios(c, k.id);
     if (sigs.some((s) => s.status === "assinado")) {
-      throw new Erro(403, "O Contratante já assinou: só o Administrador uoniSign pode cancelar este contrato");
+      throw new Erro(403, "O Contratante já assinou: só o Administrador Uon1 Sign pode cancelar este contrato");
     }
   }
   const { error } = await c.db
@@ -760,14 +760,14 @@ async function acaoUrl(c: Ctx, body: Row) {
 }
 
 async function acaoWaStatus(c: Ctx) {
-  if ((await nivel(c)) !== "admin") throw new Erro(403, "Só o Administrador uoniSign");
+  if ((await nivel(c)) !== "admin") throw new Erro(403, "Só o Administrador Uon1 Sign");
   const r = await listarTemplatesMeta();
   if ("erro" in r) return json({ erro_meta: r.erro, templates: [], config: await configWhatsApp(c.db, c.msg) });
   return json({ templates: r.templates, config: await configWhatsApp(c.db, c.msg) });
 }
 
 async function acaoWaCriarPadrao(c: Ctx) {
-  if ((await nivel(c)) !== "admin") throw new Erro(403, "Só o Administrador uoniSign");
+  if ((await nivel(c)) !== "admin") throw new Erro(403, "Só o Administrador Uon1 Sign");
   const cfg = await configWhatsApp(c.db, c.msg);
   const r = await criarTemplatesPadrao(cfg?.idioma || "pt_BR");
   if ("erro" in r) throw new Erro(502, r.erro);
