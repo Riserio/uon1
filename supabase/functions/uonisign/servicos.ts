@@ -22,8 +22,12 @@ export function layoutEmail(opts: {
   botao?: { texto: string; url: string };
   destaque?: string;
   rodape?: string;
+  /** Corpo HTML pronto (template editado no sistema); substitui título/parágrafos */
+  htmlLivre?: string;
 }): string {
-  const p = opts.paragrafos.map((t) => `<p style="margin:0 0 12px;color:#374151;line-height:1.6">${t}</p>`).join("");
+  const p = opts.htmlLivre
+    ? `<div style="color:#374151;line-height:1.6">${opts.htmlLivre}</div>`
+    : opts.paragrafos.map((t) => `<p style="margin:0 0 12px;color:#374151;line-height:1.6">${t}</p>`).join("");
   const destaque = opts.destaque
     ? `<div style="margin:20px 0;text-align:center"><span style="display:inline-block;font-size:30px;letter-spacing:8px;font-weight:700;color:#111827;background:#f3f4f6;border-radius:10px;padding:12px 20px">${esc(opts.destaque)}</span></div>`
     : "";
@@ -37,7 +41,7 @@ export function layoutEmail(opts: {
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden">
 <tr><td style="padding:20px 28px;border-bottom:1px solid #eef2f7;font-weight:700;font-size:17px;color:#362C89">uoniSign</td></tr>
 <tr><td style="padding:28px">
-<h1 style="margin:0 0 14px;font-size:19px;color:#111827">${esc(opts.titulo)}</h1>${p}${destaque}${botao}
+${opts.htmlLivre ? "" : `<h1 style="margin:0 0 14px;font-size:19px;color:#111827">${esc(opts.titulo)}</h1>`}${p}${destaque}${botao}
 </td></tr>
 <tr><td style="padding:14px 28px;border-top:1px solid #eef2f7;color:#9ca3af;font-size:12px;text-align:center">${esc(opts.rodape ?? "Mensagem automática do uoniSign. Não responda este e-mail.")}</td></tr>
 </table></td></tr></table></body></html>`;
@@ -97,16 +101,17 @@ export async function enviarWhatsApp(
   telefone: string | null | undefined,
   tipo: TemplateWa,
   parametros: string[],
+  opcoes: { template?: string | null; idioma?: string | null } = {},
 ): Promise<{ ok: boolean; erro?: string }> {
   const token = Deno.env.get("META_WHATSAPP_TOKEN");
   const phoneId = Deno.env.get("META_WHATSAPP_PHONE_NUMBER_ID");
   const para = telefoneWhatsApp(telefone);
   if (!token || !phoneId) return { ok: false, erro: "WhatsApp (Meta) não configurado" };
   if (!para) return { ok: false, erro: "Celular inválido para WhatsApp" };
-  const nome = Deno.env.get(`UONISIGN_WA_TEMPLATE_${tipo.toUpperCase()}`) || TEMPLATE_PADRAO[tipo];
-  const idioma = Deno.env.get("UONISIGN_WA_IDIOMA") || "pt_BR";
+  const nome = opcoes.template || Deno.env.get(`UONISIGN_WA_TEMPLATE_${tipo.toUpperCase()}`) || TEMPLATE_PADRAO[tipo];
+  const idioma = opcoes.idioma || Deno.env.get("UONISIGN_WA_IDIOMA") || "pt_BR";
   const components: unknown[] = [
-    { type: "body", parameters: parametros.map((text) => ({ type: "text", text })) },
+    { type: "body", parameters: parametros.map((text) => ({ type: "text", text: text || "-" })) },
   ];
   // Template de autenticação (código): a Meta exige o código também no botão "copiar".
   if (tipo === "codigo") {

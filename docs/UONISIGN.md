@@ -91,3 +91,9 @@ Desde 14/11/2026 essa parte é do **Uon1 Trust** (`docs/UON1_TRUST.md`). O uoniS
 ## Pendências da spec que continuam abertas
 
 Q1 (perfis definitivos), Q2 (parecer jurídico sobre plataforma própria e dispensa de testemunhas), Q3 (signatário da Vangard), Q4 (certificado e ACT), Q6 (descarte após a guarda) e Q7 (linha de base).
+
+## Mensagens (e-mail e WhatsApp) — editáveis
+
+- **E-mail:** Central de Atendimento → Templates, tipos “uoniSign — Convite / Código / Lembrete / Contrato assinado / Aviso” (criados pela `0042_uonisign_mensagens.sql`). São da empresa, não do usuário: o Administrador uoniSign vê e edita. Variáveis: `{{nome}}`, `{{contrato}}`, `{{numero}}`, `{{link}}`, `{{prazo}}`, `{{url_validacao}}`; código: `{{codigo}}`, `{{validade}}`; lembrete: `{{dias}}`; aviso: `{{assunto}}`, `{{mensagem}}`. Sem template ativo, vale o texto padrão. Se o texto não tiver o link (ou o código), o sistema acrescenta o botão (ou o código em destaque).
+- **WhatsApp:** Uon1 Sign → Modelos → Mensagens. Mostra o status de cada template na Meta, cria os 5 templates do uoniSign para aprovação (botão) e permite escolher outro template aprovado e o que vai em cada `{{1}}`, `{{2}}`… (`uonisign_config`, chave `whatsapp`).
+- **Enquanto a Meta não aprova:** no detalhe do contrato, “Link no WhatsApp” abre o WhatsApp do usuário com a mensagem pronta (fica registrado na trilha). A assinatura continua exigindo o código, que vai por e-mail.

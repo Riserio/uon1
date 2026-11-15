@@ -20,12 +20,15 @@ import {
   Loader2,
   Mail,
   MessageCircle,
+  Link2,
   Pencil,
   RotateCw,
   ShieldCheck,
   XCircle,
 } from "lucide-react";
 import { uonisign, STATUS_V2, NivelUoniSign, ContratoV2 } from "@/lib/uonisign/api";
+import { urlPublica } from "@/lib/trust";
+import { openWhatsApp } from "@/utils/whatsapp";
 import { formatarMoeda, mascarar, mascararEmail, mascararTelefone, soDigitos } from "../../../supabase/functions/uonisign/modelo";
 
 const fmt = (iso?: string | null, comHora = true) =>
@@ -195,6 +198,38 @@ export default function DetalheContratoDialog({ contrato, nivel, souDono, open, 
                     <Button size="sm" variant="outline" disabled={!!ocupado} onClick={() => executar("reenviar", () => uonisign.reenviar(s.id, "convite"), "Convite reenviado")}>
                       <RotateCw className="h-3.5 w-3.5 mr-1" /> Reenviar convite
                     </Button>
+                  )}
+                  {pend && s.enviado_em && ativo && podeReenviar && s.link_token && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Abre o seu WhatsApp com a mensagem pronta (a assinatura continua exigindo o código)"
+                        onClick={() => {
+                          const url = `${urlPublica()}/assinar/${s.link_token}`;
+                          openWhatsApp({
+                            phone: s.telefone || undefined,
+                            message: `Olá, ${s.nome}. Segue o link para revisar e assinar o contrato ${contrato.titulo} (nº ${contrato.numero}): ${url}\n\nPara confirmar a assinatura, você receberá um código de 6 dígitos.`,
+                          });
+                          supabase
+                            .from("contrato_historico")
+                            .insert({ contrato_id: contrato.id, acao: "link_compartilhado", descricao: `Link de assinatura de ${s.nome} enviado pelo WhatsApp do usuário` } as never)
+                            .then(() => refetch());
+                        }}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Link no WhatsApp
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${urlPublica()}/assinar/${s.link_token}`);
+                          toast.success("Link copiado");
+                        }}
+                      >
+                        <Link2 className="h-3.5 w-3.5 mr-1" /> Copiar link
+                      </Button>
+                    </>
                   )}
                   {contrato.status === "assinado" && podeReenviar && (
                     <Button size="sm" variant="outline" disabled={!!ocupado} onClick={() => executar("copia", () => uonisign.reenviar(s.id, "copia"), "Cópia reenviada")}>

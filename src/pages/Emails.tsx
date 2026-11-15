@@ -60,7 +60,7 @@ interface SMTPConfig {
   from_name: string;
 }
 
-type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_alerta" | "ouvidoria_finalizado" | "contrato_assinatura";
+type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_alerta" | "ouvidoria_finalizado" | "contrato_assinatura" | "uonisign_convite" | "uonisign_codigo" | "uonisign_lembrete" | "uonisign_concluido" | "uonisign_aviso";
 type TemplateFrequencia = "manual" | "diario" | "semanal" | "mensal";
 
 interface EmailTemplate {
@@ -203,7 +203,8 @@ export default function Emails() {
     const { data, error } = await supabase
       .from("email_templates")
       .select("*")
-      .eq("user_id", user!.id)
+      // os templates do uoniSign são da empresa (o Administrador uoniSign vê e edita)
+      .or(`user_id.eq.${user!.id},tipo.like.uonisign_*`)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -1364,7 +1365,12 @@ export default function Emails() {
                           <option value="ouvidoria">Ouvidoria - Confirmação</option>
                           <option value="ouvidoria_alerta">Ouvidoria - Alerta Associação</option>
                           <option value="ouvidoria_finalizado">Ouvidoria - Finalizado</option>
-                          <option value="contrato_assinatura">Contrato - Assinatura</option>
+                          <option value="contrato_assinatura">Contrato - Assinatura (fluxo antigo)</option>
+                          <option value="uonisign_convite">uoniSign - Convite para assinatura</option>
+                          <option value="uonisign_codigo">uoniSign - Código de assinatura</option>
+                          <option value="uonisign_lembrete">uoniSign - Lembrete</option>
+                          <option value="uonisign_concluido">uoniSign - Contrato assinado (cópia)</option>
+                          <option value="uonisign_aviso">uoniSign - Aviso (cancelado, recusado, expirado)</option>
                         </select>
                       </div>
 
@@ -1432,6 +1438,10 @@ export default function Emails() {
                         {novoTemplate.tipo === "ouvidoria_alerta" && " {protocolo}, {nome_manifestante}, {nome_associacao}, {logo_url}, {tipo}, {prioridade}, {descricao}, {data}, {hora}"}
                         {novoTemplate.tipo === "ouvidoria_finalizado" && " {protocolo}, {nome_cliente}, {nome_associacao}, {logo_url}, {tipo}, {status}, {resposta}, {data}, {cor_primaria}"}
                         {novoTemplate.tipo === "contrato_assinatura" && " {{nome}}, {{titulo}}, {{numero}}, {{link}}, {{empresa}}, {{vencimento}}"}
+                        {novoTemplate.tipo?.startsWith("uonisign_") && " {{nome}}, {{contrato}}, {{numero}}, {{link}}, {{prazo}}, {{url_validacao}}"}
+                        {novoTemplate.tipo === "uonisign_codigo" && ", {{codigo}}, {{validade}}"}
+                        {novoTemplate.tipo === "uonisign_lembrete" && ", {{dias}}"}
+                        {novoTemplate.tipo === "uonisign_aviso" && ", {{assunto}}, {{mensagem}}"}
                       </p>
                     </div>
 

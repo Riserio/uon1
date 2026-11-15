@@ -54,6 +54,15 @@ export const uonisign = {
   url: (contrato_id: string, tipo: "original" | "final", download = false) =>
     chamar<{ url: string }>("url", { contrato_id, tipo, download }),
 
+  // WhatsApp (Meta): status dos templates e criação dos padrões
+  waStatus: () =>
+    chamar<{
+      templates: { name: string; status: string; language: string; category: string; corpo: string; variaveis: number; motivo_rejeicao?: string | null }[];
+      config: ConfigWhatsApp | null;
+      erro_meta?: string;
+    }>("wa_status", {}),
+  waCriarPadrao: () => chamar<{ resultados: { name: string; ok: boolean; detalhe: string }[] }>("wa_criar_padrao", {}),
+
   // Página pública de assinatura
   abrir: (token: string) => chamar<PaginaAssinatura>("pub_abrir", { token }, true),
   solicitarCodigo: (token: string, canal: "email" | "whatsapp") =>
@@ -120,3 +129,8 @@ export const STATUS_V2: Record<string, { label: string; cor: string }> = {
   cancelado: { label: "Cancelado", cor: "text-red-700 bg-red-500/10 border-red-500/20 dark:text-red-400" },
   expirado: { label: "Expirado", cor: "text-gray-600 bg-gray-500/10 border-gray-500/20 dark:text-gray-400" },
 };
+
+export interface ConfigWhatsApp {
+  idioma?: string;
+  mensagens?: Record<string, { template?: string; parametros?: string[] }>;
+}

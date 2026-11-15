@@ -38,6 +38,18 @@ import {
   sha256Hex,
 } from "./servicos.ts";
 import {
+  CacheMensagens,
+  PARAMETROS_PADRAO,
+  Valores,
+  configWhatsApp,
+  criarTemplatesPadrao,
+  listarTemplatesMeta,
+  novoCache,
+  preencher,
+  templateEmail,
+} from "./mensagens.ts";
+import type { TemplateWa } from "./servicos.ts";
+import {
   encerrarDocumento,
   garantirDocumento,
   gerarCodigo,
@@ -82,6 +94,7 @@ interface Ctx {
   ip: string | null;
   ua: string | null;
   uid: string | null;
+  msg: CacheMensagens;
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +279,52 @@ async function trustSeguro(c: Ctx, k: Row, rotulo: string, fn: (docId: string) =
 }
 
 // ---------------------------------------------------------------------------
+// Textos: template do sistema (se houver) ou padrão
+// ---------------------------------------------------------------------------
+async function emailDe(
+  c: Ctx,
+  tipo: TemplateWa,
+  v: Valores,
+  padrao: { assunto: string; html: string },
+  botao?: { texto: string; url: string },
+): Promise<{ assunto: string; html: string }> {
+  const t = await templateEmail(c.db, c.msg, tipo);
+  if (!t) return padrao;
+  const corpo = preencher(t.corpo, v, true);
+  const assunto = preencher(t.assunto, v, false).trim() || padrao.assunto;
+  if (/<html/i.test(corpo)) return { assunto, html: corpo };
+  const precisaCodigo = tipo === "codigo" && v.codigo && !corpo.includes(String(v.codigo));
+  const precisaBotao = botao && !corpo.includes(botao.url);
+  return {
+    assunto,
+    html: layoutEmail({
+      titulo: assunto,
+      paragrafos: [],
+      htmlLivre: corpo,
+      destaque: precisaCodigo ? String(v.codigo) : undefined,
+      botao: precisaBotao ? botao : undefined,
+    }),
+  };
+}
+
+async function waDe(c: Ctx, telefone: string | null | undefined, tipo: TemplateWa, v: Valores) {
+  const cfg = await configWhatsApp(c.db, c.msg);
+  const m = cfg?.mensagens?.[tipo];
+  const chaves = m?.parametros?.length ? m.parametros : PARAMETROS_PADRAO[tipo];
+  return enviarWhatsApp(telefone, tipo, chaves.map((k) => String(v[k] ?? "")), { template: m?.template, idioma: cfg?.idioma });
+}
+
+const valoresBase = (k: Row, s: Row | null, extra: Valores = {}): Valores => ({
+  nome: s?.nome ?? "",
+  contrato: k.titulo,
+  numero: k.numero,
+  link: s?.link_token ? linkAssinatura(s.link_token) : "",
+  prazo: s?.link_expires_at ? new Date(s.link_expires_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "",
+  url_validacao: k.trust_codigo ? urlValidacao(k.trust_codigo) : "",
+  ...extra,
+});
+
+// ---------------------------------------------------------------------------
 // Mensagens aos signatários
 // ---------------------------------------------------------------------------
 async function enviarConvite(c: Ctx, k: Row, s: Row, motivo: "convite" | "reenvio" | "lembrete", diasAguardando = 0) {
@@ -275,22 +334,28 @@ async function enviarConvite(c: Ctx, k: Row, s: Row, motivo: "convite" | "reenvi
   const prazo = s.link_expires_at
     ? new Date(s.link_expires_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })
     : null;
-  const mail = await enviarEmail({
-    from,
-    para: s.email,
-    assunto: lembrete ? `Lembrete: assine o contrato ${k.numero}` : `Contrato para assinatura: ${k.titulo}`,
-    html: layoutEmail({
-      titulo: lembrete ? "Seu contrato ainda aguarda assinatura" : "Você recebeu um contrato para assinar",
-      paragrafos: [
-        `Olá, ${esc(s.nome)}.`,
-        lembrete
-          ? `O contrato <strong>${esc(k.titulo)}</strong> (nº ${esc(k.numero)}) foi enviado há ${diasAguardando} dia(s) e ainda aguarda a sua assinatura.`
-          : `O contrato <strong>${esc(k.titulo)}</strong> (nº ${esc(k.numero)}) está pronto para a sua assinatura.`,
-        `Para assinar, abra o link, leia o documento e confirme com o código que enviaremos a você.${prazo ? ` O link vale até <strong>${prazo}</strong>.` : ""}`,
-      ],
-      botao: { texto: "Revisar e assinar", url: link },
-    }),
-  });
+  const v = valoresBase(k, s, { dias: String(diasAguardando) });
+  const conteudo = await emailDe(
+    c,
+    lembrete ? "lembrete" : "convite",
+    v,
+    {
+      assunto: lembrete ? `Lembrete: assine o contrato ${k.numero}` : `Contrato para assinatura: ${k.titulo}`,
+      html: layoutEmail({
+        titulo: lembrete ? "Seu contrato ainda aguarda assinatura" : "Você recebeu um contrato para assinar",
+        paragrafos: [
+          `Olá, ${esc(s.nome)}.`,
+          lembrete
+            ? `O contrato <strong>${esc(k.titulo)}</strong> (nº ${esc(k.numero)}) foi enviado há ${diasAguardando} dia(s) e ainda aguarda a sua assinatura.`
+            : `O contrato <strong>${esc(k.titulo)}</strong> (nº ${esc(k.numero)}) está pronto para a sua assinatura.`,
+          `Para assinar, abra o link, leia o documento e confirme com o código que enviaremos a você.${prazo ? ` O link vale até <strong>${prazo}</strong>.` : ""}`,
+        ],
+        botao: { texto: "Revisar e assinar", url: link },
+      }),
+    },
+    { texto: "Revisar e assinar", url: link },
+  );
+  const mail = await enviarEmail({ from, para: s.email, assunto: conteudo.assunto, html: conteudo.html });
   await evento(
     c,
     k.id,
@@ -300,9 +365,7 @@ async function enviarConvite(c: Ctx, k: Row, s: Row, motivo: "convite" | "reenvi
   );
   let whatsappOk: boolean | null = null;
   if ((s.canais ?? []).includes("whatsapp") && s.telefone) {
-    const wa = lembrete
-      ? await enviarWhatsApp(s.telefone, "lembrete", [s.nome, k.titulo, String(diasAguardando), link])
-      : await enviarWhatsApp(s.telefone, "convite", [s.nome, k.titulo, link]);
+    const wa = await waDe(c, s.telefone, lembrete ? "lembrete" : "convite", v);
     whatsappOk = wa.ok;
     await evento(
       c,
@@ -320,18 +383,27 @@ async function enviarCopia(c: Ctx, k: Row, s: Row | null, pdf: Uint8Array, desti
   const para = destino?.email ?? s?.email;
   const nome = destino?.nome ?? s?.nome ?? "";
   if (!para) return;
+  const conteudo = await emailDe(
+    c,
+    "concluido",
+    valoresBase(k, s, { nome }),
+    {
+      assunto: `Contrato assinado: ${k.titulo}`,
+      html: layoutEmail({
+        titulo: "Contrato assinado por todas as partes",
+        paragrafos: [
+          `Olá, ${esc(nome)}.`,
+          `O contrato <strong>${esc(k.titulo)}</strong> (nº ${esc(k.numero)}) foi assinado por todos os signatários. A cópia final, com o relatório de assinaturas, segue anexa.`,
+        ],
+        botao: s ? { texto: "Ver o contrato", url: linkAssinatura(s.link_token) } : undefined,
+      }),
+    },
+  );
   const mail = await enviarEmail({
     from,
     para,
-    assunto: `Contrato assinado: ${k.titulo}`,
-    html: layoutEmail({
-      titulo: "Contrato assinado por todas as partes",
-      paragrafos: [
-        `Olá, ${esc(nome)}.`,
-        `O contrato <strong>${esc(k.titulo)}</strong> (nº ${esc(k.numero)}) foi assinado por todos os signatários. A cópia final, com o relatório de assinaturas, segue anexa.`,
-      ],
-      botao: s ? { texto: "Ver o contrato", url: linkAssinatura(s.link_token) } : undefined,
-    }),
+    assunto: conteudo.assunto,
+    html: conteudo.html,
     anexos: [{ filename: `${k.numero}.pdf`, content: paraBase64(pdf) }],
   });
   await evento(c, k.id, mail.ok ? "copia_enviada" : "envio_falhou", mail.ok ? `Cópia assinada enviada para ${para}` : `Falha ao enviar cópia para ${para}: ${mail.erro}`, {
@@ -340,7 +412,7 @@ async function enviarCopia(c: Ctx, k: Row, s: Row | null, pdf: Uint8Array, desti
     sistema: true,
   });
   if (s && (s.canais ?? []).includes("whatsapp") && s.telefone) {
-    const wa = await enviarWhatsApp(s.telefone, "concluido", [s.nome, k.titulo, linkAssinatura(s.link_token)]);
+    const wa = await waDe(c, s.telefone, "concluido", valoresBase(k, s));
     await evento(c, k.id, wa.ok ? "copia_enviada" : "whatsapp_falhou", wa.ok ? `Cópia assinada enviada por WhatsApp` : `Falha no WhatsApp: ${wa.erro}`, {
       assinatura_id: s.id,
       canal: "whatsapp",
@@ -353,14 +425,14 @@ async function avisarSignatarios(c: Ctx, k: Row, titulo: string, texto: string, 
   const from = await remetente(c, k.created_by);
   for (const s of await signatarios(c, k.id)) {
     if (apenasPendentes && (s.status !== "pendente" || !s.enviado_em)) continue;
-    await enviarEmail({
-      from,
-      para: s.email,
+    const v = valoresBase(k, s, { assunto: titulo, mensagem: texto.replace(/<[^>]+>/g, "") });
+    const conteudo = await emailDe(c, "aviso", v, {
       assunto: `${titulo}: ${k.titulo}`,
       html: layoutEmail({ titulo, paragrafos: [`Olá, ${esc(s.nome)}.`, texto] }),
     });
+    await enviarEmail({ from, para: s.email, assunto: conteudo.assunto, html: conteudo.html });
     if ((s.canais ?? []).includes("whatsapp") && s.telefone) {
-      await enviarWhatsApp(s.telefone, "aviso", [s.nome, k.titulo, titulo]);
+      await waDe(c, s.telefone, "aviso", v);
     }
   }
 }
@@ -687,6 +759,21 @@ async function acaoUrl(c: Ctx, body: Row) {
   return json({ url: await urlAssinada(c, path, 300, body.download ? `${k.numero}${final ? "-assinado" : ""}.pdf` : undefined) });
 }
 
+async function acaoWaStatus(c: Ctx) {
+  if ((await nivel(c)) !== "admin") throw new Erro(403, "Só o Administrador uoniSign");
+  const r = await listarTemplatesMeta();
+  if ("erro" in r) return json({ erro_meta: r.erro, templates: [], config: await configWhatsApp(c.db, c.msg) });
+  return json({ templates: r.templates, config: await configWhatsApp(c.db, c.msg) });
+}
+
+async function acaoWaCriarPadrao(c: Ctx) {
+  if ((await nivel(c)) !== "admin") throw new Erro(403, "Só o Administrador uoniSign");
+  const cfg = await configWhatsApp(c.db, c.msg);
+  const r = await criarTemplatesPadrao(cfg?.idioma || "pt_BR");
+  if ("erro" in r) throw new Erro(502, r.erro);
+  return json(r);
+}
+
 // ---------------------------------------------------------------------------
 // Ações públicas (página de assinatura)
 // ---------------------------------------------------------------------------
@@ -803,22 +890,24 @@ async function acaoPubSolicitarCodigo(c: Ctx, body: Row) {
   });
   if (error) throw new Erro(500, error.message);
 
-  const r =
-    canal === "email"
-      ? await enviarEmail({
-          from: await remetente(c, k.created_by),
-          para: s.email,
-          assunto: `Código de assinatura: ${codigo}`,
-          html: layoutEmail({
-            titulo: "Seu código para assinar o contrato",
-            paragrafos: [
-              `Olá, ${esc(s.nome)}. Use o código abaixo para confirmar a assinatura do contrato <strong>${esc(k.titulo)}</strong> (nº ${esc(k.numero)}).`,
-              `O código vale por ${CODIGO_VALIDADE_MIN} minutos e só pode ser usado uma vez. Se você não pediu este código, ignore esta mensagem.`,
-            ],
-            destaque: codigo,
-          }),
-        })
-      : await enviarWhatsApp(s.telefone, "codigo", [codigo]);
+  const vc = valoresBase(k, s, { codigo, validade: String(CODIGO_VALIDADE_MIN) });
+  let r: { ok: boolean; erro?: string };
+  if (canal === "email") {
+    const conteudo = await emailDe(c, "codigo", vc, {
+      assunto: `Código de assinatura: ${codigo}`,
+      html: layoutEmail({
+        titulo: "Seu código para assinar o contrato",
+        paragrafos: [
+          `Olá, ${esc(s.nome)}. Use o código abaixo para confirmar a assinatura do contrato <strong>${esc(k.titulo)}</strong> (nº ${esc(k.numero)}).`,
+          `O código vale por ${CODIGO_VALIDADE_MIN} minutos e só pode ser usado uma vez. Se você não pediu este código, ignore esta mensagem.`,
+        ],
+        destaque: codigo,
+      }),
+    });
+    r = await enviarEmail({ from: await remetente(c, k.created_by), para: s.email, assunto: conteudo.assunto, html: conteudo.html });
+  } else {
+    r = await waDe(c, s.telefone, "codigo", vc);
+  }
   await evento(c, k.id, r.ok ? "codigo_enviado" : "envio_falhou", r.ok ? `Código de assinatura enviado por ${canal === "email" ? "e-mail" : "WhatsApp"}` : `Falha ao enviar código: ${r.erro}`, {
     assinatura_id: s.id,
     canal,
@@ -1155,6 +1244,8 @@ const INTERNAS: Record<string, (c: Ctx, b: Row) => Promise<Response>> = {
   corrigir_contato: acaoCorrigirContato,
   cancelar: acaoCancelar,
   url: acaoUrl,
+  wa_status: acaoWaStatus,
+  wa_criar_padrao: acaoWaCriarPadrao,
 };
 
 serve(async (req) => {
@@ -1165,7 +1256,7 @@ serve(async (req) => {
     const db = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const body = (await req.json().catch(() => ({}))) as Row;
     const acao = String(body.acao ?? "");
-    const c: Ctx = { db, req, ip: ipDe(req), ua: req.headers.get("user-agent")?.slice(0, 500) ?? null, uid: null };
+    const c: Ctx = { db, req, ip: ipDe(req), ua: req.headers.get("user-agent")?.slice(0, 500) ?? null, uid: null, msg: novoCache() };
 
     if (acao === "processar") return await acaoProcessar(c);
     if (PUBLICAS[acao]) return await PUBLICAS[acao](c, body);

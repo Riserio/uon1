@@ -64,6 +64,7 @@ import { downloadContratoPDF } from "@/components/gestao/utils/downloadContratoP
 import NovoContratoWizard from "@/components/uonisign/NovoContratoWizard";
 import DetalheContratoDialog from "@/components/uonisign/DetalheContratoDialog";
 import ConfigModeloDialog from "@/components/uonisign/ConfigModeloDialog";
+import MensagensDialog from "@/components/uonisign/MensagensDialog";
 import { meuNivel, uonisign, STATUS_V2 } from "@/lib/uonisign/api";
 
 // ---------------------------------------------------------------------------
@@ -388,6 +389,7 @@ export default function Uon1Sign() {
   const [rascunho, setRascunho] = useState<Contrato | null>(null);
   const [detalhe, setDetalhe] = useState<Contrato | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
+  const [mensagensOpen, setMensagensOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   // fluxo 1
   const [visualizarContrato, setVisualizarContrato] = useState<Contrato | null>(null);
@@ -584,6 +586,9 @@ export default function Uon1Sign() {
                     <DropdownMenuItem onClick={() => setTemplateOpen(true)}>
                       <FileText className="h-4 w-4 mr-2" /> Editar textos (templates)
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setMensagensOpen(true)}>
+                      <MessageCircle className="h-4 w-4 mr-2" /> Mensagens (e-mail e WhatsApp)
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -741,6 +746,7 @@ export default function Uon1Sign() {
         />
       )}
       {ehAdmin && <ConfigModeloDialog open={configOpen} onOpenChange={setConfigOpen} />}
+      {ehAdmin && <MensagensDialog open={mensagensOpen} onOpenChange={setMensagensOpen} />}
       <TemplateContratoDialog open={templateOpen} onOpenChange={setTemplateOpen} />
 
       {/* ----- fluxo 1 ----- */}
