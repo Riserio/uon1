@@ -2974,6 +2974,8 @@ export type Database = {
           template_id: string | null
           template_versao: number | null
           titulo: string
+          trust_codigo: string | null
+          trust_documento_id: string | null
           ultima_assinatura_em: string | null
           updated_at: string
           valor_contrato: number | null
@@ -3043,6 +3045,8 @@ export type Database = {
           template_id?: string | null
           template_versao?: number | null
           titulo: string
+          trust_codigo?: string | null
+          trust_documento_id?: string | null
           ultima_assinatura_em?: string | null
           updated_at?: string
           valor_contrato?: number | null
@@ -3112,6 +3116,8 @@ export type Database = {
           template_id?: string | null
           template_versao?: number | null
           titulo?: string
+          trust_codigo?: string | null
+          trust_documento_id?: string | null
           ultima_assinatura_em?: string | null
           updated_at?: string
           valor_contrato?: number | null
@@ -3130,6 +3136,13 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "contrato_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_trust_documento_id_fkey"
+            columns: ["trust_documento_id"]
+            isOneToOne: false
+            referencedRelation: "trust_documentos"
             referencedColumns: ["id"]
           },
         ]
@@ -9006,6 +9019,205 @@ export type Database = {
           },
         ]
       }
+      trust_documentos: {
+        Row: {
+          codigo: string
+          created_at: string
+          created_by: string | null
+          emissor_id: string
+          emitido_em: string
+          id: string
+          motivo_status: string | null
+          origem: string
+          origem_id: string | null
+          status: string
+          tipo: string
+          titulo_publico: string
+        }
+        Insert: {
+          codigo: string
+          created_at?: string
+          created_by?: string | null
+          emissor_id: string
+          emitido_em?: string
+          id?: string
+          motivo_status?: string | null
+          origem: string
+          origem_id?: string | null
+          status?: string
+          tipo: string
+          titulo_publico: string
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          created_by?: string | null
+          emissor_id?: string
+          emitido_em?: string
+          id?: string
+          motivo_status?: string | null
+          origem?: string
+          origem_id?: string | null
+          status?: string
+          tipo?: string
+          titulo_publico?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trust_documentos_emissor_id_fkey"
+            columns: ["emissor_id"]
+            isOneToOne: false
+            referencedRelation: "trust_emissores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trust_emissores: {
+        Row: {
+          ativo: boolean
+          cnpj: string | null
+          created_at: string
+          id: string
+          nome: string
+          selo_config: Json
+          slug: string
+        }
+        Insert: {
+          ativo?: boolean
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          selo_config?: Json
+          slug: string
+        }
+        Update: {
+          ativo?: boolean
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          selo_config?: Json
+          slug?: string
+        }
+        Relationships: []
+      }
+      trust_eventos: {
+        Row: {
+          ator_id: string | null
+          created_at: string
+          dados: Json | null
+          descricao: string
+          documento_id: string
+          hash: string
+          hash_anterior: string
+          id: number
+          publico: boolean
+          tipo: string
+          versao_id: string | null
+        }
+        Insert: {
+          ator_id?: string | null
+          created_at?: string
+          dados?: Json | null
+          descricao: string
+          documento_id: string
+          hash?: string
+          hash_anterior?: string
+          id?: number
+          publico?: boolean
+          tipo: string
+          versao_id?: string | null
+        }
+        Update: {
+          ator_id?: string | null
+          created_at?: string
+          dados?: Json | null
+          descricao?: string
+          documento_id?: string
+          hash?: string
+          hash_anterior?: string
+          id?: number
+          publico?: boolean
+          tipo?: string
+          versao_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trust_eventos_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "trust_documentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trust_eventos_versao_id_fkey"
+            columns: ["versao_id"]
+            isOneToOne: false
+            referencedRelation: "trust_versoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trust_versoes: {
+        Row: {
+          carimbo_em: string | null
+          carimbo_path: string | null
+          carimbo_status: string
+          carimbo_tentativas: number
+          created_at: string
+          documento_id: string
+          hash_sha256: string
+          id: string
+          selo_em: string | null
+          selo_status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          tamanho: number | null
+          tipo: string
+        }
+        Insert: {
+          carimbo_em?: string | null
+          carimbo_path?: string | null
+          carimbo_status?: string
+          carimbo_tentativas?: number
+          created_at?: string
+          documento_id: string
+          hash_sha256: string
+          id?: string
+          selo_em?: string | null
+          selo_status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          tamanho?: number | null
+          tipo: string
+        }
+        Update: {
+          carimbo_em?: string | null
+          carimbo_path?: string | null
+          carimbo_status?: string
+          carimbo_tentativas?: number
+          created_at?: string
+          documento_id?: string
+          hash_sha256?: string
+          id?: string
+          selo_em?: string | null
+          selo_status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          tamanho?: number | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trust_versoes_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "trust_documentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_fluxo_permissions: {
         Row: {
           created_at: string
@@ -11430,6 +11642,36 @@ export type Database = {
       status_importacoes_corretora: {
         Args: { p_corretora_id: string }
         Returns: Json
+      }
+      trust_hash_evento: {
+        Args: {
+          _anterior: string
+          _ator: string
+          _dados: Json
+          _descricao: string
+          _documento: string
+          _quando: string
+          _tipo: string
+          _versao: string
+        }
+        Returns: string
+      }
+      trust_pode_ver: {
+        Args: { _documento_id: string; _uid: string }
+        Returns: boolean
+      }
+      trust_verificar_cadeia: {
+        Args: never
+        Returns: {
+          ok: boolean
+          primeiro_erro: number
+          total: number
+          ultimo_hash: string
+        }[]
+      }
+      trust_verificar_documento: {
+        Args: { _documento_id: string }
+        Returns: boolean
       }
       uonisign_flag: {
         Args: { _subitem: string; _uid: string }
