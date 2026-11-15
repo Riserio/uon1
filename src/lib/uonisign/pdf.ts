@@ -69,6 +69,31 @@ export interface OpcoesPdf {
   /** Uon1 Trust: código de verificação e endereço de validação (QR no rodapé) */
   codigoVerificacao?: string | null;
   urlValidacao?: string | null;
+  /** Papel timbrado: logo do emissor + linhas à direita (razão social, CNPJ, endereço) */
+  timbre?: { logo?: ImagemPdf | null; linhas?: string[] } | null;
+}
+
+export interface ImagemPdf {
+  dataUrl: string;
+  largura: number;
+  altura: number;
+}
+
+/** Carrega uma imagem (PNG, JPG, WebP, AVIF...) e devolve um PNG para o jsPDF. */
+export async function carregarImagem(url?: string | null): Promise<ImagemPdf | null> {
+  if (!url) return null;
+  try {
+    const r = await fetch(url, { mode: "cors" });
+    if (!r.ok) return null;
+    const bmp = await createImageBitmap(await r.blob());
+    const canvas = document.createElement("canvas");
+    canvas.width = bmp.width;
+    canvas.height = bmp.height;
+    canvas.getContext("2d")?.drawImage(bmp, 0, 0);
+    return { dataUrl: canvas.toDataURL("image/png"), largura: bmp.width, altura: bmp.height };
+  } catch {
+    return null;
+  }
 }
 
 export function gerarPdfContrato(html: string, opts: OpcoesPdf): Uint8Array {
@@ -77,7 +102,8 @@ export function gerarPdfContrato(html: string, opts: OpcoesPdf): Uint8Array {
   const L = pdf.internal.pageSize.getWidth();
   const A = pdf.internal.pageSize.getHeight();
   const margemX = 22;
-  const topo = 22;
+  const temTimbre = Boolean(opts.timbre?.logo || opts.timbre?.linhas?.length);
+  const topo = temTimbre ? 34 : 22;
   const comQr = Boolean(opts.codigoVerificacao && opts.urlValidacao);
   const base = A - (comQr ? 26 : 20);
   const largura = L - margemX * 2;
@@ -186,6 +212,30 @@ export function gerarPdfContrato(html: string, opts: OpcoesPdf): Uint8Array {
   const ladoQr = 15;
   for (let i = 1; i <= total; i++) {
     pdf.setPage(i);
+    if (temTimbre) {
+      const logo = opts.timbre?.logo;
+      if (logo) {
+        const proporcao = logo.largura / logo.altura;
+        let alt = 13;
+        let larg = alt * proporcao;
+        if (larg > 60) {
+          larg = 60;
+          alt = larg / proporcao;
+        }
+        pdf.addImage(logo.dataUrl, "PNG", margemX, 9, larg, alt, undefined, "FAST");
+      }
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(110);
+      (opts.timbre?.linhas ?? []).filter(Boolean).slice(0, 3).forEach((l, k) => {
+        pdf.text(l, L - margemX, 13 + k * 3.6, { align: "right", maxWidth: 95 });
+      });
+      pdf.setDrawColor(240, 90, 40); // laranja Vangard
+      pdf.setLineWidth(0.6);
+      pdf.line(margemX, 26, L - margemX, 26);
+      pdf.setDrawColor(0);
+      pdf.setTextColor(0);
+    }
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(7.5);
     pdf.setTextColor(120);

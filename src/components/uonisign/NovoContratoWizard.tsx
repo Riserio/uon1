@@ -27,7 +27,7 @@ import {
   pendenciasDoModelo,
 } from "../../../supabase/functions/uonisign/modelo";
 import { uonisign, ErroUoniSign, ContratoV2 } from "@/lib/uonisign/api";
-import { gerarPdfContrato, bytesParaBase64 } from "@/lib/uonisign/pdf";
+import { gerarPdfContrato, bytesParaBase64, carregarImagem } from "@/lib/uonisign/pdf";
 import { urlValidacao } from "@/lib/trust";
 import PdfViewer from "./PdfViewer";
 
@@ -192,7 +192,13 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho, onCon
       }
       setOcupado("Gerando o PDF…");
       const codigo = r.contrato.trust_codigo as string | null;
+      const k = modelo?.contratada ?? {};
+      const logo = (await carregarImagem(modelo?.logo_url)) ?? (await carregarImagem("/images/logo-vangard.png"));
       const bytes = gerarPdfContrato(r.contrato.conteudo_html, {
+        timbre: {
+          logo,
+          linhas: [k.razao_social, k.cnpj ? `CNPJ ${mascarar("cnpj", k.cnpj)}` : "", k.endereco].filter(Boolean),
+        },
         numero: r.contrato.numero,
         titulo: r.contrato.titulo,
         codigoVerificacao: codigo,
