@@ -77,6 +77,7 @@ const Gestao = lazyWithRetry(() => import("./pages/Gestao"));
 const Uon1Sign = lazyWithRetry(() => import("./pages/Uon1Sign"));
 const ContratoAssinatura = lazyWithRetry(() => import("./pages/ContratoAssinatura"));
 const AssinarContrato = lazyWithRetry(() => import("./pages/AssinarContrato"));
+const Proposta = lazyWithRetry(() => import("./pages/Proposta"));
 const ValidarDocumento = lazyWithRetry(() => import("./pages/ValidarDocumento"));
 const Uon1Trust = lazyWithRetry(() => import("./pages/Uon1Trust"));
 const CentralAtendimento = lazyWithRetry(() => import("./pages/CentralAtendimento"));
@@ -280,6 +281,7 @@ const App = () => (
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
               <Route path="/contrato/:token" element={<ContratoAssinatura />} />
               <Route path="/assinar/:token" element={<AssinarContrato />} />
+              <Route path="/proposta/:token" element={<Proposta />} />
               <Route path="/validar" element={<ValidarDocumento />} />
               <Route path="/validar/:codigo" element={<ValidarDocumento />} />
               <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />

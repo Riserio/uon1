@@ -15,9 +15,11 @@ import {
   ContratadaModelo,
   Dados,
   SignatarioContratada,
+  campoComercial,
   cpfValido,
   derivarContrato,
   emailValido,
+  formatarMoeda,
   mascarar,
   mascararEmail,
   mascararTelefone,
@@ -34,6 +36,7 @@ import {
   enviarWhatsApp,
   layoutEmail,
   linkAssinatura,
+  linkProposta,
   paraBase64,
   sha256Hex,
 } from "./servicos.ts";
@@ -481,6 +484,23 @@ async function acaoCriar(c: Ctx, body: Row) {
   const erros = validarDados(campos, dados);
   if (Object.keys(erros).length) return json({ erro: "Dados inválidos", erros }, 422);
 
+  // Contrato preenchido pelo vendedor a partir de uma cotação do Comercial
+  let cot: Row | null = null;
+  if (!k && body.cotacao_id) {
+    cot = await cotacaoDoUsuario(c, body.cotacao_id);
+    if (["cancelada", "cancelamento_solicitado"].includes(cot.status)) throw new Erro(409, "Cotação cancelada não gera contrato");
+    const existente = await contratoDaCotacao(c, cot);
+    if (existente && !CONTRATO_ENCERRADO.includes(existente.status)) {
+      throw new Erro(409, `Esta cotação já tem o contrato ${existente.numero}. Abra-o no Uon1 Sign.`);
+    }
+  }
+  const r = await gravarContrato(c, t, campos, dados, k, k?.created_by ?? c.uid!, cot?.id ?? null);
+  if (cot) await c.db.from("comercial_cotacoes").update({ contrato_id: r.contrato.id }).eq("id", cot.id);
+  return json(r);
+}
+
+/** Grava o contrato (novo ou rascunho existente) e renderiza o texto com os dados. */
+async function gravarContrato(c: Ctx, t: Row, campos: CampoModelo[], dados: Dados, k: Row | null, dono: string, cotacaoId: string | null) {
   const der = derivarContrato(campos, dados);
   // Vincula à associação cadastrada quando o CNPJ bater (facilita os filtros)
   let corretoraId: string | null = k?.corretora_id ?? null;
@@ -526,7 +546,7 @@ async function acaoCriar(c: Ctx, body: Row) {
     const { data: novo, error } = await c.db
       .from("contratos")
       // link_token do contrato é do fluxo 1 (link único); no fluxo 2 cada signatário tem o seu
-      .insert({ ...base, conteudo_html: "<p></p>", status: "rascunho", created_by: c.uid, link_token: null, link_expires_at: null })
+      .insert({ ...base, conteudo_html: "<p></p>", status: "rascunho", created_by: dono, cotacao_id: cotacaoId, link_token: null, link_expires_at: null })
       .select("*")
       .single();
     if (error) throw new Erro(500, error.message);
@@ -551,18 +571,22 @@ async function acaoCriar(c: Ctx, body: Row) {
     .single();
   if (errUpd) throw new Erro(500, errUpd.message);
 
-  return json({
-    contrato: atualizado,
+  return {
+    contrato: atualizado as Row,
     faltando: r.faltando,
     pendencias_modelo: pendenciasDoModelo(t.contratada ?? {}, t.signatario_contratada ?? {}, t.conteudo_html),
-  });
+  };
 }
 
 async function acaoRegistrarPdf(c: Ctx, body: Row) {
   const k = await carregarContrato(c, body.contrato_id);
   if (k.created_by !== c.uid) throw new Erro(403, "Só quem gerou o contrato pode gerar o PDF");
+  return json(await guardarPdf(c, k, String(body.pdf_base64 ?? "")));
+}
+
+async function guardarPdf(c: Ctx, k: Row, pdfBase64: string) {
   if (k.status !== "rascunho") throw new Erro(409, "O PDF de um contrato enviado não pode ser substituído");
-  const bytes = deBase64(String(body.pdf_base64 ?? ""));
+  const bytes = deBase64(pdfBase64);
   if (bytes.length < 500 || bytes.length > 15 * 1024 * 1024) throw new Erro(400, "PDF inválido");
   if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-") throw new Erro(400, "O arquivo não é um PDF");
   const hash = await sha256Hex(bytes);
@@ -572,12 +596,25 @@ async function acaoRegistrarPdf(c: Ctx, body: Row) {
   const { error } = await c.db.from("contratos").update({ pdf_original_path: path, hash_original: hash }).eq("id", k.id);
   if (error) throw new Erro(500, error.message);
   await evento(c, k.id, "pdf_gerado", "PDF gerado para conferência", { dados: { hash, bytes: bytes.length } });
-  return json({ hash, url: await urlAssinada(c, path, 900) });
+  return { hash, url: await urlAssinada(c, path, 900) };
 }
 
 async function acaoEnviar(c: Ctx, body: Row) {
   const k = await carregarContrato(c, body.contrato_id);
   if (k.created_by !== c.uid) throw new Erro(403, "Só quem gerou o contrato pode enviá-lo");
+  const r = await abrirAssinatura(c, k, { email: body.email, telefone: body.telefone, whatsapp: Boolean(body.whatsapp) }, false);
+  return json({ ok: true, whatsapp: r.whatsapp });
+}
+
+/** Cria os signatários, envia o convite ao Contratante e coloca o contrato em
+ *  assinatura. `tolerarFalha`: o cliente está na página e vai assinar agora, então
+ *  uma falha no e-mail do convite não desfaz o envio. */
+async function abrirAssinatura(
+  c: Ctx,
+  k: Row,
+  contato: { email?: string | null; telefone?: string | null; whatsapp: boolean },
+  tolerarFalha: boolean,
+): Promise<{ whatsapp: boolean | null; token: string }> {
   if (k.status !== "rascunho") throw new Erro(409, "Contrato já enviado");
   if (!k.hash_original) throw new Erro(409, "Gere e confira o PDF antes de enviar");
   if (!(await integridadeOk(c, k))) throw new Erro(409, "O PDF de conferência não confere. Volte e gere novamente.");
@@ -588,9 +625,9 @@ async function acaoEnviar(c: Ctx, body: Row) {
   if (pend.length) throw new Erro(409, `O modelo precisa ser configurado pelo administrador: ${pend.join(", ")}`);
 
   const dados: Dados = k.variaveis_preenchidas ?? {};
-  const email = String(body.email ?? dados.Email ?? "").trim().toLowerCase();
-  const telefone = soDigitos(body.telefone);
-  const whatsapp = Boolean(body.whatsapp);
+  const email = String(contato.email ?? dados.Email ?? "").trim().toLowerCase();
+  const telefone = soDigitos(contato.telefone);
+  const whatsapp = contato.whatsapp;
   if (!emailValido(email)) throw new Erro(422, "E-mail do signatário inválido");
   if (whatsapp && telefone.length !== 11) throw new Erro(422, "Celular com WhatsApp deve ter 11 dígitos (DDD + número)");
   const nome = (dados.Representante_Legal ?? "").trim();
@@ -635,7 +672,7 @@ async function acaoEnviar(c: Ctx, body: Row) {
   const contratante = (criados ?? []).find((s: Row) => s.tipo === "contratante")!;
 
   const envio = await enviarConvite(c, k, contratante, "convite");
-  if (!envio.email) {
+  if (!envio.email && !tolerarFalha) {
     // 7.3: falha no envio → o contrato não muda de status
     await c.db.from("contrato_assinaturas").delete().eq("contrato_id", k.id).eq("status", "pendente");
     throw new Erro(502, "Não foi possível enviar, tente novamente");
@@ -657,7 +694,7 @@ async function acaoEnviar(c: Ctx, body: Row) {
       ator_id: c.uid,
     });
   });
-  return json({ ok: true, whatsapp: envio.whatsapp });
+  return { whatsapp: envio.whatsapp, token: contratante.link_token };
 }
 
 async function reenviosHoje(c: Ctx, assinaturaId: string): Promise<number> {
@@ -1238,6 +1275,388 @@ async function acaoProcessar(c: Ctx) {
 }
 
 // ---------------------------------------------------------------------------
+// Proposta comercial: cotação → aceite do cliente → contrato → assinatura
+// ---------------------------------------------------------------------------
+const PROPOSTA_VALIDADE_DIAS = 15;
+const SESSAO_PROPOSTA_MIN = 120;
+const CONTRATO_ENCERRADO = ["cancelado", "recusado", "expirado"];
+const numeroCotacao = (q: Row) => `COT-${String(q.numero).padStart(6, "0")}`;
+const dataBR = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "");
+
+/** Cotação lida com a permissão do próprio usuário (RLS do Comercial). */
+async function cotacaoDoUsuario(c: Ctx, id: string): Promise<Row> {
+  const cli = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    global: { headers: { Authorization: c.req.headers.get("Authorization") ?? "" } },
+    auth: { persistSession: false },
+  });
+  const { data } = await cli.from("comercial_cotacoes").select("*").eq("id", id ?? "").maybeSingle();
+  if (!data) throw new Erro(404, "Cotação não encontrada");
+  return data;
+}
+
+async function contratoDaCotacao(c: Ctx, q: Row): Promise<Row | null> {
+  if (!q.contrato_id) return null;
+  const { data } = await c.db.from("contratos").select("*").eq("id", q.contrato_id).maybeSingle();
+  return data ?? null;
+}
+
+async function contextoProposta(c: Ctx, q: Row) {
+  const [{ data: lead }, { data: vendedor }, { data: t }] = await Promise.all([
+    c.db.from("comercial_leads").select("nome, associacao, whatsapp").eq("id", q.lead_id).maybeSingle(),
+    q.vendedor_id
+      ? c.db.from("comercial_vendedores").select("nome, whatsapp, email, profile_id").eq("id", q.vendedor_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    q.template_id ? c.db.from("contrato_templates").select("*").eq("id", q.template_id).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const modelo = t && t.ativo !== false && t.fluxo_versao >= 2 ? (t as Row) : null;
+  const campos: CampoModelo[] = modelo ? (Array.isArray(modelo.campos) && modelo.campos.length ? modelo.campos : CAMPOS_PADRAO) : [];
+  return { lead: (lead ?? {}) as Row, vendedor: (vendedor ?? null) as Row | null, t: modelo, campos };
+}
+
+/** Só as condições comerciais (preço, prazo, vigência) valem como termos. */
+function termosDe(campos: CampoModelo[], q: Row): Dados {
+  const termos: Dados = {};
+  for (const cp of campos.filter(campoComercial)) {
+    const v = (q.termos ?? {})[cp.chave];
+    if (v != null && String(v).trim() !== "") termos[cp.chave] = String(v);
+  }
+  return termos;
+}
+
+function valoresProposta(q: Row, lead: Row, t: Row | null, extra: Valores = {}): Valores {
+  return {
+    nome: lead.nome ?? "",
+    contrato: q.produto ?? t?.titulo ?? "Proposta comercial",
+    numero: numeroCotacao(q),
+    link: q.proposta_token ? linkProposta(q.proposta_token) : "",
+    token: q.proposta_token ?? "",
+    prazo: dataBR(q.validade_ate),
+    empresa: t?.contratada?.razao_social || "Vangard Gestora",
+    valor: formatarMoeda(Number(q.valor) || 0),
+    ...extra,
+  };
+}
+
+/** Vendedor envia a proposta ao cliente (e-mail obrigatório, WhatsApp opcional). */
+async function acaoPropEnviar(c: Ctx, body: Row) {
+  const q = await cotacaoDoUsuario(c, body.cotacao_id);
+  const { data: pode } = await c.db.rpc("comercial_pode_editar", { _viewer: c.uid, _vendedor_id: q.vendedor_id });
+  if (!pode) throw new Erro(403, "Você não pode enviar esta cotação");
+  if (!["rascunho", "enviada"].includes(q.status)) throw new Erro(409, "Esta cotação não pode mais ser enviada como proposta");
+  if (q.aceite_em) throw new Erro(409, "O cliente já aceitou esta proposta");
+  const { lead, t, campos } = await contextoProposta(c, q);
+  if (!t) throw new Erro(409, `O produto "${q.produto ?? "—"}" não tem modelo de contrato vinculado. Peça ao administrador para configurar a tabela de preços.`);
+  const pend = pendenciasDoModelo(t.contratada ?? {}, t.signatario_contratada ?? {}, t.conteudo_html);
+  if (pend.length) throw new Erro(409, `O modelo de contrato precisa ser configurado pelo administrador: ${pend.join(", ")}`);
+  const comerciais = campos.filter(campoComercial);
+  const errosTermos = validarDados(comerciais, termosDe(campos, q));
+  if (Object.keys(errosTermos).length) {
+    const rotulos = comerciais.filter((cp) => errosTermos[cp.chave]).map((cp) => cp.rotulo);
+    throw new Erro(422, `Preencha os valores da proposta antes de enviar: ${rotulos.join(", ")}`);
+  }
+
+  const email = String(body.email ?? "").trim().toLowerCase();
+  const telefone = soDigitos(body.telefone);
+  const whatsapp = Boolean(body.whatsapp);
+  if (!emailValido(email)) throw new Erro(422, "Informe um e-mail válido do cliente");
+  if (whatsapp && telefone.length !== 11) throw new Erro(422, "Celular com WhatsApp deve ter 11 dígitos (DDD + número)");
+
+  const agora = new Date();
+  const patch = {
+    proposta_token: q.proposta_token ?? crypto.randomUUID(),
+    proposta_enviada_em: agora.toISOString(),
+    validade_ate: new Date(agora.getTime() + PROPOSTA_VALIDADE_DIAS * DIA).toISOString(),
+    cliente_email: email,
+    cliente_telefone: telefone || null,
+    proposta_canais: whatsapp ? ["email", "whatsapp"] : ["email"],
+  };
+  const { data: q2, error } = await c.db.from("comercial_cotacoes").update(patch).eq("id", q.id).select("*").single();
+  if (error) throw new Erro(500, error.message);
+
+  const v = valoresProposta(q2, lead, t);
+  const link = String(v.link);
+  const conteudo = await emailDe(
+    c,
+    "proposta",
+    v,
+    {
+      assunto: `Proposta comercial ${v.numero} — ${v.contrato}`,
+      html: layoutEmail({
+        titulo: "Sua proposta comercial está pronta",
+        paragrafos: [
+          `Olá, ${esc(String(v.nome))}.`,
+          `A proposta <strong>${esc(String(v.contrato))}</strong> (nº ${esc(String(v.numero))}), no valor de <strong>${esc(String(v.valor))}</strong>, está disponível para a sua análise.`,
+          `Abra o link para ver os valores, dar o aceite e preencher os dados do contrato. A proposta vale até <strong>${esc(String(v.prazo))}</strong>.`,
+        ],
+        botao: { texto: "Ver proposta", url: link },
+      }),
+    },
+    { texto: "Ver proposta", url: link },
+  );
+  const mail = await enviarEmail({ from: await remetente(c, c.uid!), para: email, assunto: conteudo.assunto, html: conteudo.html });
+  if (!mail.ok) throw new Erro(502, "Não foi possível enviar o e-mail da proposta. Tente novamente.");
+  let whatsappOk: boolean | null = null;
+  if (whatsapp) whatsappOk = (await waDe(c, telefone, "proposta", v)).ok;
+  if (q.status === "rascunho") await c.db.from("comercial_cotacoes").update({ status: "enviada" }).eq("id", q.id);
+  return json({ ok: true, whatsapp: whatsappOk, link });
+}
+
+async function propostaPorToken(c: Ctx, token: string): Promise<Row> {
+  if (!/^[0-9a-f-]{36}$/i.test(token ?? "")) throw new Erro(404, "Link inválido");
+  const { data } = await c.db.from("comercial_cotacoes").select("*").eq("proposta_token", token).maybeSingle();
+  if (!data) throw new Erro(404, "Link inválido");
+  return data;
+}
+
+type EstadoProposta = "aberta" | "aceita" | "contratada" | "concluida" | "expirada" | "cancelada" | "indisponivel";
+
+async function estadoProposta(c: Ctx, q: Row): Promise<{ estado: EstadoProposta; k: Row | null; tokenAssinatura: string | null }> {
+  const k = await contratoDaCotacao(c, q);
+  if (["cancelada", "cancelamento_solicitado"].includes(q.status) || q.arquivado_em) return { estado: "cancelada", k, tokenAssinatura: null };
+  if (k && CONTRATO_ENCERRADO.includes(k.status)) return { estado: "cancelada", k, tokenAssinatura: null };
+  if (k && k.status !== "rascunho") {
+    const { data: s } = await c.db
+      .from("contrato_assinaturas")
+      .select("link_token")
+      .eq("contrato_id", k.id)
+      .eq("tipo", "contratante")
+      .maybeSingle();
+    return { estado: k.status === "assinado" ? "concluida" : "contratada", k, tokenAssinatura: s?.link_token ?? null };
+  }
+  if (!q.template_id) return { estado: "indisponivel", k, tokenAssinatura: null };
+  if (q.aceite_em) return { estado: "aceita", k, tokenAssinatura: null };
+  if (q.validade_ate && new Date(q.validade_ate).getTime() < Date.now()) return { estado: "expirada", k, tokenAssinatura: null };
+  return { estado: "aberta", k, tokenAssinatura: null };
+}
+
+async function acaoPropAbrir(c: Ctx, body: Row) {
+  const q = await propostaPorToken(c, body.token);
+  const { estado, tokenAssinatura } = await estadoProposta(c, q);
+  const { lead, vendedor, t, campos } = await contextoProposta(c, q);
+  const termos = q.aceite_termos?.termos ?? termosDe(campos, q);
+  if (!q.proposta_vista_em && estado === "aberta") {
+    await c.db.from("comercial_cotacoes").update({ proposta_vista_em: new Date().toISOString() }).eq("id", q.id);
+  }
+  return json({
+    estado,
+    proposta: {
+      numero: numeroCotacao(q),
+      produto: q.produto,
+      modelo: t?.titulo ?? null,
+      empresa: t?.contratada?.razao_social || "Vangard Gestora",
+      vendedor: vendedor?.nome ?? null,
+      cliente: lead.nome ?? null,
+      associacao: lead.associacao ?? null,
+      descricao: q.descricao,
+      validade_ate: q.validade_ate,
+      total: Number(q.aceite_termos?.valor ?? q.valor) || 0,
+      termos: campos
+        .filter(campoComercial)
+        .filter((cp) => termos[cp.chave] != null && String(termos[cp.chave]).trim() !== "")
+        .map((cp) => ({ chave: cp.chave, rotulo: cp.rotulo, tipo: cp.tipo, clausula: cp.clausula ?? null, valor: String(termos[cp.chave]) })),
+    },
+    contato: {
+      canais: q.proposta_canais ?? ["email"],
+      email: mascararEmail(q.cliente_email),
+      telefone: mascararTelefone(q.cliente_telefone),
+    },
+    aceite_em: q.aceite_em,
+    assinatura_token: tokenAssinatura,
+  });
+}
+
+async function acaoPropCodigo(c: Ctx, body: Row) {
+  const q = await propostaPorToken(c, body.token);
+  const { estado } = await estadoProposta(c, q);
+  if (!["aberta", "aceita"].includes(estado)) throw new Erro(409, "Esta proposta não está disponível para aceite");
+  const canal = body.canal === "whatsapp" ? "whatsapp" : "email";
+  if (!(q.proposta_canais ?? ["email"]).includes(canal)) throw new Erro(400, "Canal não habilitado para esta proposta");
+  const destino = canal === "email" ? q.cliente_email : q.cliente_telefone;
+  if (!destino) throw new Erro(409, "Contato do cliente não informado. Fale com o vendedor.");
+
+  const { count } = await c.db
+    .from("comercial_proposta_codigos")
+    .select("id", { count: "exact", head: true })
+    .eq("cotacao_id", q.id)
+    .gte("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString());
+  if ((count ?? 0) >= CODIGO_MAX_POR_HORA) throw new Erro(429, "Limite de 5 códigos por hora. Tente mais tarde.");
+
+  const codigo = (crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).toString().padStart(6, "0");
+  await c.db.from("comercial_proposta_codigos").update({ usado_em: new Date().toISOString() }).eq("cotacao_id", q.id).is("usado_em", null);
+  const { error } = await c.db.from("comercial_proposta_codigos").insert({
+    cotacao_id: q.id,
+    hash_codigo: await sha256Hex(`${q.id}:${codigo}`),
+    canal,
+    destino,
+    expira_em: new Date(Date.now() + CODIGO_VALIDADE_MIN * 60 * 1000).toISOString(),
+  });
+  if (error) throw new Erro(500, error.message);
+
+  const { lead, vendedor, t } = await contextoProposta(c, q);
+  const v = valoresProposta(q, lead, t, { codigo, validade: String(CODIGO_VALIDADE_MIN) });
+  let r: { ok: boolean; erro?: string };
+  if (canal === "email") {
+    const dono = vendedor?.profile_id ?? q.created_by;
+    r = await enviarEmail({
+      from: await remetente(c, dono),
+      para: destino,
+      assunto: `Código de confirmação: ${codigo}`,
+      html: layoutEmail({
+        titulo: "Seu código para aceitar a proposta",
+        paragrafos: [
+          `Olá, ${esc(String(v.nome))}. Use o código abaixo para confirmar o aceite da proposta <strong>${esc(String(v.contrato))}</strong> (nº ${esc(String(v.numero))}).`,
+          `O código vale por ${CODIGO_VALIDADE_MIN} minutos e só pode ser usado uma vez. Se você não pediu este código, ignore esta mensagem.`,
+        ],
+        destaque: codigo,
+      }),
+    });
+  } else {
+    r = await waDe(c, destino, "codigo", v);
+  }
+  if (!r.ok) throw new Erro(502, canal === "whatsapp" ? "Não foi possível enviar pelo WhatsApp. Tente por e-mail." : "Não foi possível enviar o código. Tente novamente.");
+  return json({ ok: true, destino: canal === "email" ? mascararEmail(destino) : mascararTelefone(destino), validade_min: CODIGO_VALIDADE_MIN });
+}
+
+/** Confere o código, registra o aceite (uma vez) e abre a sessão de preenchimento. */
+async function acaoPropConfirmar(c: Ctx, body: Row) {
+  const q = await propostaPorToken(c, body.token);
+  const { estado, k } = await estadoProposta(c, q);
+  if (!["aberta", "aceita"].includes(estado)) throw new Erro(409, "Esta proposta não está disponível para aceite");
+  if (!q.aceite_em && body.aceite !== true) throw new Erro(422, "É preciso aceitar os valores e as condições da proposta");
+  const codigo = soDigitos(body.codigo);
+  if (codigo.length !== 6) throw new Erro(422, "Informe o código de 6 dígitos");
+
+  const { data: cod } = await c.db
+    .from("comercial_proposta_codigos")
+    .select("*")
+    .eq("cotacao_id", q.id)
+    .is("usado_em", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!cod) throw new Erro(422, "Solicite um código para continuar");
+  if (new Date(cod.expira_em).getTime() < Date.now()) throw new Erro(422, "Código expirado, solicite um novo");
+  if ((await sha256Hex(`${q.id}:${codigo}`)) !== cod.hash_codigo) {
+    const tentativas = (cod.tentativas ?? 0) + 1;
+    const esgotou = tentativas >= CODIGO_MAX_TENTATIVAS;
+    await c.db.from("comercial_proposta_codigos").update({ tentativas, usado_em: esgotou ? new Date().toISOString() : null }).eq("id", cod.id);
+    throw new Erro(esgotou ? 429 : 422, esgotou ? "Código incorreto. Solicite um novo código." : `Código incorreto. Restam ${CODIGO_MAX_TENTATIVAS - tentativas} tentativa(s).`);
+  }
+
+  const agora = new Date().toISOString();
+  await c.db.from("comercial_proposta_codigos").update({ usado_em: agora }).eq("id", cod.id);
+  const { lead, t, campos } = await contextoProposta(c, q);
+  if (!t) throw new Erro(409, "Proposta indisponível. Fale com o vendedor.");
+
+  const sessao = Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const patch: Row = {
+    sessao_hash: await sha256Hex(`${q.id}:${sessao}`),
+    sessao_expira_em: new Date(Date.now() + SESSAO_PROPOSTA_MIN * 60 * 1000).toISOString(),
+  };
+  if (!q.aceite_em) {
+    Object.assign(patch, {
+      aceite_em: agora,
+      aceite_ip: c.ip,
+      aceite_user_agent: c.ua,
+      aceite_canal: cod.canal,
+      aceite_contato: cod.destino,
+      // retrato do que foi aceito: não muda mais
+      aceite_termos: { produto: q.produto, valor: Number(q.valor) || 0, termos: termosDe(campos, q), modelo: t.titulo, modelo_versao: t.versao },
+      status: "aprovada",
+    });
+  }
+  const { error } = await c.db.from("comercial_cotacoes").update(patch).eq("id", q.id);
+  if (error) throw new Erro(500, error.message);
+
+  // Dados já conhecidos entram preenchidos; o cliente confere e completa
+  const iniciais: Dados = {};
+  campos.filter((cp) => !campoComercial(cp)).forEach((cp) => {
+    if (cp.padrao) iniciais[cp.chave] = cp.padrao;
+  });
+  if (q.cliente_email) iniciais.Email = q.cliente_email;
+  if (lead.associacao) iniciais.Contratante = lead.associacao;
+  if (lead.nome) iniciais.Representante_Legal = lead.nome;
+  const salvos: Dados = k?.status === "rascunho" ? (k.variaveis_preenchidas ?? {}) : {};
+  for (const cp of campos.filter((x) => !campoComercial(x))) if (salvos[cp.chave]) iniciais[cp.chave] = salvos[cp.chave];
+
+  return json({
+    ok: true,
+    sessao,
+    aceite_em: q.aceite_em ?? agora,
+    campos: campos.filter((cp) => !campoComercial(cp)),
+    dados: iniciais,
+  });
+}
+
+async function exigirSessaoProposta(q: Row, sessao: unknown) {
+  const ok =
+    typeof sessao === "string" &&
+    q.sessao_hash &&
+    q.sessao_expira_em &&
+    new Date(q.sessao_expira_em).getTime() > Date.now() &&
+    (await sha256Hex(`${q.id}:${sessao}`)) === q.sessao_hash;
+  if (!ok) throw new Erro(401, "Sessão expirada. Confirme novamente com um código.");
+}
+
+/** Cliente preencheu os dados: gera (ou atualiza) o contrato da cotação. */
+async function acaoPropDados(c: Ctx, body: Row) {
+  const q = await propostaPorToken(c, body.token);
+  await exigirSessaoProposta(q, body.sessao);
+  const { estado, k } = await estadoProposta(c, q);
+  if (estado !== "aceita") throw new Erro(409, "Esta proposta não está disponível para contratação");
+  const { vendedor, t, campos } = await contextoProposta(c, q);
+  if (!t) throw new Erro(409, "Proposta indisponível. Fale com o vendedor.");
+
+  const dados: Dados = {};
+  for (const cp of campos.filter((x) => !campoComercial(x))) {
+    const v = (body.dados ?? {})[cp.chave];
+    dados[cp.chave] = v == null ? "" : String(v).slice(0, 2000);
+  }
+  // valores e condições vêm do que foi aceito, nunca do navegador
+  Object.assign(dados, q.aceite_termos?.termos ?? termosDe(campos, q));
+  const erros = validarDados(campos, dados);
+  if (Object.keys(erros).length) return json({ erro: "Dados inválidos", erros }, 422);
+
+  const dono = vendedor?.profile_id ?? q.created_by;
+  if (!dono) throw new Erro(409, "Proposta sem vendedor responsável. Fale com quem enviou a proposta.");
+  const novo = !k;
+  const r = await gravarContrato(c, t, campos, dados, k, dono, q.id);
+  if (r.faltando.length || r.pendencias_modelo.length) throw new Erro(409, "O contrato não pôde ser gerado. Fale com o vendedor.");
+  await c.db.from("comercial_cotacoes").update({ contrato_id: r.contrato.id }).eq("id", q.id);
+  if (novo) {
+    await evento(c, r.contrato.id, "proposta_aceita", `Contrato gerado pela proposta ${numeroCotacao(q)}, aceita pelo cliente em ${dataBR(q.aceite_em)} (confirmação por ${q.aceite_canal === "whatsapp" ? "WhatsApp" : "e-mail"})`, {
+      dados: { cotacao_id: q.id, aceite_em: q.aceite_em, aceite_contato: q.aceite_contato },
+    });
+  }
+  const kt = t.contratada ?? {};
+  return json({
+    contrato: {
+      numero: r.contrato.numero,
+      titulo: r.contrato.titulo,
+      conteudo_html: r.contrato.conteudo_html,
+      trust_codigo: r.contrato.trust_codigo,
+    },
+    timbre: {
+      logo_url: t.logo_url ?? null,
+      linhas: [kt.razao_social, kt.cnpj ? `CNPJ ${mascarar("cnpj", kt.cnpj)}` : "", kt.endereco].filter(Boolean),
+    },
+  });
+}
+
+/** PDF gerado na página do cliente: guarda, abre a assinatura e devolve o link. */
+async function acaoPropPdf(c: Ctx, body: Row) {
+  const q = await propostaPorToken(c, body.token);
+  await exigirSessaoProposta(q, body.sessao);
+  const { estado, k } = await estadoProposta(c, q);
+  if (estado !== "aceita" || !k || k.status !== "rascunho") throw new Erro(409, "Esta proposta não está disponível para contratação");
+  await guardarPdf(c, k, String(body.pdf_base64 ?? ""));
+  const { data: atual } = await c.db.from("contratos").select("*").eq("id", k.id).single();
+  const whatsapp = (q.proposta_canais ?? []).includes("whatsapp") && soDigitos(q.cliente_telefone).length === 11;
+  const r = await abrirAssinatura(c, atual, { email: null, telefone: whatsapp ? q.cliente_telefone : null, whatsapp }, true);
+  return json({ ok: true, assinatura_token: r.token });
+}
+
+// ---------------------------------------------------------------------------
 // Roteador
 // ---------------------------------------------------------------------------
 const PUBLICAS: Record<string, (c: Ctx, b: Row) => Promise<Response>> = {
@@ -1245,6 +1664,11 @@ const PUBLICAS: Record<string, (c: Ctx, b: Row) => Promise<Response>> = {
   pub_solicitar_codigo: acaoPubSolicitarCodigo,
   pub_assinar: acaoPubAssinar,
   pub_recusar: acaoPubRecusar,
+  prop_abrir: acaoPropAbrir,
+  prop_codigo: acaoPropCodigo,
+  prop_confirmar: acaoPropConfirmar,
+  prop_dados: acaoPropDados,
+  prop_pdf: acaoPropPdf,
 };
 const INTERNAS: Record<string, (c: Ctx, b: Row) => Promise<Response>> = {
   criar: acaoCriar,
@@ -1256,6 +1680,7 @@ const INTERNAS: Record<string, (c: Ctx, b: Row) => Promise<Response>> = {
   url: acaoUrl,
   wa_status: acaoWaStatus,
   wa_criar_padrao: acaoWaCriarPadrao,
+  prop_enviar: acaoPropEnviar,
 };
 
 serve(async (req) => {

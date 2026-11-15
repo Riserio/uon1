@@ -41,6 +41,8 @@ interface Props {
   rascunho?: ContratoV2 | null;
   /** Administrador Uon1 Sign: pode abrir a configuração do modelo direto do aviso */
   onConfigurarModelo?: () => void;
+  /** Contrato nascido de uma cotação do Comercial: modelo e valores já definidos */
+  inicial?: { template_id: string; dados: Dados; cotacao_id: string } | null;
 }
 
 const ETAPAS = ["Modelo", "Dados", "Conferência", "Signatários"];
@@ -49,7 +51,7 @@ function camposDo(m?: Modelo | null): CampoModelo[] {
   return Array.isArray(m?.campos) && m.campos.length ? (m.campos as CampoModelo[]) : CAMPOS_PADRAO;
 }
 
-export default function NovoContratoWizard({ open, onOpenChange, rascunho, onConfigurarModelo }: Props) {
+export default function NovoContratoWizard({ open, onOpenChange, rascunho, onConfigurarModelo, inicial }: Props) {
   const qc = useQueryClient();
   const [etapa, setEtapa] = useState(0);
   const [modeloId, setModeloId] = useState<string>("");
@@ -104,17 +106,23 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho, onCon
       setDados({ ...(rascunho.variaveis_preenchidas ?? {}) });
       setContrato(rascunho);
       setEtapa(1);
+    } else if (inicial) {
+      setModeloId(inicial.template_id);
+      setDados({ ...inicial.dados });
+      setContrato(null);
+      setEtapa(1);
     } else {
       setModeloId("");
       setDados({});
       setContrato(null);
       setEtapa(0);
     }
-  }, [open, rascunho]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, rascunho, inicial?.cotacao_id]);
 
   // Um modelo só: pula a escolha (D2)
   useEffect(() => {
-    if (open && !rascunho && etapa === 0 && modelos?.length === 1) escolherModelo(modelos[0].id);
+    if (open && !rascunho && !inicial && etapa === 0 && modelos?.length === 1) escolherModelo(modelos[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, modelos, rascunho]);
 
@@ -168,7 +176,7 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho, onCon
     }
     try {
       setOcupado("Salvando os dados…");
-      const r = await uonisign.criar({ template_id: modeloId, contrato_id: contrato?.id, dados });
+      const r = await uonisign.criar({ template_id: modeloId, contrato_id: contrato?.id, cotacao_id: contrato ? undefined : inicial?.cotacao_id, dados });
       setContrato(r.contrato);
       setPendencias(r.pendencias_modelo);
       if (pendenciasModelo.length || r.pendencias_modelo.length) {
@@ -332,8 +340,8 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho, onCon
               </fieldset>
             ))}
             <div className="flex justify-between gap-2 pt-2 border-t">
-              <Button type="button" variant="ghost" onClick={() => (rascunho ? onOpenChange(false) : setEtapa(0))} disabled={!!ocupado}>
-                <ArrowLeft className="h-4 w-4 mr-1" /> {rascunho ? "Fechar" : "Trocar modelo"}
+              <Button type="button" variant="ghost" onClick={() => (rascunho || inicial ? onOpenChange(false) : setEtapa(0))} disabled={!!ocupado}>
+                <ArrowLeft className="h-4 w-4 mr-1" /> {rascunho || inicial ? "Fechar" : "Trocar modelo"}
               </Button>
               <Button type="submit" disabled={!!ocupado || Object.keys(erros).some((k) => tocados[k])}>
                 {pendenciasModelo.length ? "Salvar rascunho" : "Gerar PDF e conferir"}
@@ -482,7 +490,7 @@ function AvisoPendencias({ itens, onConfigurar }: { itens: string[]; onConfigura
   );
 }
 
-function CampoFormulario({
+export function CampoFormulario({
   campo,
   valor,
   erro,
@@ -490,7 +498,9 @@ function CampoFormulario({
   onBlur,
   copiar,
   carregando,
+  desabilitado,
 }: {
+  desabilitado?: boolean;
   campo: CampoModelo;
   valor: string;
   erro?: string;
@@ -502,13 +512,13 @@ function CampoFormulario({
   const id = `campo-${campo.chave}`;
   const obrig = campo.obrigatorio !== false;
   const descr = erro ? `${id}-erro` : campo.ajuda ? `${id}-ajuda` : undefined;
-  const comum = { id, onBlur, "aria-invalid": !!erro, "aria-describedby": descr, className: erro ? "border-destructive" : "" };
+  const comum = { id, onBlur, "aria-invalid": !!erro, "aria-describedby": descr, className: erro ? "border-destructive" : "", disabled: desabilitado };
   let controle: React.ReactNode;
 
   switch (campo.tipo) {
     case "uf":
       controle = (
-        <Select value={valor} onValueChange={(v) => { onChange(v); setTimeout(onBlur, 0); }}>
+        <Select value={valor} disabled={desabilitado} onValueChange={(v) => { onChange(v); setTimeout(onBlur, 0); }}>
           <SelectTrigger id={id} aria-invalid={!!erro} className={erro ? "border-destructive" : ""}>
             <SelectValue placeholder="UF" />
           </SelectTrigger>

@@ -4,6 +4,7 @@ import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 
 export const APP_URL = (Deno.env.get("APP_URL") || "https://vangard.uon1.com.br").replace(/\/$/, "");
 export const linkAssinatura = (token: string) => `${APP_URL}/assinar/${token}`;
+export const linkProposta = (token: string) => `${APP_URL}/proposta/${token}`;
 
 const esc = (s: string) =>
   (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -81,13 +82,14 @@ export async function enviarEmail(opts: {
 // Fora da janela de 24h a Meta só aceita template aprovado — os nomes podem ser
 // trocados por secrets sem mudar código.
 // ---------------------------------------------------------------------------
-export type TemplateWa = "convite" | "codigo" | "lembrete" | "concluido" | "aviso";
+export type TemplateWa = "convite" | "codigo" | "lembrete" | "concluido" | "aviso" | "proposta";
 const TEMPLATE_PADRAO: Record<TemplateWa, string> = {
   convite: "uonisign_convite",
   codigo: "uonisign_codigo",
   lembrete: "uonisign_lembrete",
   concluido: "uonisign_concluido",
   aviso: "uonisign_aviso",
+  proposta: "uonisign_proposta",
 };
 
 export function telefoneWhatsApp(t?: string | null): string | null {

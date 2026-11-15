@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Download, Plus, Search, Settings2, Target } from "lucide-react";
+import { Download, FileSignature, Plus, Search, Settings2, Target } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/ui/page-header";
@@ -17,6 +17,7 @@ import { VendedoresTab } from "@/components/comercial/VendedoresTab";
 import { FunilConfigDialog } from "@/components/comercial/FunilConfigDialog";
 import { CotacoesTab, type CotacaoComLead } from "@/components/comercial/CotacoesTab";
 import { CotacaoDialog } from "@/components/comercial/CotacaoDialog";
+import { TabelaPrecosDialog } from "@/components/comercial/TabelaPrecosDialog";
 import { EquipePainel } from "@/components/comercial/EquipePainel";
 import { AuditoriaTab } from "@/components/comercial/AuditoriaTab";
 import { NotificacoesButton, type ComercialNotificacao } from "@/components/comercial/NotificacoesButton";
@@ -62,6 +63,7 @@ export default function Comercial() {
   const [leadAberto, setLeadAberto] = useState<{ lead: ComercialLead | null; etapaId?: string } | null>(null);
   const [cotacaoAberta, setCotacaoAberta] = useState<CotacaoComLead | null>(null);
   const [config, setConfig] = useState<"editar" | "novo" | null>(null);
+  const [tabelaPrecos, setTabelaPrecos] = useState(false);
 
   const { data: funis = [], isLoading: carregandoFunis } = useQuery({
     queryKey: ["comercial_funis"],
@@ -278,6 +280,11 @@ export default function Comercial() {
                 <Settings2 className="h-4 w-4" />
               </Button>
             )}
+            {nivel === "admin" && (
+              <Button variant="outline" onClick={() => setTabelaPrecos(true)} title="Produto → contrato e valores padrão">
+                <FileSignature className="h-4 w-4 mr-1" /> Tabela de preços
+              </Button>
+            )}
             {gestor && (
               <Button variant="outline" onClick={() => setConfig("novo")}>
                 <Plus className="h-4 w-4 mr-1" /> Funil
@@ -483,6 +490,12 @@ export default function Comercial() {
           gestor={gestor}
         />
       )}
+
+      <TabelaPrecosDialog
+        open={tabelaPrecos}
+        onOpenChange={setTabelaPrecos}
+        produtos={[...new Set(funis.flatMap((f) => f.produtos ?? []))]}
+      />
 
       <FunilConfigDialog
         open={!!config}

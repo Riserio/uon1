@@ -87,6 +87,29 @@ export interface ComercialCotacao {
   arquivado_em: string | null;
   created_at: string;
   updated_at: string;
+  // Proposta e contrato (Uon1 Sign)
+  template_id?: string | null;
+  termos?: Record<string, string> | null;
+  cliente_email?: string | null;
+  cliente_telefone?: string | null;
+  proposta_token?: string | null;
+  proposta_enviada_em?: string | null;
+  proposta_canais?: string[] | null;
+  validade_ate?: string | null;
+  proposta_vista_em?: string | null;
+  aceite_em?: string | null;
+  aceite_canal?: string | null;
+  aceite_contato?: string | null;
+  contrato_id?: string | null;
+}
+
+/** Produto → modelo de contrato + tabela de preços (valores padrão dos campos comerciais). */
+export interface ProdutoContrato {
+  produto: string;
+  template_id: string | null;
+  valores: Record<string, string>;
+  travados: string[];
+  ativo: boolean;
 }
 
 export const STATUS_COTACAO: Record<CotacaoStatus, { label: string; classe: string }> = {

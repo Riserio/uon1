@@ -60,7 +60,7 @@ interface SMTPConfig {
   from_name: string;
 }
 
-type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_alerta" | "ouvidoria_finalizado" | "contrato_assinatura" | "uonisign_convite" | "uonisign_codigo" | "uonisign_lembrete" | "uonisign_concluido" | "uonisign_aviso";
+type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_alerta" | "ouvidoria_finalizado" | "contrato_assinatura" | "uonisign_convite" | "uonisign_codigo" | "uonisign_lembrete" | "uonisign_concluido" | "uonisign_aviso" | "uonisign_proposta";
 type TemplateFrequencia = "manual" | "diario" | "semanal" | "mensal";
 
 interface EmailTemplate {
@@ -1371,6 +1371,7 @@ export default function Emails() {
                           <option value="uonisign_lembrete">Uon1 Sign - Lembrete</option>
                           <option value="uonisign_concluido">Uon1 Sign - Contrato assinado (cópia)</option>
                           <option value="uonisign_aviso">Uon1 Sign - Aviso (cancelado, recusado, expirado)</option>
+                          <option value="uonisign_proposta">Uon1 Sign - Proposta comercial</option>
                         </select>
                       </div>
 
@@ -1442,6 +1443,7 @@ export default function Emails() {
                         {novoTemplate.tipo === "uonisign_codigo" && ", {{codigo}}, {{validade}}"}
                         {novoTemplate.tipo === "uonisign_lembrete" && ", {{dias}}"}
                         {novoTemplate.tipo === "uonisign_aviso" && ", {{assunto}}, {{mensagem}}"}
+                        {novoTemplate.tipo === "uonisign_proposta" && ", {{valor}} — aqui {{contrato}} é o produto e {{numero}} o número da cotação"}
                       </p>
                     </div>
 

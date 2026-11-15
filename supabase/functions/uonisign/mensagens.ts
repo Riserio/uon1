@@ -22,10 +22,11 @@ export const VARIAVEIS: Record<string, string> = {
   empresa: "Empresa (Contratada)",
   token: "Final do link de assinatura (botão)",
   codigo_verificacao: "Código de verificação (Uon1 Trust)",
+  valor: "Valor total da proposta",
 };
 
 // Variável usada no final da URL do botão (quando o template tem botão de link dinâmico)
-export const BOTAO_PADRAO: Partial<Record<TemplateWa, string>> = { convite: "token", lembrete: "token", concluido: "token" };
+export const BOTAO_PADRAO: Partial<Record<TemplateWa, string>> = { convite: "token", lembrete: "token", concluido: "token", proposta: "token" };
 
 export const PARAMETROS_PADRAO: Record<TemplateWa, string[]> = {
   convite: ["nome", "contrato", "numero", "empresa", "prazo"],
@@ -33,6 +34,7 @@ export const PARAMETROS_PADRAO: Record<TemplateWa, string[]> = {
   lembrete: ["nome", "contrato", "numero", "dias", "prazo"],
   concluido: ["nome", "contrato", "numero", "codigo_verificacao"],
   aviso: ["nome", "contrato", "numero", "assunto"],
+  proposta: ["nome", "contrato", "numero", "empresa", "valor", "prazo"],
 };
 
 const esc = (s: string) =>
@@ -87,6 +89,28 @@ export async function configWhatsApp(db: SupabaseClient, cache: CacheMensagens) 
 // A Meta recusa corpo que começa ou termina com variável: por isso o texto final.
 // ---------------------------------------------------------------------------
 export const TEMPLATES_META = [
+  {
+    name: "uonisign_proposta",
+    category: "UTILITY",
+    components: [
+      {
+        type: "BODY",
+        text: "Olá, {{1}}!\n\nSua proposta comercial está pronta.\n\n📄 Proposta\n- Produto: {{2}}\n- Número: {{3}}\n- Enviada por: {{4}}\n\n💰 Valor\n- Total: {{5}}\n\n⏳ Validade\n- Aceite até: {{6}}\n\nToque no botão abaixo para ver os valores, aceitar e seguir para a contratação.",
+        example: { body_text: [["Ana Souza", "PPR", "COT-000123", "Vangard Gestora", "R$ 2.500,00", "29/11/2026"]] },
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          {
+            type: "URL",
+            text: "Ver proposta",
+            url: "https://vangard.uon1.com.br/proposta/{{1}}",
+            example: ["https://vangard.uon1.com.br/proposta/8f1c2d3e-0000-4000-8000-000000000000"],
+          },
+        ],
+      },
+    ],
+  },
   {
     name: "uonisign_convite",
     category: "UTILITY",

@@ -41,7 +41,7 @@ async function chamar<T>(acao: string, corpo: Record<string, unknown>, publica =
 export type ContratoV2 = Record<string, any>;
 
 export const uonisign = {
-  criar: (p: { template_id?: string; contrato_id?: string; dados: Record<string, string> }) =>
+  criar: (p: { template_id?: string; contrato_id?: string; cotacao_id?: string; dados: Record<string, string> }) =>
     chamar<{ contrato: ContratoV2; faltando: string[]; pendencias_modelo: string[] }>("criar", p),
   registrarPdf: (contrato_id: string, pdf_base64: string) =>
     chamar<{ hash: string; url: string }>("registrar_pdf", { contrato_id, pdf_base64 }),
@@ -79,7 +79,50 @@ export const uonisign = {
   assinar: (token: string, codigo: string) =>
     chamar<{ ok: true; estado: string }>("pub_assinar", { token, codigo, aceite: true }, true),
   recusar: (token: string, motivo: string) => chamar<{ ok: true }>("pub_recusar", { token, motivo }, true),
+
+  // Proposta comercial (cotação → aceite → contrato)
+  propEnviar: (p: { cotacao_id: string; email: string; telefone?: string; whatsapp: boolean }) =>
+    chamar<{ ok: true; whatsapp: boolean | null; link: string }>("prop_enviar", p),
+  propAbrir: (token: string) => chamar<PaginaProposta>("prop_abrir", { token }, true),
+  propCodigo: (token: string, canal: "email" | "whatsapp") =>
+    chamar<{ ok: true; destino: string; validade_min: number }>("prop_codigo", { token, canal }, true),
+  propConfirmar: (token: string, codigo: string) =>
+    chamar<{ ok: true; sessao: string; aceite_em: string; campos: CampoProposta[]; dados: Record<string, string> }>(
+      "prop_confirmar",
+      { token, codigo, aceite: true },
+      true,
+    ),
+  propDados: (token: string, sessao: string, dados: Record<string, string>) =>
+    chamar<{
+      contrato: { numero: string; titulo: string; conteudo_html: string; trust_codigo: string | null };
+      timbre: { logo_url: string | null; linhas: string[] };
+    }>("prop_dados", { token, sessao, dados }, true),
+  propPdf: (token: string, sessao: string, pdf_base64: string) =>
+    chamar<{ ok: true; assinatura_token: string }>("prop_pdf", { token, sessao, pdf_base64 }, true),
 };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type CampoProposta = Record<string, any>;
+
+export interface PaginaProposta {
+  estado: "aberta" | "aceita" | "contratada" | "concluida" | "expirada" | "cancelada" | "indisponivel";
+  proposta: {
+    numero: string;
+    produto: string | null;
+    modelo: string | null;
+    empresa: string;
+    vendedor: string | null;
+    cliente: string | null;
+    associacao: string | null;
+    descricao: string | null;
+    validade_ate: string | null;
+    total: number;
+    termos: { chave: string; rotulo: string; tipo: string; clausula: string | null; valor: string }[];
+  };
+  contato: { canais: string[]; email: string; telefone: string };
+  aceite_em: string | null;
+  assinatura_token: string | null;
+}
 
 export interface PaginaAssinatura {
   contrato: {

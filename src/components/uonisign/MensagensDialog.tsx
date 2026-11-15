@@ -16,6 +16,7 @@ const TIPOS: { id: string; nome: string; quando: string }[] = [
   { id: "lembrete", nome: "Lembrete", quando: "D+3, D+7 e D+12 sem assinatura" },
   { id: "concluido", nome: "Contrato assinado", quando: "cópia final depois que todos assinam" },
   { id: "aviso", nome: "Aviso", quando: "cancelado, recusado ou expirado" },
+  { id: "proposta", nome: "Proposta comercial", quando: "quando o vendedor envia a cotação para o cliente aceitar" },
 ];
 
 const VARIAVEIS: Record<string, string> = {
@@ -31,6 +32,7 @@ const VARIAVEIS: Record<string, string> = {
   assunto: "Assunto do aviso",
   empresa: "Empresa (Contratada)",
   token: "Final do link de assinatura",
+  valor: "Valor total (proposta)",
 };
 
 const PADRAO: Required<ConfigWhatsApp> = {
@@ -41,6 +43,7 @@ const PADRAO: Required<ConfigWhatsApp> = {
     lembrete: { template: "uonisign_lembrete", parametros: ["nome", "contrato", "numero", "dias", "prazo"], botao: "token" },
     concluido: { template: "uonisign_concluido", parametros: ["nome", "contrato", "numero", "codigo_verificacao"], botao: "token" },
     aviso: { template: "uonisign_aviso", parametros: ["nome", "contrato", "numero", "assunto"], botao: null },
+    proposta: { template: "uonisign_proposta", parametros: ["nome", "contrato", "numero", "empresa", "valor", "prazo"], botao: "token" },
   },
 };
 

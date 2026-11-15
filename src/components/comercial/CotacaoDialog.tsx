@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -11,7 +11,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CampoFormulario } from "@/components/uonisign/NovoContratoWizard";
+import { validarDados, type Dados } from "../../../supabase/functions/uonisign/modelo";
 import { ComentariosPanel } from "./ComentariosPanel";
+import { PropostaContrato } from "./PropostaContrato";
+import { camposComerciais, termosIniciais, totalDosTermos, useProdutosContrato } from "./produtosContrato";
 import { COTACAO_TRAVADA, STATUS_COTACAO, type ComercialCotacao, type CotacaoStatus } from "./types";
 
 const NENHUM = "__nenhum__";
@@ -39,6 +43,16 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
   const [status, setStatus] = useState<CotacaoStatus>("rascunho");
   const [motivo, setMotivo] = useState("");
   const [pedindoCancelamento, setPedindoCancelamento] = useState(false);
+  // Valores da proposta: campos de preço e vigência do modelo de contrato do produto
+  const [termos, setTermos] = useState<Dados>({});
+  const [tocados, setTocados] = useState<Record<string, boolean>>({});
+  const { data: pc } = useProdutosContrato(open);
+  const cfg = produto === NENHUM ? null : (pc?.configs.get(produto) ?? null);
+  const modelo = cfg?.ativo && cfg.template_id ? (pc?.modeloPorId.get(cfg.template_id) ?? null) : null;
+  const itens = useMemo(() => camposComerciais(modelo), [modelo]);
+  const errosTermos = useMemo(() => validarDados(itens, termos), [itens, termos]);
+  const totalAuto = useMemo(() => totalDosTermos(modelo, termos), [modelo, termos]);
+  const aceita = !!cotacao?.aceite_em;
 
   useEffect(() => {
     if (!open) return;
@@ -48,8 +62,22 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
     setStatus(cotacao?.status ?? "rascunho");
     setMotivo(cotacao?.motivo_cancelamento ?? "");
     setPedindoCancelamento(false);
+    setTocados({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cotacao?.id]);
+
+  // Produto com contrato vinculado: carrega a tabela de preços (ou o que já foi salvo)
+  useEffect(() => {
+    if (!open) return;
+    const salvos = cotacao && cotacao.produto === (produto === NENHUM ? null : produto) ? (cotacao.termos ?? null) : null;
+    setTermos(modelo ? termosIniciais(modelo, cfg, salvos) : {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cotacao?.id, produto, modelo?.id]);
+
+  // O total acompanha os valores quando o modelo define a soma
+  useEffect(() => {
+    if (totalAuto != null && !aceita) setValor(totalAuto);
+  }, [totalAuto, aceita]);
 
   const travada = !!cotacao && COTACAO_TRAVADA.includes(cotacao.status);
   const editavel = podeEditar && (!cotacao || gestor || !travada);
@@ -64,15 +92,36 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
     qc.invalidateQueries({ queryKey: ["comercial_auditoria"] });
   };
 
+  const payloadAtual = (): Record<string, unknown> => ({
+    produto: produto === NENHUM ? null : produto,
+    descricao: descricao.trim() || null,
+    valor: valor || 0,
+    status,
+    termos: modelo ? termos : {},
+  });
+
+  /** Grava sem fechar e devolve o id (usado antes de enviar a proposta ou gerar o contrato). */
+  const salvarParaProposta = async (): Promise<string> => {
+    if (Object.keys(errosTermos).length) {
+      setTocados(Object.fromEntries(itens.map((c) => [c.chave, true])));
+      throw new Error("Preencha os valores da proposta destacados");
+    }
+    const q = (supabase as any).from("comercial_cotacoes");
+    if (cotacao) {
+      // travada ou já aceita: nada a regravar
+      if (!editavel || aceita) return cotacao.id;
+      const { error } = await q.update(payloadAtual()).eq("id", cotacao.id);
+      if (error) throw error;
+      return cotacao.id;
+    }
+    const { data, error } = await q.insert({ ...payloadAtual(), lead_id: leadId }).select("id").single();
+    if (error) throw error;
+    return data.id as string;
+  };
+
   const gravar = useMutation({
     mutationFn: async (extra: Partial<ComercialCotacao> = {}) => {
-      const payload: Record<string, unknown> = {
-        produto: produto === NENHUM ? null : produto,
-        descricao: descricao.trim() || null,
-        valor: valor || 0,
-        status,
-        ...extra,
-      };
+      const payload: Record<string, unknown> = { ...payloadAtual(), ...extra };
       const q = (supabase as any).from("comercial_cotacoes");
       const { error } = cotacao
         ? await q.update(payload).eq("id", cotacao.id)
@@ -114,7 +163,7 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 flex-wrap">
             {titulo}
@@ -133,7 +182,7 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Produto</Label>
-            <Select value={produto} onValueChange={setProduto} disabled={!editavel}>
+            <Select value={produto} onValueChange={setProduto} disabled={!editavel || aceita}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -151,10 +200,36 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
             <Label>Valor</Label>
             <CurrencyInput
               value={valor}
-              disabled={!editavel}
+              disabled={!editavel || aceita || totalAuto != null}
               onValueChange={(v) => setValor(v.floatValue ?? 0)}
             />
+            {totalAuto != null && <p className="text-[11px] text-muted-foreground">Calculado pelos valores da proposta.</p>}
           </div>
+          {modelo && (
+            <fieldset className="sm:col-span-2 rounded-xl border p-3 space-y-3">
+              <legend className="px-1 text-sm font-semibold">Valores da proposta</legend>
+              <p className="text-xs text-muted-foreground">
+                Contrato vinculado: <strong>{modelo.titulo}</strong>. Estes valores vão para a proposta do cliente e para o contrato.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {itens.map((c) => {
+                  const travado = (cfg?.travados ?? []).includes(c.chave);
+                  return (
+                    <CampoFormulario
+                      key={c.chave}
+                      campo={travado ? { ...c, ajuda: "Definido na tabela de preços" } : c}
+                      valor={termos[c.chave] ?? ""}
+                      erro={tocados[c.chave] ? errosTermos[c.chave] : undefined}
+                      desabilitado={!editavel || aceita || travado}
+                      onChange={(v) => setTermos((t) => ({ ...t, [c.chave]: v }))}
+                      onBlur={() => setTocados((t) => ({ ...t, [c.chave]: true }))}
+                    />
+                  );
+                })}
+              </div>
+              {aceita && <p className="text-xs text-emerald-700">O cliente já aceitou estes valores: não podem mais ser alterados.</p>}
+            </fieldset>
+          )}
           <div className="space-y-2 sm:col-span-2">
             <Label>Status</Label>
             <Select
@@ -200,6 +275,21 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
             <Label>{gestor ? "Justificativa do cancelamento" : "Motivo do pedido de cancelamento"} *</Label>
             <Textarea rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} />
           </div>
+        )}
+
+        {modelo && (
+          <PropostaContrato
+            cotacao={cotacao}
+            templateId={modelo.id}
+            termos={termos}
+            leadNome={leadNome}
+            podeEditar={podeEditar}
+            salvar={salvarParaProposta}
+            onFeito={() => {
+              invalidar();
+              onOpenChange(false);
+            }}
+          />
         )}
 
         {cotacao && <ComentariosPanel entidade="cotacao" entidadeId={cotacao.id} />}
