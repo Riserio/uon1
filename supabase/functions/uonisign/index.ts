@@ -46,7 +46,7 @@ import {
   selarPdf,
   seloConfigurado,
   urlValidacao,
-} from "../uon1-trust/nucleo.ts";
+} from "../_shared/uon1-trust-nucleo.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
