@@ -1438,7 +1438,7 @@ export default function Emails() {
                         {novoTemplate.tipo === "ouvidoria_alerta" && " {protocolo}, {nome_manifestante}, {nome_associacao}, {logo_url}, {tipo}, {prioridade}, {descricao}, {data}, {hora}"}
                         {novoTemplate.tipo === "ouvidoria_finalizado" && " {protocolo}, {nome_cliente}, {nome_associacao}, {logo_url}, {tipo}, {status}, {resposta}, {data}, {cor_primaria}"}
                         {novoTemplate.tipo === "contrato_assinatura" && " {{nome}}, {{titulo}}, {{numero}}, {{link}}, {{empresa}}, {{vencimento}}"}
-                        {novoTemplate.tipo?.startsWith("uonisign_") && " {{nome}}, {{contrato}}, {{numero}}, {{link}}, {{prazo}}, {{url_validacao}}"}
+                        {novoTemplate.tipo?.startsWith("uonisign_") && " {{nome}}, {{contrato}}, {{numero}}, {{link}}, {{prazo}}, {{empresa}}, {{url_validacao}}, {{codigo_verificacao}}"}
                         {novoTemplate.tipo === "uonisign_codigo" && ", {{codigo}}, {{validade}}"}
                         {novoTemplate.tipo === "uonisign_lembrete" && ", {{dias}}"}
                         {novoTemplate.tipo === "uonisign_aviso" && ", {{assunto}}, {{mensagem}}"}

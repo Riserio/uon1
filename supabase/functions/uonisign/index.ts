@@ -321,6 +321,9 @@ const valoresBase = (k: Row, s: Row | null, extra: Valores = {}): Valores => ({
   link: s?.link_token ? linkAssinatura(s.link_token) : "",
   prazo: s?.link_expires_at ? new Date(s.link_expires_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "",
   url_validacao: k.trust_codigo ? urlValidacao(k.trust_codigo) : "",
+  codigo_verificacao: k.trust_codigo ?? "",
+  // quem envia: a Contratada do modelo (ex.: Vangard Gestora)
+  empresa: k.contratada_nome || "Vangard Gestora",
   ...extra,
 });
 

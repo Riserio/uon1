@@ -19,7 +19,8 @@ export const VARIAVEIS: Record<string, string> = {
   url_validacao: "Link de validação (Uon1 Trust)",
   assunto: "Assunto do aviso",
   mensagem: "Texto do aviso",
-  empresa: "Remetente",
+  empresa: "Empresa (Contratada)",
+  codigo_verificacao: "Código de verificação (Uon1 Trust)",
 };
 
 export const PARAMETROS_PADRAO: Record<TemplateWa, string[]> = {
