@@ -170,7 +170,14 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho }: Pro
       setContrato(r.contrato);
       setPendencias(r.pendencias_modelo);
       if (r.faltando.length) {
-        toast.error(`O modelo usa variáveis sem valor: ${r.faltando.join(", ")}`);
+        const daContratada = r.faltando.every((v) => v.startsWith("Contratada_") || v === "Foro");
+        toast.error(
+          daContratada
+            ? `Rascunho salvo. Para gerar o PDF, o administrador precisa completar os dados da Vangard em Uon1 Sign → Modelos → Configurar modelos e signatário${r.pendencias_modelo.length ? ` (falta: ${r.pendencias_modelo.join(", ")})` : ""}.`
+            : `O texto do modelo usa campos que não existem no formulário: ${r.faltando.join(", ")}. Ajuste o modelo em Modelos → Editar textos.`,
+          { duration: 10000 },
+        );
+        qc.invalidateQueries({ queryKey: ["contratos"] });
         return;
       }
       setOcupado("Gerando o PDF…");
