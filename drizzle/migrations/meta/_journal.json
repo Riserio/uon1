@@ -281,6 +281,13 @@
       "when": 1794702380789,
       "tag": "0039_restringir_justificativas_e_participantes",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794706980246,
+      "tag": "0040_restringir_insercao_logs_e_historico",
+      "breakpoints": true
     }
   ]
 }

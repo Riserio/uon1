@@ -9218,6 +9218,27 @@ export type Database = {
           },
         ]
       }
+      uonisign_config: {
+        Row: {
+          chave: string
+          updated_at: string
+          updated_by: string | null
+          valor: Json
+        }
+        Insert: {
+          chave: string
+          updated_at?: string
+          updated_by?: string | null
+          valor?: Json
+        }
+        Update: {
+          chave?: string
+          updated_at?: string
+          updated_by?: string | null
+          valor?: Json
+        }
+        Relationships: []
+      }
       user_fluxo_permissions: {
         Row: {
           created_at: string
