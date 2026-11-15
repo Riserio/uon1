@@ -31,6 +31,8 @@ export default function ConfigModeloDialog({ open, onOpenChange }: { open: boole
   const [selecionado, setSelecionado] = useState<string>("");
   const [form, setForm] = useState<Modelo | null>(null);
   const [salvando, setSalvando] = useState(false);
+  // A Vangard é a mesma em todos os modelos: por padrão replica dados e signatário
+  const [aplicarTodos, setAplicarTodos] = useState(true);
 
   const { data: modelos, refetch } = useQuery({
     queryKey: ["uonisign_modelos_config"],
@@ -103,9 +105,19 @@ export default function ConfigModeloDialog({ open, onOpenChange }: { open: boole
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any).from("contrato_templates").update(patch).eq("id", modelo.id);
       if (error) throw error;
-      toast.success("Modelo salvo");
+      const outros = aplicarTodos ? (modelos ?? []).filter((m) => m.id !== modelo.id && (m.fluxo_versao ?? 1) >= 2) : [];
+      for (const m of outros) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: e2 } = await (supabase as any)
+          .from("contrato_templates")
+          .update({ contratada: patch.contratada, signatario_contratada: patch.signatario_contratada })
+          .eq("id", m.id);
+        if (e2) throw e2;
+      }
+      toast.success(outros.length ? `Modelo salvo e dados da Vangard aplicados a mais ${outros.length} modelo(s)` : "Modelo salvo");
       refetch();
       qc.invalidateQueries({ queryKey: ["uonisign_modelos"] });
+      onOpenChange(false);
     } catch (e) {
       toast.error("Não foi possível salvar: " + (e as Error).message);
     } finally {
@@ -208,7 +220,10 @@ export default function ConfigModeloDialog({ open, onOpenChange }: { open: boole
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="sm:items-center sm:justify-between gap-2">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground mr-auto">
+            <Switch checked={aplicarTodos} onCheckedChange={setAplicarTodos} /> Usar os dados da Contratada e o signatário em todos os modelos
+          </label>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Fechar
           </Button>
