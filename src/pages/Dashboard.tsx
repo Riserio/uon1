@@ -8,14 +8,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import { useComercialAcesso } from "@/hooks/useComercialAcesso";
-import { useUnreadMessages } from "@/hooks/useUnreadMessages";
-import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 import { usePendingUsers } from "@/hooks/usePendingUsers";
 import { UserProfile } from "@/components/UserProfile";
 import { RadarMercado } from "@/components/painel/RadarMercado";
 import { ResumoComercial, ResumoContratos } from "@/components/painel/ResumoComercial";
 import { AgendaPainel } from "@/components/painel/AgendaPainel";
-import { AvisosAlertas } from "@/components/painel/AvisosAlertas";
+import { AvisosFaixa } from "@/components/painel/AvisosAlertas";
 import { PainelOperacional } from "@/components/painel/PainelOperacional";
 import { usePainelComercial, usePainelContratos } from "@/components/painel/dados";
 
@@ -29,8 +27,6 @@ export default function Dashboard() {
   const { podeVer, acessoTotal } = usePermissoes();
   const { nivel, gestor } = useComercialAcesso();
   const [logoUrl] = useLocalStorage<string>("app-logo-url", "");
-  const mensagens = useUnreadMessages();
-  const whatsapp = useWhatsAppUnread();
   const pendentes = usePendingUsers();
 
   const admin = acessoTotal || userRole === "admin" || userRole === "superintendente";
@@ -97,18 +93,18 @@ export default function Dashboard() {
           <UserProfile />
         </div>
 
-        {/* Radar do mercado ao lado do que pede ação */}
-        <div className="grid gap-4 lg:grid-cols-2">
+        {/* Pendências com prazo: só aparece quando existe alguma */}
+        <AvisosFaixa
+          comercial={verComercial ? comercial.data : undefined}
+          contratos={verContratos ? contratos.data : undefined}
+          gestorComercial={gestor}
+          usuariosPendentes={admin ? pendentes : 0}
+        />
+
+        {/* Radar do mercado e agenda, lado a lado */}
+        <div className={`grid gap-4 ${verAgenda || verReunioes ? "lg:grid-cols-2" : ""}`}>
           <RadarMercado admin={admin} />
-          <AvisosAlertas
-            comercial={verComercial ? comercial.data : undefined}
-            contratos={verContratos ? contratos.data : undefined}
-            gestorComercial={gestor}
-            whatsapp={whatsapp}
-            mensagens={mensagens}
-            usuariosPendentes={admin ? pendentes : 0}
-            podeVer={podeVer}
-          />
+          {(verAgenda || verReunioes) && <AgendaPainel podeAgenda={verAgenda} podeReunioes={verReunioes} />}
         </div>
 
         {/* Resumo comercial e contratos: só o que a hierarquia do usuário alcança */}
@@ -126,8 +122,6 @@ export default function Dashboard() {
             )}
           </div>
         )}
-
-        {(verAgenda || verReunioes) && <AgendaPainel podeAgenda={verAgenda} podeReunioes={verReunioes} />}
 
         {admin && <PainelOperacional comercial={comercial.data} contratos={contratos.data} />}
       </div>

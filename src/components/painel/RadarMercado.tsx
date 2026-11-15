@@ -286,7 +286,7 @@ export function RadarMercado({ admin }: { admin: boolean }) {
           </div>
 
           {/* O que veio antes */}
-          <ul className="px-3 py-2 flex-1">
+          <ul className={`px-3 py-2 flex-1 ${extras ? "max-h-[300px] overflow-y-auto overscroll-contain" : ""}`}>
             {lista.map((i) => {
               const Corpo = (
                 <>
@@ -316,11 +316,18 @@ export function RadarMercado({ admin }: { admin: boolean }) {
               );
             })}
           </ul>
-          {resto.length > lista.length && (
-            <div className="px-5 pb-4">
-              <Button variant="outline" size="sm" className="w-full rounded-full" onClick={() => setExtras((e) => e + 4)}>
-                Ver mais {Math.min(4, resto.length - lista.length)} de {resto.length - lista.length}
-              </Button>
+          {(resto.length > lista.length || extras > 0) && (
+            <div className="px-5 pb-4 pt-1 flex gap-2">
+              {resto.length > lista.length && (
+                <Button variant="outline" size="sm" className="flex-1 rounded-full" onClick={() => setExtras((e) => e + 4)}>
+                  Ver mais {Math.min(4, resto.length - lista.length)} de {resto.length - lista.length}
+                </Button>
+              )}
+              {extras > 0 && (
+                <Button variant="ghost" size="sm" className="flex-1 rounded-full" onClick={() => setExtras(0)}>
+                  Ver menos
+                </Button>
+              )}
             </div>
           )}
         </>

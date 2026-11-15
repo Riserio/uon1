@@ -184,7 +184,7 @@ export function AgendaPainel({ podeAgenda, podeReunioes }: { podeAgenda: boolean
             </div>
           </div>
 
-          <div className="flex-1 min-w-0 grid gap-4 lg:grid-cols-2 content-start">
+          <div className="flex-1 min-w-0 space-y-4">
             {dia && (
               <div>
                 <p className="text-xs font-semibold capitalize text-muted-foreground mb-1">{format(dia, "EEEE, dd 'de' MMMM", { locale: ptBR })}</p>
