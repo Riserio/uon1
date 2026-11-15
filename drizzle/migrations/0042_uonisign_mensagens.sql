@@ -99,9 +99,9 @@ VALUES ('whatsapp', '{
   "mensagens": {
     "convite":   {"template": "uonisign_convite",   "parametros": ["nome", "contrato", "numero", "empresa", "prazo"], "botao": "token"},
     "codigo":    {"template": "uonisign_codigo",    "parametros": ["codigo"]},
-    "lembrete":  {"template": "uonisign_lembrete",  "parametros": ["nome", "contrato", "dias", "link"]},
-    "concluido": {"template": "uonisign_concluido", "parametros": ["nome", "contrato", "link"]},
-    "aviso":     {"template": "uonisign_aviso",     "parametros": ["nome", "contrato", "assunto"]}
+    "lembrete":  {"template": "uonisign_lembrete",  "parametros": ["nome", "contrato", "numero", "dias", "prazo"], "botao": "token"},
+    "concluido": {"template": "uonisign_concluido", "parametros": ["nome", "contrato", "numero", "codigo_verificacao"], "botao": "token"},
+    "aviso":     {"template": "uonisign_aviso",     "parametros": ["nome", "contrato", "numero", "assunto"], "botao": null}
   }
 }'::jsonb)
 ON CONFLICT (chave) DO NOTHING;

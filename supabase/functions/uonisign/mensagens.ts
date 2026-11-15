@@ -25,14 +25,14 @@ export const VARIAVEIS: Record<string, string> = {
 };
 
 // Variável usada no final da URL do botão (quando o template tem botão de link dinâmico)
-export const BOTAO_PADRAO: Partial<Record<TemplateWa, string>> = { convite: "token" };
+export const BOTAO_PADRAO: Partial<Record<TemplateWa, string>> = { convite: "token", lembrete: "token", concluido: "token" };
 
 export const PARAMETROS_PADRAO: Record<TemplateWa, string[]> = {
   convite: ["nome", "contrato", "numero", "empresa", "prazo"],
   codigo: ["codigo"],
-  lembrete: ["nome", "contrato", "dias", "link"],
-  concluido: ["nome", "contrato", "link"],
-  aviso: ["nome", "contrato", "assunto"],
+  lembrete: ["nome", "contrato", "numero", "dias", "prazo"],
+  concluido: ["nome", "contrato", "numero", "codigo_verificacao"],
+  aviso: ["nome", "contrato", "numero", "assunto"],
 };
 
 const esc = (s: string) =>
@@ -127,33 +127,58 @@ export const TEMPLATES_META = [
     components: [
       {
         type: "BODY",
-        text: "Olá, {{1}}. O contrato {{2}} aguarda a sua assinatura há {{3}} dia(s). Para assinar, acesse {{4}} antes do fim do prazo. Mensagem automática do Uon1 Sign.",
-        example: { body_text: [["Ana", "Contrato PPR nº CON-2026-000017", "3", "https://vangard.uon1.com.br/assinar/exemplo"]] },
+        text: "Olá, {{1}}!\n\nSeu contrato ainda aguarda assinatura.\n\n📄 Contrato\n- Documento: {{2}}\n- Número: {{3}}\n- Enviado há: {{4}} dia(s)\n\n⏳ Prazo\n- Assine até: {{5}}\n\nToque no botão abaixo para revisar e assinar.",
+        example: { body_text: [["Ana Souza", "Adesão — Assistência 24h e Rastreamento", "CON-2026-000017", "3", "29/11/2026"]] },
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          {
+            type: "URL",
+            text: "Revisar e assinar",
+            url: "https://vangard.uon1.com.br/assinar/{{1}}",
+            example: ["https://vangard.uon1.com.br/assinar/8f1c2d3e-0000-4000-8000-000000000000"],
+          },
+        ],
       },
     ],
   },
+
   {
     name: "uonisign_concluido",
     category: "UTILITY",
     components: [
       {
         type: "BODY",
-        text: "Olá, {{1}}. O contrato {{2}} foi assinado por todas as partes. Baixe a sua cópia em {{3}} quando quiser. Mensagem automática do Uon1 Sign.",
-        example: { body_text: [["Ana", "Contrato PPR nº CON-2026-000017", "https://vangard.uon1.com.br/assinar/exemplo"]] },
+        text: "Olá, {{1}}!\n\nO contrato foi assinado por todas as partes. ✅\n\n📄 Contrato\n- Documento: {{2}}\n- Número: {{3}}\n\n🛡️ Autenticidade\n- Código de verificação: {{4}}\n\nToque no botão abaixo para baixar a sua cópia assinada.",
+        example: { body_text: [["Ana Souza", "Adesão — Assistência 24h e Rastreamento", "CON-2026-000017", "RVQC-MGM5-SWMA"]] },
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          {
+            type: "URL",
+            text: "Baixar contrato",
+            url: "https://vangard.uon1.com.br/assinar/{{1}}",
+            example: ["https://vangard.uon1.com.br/assinar/8f1c2d3e-0000-4000-8000-000000000000"],
+          },
+        ],
       },
     ],
   },
+
   {
     name: "uonisign_aviso",
     category: "UTILITY",
     components: [
       {
         type: "BODY",
-        text: "Olá, {{1}}. Há uma atualização sobre o contrato {{2}}: {{3}}. Em caso de dúvida, fale com quem enviou o contrato.",
-        example: { body_text: [["Ana", "Contrato PPR nº CON-2026-000017", "Contrato cancelado"]] },
+        text: "Olá, {{1}}!\n\nHá uma atualização sobre o seu contrato.\n\n📄 Contrato\n- Documento: {{2}}\n- Número: {{3}}\n\n⚠️ Situação\n- {{4}}\n\nO link de assinatura anterior deixou de valer. Em caso de dúvida, fale com quem enviou o contrato.",
+        example: { body_text: [["Ana Souza", "Adesão — Assistência 24h e Rastreamento", "CON-2026-000017", "Contrato cancelado"]] },
       },
     ],
   },
+
 ];
 
 const GRAPH = "https://graph.facebook.com/v22.0";
