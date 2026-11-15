@@ -11599,6 +11599,10 @@ export type Database = {
         }[]
       }
       marcar_git_fallback_desativado: { Args: never; Returns: undefined }
+      meeting_pode_ver_sala: {
+        Args: { _room_id: string; _uid: string }
+        Returns: boolean
+      }
       ouvidoria_rate_limit_ok: {
         Args: { p_corretora_id: string }
         Returns: boolean
