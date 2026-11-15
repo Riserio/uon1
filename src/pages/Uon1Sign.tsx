@@ -725,7 +725,12 @@ export default function Uon1Sign() {
         </div>
       </div>
 
-      <NovoContratoWizard open={wizardOpen} onOpenChange={setWizardOpen} rascunho={rascunho} />
+      <NovoContratoWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        rascunho={rascunho}
+        onConfigurarModelo={ehAdmin ? () => setConfigOpen(true) : undefined}
+      />
       {detalhe && (
         <DetalheContratoDialog
           contrato={contratos?.find((c) => c.id === detalhe.id) ?? detalhe}

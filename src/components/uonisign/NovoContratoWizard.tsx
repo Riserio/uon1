@@ -39,6 +39,8 @@ interface Props {
   onOpenChange: (o: boolean) => void;
   /** Continuar um rascunho do fluxo 2 */
   rascunho?: ContratoV2 | null;
+  /** Administrador uoniSign: pode abrir a configuração do modelo direto do aviso */
+  onConfigurarModelo?: () => void;
 }
 
 const ETAPAS = ["Modelo", "Dados", "Conferência", "Signatários"];
@@ -47,7 +49,7 @@ function camposDo(m?: Modelo | null): CampoModelo[] {
   return Array.isArray(m?.campos) && m.campos.length ? (m.campos as CampoModelo[]) : CAMPOS_PADRAO;
 }
 
-export default function NovoContratoWizard({ open, onOpenChange, rascunho }: Props) {
+export default function NovoContratoWizard({ open, onOpenChange, rascunho, onConfigurarModelo }: Props) {
   const qc = useQueryClient();
   const [etapa, setEtapa] = useState(0);
   const [modeloId, setModeloId] = useState<string>("");
@@ -169,6 +171,14 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho }: Pro
       const r = await uonisign.criar({ template_id: modeloId, contrato_id: contrato?.id, dados });
       setContrato(r.contrato);
       setPendencias(r.pendencias_modelo);
+      if (pendenciasModelo.length || r.pendencias_modelo.length) {
+        toast.success("Rascunho salvo.", {
+          description: `Para gerar o PDF e enviar, inclua no modelo os dados da Vangard que faltam: ${(r.pendencias_modelo.length ? r.pendencias_modelo : pendenciasModelo).join(", ")}. Depois é só continuar este rascunho.`,
+          duration: 10000,
+        });
+        qc.invalidateQueries({ queryKey: ["contratos"] });
+        return;
+      }
       if (r.faltando.length) {
         const daContratada = r.faltando.every((v) => v.startsWith("Contratada_") || v === "Foro");
         toast.error(
@@ -292,7 +302,7 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho }: Pro
               conferir();
             }}
           >
-            {pendenciasModelo.length > 0 && <AvisoPendencias itens={pendenciasModelo} />}
+            {pendenciasModelo.length > 0 && <AvisoPendencias itens={pendenciasModelo} onConfigurar={onConfigurarModelo} />}
             {grupos.map(([grupo, lista]) => (
               <fieldset key={grupo} className="space-y-3">
                 <legend className="text-sm font-semibold text-foreground">{grupo}</legend>
@@ -320,7 +330,7 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho }: Pro
                 <ArrowLeft className="h-4 w-4 mr-1" /> {rascunho ? "Fechar" : "Trocar modelo"}
               </Button>
               <Button type="submit" disabled={!!ocupado || Object.keys(erros).some((k) => tocados[k])}>
-                Gerar PDF e conferir
+                {pendenciasModelo.length ? "Salvar rascunho" : "Gerar PDF e conferir"}
               </Button>
             </div>
           </form>
@@ -329,7 +339,7 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho }: Pro
         {/* 3 — Conferência */}
         {etapa === 2 && contrato && (
           <div className="space-y-4">
-            {pendencias.length > 0 && <AvisoPendencias itens={pendencias} />}
+            {pendencias.length > 0 && <AvisoPendencias itens={pendencias} onConfigurar={onConfigurarModelo} />}
             {valoresDestaque.length > 0 && (
               <div className="rounded-xl border-2 border-amber-300/60 bg-amber-50/60 dark:bg-amber-900/10 p-4 space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">Confira os valores</p>
@@ -438,13 +448,29 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho }: Pro
   );
 }
 
-function AvisoPendencias({ itens }: { itens: string[] }) {
+function AvisoPendencias({ itens, onConfigurar }: { itens: string[]; onConfigurar?: () => void }) {
   return (
-    <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm flex gap-2">
+    <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm flex gap-2" role="alert">
       <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-      <div>
-        <p className="font-medium text-amber-900 dark:text-amber-200">O modelo ainda precisa ser configurado pelo administrador</p>
-        <p className="text-amber-800 dark:text-amber-300">Falta: {itens.join(", ")}. Você pode preencher e salvar o rascunho, mas o envio fica bloqueado.</p>
+      <div className="space-y-1.5">
+        <p className="font-medium text-amber-900 dark:text-amber-200">Inclua os dados da Vangard no modelo para gerar o contrato</p>
+        <p className="text-amber-800 dark:text-amber-300">
+          Esses dados são iguais em todos os contratos, por isso ficam na configuração do modelo e não no formulário. Faltam:
+        </p>
+        <ul className="list-disc pl-5 text-amber-800 dark:text-amber-300">
+          {itens.map((i) => (
+            <li key={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</li>
+          ))}
+        </ul>
+        {onConfigurar ? (
+          <Button type="button" size="sm" variant="outline" className="mt-1 bg-white dark:bg-transparent" onClick={onConfigurar}>
+            Incluir os dados agora
+          </Button>
+        ) : (
+          <p className="text-amber-800 dark:text-amber-300">
+            Peça ao administrador do uoniSign para preencher em Modelos → Configurar modelos e signatário. Você pode salvar o rascunho e continuar depois.
+          </p>
+        )}
       </div>
     </div>
   );
