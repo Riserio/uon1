@@ -66,7 +66,7 @@ export interface ComercialAcesso {
   vendedores_visiveis: string[];
 }
 
-export type CotacaoStatus = "rascunho" | "enviada" | "aprovada" | "emitida" | "cancelamento_solicitado" | "cancelada";
+export type CotacaoStatus = "rascunho" | "enviada" | "aprovada" | "recusada" | "emitida" | "cancelamento_solicitado" | "cancelada";
 
 export interface ComercialCotacao {
   id: string;
@@ -101,6 +101,8 @@ export interface ComercialCotacao {
   aceite_canal?: string | null;
   aceite_contato?: string | null;
   contrato_id?: string | null;
+  recusada_em?: string | null;
+  motivo_recusa?: string | null;
 }
 
 /** Produto → modelo de contrato + tabela de preços (valores padrão dos campos comerciais). */
@@ -116,10 +118,45 @@ export const STATUS_COTACAO: Record<CotacaoStatus, { label: string; classe: stri
   rascunho: { label: "Rascunho", classe: "bg-slate-500/10 text-slate-600" },
   enviada: { label: "Enviada", classe: "bg-blue-500/10 text-blue-600" },
   aprovada: { label: "Aprovada", classe: "bg-violet-500/10 text-violet-600" },
+  recusada: { label: "Recusada", classe: "bg-red-500/10 text-red-600" },
   emitida: { label: "Emitida", classe: "bg-green-500/10 text-green-700" },
   cancelamento_solicitado: { label: "Cancelamento solicitado", classe: "bg-amber-500/10 text-amber-700" },
   cancelada: { label: "Cancelada", classe: "bg-destructive/10 text-destructive" },
 };
+
+/**
+ * Situação da cotação para exibir. Quando o produto tem contrato vinculado o
+ * status é automático, então o rótulo conta em que ponto do fluxo ela está.
+ * `contratoStatus` (opcional) é o status do contrato no Uon1 Sign.
+ */
+export function situacaoCotacao(
+  c: Pick<ComercialCotacao, "status"> &
+    Partial<Pick<ComercialCotacao, "template_id" | "proposta_token" | "proposta_vista_em" | "validade_ate" | "aceite_em" | "contrato_id">>,
+  contratoStatus?: string | null,
+): { label: string; classe: string } {
+  const base = STATUS_COTACAO[c.status];
+  if (!c.template_id && !c.proposta_token) return base;
+  switch (c.status) {
+    case "rascunho":
+      return { label: "Não enviada", classe: base.classe };
+    case "enviada":
+      if (!c.aceite_em && c.validade_ate && new Date(c.validade_ate).getTime() < Date.now())
+        return { label: "Vencida sem resposta", classe: "bg-amber-500/10 text-amber-700" };
+      return { label: c.proposta_vista_em ? "Aberta pelo cliente" : "Enviada", classe: base.classe };
+    case "aprovada":
+      if (contratoStatus === "parcialmente_assinado") return { label: "Cliente assinou · falta a contratada", classe: base.classe };
+      if (contratoStatus === "assinado_processando") return { label: "Assinada · finalizando", classe: STATUS_COTACAO.emitida.classe };
+      if (contratoStatus === "expirado") return { label: "Aceita · contrato venceu sem assinatura", classe: "bg-amber-500/10 text-amber-700" };
+      if (contratoStatus === "cancelado") return { label: "Aceita · contrato cancelado", classe: "bg-amber-500/10 text-amber-700" };
+      return { label: c.contrato_id ? "Aceita · contrato em assinatura" : "Aceita · aguardando dados do cliente", classe: base.classe };
+    case "recusada":
+      return { label: "Recusada pelo cliente", classe: base.classe };
+    case "emitida":
+      return { label: "Contrato assinado", classe: base.classe };
+    default:
+      return base;
+  }
+}
 
 /** Status em que Direto/Líder não alteram mais a cotação. */
 export const COTACAO_TRAVADA: CotacaoStatus[] = ["aprovada", "emitida", "cancelada", "cancelamento_solicitado"];

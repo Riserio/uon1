@@ -82,7 +82,7 @@ const handler = async (req: Request): Promise<Response> => {
     const emailHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;line-height:1.6;color:#333}.container{max-width:600px;margin:0 auto;padding:20px}.header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:30px;text-align:center;border-radius:10px 10px 0 0}.content{background:#f9fafb;padding:30px;border-radius:0 0 10px 10px}.info-box{background:white;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #667eea}.button{display:inline-block;background:#667eea;color:white;padding:15px 30px;text-decoration:none;border-radius:8px;margin:20px 0;font-weight:bold}.fotos-list{background:#fff3cd;padding:15px;border-radius:8px;border-left:4px solid #ffc107}</style></head><body><div class="container"><div class="header">${vistoria.corretoras?.logo_url ? `<img src="${vistoria.corretoras.logo_url}" alt="Logo" style="max-height:60px;margin-bottom:15px">` : ""}<h1>📸 Mais Fotos Necessárias</h1></div><div class="content"><p>Olá <strong>${vistoria.cliente_nome || "Cliente"}</strong>,</p><p>Para darmos continuidade à análise da sua vistoria <strong>#${vistoria.numero}</strong>, precisamos de fotos adicionais.</p><div class="info-box"><h3 style="color:#667eea">📋 Motivo:</h3><p>${motivo}</p></div>${fotosNecessarias.length > 0 ? `<div class="fotos-list"><h3>📷 Fotos Necessárias:</h3><ul>${fotosListaHTML}</ul></div>` : ""}<div style="text-align:center"><a href="${linkVistoria}" class="button">🔗 Acessar Vistoria</a></div><p>Link válido por 7 dias. Você pode tirar fotos com câmera ou enviar da galeria.</p></div></div></body></html>`;
 
     if (vistoria.cliente_email) {
-      await fetch("https://api.resend.com/emails", {
+      const envio = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -95,6 +95,23 @@ const handler = async (req: Request): Promise<Response> => {
           html: emailHTML,
         }),
       });
+      const erroEnvio = envio.ok ? null : `Resend ${envio.status}: ${(await envio.text()).slice(0, 300)}`;
+
+    // Histórico de e-mails (painel): o envio não depende deste registro
+    try {
+      await supabase.from("email_historico").insert({
+        destinatario: vistoria.cliente_email,
+        assunto: `📸 Fotos Adicionais - Vistoria #${vistoria.numero}`,
+        corpo: emailHTML,
+        status: envio.ok ? "enviado" : "erro",
+        erro_mensagem: envio.ok ? null : erroEnvio,
+        enviado_em: envio.ok ? new Date().toISOString() : null,
+        enviado_por: null,
+        origem: "vistoria",
+      });
+    } catch (e) {
+      console.error("[email_historico]", e);
+    }
     }
 
     if (vistoria.atendimento_id) {

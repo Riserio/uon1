@@ -951,7 +951,13 @@ async function acaoPubSolicitarCodigo(c: Ctx, body: Row) {
         destaque: codigo,
       }),
     });
-    r = await enviarEmail({ from: await remetente(c, k.created_by), para: s.email, assunto: conteudo.assunto, html: conteudo.html });
+    r = await enviarEmail({
+      from: await remetente(c, k.created_by),
+      para: s.email,
+      assunto: conteudo.assunto,
+      html: conteudo.html,
+      registro: { sensivel: true, contrato_id: k.id, enviado_por: k.created_by },
+    });
   } else {
     r = await waDe(c, s.telefone, "codigo", vc);
   }
@@ -1342,8 +1348,8 @@ async function acaoPropEnviar(c: Ctx, body: Row) {
   const q = await cotacaoDoUsuario(c, body.cotacao_id);
   const { data: pode } = await c.db.rpc("comercial_pode_editar", { _viewer: c.uid, _vendedor_id: q.vendedor_id });
   if (!pode) throw new Erro(403, "Você não pode enviar esta cotação");
-  if (!["rascunho", "enviada"].includes(q.status)) throw new Erro(409, "Esta cotação não pode mais ser enviada como proposta");
-  if (q.aceite_em) throw new Erro(409, "O cliente já aceitou esta proposta");
+  if (!["rascunho", "enviada", "recusada"].includes(q.status)) throw new Erro(409, "Esta cotação não pode mais ser enviada como proposta");
+  if (q.aceite_em && q.status !== "recusada") throw new Erro(409, "O cliente já aceitou esta proposta");
   const { lead, t, campos } = await contextoProposta(c, q);
   if (!t) throw new Erro(409, `O produto "${q.produto ?? "—"}" não tem modelo de contrato vinculado. Peça ao administrador para configurar a tabela de preços.`);
   const pend = pendenciasDoModelo(t.contratada ?? {}, t.signatario_contratada ?? {}, t.conteudo_html);
@@ -1369,6 +1375,10 @@ async function acaoPropEnviar(c: Ctx, body: Row) {
     cliente_email: email,
     cliente_telefone: telefone || null,
     proposta_canais: whatsapp ? ["email", "whatsapp"] : ["email"],
+    // novo envio: aceite e contrato de uma rodada recusada não valem mais
+    ...(q.status === "recusada"
+      ? { aceite_em: null, aceite_ip: null, aceite_user_agent: null, aceite_canal: null, aceite_contato: null, aceite_termos: null, contrato_id: null, proposta_vista_em: null }
+      : {}),
   };
   const { data: q2, error } = await c.db.from("comercial_cotacoes").update(patch).eq("id", q.id).select("*").single();
   if (error) throw new Erro(500, error.message);
@@ -1393,11 +1403,20 @@ async function acaoPropEnviar(c: Ctx, body: Row) {
     },
     { texto: "Ver proposta", url: link },
   );
-  const mail = await enviarEmail({ from: await remetente(c, c.uid!), para: email, assunto: conteudo.assunto, html: conteudo.html });
+  const mail = await enviarEmail({
+    from: await remetente(c, c.uid!),
+    para: email,
+    assunto: conteudo.assunto,
+    html: conteudo.html,
+    registro: { origem: "proposta", enviado_por: c.uid },
+  });
   if (!mail.ok) throw new Erro(502, "Não foi possível enviar o e-mail da proposta. Tente novamente.");
   let whatsappOk: boolean | null = null;
   if (whatsapp) whatsappOk = (await waDe(c, telefone, "proposta", v)).ok;
-  if (q.status === "rascunho") await c.db.from("comercial_cotacoes").update({ status: "enviada" }).eq("id", q.id);
+  // enviar (ou reenviar depois de uma recusa) é o que coloca a cotação em "Enviada"
+  if (q.status !== "enviada") {
+    await c.db.from("comercial_cotacoes").update({ status: "enviada", recusada_em: null, motivo_recusa: null }).eq("id", q.id);
+  }
   return json({ ok: true, whatsapp: whatsappOk, link });
 }
 
@@ -1408,11 +1427,12 @@ async function propostaPorToken(c: Ctx, token: string): Promise<Row> {
   return data;
 }
 
-type EstadoProposta = "aberta" | "aceita" | "contratada" | "concluida" | "expirada" | "cancelada" | "indisponivel";
+type EstadoProposta = "aberta" | "aceita" | "contratada" | "concluida" | "expirada" | "recusada" | "cancelada" | "indisponivel";
 
 async function estadoProposta(c: Ctx, q: Row): Promise<{ estado: EstadoProposta; k: Row | null; tokenAssinatura: string | null }> {
   const k = await contratoDaCotacao(c, q);
   if (["cancelada", "cancelamento_solicitado"].includes(q.status) || q.arquivado_em) return { estado: "cancelada", k, tokenAssinatura: null };
+  if (q.status === "recusada") return { estado: "recusada", k, tokenAssinatura: null };
   if (k && CONTRATO_ENCERRADO.includes(k.status)) return { estado: "cancelada", k, tokenAssinatura: null };
   if (k && k.status !== "rascunho") {
     const { data: s } = await c.db
@@ -1501,6 +1521,7 @@ async function acaoPropCodigo(c: Ctx, body: Row) {
       from: await remetente(c, dono),
       para: destino,
       assunto: `Código de confirmação: ${codigo}`,
+      registro: { sensivel: true, origem: "proposta", enviado_por: dono ?? null },
       html: layoutEmail({
         titulo: "Seu código para aceitar a proposta",
         paragrafos: [
@@ -1515,6 +1536,21 @@ async function acaoPropCodigo(c: Ctx, body: Row) {
   }
   if (!r.ok) throw new Erro(502, canal === "whatsapp" ? "Não foi possível enviar pelo WhatsApp. Tente por e-mail." : "Não foi possível enviar o código. Tente novamente.");
   return json({ ok: true, destino: canal === "email" ? mascararEmail(destino) : mascararTelefone(destino), validade_min: CODIGO_VALIDADE_MIN });
+}
+
+/** Cliente recusa a proposta (antes de gerar o contrato). O vendedor é avisado e pode reenviar. */
+async function acaoPropRecusar(c: Ctx, body: Row) {
+  const q = await propostaPorToken(c, body.token);
+  const { estado } = await estadoProposta(c, q);
+  if (!["aberta", "aceita"].includes(estado)) throw new Erro(409, "Esta proposta não está disponível");
+  const motivo = String(body.motivo ?? "").trim().slice(0, 1000);
+  if (motivo.length < 5) throw new Erro(422, "Conte em poucas palavras o motivo da recusa");
+  const { error } = await c.db
+    .from("comercial_cotacoes")
+    .update({ status: "recusada", recusada_em: new Date().toISOString(), motivo_recusa: motivo, sessao_hash: null, sessao_expira_em: null })
+    .eq("id", q.id);
+  if (error) throw new Erro(500, error.message);
+  return json({ ok: true });
 }
 
 /** Confere o código, registra o aceite (uma vez) e abre a sessão de preenchimento. */
@@ -1667,6 +1703,7 @@ const PUBLICAS: Record<string, (c: Ctx, b: Row) => Promise<Response>> = {
   prop_abrir: acaoPropAbrir,
   prop_codigo: acaoPropCodigo,
   prop_confirmar: acaoPropConfirmar,
+  prop_recusar: acaoPropRecusar,
   prop_dados: acaoPropDados,
   prop_pdf: acaoPropPdf,
 };

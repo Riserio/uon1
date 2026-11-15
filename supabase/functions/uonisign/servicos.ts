@@ -1,6 +1,7 @@
 // Uon1 Sign — e-mail (Resend), WhatsApp (Meta Cloud API) e relatório de assinaturas.
 // Hash, selo ICP-Brasil e carimbo do tempo ficam no Uon1 Trust (../uon1-trust).
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 
 export const APP_URL = (Deno.env.get("APP_URL") || "https://vangard.uon1.com.br").replace(/\/$/, "");
 export const linkAssinatura = (token: string) => `${APP_URL}/assinar/${token}`;
@@ -48,13 +49,55 @@ ${opts.htmlLivre ? "" : `<h1 style="margin:0 0 14px;font-size:19px;color:#111827
 </table></td></tr></table></body></html>`;
 }
 
-export async function enviarEmail(opts: {
+/** Grava o envio em email_historico (painel de e-mails). Nunca derruba o envio. */
+// deno-lint-ignore no-explicit-any
+let dbHistorico: any = null;
+async function registrarEmail(opts: OpcoesEmail, r: { ok: boolean; erro?: string }) {
+  try {
+    const url = Deno.env.get("SUPABASE_URL");
+    const chave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !chave) return;
+    dbHistorico ??= createClient(url, chave, { auth: { persistSession: false } });
+    const reg = opts.registro ?? {};
+    // código de confirmação não fica guardado, nem no assunto nem no corpo
+    const assunto = reg.sensivel ? opts.assunto.replace(/\d{6}/g, "••••••") : opts.assunto;
+    const corpo = reg.sensivel ? "[Conteúdo com código de confirmação: não é guardado no histórico]" : opts.html;
+    const agora = new Date().toISOString();
+    await dbHistorico.from("email_historico").insert(
+      (Array.isArray(opts.para) ? opts.para : [opts.para]).map((destinatario) => ({
+        destinatario,
+        assunto,
+        corpo,
+        status: r.ok ? "enviado" : "erro",
+        erro_mensagem: r.ok ? null : (r.erro ?? "Falha no envio").slice(0, 500),
+        enviado_em: r.ok ? agora : null,
+        enviado_por: reg.enviado_por ?? null,
+        contrato_id: reg.contrato_id ?? null,
+        origem: reg.origem ?? "uonisign",
+      })),
+    );
+  } catch (e) {
+    console.error("[email_historico]", (e as Error)?.message ?? e);
+  }
+}
+
+interface OpcoesEmail {
   from: string;
   para: string | string[];
   assunto: string;
   html: string;
   anexos?: Anexo[];
-}): Promise<{ ok: boolean; erro?: string }> {
+  /** Dados para o histórico de e-mails. `sensivel`: o corpo traz código de confirmação. */
+  registro?: { origem?: string; sensivel?: boolean; enviado_por?: string | null; contrato_id?: string | null };
+}
+
+export async function enviarEmail(opts: OpcoesEmail): Promise<{ ok: boolean; erro?: string }> {
+  const r = await despacharEmail(opts);
+  await registrarEmail(opts, r);
+  return r;
+}
+
+async function despacharEmail(opts: OpcoesEmail): Promise<{ ok: boolean; erro?: string }> {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return { ok: false, erro: "RESEND_API_KEY ausente" };
   try {

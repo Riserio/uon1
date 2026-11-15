@@ -143,12 +143,29 @@ serve(async (req) => {
           const from = rc?.from_email
             ? `${rc.from_name || remetente} <${rc.from_email}>`
             : `${remetente} <vangard@uon1.com.br>`;
-          await resend.emails.send({
+          const envio = await resend.emails.send({
             from,
             to: [a.email],
             subject: `Lembrete: assine o contrato ${c.numero || c.titulo}`,
             html,
           });
+          const falhou = (envio as { error?: { message?: string } | null })?.error ?? null;
+          try {
+            await supabase.from("email_historico").insert({
+              destinatario: a.email,
+              assunto: `Lembrete: assine o contrato ${c.numero || c.titulo}`,
+              corpo: html,
+              status: falhou ? "erro" : "enviado",
+              erro_mensagem: falhou ? (falhou.message ?? "Falha no envio") : null,
+              enviado_em: falhou ? null : new Date().toISOString(),
+              enviado_por: c.created_by ?? null,
+              contrato_id: c.id,
+              origem: "contrato_legado",
+            });
+          } catch (e) {
+            console.error("[email_historico]", e);
+          }
+          if (falhou) throw new Error(falhou.message ?? "Falha no envio");
 
           await supabase
             .from("contrato_assinaturas")

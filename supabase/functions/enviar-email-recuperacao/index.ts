@@ -207,6 +207,23 @@ Este é um e-mail automático enviado pelo uon1, por favor não responda.
       }
     }
 
+
+    // Histórico de e-mails (painel): o envio não depende deste registro
+    try {
+      await supabase.from("email_historico").insert({
+        destinatario: to,
+        assunto: "Recuperação de Senha — uon1",
+        corpo: "[Recuperação de senha] Conteúdo com link de acesso: não é guardado no histórico",
+        status: emailSent ? "enviado" : "erro",
+        erro_mensagem: emailSent ? null : (errorMessage || "Falha ao enviar e-mail"),
+        enviado_em: emailSent ? new Date().toISOString() : null,
+        enviado_por: null,
+        origem: "recuperacao",
+      });
+    } catch (e) {
+      console.error("[email_historico]", e);
+    }
+
     if (!emailSent) {
       console.error(`Failed to send password recovery email to ${to}: ${errorMessage}`);
       return new Response(

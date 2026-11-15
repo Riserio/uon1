@@ -228,6 +228,23 @@ Por segurança, altere a senha no primeiro acesso.`;
       }
     }
 
+
+    // Histórico de e-mails (painel): o envio não depende deste registro
+    try {
+      await supabase.from("email_historico").insert({
+        destinatario: email,
+        assunto: assunto,
+        corpo: "[Acesso] Conteúdo com dados de acesso: não é guardado no histórico",
+        status: emailSent ? "enviado" : "erro",
+        erro_mensagem: emailSent ? null : (errorMessage || "Falha ao enviar e-mail"),
+        enviado_em: emailSent ? new Date().toISOString() : null,
+        enviado_por: null,
+        origem: "acesso",
+      });
+    } catch (e) {
+      console.error("[email_historico]", e);
+    }
+
     if (!emailSent) {
       return new Response(JSON.stringify({ success: false, error: errorMessage || "Falha ao enviar e-mail" }), {
         status: 500,

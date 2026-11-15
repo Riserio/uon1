@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { CheckCircle2, Copy, Eye, FileSignature, Loader2, MessageCircle, Send } from "lucide-react";
+import { CheckCircle2, Copy, Eye, FileSignature, Loader2, MessageCircle, Send, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,18 @@ import NovoContratoWizard from "@/components/uonisign/NovoContratoWizard";
 import { uonisign } from "@/lib/uonisign/api";
 import { urlPublica } from "@/lib/trust";
 import { emailValido, mascarar, soDigitos, type Dados } from "../../../supabase/functions/uonisign/modelo";
-import type { ComercialCotacao } from "./types";
+import { situacaoCotacao, type ComercialCotacao } from "./types";
+
+const CONTRATO_ROTULO: Record<string, string> = {
+  rascunho: "em rascunho",
+  aguardando_assinatura: "aguardando a assinatura do cliente",
+  parcialmente_assinado: "assinado pelo cliente; falta a contratada",
+  assinado_processando: "assinado; gerando a via final",
+  assinado: "assinado por todas as partes",
+  recusado: "recusado na assinatura",
+  expirado: "vencido sem assinatura",
+  cancelado: "cancelado",
+};
 
 const fmt = (iso?: string | null) => (iso ? format(new Date(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : "");
 
@@ -43,8 +55,20 @@ export function PropostaContrato({ cotacao, templateId, termos, leadNome, podeEd
     setWhatsapp((cotacao?.proposta_canais ?? []).includes("whatsapp"));
   }, [cotacao?.id, cotacao?.cliente_email, cotacao?.cliente_telefone, cotacao?.proposta_canais]);
 
-  const aceita = !!cotacao?.aceite_em;
-  const temContrato = !!cotacao?.contrato_id;
+  // Status do contrato no Uon1 Sign (a RLS só devolve se o usuário pode vê-lo)
+  const { data: contrato } = useQuery({
+    queryKey: ["cotacao_contrato", cotacao?.contrato_id],
+    enabled: !!cotacao?.contrato_id,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any).from("contratos").select("numero, status").eq("id", cotacao!.contrato_id).maybeSingle();
+      return (data ?? null) as { numero: string; status: string } | null;
+    },
+  });
+  const recusada = cotacao?.status === "recusada";
+  const contratoEncerrado = !!contrato && ["recusado", "expirado", "cancelado"].includes(contrato.status);
+  const aceita = !!cotacao?.aceite_em && !recusada;
+  const temContrato = !!cotacao?.contrato_id && !recusada && !contratoEncerrado;
   const encerrada = !!cotacao && ["cancelada", "cancelamento_solicitado", "emitida"].includes(cotacao.status);
   const link = cotacao?.proposta_token ? `${urlPublica()}/proposta/${cotacao.proposta_token}` : null;
   const podeAgir = podeEditar && !encerrada && !temContrato;
@@ -110,9 +134,33 @@ export function PropostaContrato({ cotacao, templateId, termos, leadNome, podeEd
         </ul>
       )}
 
-      {temContrato && (
-        <p className="text-sm rounded-lg bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 px-3 py-2">
-          Contrato gerado. Acompanhe as assinaturas em <strong>Uon1 Sign</strong>.
+      {cotacao && (
+        <p className="text-sm">
+          Situação:{" "}
+          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${situacaoCotacao(cotacao, contrato?.status).classe}`}>
+            {situacaoCotacao(cotacao, contrato?.status).label}
+          </span>
+        </p>
+      )}
+
+      {recusada && (
+        <p className="text-sm rounded-lg bg-red-500/10 text-red-800 dark:text-red-300 px-3 py-2 flex gap-2">
+          <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>
+            Recusada{cotacao?.recusada_em ? ` em ${fmt(cotacao.recusada_em)}` : ""}.{cotacao?.motivo_recusa ? ` Motivo: ${cotacao.motivo_recusa}` : ""} Você pode
+            ajustar os valores e enviar de novo.
+          </span>
+        </p>
+      )}
+
+      {cotacao?.contrato_id && contrato && !recusada && (
+        <p
+          className={`text-sm rounded-lg px-3 py-2 ${
+            contratoEncerrado ? "bg-amber-500/10 text-amber-800 dark:text-amber-300" : "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+          }`}
+        >
+          Contrato <strong>{contrato.numero}</strong>: {CONTRATO_ROTULO[contrato.status] ?? contrato.status}.
+          {contratoEncerrado ? " Gere um novo contrato para seguir." : " Acompanhe em Uon1 Sign."}
         </p>
       )}
 
@@ -148,7 +196,7 @@ export function PropostaContrato({ cotacao, templateId, termos, leadNome, podeEd
             {!aceita && (
               <Button onClick={enviar} disabled={!!ocupado}>
                 {ocupado === "enviar" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
-                {cotacao?.proposta_enviada_em ? "Reenviar proposta" : "Enviar proposta ao cliente"}
+                {recusada ? "Enviar nova proposta" : cotacao?.proposta_enviada_em ? "Reenviar proposta" : "Enviar proposta ao cliente"}
               </Button>
             )}
             <Button variant="outline" onClick={preencherContrato} disabled={!!ocupado}>

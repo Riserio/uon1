@@ -92,6 +92,7 @@ export const uonisign = {
       { token, codigo, aceite: true },
       true,
     ),
+  propRecusar: (token: string, motivo: string) => chamar<{ ok: true }>("prop_recusar", { token, motivo }, true),
   propDados: (token: string, sessao: string, dados: Record<string, string>) =>
     chamar<{
       contrato: { numero: string; titulo: string; conteudo_html: string; trust_codigo: string | null };
@@ -105,7 +106,7 @@ export const uonisign = {
 export type CampoProposta = Record<string, any>;
 
 export interface PaginaProposta {
-  estado: "aberta" | "aceita" | "contratada" | "concluida" | "expirada" | "cancelada" | "indisponivel";
+  estado: "aberta" | "aceita" | "contratada" | "concluida" | "expirada" | "recusada" | "cancelada" | "indisponivel";
   proposta: {
     numero: string;
     produto: string | null;

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { CampoFormulario } from "@/components/uonisign/NovoContratoWizard";
@@ -70,6 +71,8 @@ export default function Proposta() {
   const [tocados, setTocados] = useState<Record<string, boolean>>({});
   const [errosServidor, setErrosServidor] = useState<Record<string, string>>({});
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [recusando, setRecusando] = useState(false);
+  const [motivoRecusa, setMotivoRecusa] = useState("");
 
   const { data: p, isLoading, error, refetch } = useQuery({
     queryKey: ["proposta_publica", token],
@@ -104,6 +107,15 @@ export default function Proposta() {
     return (
       <Tela icone={<XCircle className="h-7 w-7 text-red-600" />} titulo="Proposta indisponível">
         <p className="text-sm text-muted-foreground">Esta proposta foi encerrada. Fale com {p.proposta.vendedor ?? "o vendedor"} para receber uma nova.</p>
+      </Tela>
+    );
+  }
+  if (p.estado === "recusada") {
+    return (
+      <Tela icone={<XCircle className="h-7 w-7 text-red-600" />} titulo="Proposta recusada">
+        <p className="text-sm text-muted-foreground">
+          Registramos a recusa desta proposta e avisamos {p.proposta.vendedor ?? "o vendedor"}. Se mudar de ideia, peça um novo envio.
+        </p>
       </Tela>
     );
   }
@@ -160,6 +172,18 @@ export default function Proposta() {
       refetch();
     } catch (e) {
       setErroCodigo((e as Error).message);
+    } finally {
+      setOcupado(null);
+    }
+  };
+
+  const recusar = async () => {
+    try {
+      setOcupado("Registrando…");
+      await uonisign.propRecusar(token, motivoRecusa);
+      refetch();
+    } catch (e) {
+      toast.error((e as Error).message);
     } finally {
       setOcupado(null);
     }
@@ -351,6 +375,26 @@ export default function Proposta() {
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5" /> Registramos data, hora, IP e dispositivo do aceite.
               </p>
+              <div className="border-t pt-3">
+                {!recusando ? (
+                  <button type="button" className="text-xs text-muted-foreground hover:text-destructive underline" onClick={() => setRecusando(true)}>
+                    Não tenho interesse: recusar a proposta
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="motivo-recusa">Por que você está recusando?</Label>
+                    <Textarea id="motivo-recusa" rows={2} maxLength={1000} value={motivoRecusa} onChange={(e) => setMotivoRecusa(e.target.value)} placeholder="Ex.: valor acima do orçamento" />
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => setRecusando(false)} disabled={!!ocupado}>
+                        Voltar
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={recusar} disabled={motivoRecusa.trim().length < 5 || !!ocupado}>
+                        Recusar proposta
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}

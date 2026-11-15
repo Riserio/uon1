@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { baixarCsv } from "./csv";
-import { STATUS_COTACAO, type ComercialCotacao, type ComercialVendedor, type CotacaoStatus } from "./types";
+import { STATUS_COTACAO, situacaoCotacao, type ComercialCotacao, type ComercialVendedor, type CotacaoStatus } from "./types";
 
 const TODOS = "__todos__";
 export type CotacaoComLead = ComercialCotacao & { lead: { nome: string; funil_id: string } | null };
@@ -40,7 +40,7 @@ export function CotacoesTab({ cotacoes, vendedores, nomes, mostrarResponsavel, p
         Lead: c.lead?.nome ?? "",
         Produto: c.produto ?? "",
         Valor: Number(c.valor),
-        Status: STATUS_COTACAO[c.status].label,
+        Status: situacaoCotacao(c).label,
         Vendedor: (c.vendedor_id && nomeVendedor.get(c.vendedor_id)) || "",
         Lider: (c.lider_id && nomes.get(c.lider_id)) || "",
         Gerente: (c.gerente_id && nomes.get(c.gerente_id)) || "",
@@ -115,8 +115,8 @@ export function CotacoesTab({ cotacoes, vendedores, nomes, mostrarResponsavel, p
                     <TableCell>{(c.vendedor_id && nomeVendedor.get(c.vendedor_id)) || "Sem vendedor"}</TableCell>
                   )}
                   <TableCell>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_COTACAO[c.status].classe}`}>
-                      {STATUS_COTACAO[c.status].label}
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${situacaoCotacao(c).classe}`}>
+                      {situacaoCotacao(c).label}
                     </span>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{brl(c.valor)}</TableCell>

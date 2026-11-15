@@ -118,6 +118,9 @@ export default function Emails() {
     pendentes: 0,
     falhados: 0,
     taxaSucesso: 0,
+    ultimos30: 0,
+    hoje: 0,
+    ultimoEnvio: null as string | null,
   });
   const [resendUsage, setResendUsage] = useState<{
     domains: any[];
@@ -166,7 +169,8 @@ export default function Emails() {
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          // INSERT (novo envio) e UPDATE (reenvio que muda o status)
+          event: "*",
           schema: "public",
           table: "email_historico",
         },
@@ -177,9 +181,20 @@ export default function Emails() {
       )
       .subscribe();
 
+    // Rede de segurança: mesmo sem o aviso em tempo real, os números se
+    // atualizam a cada minuto enquanto a tela está aberta.
+    const atualizacao = user
+      ? window.setInterval(() => {
+          loadStats();
+          loadHistorico();
+          loadEmailQueue();
+        }, 60_000)
+      : undefined;
+
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(emailHistChannel);
+      if (atualizacao) window.clearInterval(atualizacao);
     };
   }, [user]);
 
@@ -463,27 +478,36 @@ export default function Emails() {
 
   const loadStats = async () => {
     try {
-      // Get ALL emails from history (system-wide, not filtered by user)
-      const { data: historicoData } = await supabase.from("email_historico").select("status");
+      // Contagens direto no banco: buscar as linhas e contar na tela parava em
+      // 1.000 registros (limite padrão da API) e o painel congelava nesse número.
+      const contar = async (filtro: (q: any) => any) => {
+        const { count, error } = await filtro(supabase.from("email_historico").select("id", { count: "exact", head: true }));
+        if (error) throw error;
+        return count || 0;
+      };
+      const agora = new Date();
+      const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).toISOString();
+      const ha30 = new Date(agora.getTime() - 30 * 86_400_000).toISOString();
 
-      const enviados = historicoData?.filter((e) => e.status === "enviado").length || 0;
-      const falhados = historicoData?.filter((e) => e.status === "erro").length || 0;
-      const total = historicoData?.length || 0;
-
-      // Get ALL pending from queue (system-wide)
-      const { count: pendentes } = await supabase
-        .from("email_queue")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "pendente");
-
-      const taxaSucesso = total > 0 ? Math.round((enviados / total) * 100) : 0;
+      const [total, enviados, falhados, ultimos30, hoje, fila, ultimo] = await Promise.all([
+        contar((q) => q),
+        contar((q) => q.eq("status", "enviado")),
+        contar((q) => q.eq("status", "erro")),
+        contar((q) => q.gte("created_at", ha30)),
+        contar((q) => q.gte("created_at", inicioHoje)),
+        supabase.from("email_queue").select("*", { count: "exact", head: true }).eq("status", "pendente"),
+        supabase.from("email_historico").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
 
       setStats({
         total,
         enviados,
-        pendentes: pendentes || 0,
+        pendentes: fila.count || 0,
         falhados,
-        taxaSucesso,
+        taxaSucesso: total > 0 ? Math.round((enviados / total) * 100) : 0,
+        ultimos30,
+        hoje,
+        ultimoEnvio: ultimo.data?.created_at ?? null,
       });
     } catch (error) {
       console.error("Error loading stats:", error);
@@ -782,7 +806,12 @@ export default function Emails() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">{stats.total}</div>
-                      <p className="text-xs text-muted-foreground">Histórico completo</p>
+                      <p className="text-xs text-muted-foreground">
+                        {stats.hoje} hoje · {stats.ultimos30} em 30 dias
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {stats.ultimoEnvio ? `Último envio: ${new Date(stats.ultimoEnvio).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}` : "Nenhum envio registrado"}
+                      </p>
                     </CardContent>
                   </Card>
 

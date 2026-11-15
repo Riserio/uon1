@@ -16,7 +16,7 @@ import { validarDados, type Dados } from "../../../supabase/functions/uonisign/m
 import { ComentariosPanel } from "./ComentariosPanel";
 import { PropostaContrato } from "./PropostaContrato";
 import { camposComerciais, termosIniciais, totalDosTermos, useProdutosContrato } from "./produtosContrato";
-import { COTACAO_TRAVADA, STATUS_COTACAO, type ComercialCotacao, type CotacaoStatus } from "./types";
+import { COTACAO_TRAVADA, STATUS_COTACAO, situacaoCotacao, type ComercialCotacao, type CotacaoStatus } from "./types";
 
 const NENHUM = "__nenhum__";
 const STATUS_VENDEDOR: CotacaoStatus[] = ["rascunho", "enviada", "aprovada", "emitida"];
@@ -52,7 +52,7 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
   const itens = useMemo(() => camposComerciais(modelo), [modelo]);
   const errosTermos = useMemo(() => validarDados(itens, termos), [itens, termos]);
   const totalAuto = useMemo(() => totalDosTermos(modelo, termos), [modelo, termos]);
-  const aceita = !!cotacao?.aceite_em;
+  const aceita = !!cotacao?.aceite_em && cotacao.status !== "recusada";
 
   useEffect(() => {
     if (!open) return;
@@ -96,7 +96,8 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
     produto: produto === NENHUM ? null : produto,
     descricao: descricao.trim() || null,
     valor: valor || 0,
-    status,
+    // com contrato vinculado o status é do sistema (o banco ignora o que vier daqui)
+    status: modelo ? (cotacao?.status ?? "rascunho") : status,
     termos: modelo ? termos : {},
   });
 
@@ -230,6 +231,19 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
               {aceita && <p className="text-xs text-emerald-700">O cliente já aceitou estes valores: não podem mais ser alterados.</p>}
             </fieldset>
           )}
+          {modelo ? (
+            <div className="sm:col-span-2 rounded-xl border bg-muted/30 px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs text-muted-foreground">Situação</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Muda sozinha: ao enviar, quando o cliente aceita ou recusa e quando o contrato é assinado.
+                </p>
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${situacaoCotacao(cotacao ?? { status: "rascunho", template_id: modelo.id }).classe}`}>
+                {situacaoCotacao(cotacao ?? { status: "rascunho", template_id: modelo.id }).label}
+              </span>
+            </div>
+          ) : (
           <div className="space-y-2 sm:col-span-2">
             <Label>Status</Label>
             <Select
@@ -252,6 +266,7 @@ export function CotacaoDialog({ open, onOpenChange, leadId, leadNome, produtos, 
               <p className="text-[11px] text-muted-foreground">Ao marcar Aprovada ou Emitida, só o gerente altera depois.</p>
             )}
           </div>
+          )}
           <div className="space-y-2 sm:col-span-2">
             <Label>Descrição / condições</Label>
             <Textarea rows={3} value={descricao} onChange={(e) => setDescricao(e.target.value)} disabled={!editavel} />

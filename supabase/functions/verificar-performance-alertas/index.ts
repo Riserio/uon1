@@ -290,6 +290,24 @@ const handler = async (req: Request): Promise<Response> => {
           });
 
           console.log(`Email enviado para: ${destinatariosUnicos.join(", ")}`);
+          // Histórico de e-mails (painel)
+          const falhou = (emailResult as { error?: { message?: string } | null })?.error ?? null;
+          try {
+            await supabase.from("email_historico").insert(
+              destinatariosUnicos.map((destinatario: string) => ({
+                destinatario,
+                assunto: `⚠️ Alerta: Performance abaixo da meta - ${perf.nome}`,
+                corpo: htmlEmail,
+                status: falhou ? "erro" : "enviado",
+                erro_mensagem: falhou ? (falhou.message ?? "Falha no envio") : null,
+                enviado_em: falhou ? null : new Date().toISOString(),
+                enviado_por: null,
+                origem: "alerta_performance",
+              })),
+            );
+          } catch (e) {
+            console.error("[email_historico]", e);
+          }
 
           // Registrar alertas no banco
           for (const alerta of alertas) {
