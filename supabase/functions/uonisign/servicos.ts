@@ -132,7 +132,7 @@ export async function enviarWhatsApp(
 }
 
 // Hash, base64, selo e carimbo agora são do Uon1 Trust
-export { deBase64, paraBase64, sha256Hex } from "../uon1-trust/nucleo.ts";
+export { deBase64, paraBase64, sha256Hex } from "../_shared/uon1-trust-nucleo.ts";
 
 // ---------------------------------------------------------------------------
 // Relatório de assinaturas anexado ao PDF (RN23 / seção 11)

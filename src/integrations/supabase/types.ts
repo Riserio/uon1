@@ -1905,6 +1905,165 @@ export type Database = {
           },
         ]
       }
+      comercial_auditoria: {
+        Row: {
+          acao: string
+          dados_antes: Json | null
+          dados_depois: Json | null
+          data_hora: string
+          dono_id: string | null
+          entidade: string
+          entidade_id: string | null
+          gerente_id: string | null
+          id: number
+          lider_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          acao: string
+          dados_antes?: Json | null
+          dados_depois?: Json | null
+          data_hora?: string
+          dono_id?: string | null
+          entidade: string
+          entidade_id?: string | null
+          gerente_id?: string | null
+          id?: number
+          lider_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          acao?: string
+          dados_antes?: Json | null
+          dados_depois?: Json | null
+          data_hora?: string
+          dono_id?: string | null
+          entidade?: string
+          entidade_id?: string | null
+          gerente_id?: string | null
+          id?: number
+          lider_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      comercial_comentarios: {
+        Row: {
+          autor_id: string
+          created_at: string
+          entidade: string
+          entidade_id: string
+          id: string
+          texto: string
+        }
+        Insert: {
+          autor_id?: string
+          created_at?: string
+          entidade: string
+          entidade_id: string
+          id?: string
+          texto: string
+        }
+        Update: {
+          autor_id?: string
+          created_at?: string
+          entidade?: string
+          entidade_id?: string
+          id?: string
+          texto?: string
+        }
+        Relationships: []
+      }
+      comercial_cotacoes: {
+        Row: {
+          arquivado_em: string | null
+          arquivado_por: string | null
+          cancelada_em: string | null
+          cancelada_por: string | null
+          cancelamento_solicitado_em: string | null
+          cancelamento_solicitado_por: string | null
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          emitida_em: string | null
+          gerente_id: string | null
+          id: string
+          lead_id: string
+          lider_id: string | null
+          motivo_cancelamento: string | null
+          numero: number
+          produto: string | null
+          status: string
+          status_anterior: string | null
+          updated_at: string
+          valor: number
+          vendedor_id: string | null
+        }
+        Insert: {
+          arquivado_em?: string | null
+          arquivado_por?: string | null
+          cancelada_em?: string | null
+          cancelada_por?: string | null
+          cancelamento_solicitado_em?: string | null
+          cancelamento_solicitado_por?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          emitida_em?: string | null
+          gerente_id?: string | null
+          id?: string
+          lead_id: string
+          lider_id?: string | null
+          motivo_cancelamento?: string | null
+          numero?: number
+          produto?: string | null
+          status?: string
+          status_anterior?: string | null
+          updated_at?: string
+          valor?: number
+          vendedor_id?: string | null
+        }
+        Update: {
+          arquivado_em?: string | null
+          arquivado_por?: string | null
+          cancelada_em?: string | null
+          cancelada_por?: string | null
+          cancelamento_solicitado_em?: string | null
+          cancelamento_solicitado_por?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          emitida_em?: string | null
+          gerente_id?: string | null
+          id?: string
+          lead_id?: string
+          lider_id?: string | null
+          motivo_cancelamento?: string | null
+          numero?: number
+          produto?: string | null
+          status?: string
+          status_anterior?: string | null
+          updated_at?: string
+          valor?: number
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comercial_cotacoes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comercial_cotacoes_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comercial_etapas: {
         Row: {
           cor: string
@@ -2033,6 +2192,8 @@ export type Database = {
       }
       comercial_leads: {
         Row: {
+          arquivado_em: string | null
+          arquivado_por: string | null
           associacao: string | null
           cargo: string | null
           created_at: string
@@ -2040,9 +2201,11 @@ export type Database = {
           etapa_alterada_em: string
           etapa_id: string
           funil_id: string
+          gerente_id: string | null
           id: string
           indicacao_externa: boolean
           indicador_nome: string | null
+          lider_id: string | null
           motivo_perda: string | null
           nome: string
           observacoes: string | null
@@ -2053,6 +2216,8 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          arquivado_em?: string | null
+          arquivado_por?: string | null
           associacao?: string | null
           cargo?: string | null
           created_at?: string
@@ -2060,9 +2225,11 @@ export type Database = {
           etapa_alterada_em?: string
           etapa_id: string
           funil_id: string
+          gerente_id?: string | null
           id?: string
           indicacao_externa?: boolean
           indicador_nome?: string | null
+          lider_id?: string | null
           motivo_perda?: string | null
           nome: string
           observacoes?: string | null
@@ -2073,6 +2240,8 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          arquivado_em?: string | null
+          arquivado_por?: string | null
           associacao?: string | null
           cargo?: string | null
           created_at?: string
@@ -2080,9 +2249,11 @@ export type Database = {
           etapa_alterada_em?: string
           etapa_id?: string
           funil_id?: string
+          gerente_id?: string | null
           id?: string
           indicacao_externa?: boolean
           indicador_nome?: string | null
+          lider_id?: string | null
           motivo_perda?: string | null
           nome?: string
           observacoes?: string | null
@@ -2116,6 +2287,45 @@ export type Database = {
           },
         ]
       }
+      comercial_notificacoes: {
+        Row: {
+          autor_id: string | null
+          created_at: string
+          entidade: string
+          entidade_id: string
+          id: string
+          lida_em: string | null
+          texto: string | null
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Insert: {
+          autor_id?: string | null
+          created_at?: string
+          entidade: string
+          entidade_id: string
+          id?: string
+          lida_em?: string | null
+          texto?: string | null
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Update: {
+          autor_id?: string | null
+          created_at?: string
+          entidade?: string
+          entidade_id?: string
+          id?: string
+          lida_em?: string | null
+          texto?: string | null
+          tipo?: string
+          titulo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       comercial_vendedores: {
         Row: {
           ativo: boolean
@@ -2125,6 +2335,7 @@ export type Database = {
           email: string | null
           id: string
           nome: string
+          profile_id: string | null
           updated_at: string
           whatsapp: string | null
         }
@@ -2136,6 +2347,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome: string
+          profile_id?: string | null
           updated_at?: string
           whatsapp?: string | null
         }
@@ -2147,10 +2359,19 @@ export type Database = {
           email?: string | null
           id?: string
           nome?: string
+          profile_id?: string | null
           updated_at?: string
           whatsapp?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "comercial_vendedores_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       comunicados: {
         Row: {
@@ -2299,79 +2520,109 @@ export type Database = {
       }
       contrato_assinaturas: {
         Row: {
+          aceite_termos_em: string | null
           assinado_em: string | null
           assinatura_url: string | null
+          bloqueado_ate: string | null
+          canais: string[]
+          canal_validado: string | null
+          contato_validado: string | null
           contrato_id: string
           cpf: string | null
           created_at: string
           email: string
+          enviado_em: string | null
           hash_documento: string | null
           id: string
           ip_assinatura: string | null
           latitude: number | null
+          lembretes_enviados: number[]
           link_expires_at: string | null
           link_token: string | null
           longitude: number | null
+          motivo_recusa: string | null
           nome: string
           notificado_em: string | null
           ordem: number | null
           posicoes: Json | null
+          recusado_em: string | null
           status: string
           telefone: string | null
           tipo: string
           ultimo_lembrete_em: string | null
           updated_at: string
           user_agent: string | null
+          visualizado_em: string | null
         }
         Insert: {
+          aceite_termos_em?: string | null
           assinado_em?: string | null
           assinatura_url?: string | null
+          bloqueado_ate?: string | null
+          canais?: string[]
+          canal_validado?: string | null
+          contato_validado?: string | null
           contrato_id: string
           cpf?: string | null
           created_at?: string
           email: string
+          enviado_em?: string | null
           hash_documento?: string | null
           id?: string
           ip_assinatura?: string | null
           latitude?: number | null
+          lembretes_enviados?: number[]
           link_expires_at?: string | null
           link_token?: string | null
           longitude?: number | null
+          motivo_recusa?: string | null
           nome: string
           notificado_em?: string | null
           ordem?: number | null
           posicoes?: Json | null
+          recusado_em?: string | null
           status?: string
           telefone?: string | null
           tipo?: string
           ultimo_lembrete_em?: string | null
           updated_at?: string
           user_agent?: string | null
+          visualizado_em?: string | null
         }
         Update: {
+          aceite_termos_em?: string | null
           assinado_em?: string | null
           assinatura_url?: string | null
+          bloqueado_ate?: string | null
+          canais?: string[]
+          canal_validado?: string | null
+          contato_validado?: string | null
           contrato_id?: string
           cpf?: string | null
           created_at?: string
           email?: string
+          enviado_em?: string | null
           hash_documento?: string | null
           id?: string
           ip_assinatura?: string | null
           latitude?: number | null
+          lembretes_enviados?: number[]
           link_expires_at?: string | null
           link_token?: string | null
           longitude?: number | null
+          motivo_recusa?: string | null
           nome?: string
           notificado_em?: string | null
           ordem?: number | null
           posicoes?: Json | null
+          recusado_em?: string | null
           status?: string
           telefone?: string | null
           tipo?: string
           ultimo_lembrete_em?: string | null
           updated_at?: string
           user_agent?: string | null
+          visualizado_em?: string | null
         }
         Relationships: [
           {
@@ -2383,9 +2634,55 @@ export type Database = {
           },
         ]
       }
+      contrato_codigos_assinatura: {
+        Row: {
+          assinatura_id: string
+          canal: string
+          created_at: string
+          destino: string | null
+          expira_em: string
+          hash_codigo: string
+          id: string
+          tentativas: number
+          usado_em: string | null
+        }
+        Insert: {
+          assinatura_id: string
+          canal: string
+          created_at?: string
+          destino?: string | null
+          expira_em: string
+          hash_codigo: string
+          id?: string
+          tentativas?: number
+          usado_em?: string | null
+        }
+        Update: {
+          assinatura_id?: string
+          canal?: string
+          created_at?: string
+          destino?: string | null
+          expira_em?: string
+          hash_codigo?: string
+          id?: string
+          tentativas?: number
+          usado_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contrato_codigos_assinatura_assinatura_id_fkey"
+            columns: ["assinatura_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_assinaturas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contrato_historico: {
         Row: {
           acao: string
+          assinatura_id: string | null
+          canal: string | null
           contrato_id: string
           created_at: string
           dados: Json | null
@@ -2397,6 +2694,8 @@ export type Database = {
         }
         Insert: {
           acao: string
+          assinatura_id?: string | null
+          canal?: string | null
           contrato_id: string
           created_at?: string
           dados?: Json | null
@@ -2408,6 +2707,8 @@ export type Database = {
         }
         Update: {
           acao?: string
+          assinatura_id?: string | null
+          canal?: string | null
           contrato_id?: string
           created_at?: string
           dados?: Json | null
@@ -2489,54 +2790,122 @@ export type Database = {
           },
         ]
       }
+      contrato_template_versoes: {
+        Row: {
+          campos: Json
+          conteudo_html: string
+          contratada: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          signatario_contratada: Json
+          template_id: string
+          versao: number
+        }
+        Insert: {
+          campos?: Json
+          conteudo_html: string
+          contratada?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          signatario_contratada?: Json
+          template_id: string
+          versao: number
+        }
+        Update: {
+          campos?: Json
+          conteudo_html?: string
+          contratada?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          signatario_contratada?: Json
+          template_id?: string
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contrato_template_versoes_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contrato_templates: {
         Row: {
           arquivo_nome: string | null
           arquivo_url: string | null
           ativo: boolean | null
+          campos: Json
           categoria: string | null
           conteudo_html: string
+          contratada: Json
           created_at: string
           created_by: string
           descricao: string | null
+          fluxo_versao: number
           id: string
+          lembrete_dias: number[]
           logo_url: string | null
+          prazo_assinatura_dias: number
+          signatario_contratada: Json
+          slug: string | null
           tipo_template: string | null
           titulo: string
           updated_at: string
           variaveis_disponiveis: Json | null
+          versao: number
         }
         Insert: {
           arquivo_nome?: string | null
           arquivo_url?: string | null
           ativo?: boolean | null
+          campos?: Json
           categoria?: string | null
           conteudo_html: string
+          contratada?: Json
           created_at?: string
           created_by: string
           descricao?: string | null
+          fluxo_versao?: number
           id?: string
+          lembrete_dias?: number[]
           logo_url?: string | null
+          prazo_assinatura_dias?: number
+          signatario_contratada?: Json
+          slug?: string | null
           tipo_template?: string | null
           titulo: string
           updated_at?: string
           variaveis_disponiveis?: Json | null
+          versao?: number
         }
         Update: {
           arquivo_nome?: string | null
           arquivo_url?: string | null
           ativo?: boolean | null
+          campos?: Json
           categoria?: string | null
           conteudo_html?: string
+          contratada?: Json
           created_at?: string
           created_by?: string
           descricao?: string | null
+          fluxo_versao?: number
           id?: string
+          lembrete_dias?: number[]
           logo_url?: string | null
+          prazo_assinatura_dias?: number
+          signatario_contratada?: Json
+          slug?: string | null
           tipo_template?: string | null
           titulo?: string
           updated_at?: string
           variaveis_disponiveis?: Json | null
+          versao?: number
         }
         Relationships: []
       }
@@ -2548,6 +2917,10 @@ export type Database = {
           arquivo_pdf_url: string | null
           auto_envio_email_assinatura: boolean
           campos_assinatura: Json
+          cancelado_em: string | null
+          cancelado_por: string | null
+          carimbo_tempo_em: string | null
+          concluido_em: string | null
           conteudo_html: string
           contratada_assinatura_automatica: boolean
           contratada_documento: string | null
@@ -2562,6 +2935,7 @@ export type Database = {
           contratado_cnpj: string | null
           contratado_email: string | null
           contratado_nome: string | null
+          contratante_cnpj: string | null
           contratante_cpf: string | null
           contratante_email: string | null
           contratante_nome: string | null
@@ -2573,16 +2947,36 @@ export type Database = {
           created_by: string
           data_fim: string | null
           data_inicio: string | null
+          enviado_em: string | null
+          expira_em: string | null
+          fluxo_versao: number
+          guardar_ate: string | null
+          hash_final: string | null
+          hash_original: string | null
           id: string
+          lacre_alertado_em: string | null
+          lacre_em: string | null
+          lacre_erro: string | null
+          lacre_status: string | null
+          lacre_tentativas: number
           lembrete_ativo: boolean
           lembrete_dias: number[]
           link_expires_at: string | null
           link_token: string | null
+          motivo_cancelamento: string | null
+          motivo_recusa: string | null
           numero: string
+          pdf_final_path: string | null
+          pdf_original_path: string | null
           pdf_url: string | null
+          recusado_em: string | null
           status: string
           template_id: string | null
+          template_versao: number | null
           titulo: string
+          trust_codigo: string | null
+          trust_documento_id: string | null
+          ultima_assinatura_em: string | null
           updated_at: string
           valor_contrato: number | null
           variaveis_preenchidas: Json | null
@@ -2594,6 +2988,10 @@ export type Database = {
           arquivo_pdf_url?: string | null
           auto_envio_email_assinatura?: boolean
           campos_assinatura?: Json
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          carimbo_tempo_em?: string | null
+          concluido_em?: string | null
           conteudo_html: string
           contratada_assinatura_automatica?: boolean
           contratada_documento?: string | null
@@ -2608,6 +3006,7 @@ export type Database = {
           contratado_cnpj?: string | null
           contratado_email?: string | null
           contratado_nome?: string | null
+          contratante_cnpj?: string | null
           contratante_cpf?: string | null
           contratante_email?: string | null
           contratante_nome?: string | null
@@ -2619,16 +3018,36 @@ export type Database = {
           created_by: string
           data_fim?: string | null
           data_inicio?: string | null
+          enviado_em?: string | null
+          expira_em?: string | null
+          fluxo_versao?: number
+          guardar_ate?: string | null
+          hash_final?: string | null
+          hash_original?: string | null
           id?: string
+          lacre_alertado_em?: string | null
+          lacre_em?: string | null
+          lacre_erro?: string | null
+          lacre_status?: string | null
+          lacre_tentativas?: number
           lembrete_ativo?: boolean
           lembrete_dias?: number[]
           link_expires_at?: string | null
           link_token?: string | null
+          motivo_cancelamento?: string | null
+          motivo_recusa?: string | null
           numero: string
+          pdf_final_path?: string | null
+          pdf_original_path?: string | null
           pdf_url?: string | null
+          recusado_em?: string | null
           status?: string
           template_id?: string | null
+          template_versao?: number | null
           titulo: string
+          trust_codigo?: string | null
+          trust_documento_id?: string | null
+          ultima_assinatura_em?: string | null
           updated_at?: string
           valor_contrato?: number | null
           variaveis_preenchidas?: Json | null
@@ -2640,6 +3059,10 @@ export type Database = {
           arquivo_pdf_url?: string | null
           auto_envio_email_assinatura?: boolean
           campos_assinatura?: Json
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          carimbo_tempo_em?: string | null
+          concluido_em?: string | null
           conteudo_html?: string
           contratada_assinatura_automatica?: boolean
           contratada_documento?: string | null
@@ -2654,6 +3077,7 @@ export type Database = {
           contratado_cnpj?: string | null
           contratado_email?: string | null
           contratado_nome?: string | null
+          contratante_cnpj?: string | null
           contratante_cpf?: string | null
           contratante_email?: string | null
           contratante_nome?: string | null
@@ -2665,16 +3089,36 @@ export type Database = {
           created_by?: string
           data_fim?: string | null
           data_inicio?: string | null
+          enviado_em?: string | null
+          expira_em?: string | null
+          fluxo_versao?: number
+          guardar_ate?: string | null
+          hash_final?: string | null
+          hash_original?: string | null
           id?: string
+          lacre_alertado_em?: string | null
+          lacre_em?: string | null
+          lacre_erro?: string | null
+          lacre_status?: string | null
+          lacre_tentativas?: number
           lembrete_ativo?: boolean
           lembrete_dias?: number[]
           link_expires_at?: string | null
           link_token?: string | null
+          motivo_cancelamento?: string | null
+          motivo_recusa?: string | null
           numero?: string
+          pdf_final_path?: string | null
+          pdf_original_path?: string | null
           pdf_url?: string | null
+          recusado_em?: string | null
           status?: string
           template_id?: string | null
+          template_versao?: number | null
           titulo?: string
+          trust_codigo?: string | null
+          trust_documento_id?: string | null
+          ultima_assinatura_em?: string | null
           updated_at?: string
           valor_contrato?: number | null
           variaveis_preenchidas?: Json | null
@@ -2692,6 +3136,13 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "contrato_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_trust_documento_id_fkey"
+            columns: ["trust_documento_id"]
+            isOneToOne: false
+            referencedRelation: "trust_documentos"
             referencedColumns: ["id"]
           },
         ]
@@ -8568,6 +9019,205 @@ export type Database = {
           },
         ]
       }
+      trust_documentos: {
+        Row: {
+          codigo: string
+          created_at: string
+          created_by: string | null
+          emissor_id: string
+          emitido_em: string
+          id: string
+          motivo_status: string | null
+          origem: string
+          origem_id: string | null
+          status: string
+          tipo: string
+          titulo_publico: string
+        }
+        Insert: {
+          codigo: string
+          created_at?: string
+          created_by?: string | null
+          emissor_id: string
+          emitido_em?: string
+          id?: string
+          motivo_status?: string | null
+          origem: string
+          origem_id?: string | null
+          status?: string
+          tipo: string
+          titulo_publico: string
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          created_by?: string | null
+          emissor_id?: string
+          emitido_em?: string
+          id?: string
+          motivo_status?: string | null
+          origem?: string
+          origem_id?: string | null
+          status?: string
+          tipo?: string
+          titulo_publico?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trust_documentos_emissor_id_fkey"
+            columns: ["emissor_id"]
+            isOneToOne: false
+            referencedRelation: "trust_emissores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trust_emissores: {
+        Row: {
+          ativo: boolean
+          cnpj: string | null
+          created_at: string
+          id: string
+          nome: string
+          selo_config: Json
+          slug: string
+        }
+        Insert: {
+          ativo?: boolean
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          selo_config?: Json
+          slug: string
+        }
+        Update: {
+          ativo?: boolean
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          selo_config?: Json
+          slug?: string
+        }
+        Relationships: []
+      }
+      trust_eventos: {
+        Row: {
+          ator_id: string | null
+          created_at: string
+          dados: Json | null
+          descricao: string
+          documento_id: string
+          hash: string
+          hash_anterior: string
+          id: number
+          publico: boolean
+          tipo: string
+          versao_id: string | null
+        }
+        Insert: {
+          ator_id?: string | null
+          created_at?: string
+          dados?: Json | null
+          descricao: string
+          documento_id: string
+          hash?: string
+          hash_anterior?: string
+          id?: number
+          publico?: boolean
+          tipo: string
+          versao_id?: string | null
+        }
+        Update: {
+          ator_id?: string | null
+          created_at?: string
+          dados?: Json | null
+          descricao?: string
+          documento_id?: string
+          hash?: string
+          hash_anterior?: string
+          id?: number
+          publico?: boolean
+          tipo?: string
+          versao_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trust_eventos_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "trust_documentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trust_eventos_versao_id_fkey"
+            columns: ["versao_id"]
+            isOneToOne: false
+            referencedRelation: "trust_versoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trust_versoes: {
+        Row: {
+          carimbo_em: string | null
+          carimbo_path: string | null
+          carimbo_status: string
+          carimbo_tentativas: number
+          created_at: string
+          documento_id: string
+          hash_sha256: string
+          id: string
+          selo_em: string | null
+          selo_status: string
+          storage_bucket: string | null
+          storage_path: string | null
+          tamanho: number | null
+          tipo: string
+        }
+        Insert: {
+          carimbo_em?: string | null
+          carimbo_path?: string | null
+          carimbo_status?: string
+          carimbo_tentativas?: number
+          created_at?: string
+          documento_id: string
+          hash_sha256: string
+          id?: string
+          selo_em?: string | null
+          selo_status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          tamanho?: number | null
+          tipo: string
+        }
+        Update: {
+          carimbo_em?: string | null
+          carimbo_path?: string | null
+          carimbo_status?: string
+          carimbo_tentativas?: number
+          created_at?: string
+          documento_id?: string
+          hash_sha256?: string
+          id?: string
+          selo_em?: string | null
+          selo_status?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          tamanho?: number | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trust_versoes_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "trust_documentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_fluxo_permissions: {
         Row: {
           created_at: string
@@ -10458,9 +11108,64 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      comercial_cadeia: {
+        Args: { _owner: string }
+        Returns: Record<string, unknown>
+      }
+      comercial_diff: {
+        Args: { _antes: Json; _depois: Json }
+        Returns: Record<string, unknown>
+      }
+      comercial_dono: { Args: { _vendedor_id: string }; Returns: string }
+      comercial_em_rotina: { Args: never; Returns: boolean }
+      comercial_flag_visao_geral: { Args: { _uid: string }; Returns: boolean }
       comercial_funil_publico: {
         Args: { p_funil_slug: string; p_vendedor_codigo?: string }
         Returns: Json
+      }
+      comercial_lead_fechado: { Args: { _etapa_id: string }; Returns: boolean }
+      comercial_lideres_de: { Args: { _uid: string }; Returns: string[] }
+      comercial_meu_acesso: { Args: never; Returns: Json }
+      comercial_nivel: { Args: { _uid: string }; Returns: string }
+      comercial_no_alcance: {
+        Args: { _owner: string; _viewer: string }
+        Returns: boolean
+      }
+      comercial_nomes_usuarios: {
+        Args: { _ids: string[] }
+        Returns: {
+          id: string
+          nome: string
+        }[]
+      }
+      comercial_notificar: {
+        Args: {
+          _entidade: string
+          _entidade_id: string
+          _para: string
+          _texto: string
+          _tipo: string
+          _titulo: string
+        }
+        Returns: undefined
+      }
+      comercial_pode_editar: {
+        Args: { _vendedor_id: string; _viewer: string }
+        Returns: boolean
+      }
+      comercial_pode_ver: {
+        Args: {
+          _fechado: boolean
+          _gerente_id: string
+          _lider_id: string
+          _vendedor_id: string
+          _viewer: string
+        }
+        Returns: boolean
+      }
+      comercial_recalcular_cadeia_aberta: {
+        Args: { _owner: string }
+        Returns: undefined
       }
       comercial_registrar_lead_publico: {
         Args: {
@@ -10475,6 +11180,11 @@ export type Database = {
           p_whatsapp: string
         }
         Returns: boolean
+      }
+      comercial_ve_todos_leads: { Args: { _uid: string }; Returns: boolean }
+      comercial_vendedor_do_lead: {
+        Args: { _lead_id: string }
+        Returns: string
       }
       consultar_hinova: {
         Args: { p_cpf?: string; p_nome?: string; p_placa?: string }
@@ -10889,6 +11599,10 @@ export type Database = {
         }[]
       }
       marcar_git_fallback_desativado: { Args: never; Returns: undefined }
+      meeting_pode_ver_sala: {
+        Args: { _room_id: string; _uid: string }
+        Returns: boolean
+      }
       ouvidoria_rate_limit_ok: {
         Args: { p_corretora_id: string }
         Returns: boolean
@@ -10932,6 +11646,50 @@ export type Database = {
       status_importacoes_corretora: {
         Args: { p_corretora_id: string }
         Returns: Json
+      }
+      trust_hash_evento: {
+        Args: {
+          _anterior: string
+          _ator: string
+          _dados: Json
+          _descricao: string
+          _documento: string
+          _quando: string
+          _tipo: string
+          _versao: string
+        }
+        Returns: string
+      }
+      trust_pode_ver: {
+        Args: { _documento_id: string; _uid: string }
+        Returns: boolean
+      }
+      trust_verificar_cadeia: {
+        Args: never
+        Returns: {
+          ok: boolean
+          primeiro_erro: number
+          total: number
+          ultimo_hash: string
+        }[]
+      }
+      trust_verificar_documento: {
+        Args: { _documento_id: string }
+        Returns: boolean
+      }
+      uonisign_flag: {
+        Args: { _subitem: string; _uid: string }
+        Returns: boolean
+      }
+      uonisign_meu_nivel: { Args: never; Returns: string }
+      uonisign_nivel: { Args: { _uid: string }; Returns: string }
+      uonisign_pode_ver: {
+        Args: { _owner: string; _uid: string }
+        Returns: boolean
+      }
+      uonisign_pode_ver_contrato: {
+        Args: { _contrato_id: string; _uid: string }
+        Returns: boolean
       }
       user_can_access_fluxo: {
         Args: { _fluxo_id: string; _require_edit?: boolean; _user_id: string }
