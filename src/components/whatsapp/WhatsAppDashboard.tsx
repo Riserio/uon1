@@ -121,7 +121,7 @@ export default function WhatsAppDashboard() {
             `https://${projectId}.supabase.co/functions/v1/whatsapp-analytics?start=${dateRange.startTs}&end=${dateRange.endTs}&granularity=DAILY`,
             { headers: { 'Authorization': `Bearer ${session.access_token}`, 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY } },
           );
-          if (res.ok) { setMetaData(await res.json()); }
+          if (res.ok) { const j = await res.json(); setMetaData(j); if (j?.aviso) setMetaError(j.aviso); }
           else { const err = await res.json().catch(() => ({})); setMetaError(err.error || `Erro ${res.status}`); }
         }
       } catch { setMetaError('Erro ao conectar com Meta API'); }
