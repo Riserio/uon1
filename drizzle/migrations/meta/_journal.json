@@ -260,6 +260,13 @@
       "when": 1793719236363,
       "tag": "0036_0035_comercial_funil_vendas",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794702292264,
+      "tag": "0037_uonisign_v2",
+      "breakpoints": true
     }
   ]
 }

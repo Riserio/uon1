@@ -2520,79 +2520,109 @@ export type Database = {
       }
       contrato_assinaturas: {
         Row: {
+          aceite_termos_em: string | null
           assinado_em: string | null
           assinatura_url: string | null
+          bloqueado_ate: string | null
+          canais: string[]
+          canal_validado: string | null
+          contato_validado: string | null
           contrato_id: string
           cpf: string | null
           created_at: string
           email: string
+          enviado_em: string | null
           hash_documento: string | null
           id: string
           ip_assinatura: string | null
           latitude: number | null
+          lembretes_enviados: number[]
           link_expires_at: string | null
           link_token: string | null
           longitude: number | null
+          motivo_recusa: string | null
           nome: string
           notificado_em: string | null
           ordem: number | null
           posicoes: Json | null
+          recusado_em: string | null
           status: string
           telefone: string | null
           tipo: string
           ultimo_lembrete_em: string | null
           updated_at: string
           user_agent: string | null
+          visualizado_em: string | null
         }
         Insert: {
+          aceite_termos_em?: string | null
           assinado_em?: string | null
           assinatura_url?: string | null
+          bloqueado_ate?: string | null
+          canais?: string[]
+          canal_validado?: string | null
+          contato_validado?: string | null
           contrato_id: string
           cpf?: string | null
           created_at?: string
           email: string
+          enviado_em?: string | null
           hash_documento?: string | null
           id?: string
           ip_assinatura?: string | null
           latitude?: number | null
+          lembretes_enviados?: number[]
           link_expires_at?: string | null
           link_token?: string | null
           longitude?: number | null
+          motivo_recusa?: string | null
           nome: string
           notificado_em?: string | null
           ordem?: number | null
           posicoes?: Json | null
+          recusado_em?: string | null
           status?: string
           telefone?: string | null
           tipo?: string
           ultimo_lembrete_em?: string | null
           updated_at?: string
           user_agent?: string | null
+          visualizado_em?: string | null
         }
         Update: {
+          aceite_termos_em?: string | null
           assinado_em?: string | null
           assinatura_url?: string | null
+          bloqueado_ate?: string | null
+          canais?: string[]
+          canal_validado?: string | null
+          contato_validado?: string | null
           contrato_id?: string
           cpf?: string | null
           created_at?: string
           email?: string
+          enviado_em?: string | null
           hash_documento?: string | null
           id?: string
           ip_assinatura?: string | null
           latitude?: number | null
+          lembretes_enviados?: number[]
           link_expires_at?: string | null
           link_token?: string | null
           longitude?: number | null
+          motivo_recusa?: string | null
           nome?: string
           notificado_em?: string | null
           ordem?: number | null
           posicoes?: Json | null
+          recusado_em?: string | null
           status?: string
           telefone?: string | null
           tipo?: string
           ultimo_lembrete_em?: string | null
           updated_at?: string
           user_agent?: string | null
+          visualizado_em?: string | null
         }
         Relationships: [
           {
@@ -2604,9 +2634,55 @@ export type Database = {
           },
         ]
       }
+      contrato_codigos_assinatura: {
+        Row: {
+          assinatura_id: string
+          canal: string
+          created_at: string
+          destino: string | null
+          expira_em: string
+          hash_codigo: string
+          id: string
+          tentativas: number
+          usado_em: string | null
+        }
+        Insert: {
+          assinatura_id: string
+          canal: string
+          created_at?: string
+          destino?: string | null
+          expira_em: string
+          hash_codigo: string
+          id?: string
+          tentativas?: number
+          usado_em?: string | null
+        }
+        Update: {
+          assinatura_id?: string
+          canal?: string
+          created_at?: string
+          destino?: string | null
+          expira_em?: string
+          hash_codigo?: string
+          id?: string
+          tentativas?: number
+          usado_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contrato_codigos_assinatura_assinatura_id_fkey"
+            columns: ["assinatura_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_assinaturas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contrato_historico: {
         Row: {
           acao: string
+          assinatura_id: string | null
+          canal: string | null
           contrato_id: string
           created_at: string
           dados: Json | null
@@ -2618,6 +2694,8 @@ export type Database = {
         }
         Insert: {
           acao: string
+          assinatura_id?: string | null
+          canal?: string | null
           contrato_id: string
           created_at?: string
           dados?: Json | null
@@ -2629,6 +2707,8 @@ export type Database = {
         }
         Update: {
           acao?: string
+          assinatura_id?: string | null
+          canal?: string | null
           contrato_id?: string
           created_at?: string
           dados?: Json | null
@@ -2710,54 +2790,122 @@ export type Database = {
           },
         ]
       }
+      contrato_template_versoes: {
+        Row: {
+          campos: Json
+          conteudo_html: string
+          contratada: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          signatario_contratada: Json
+          template_id: string
+          versao: number
+        }
+        Insert: {
+          campos?: Json
+          conteudo_html: string
+          contratada?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          signatario_contratada?: Json
+          template_id: string
+          versao: number
+        }
+        Update: {
+          campos?: Json
+          conteudo_html?: string
+          contratada?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          signatario_contratada?: Json
+          template_id?: string
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contrato_template_versoes_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contrato_templates: {
         Row: {
           arquivo_nome: string | null
           arquivo_url: string | null
           ativo: boolean | null
+          campos: Json
           categoria: string | null
           conteudo_html: string
+          contratada: Json
           created_at: string
           created_by: string
           descricao: string | null
+          fluxo_versao: number
           id: string
+          lembrete_dias: number[]
           logo_url: string | null
+          prazo_assinatura_dias: number
+          signatario_contratada: Json
+          slug: string | null
           tipo_template: string | null
           titulo: string
           updated_at: string
           variaveis_disponiveis: Json | null
+          versao: number
         }
         Insert: {
           arquivo_nome?: string | null
           arquivo_url?: string | null
           ativo?: boolean | null
+          campos?: Json
           categoria?: string | null
           conteudo_html: string
+          contratada?: Json
           created_at?: string
           created_by: string
           descricao?: string | null
+          fluxo_versao?: number
           id?: string
+          lembrete_dias?: number[]
           logo_url?: string | null
+          prazo_assinatura_dias?: number
+          signatario_contratada?: Json
+          slug?: string | null
           tipo_template?: string | null
           titulo: string
           updated_at?: string
           variaveis_disponiveis?: Json | null
+          versao?: number
         }
         Update: {
           arquivo_nome?: string | null
           arquivo_url?: string | null
           ativo?: boolean | null
+          campos?: Json
           categoria?: string | null
           conteudo_html?: string
+          contratada?: Json
           created_at?: string
           created_by?: string
           descricao?: string | null
+          fluxo_versao?: number
           id?: string
+          lembrete_dias?: number[]
           logo_url?: string | null
+          prazo_assinatura_dias?: number
+          signatario_contratada?: Json
+          slug?: string | null
           tipo_template?: string | null
           titulo?: string
           updated_at?: string
           variaveis_disponiveis?: Json | null
+          versao?: number
         }
         Relationships: []
       }
@@ -2769,6 +2917,10 @@ export type Database = {
           arquivo_pdf_url: string | null
           auto_envio_email_assinatura: boolean
           campos_assinatura: Json
+          cancelado_em: string | null
+          cancelado_por: string | null
+          carimbo_tempo_em: string | null
+          concluido_em: string | null
           conteudo_html: string
           contratada_assinatura_automatica: boolean
           contratada_documento: string | null
@@ -2783,6 +2935,7 @@ export type Database = {
           contratado_cnpj: string | null
           contratado_email: string | null
           contratado_nome: string | null
+          contratante_cnpj: string | null
           contratante_cpf: string | null
           contratante_email: string | null
           contratante_nome: string | null
@@ -2794,16 +2947,34 @@ export type Database = {
           created_by: string
           data_fim: string | null
           data_inicio: string | null
+          enviado_em: string | null
+          expira_em: string | null
+          fluxo_versao: number
+          guardar_ate: string | null
+          hash_final: string | null
+          hash_original: string | null
           id: string
+          lacre_alertado_em: string | null
+          lacre_em: string | null
+          lacre_erro: string | null
+          lacre_status: string | null
+          lacre_tentativas: number
           lembrete_ativo: boolean
           lembrete_dias: number[]
           link_expires_at: string | null
           link_token: string | null
+          motivo_cancelamento: string | null
+          motivo_recusa: string | null
           numero: string
+          pdf_final_path: string | null
+          pdf_original_path: string | null
           pdf_url: string | null
+          recusado_em: string | null
           status: string
           template_id: string | null
+          template_versao: number | null
           titulo: string
+          ultima_assinatura_em: string | null
           updated_at: string
           valor_contrato: number | null
           variaveis_preenchidas: Json | null
@@ -2815,6 +2986,10 @@ export type Database = {
           arquivo_pdf_url?: string | null
           auto_envio_email_assinatura?: boolean
           campos_assinatura?: Json
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          carimbo_tempo_em?: string | null
+          concluido_em?: string | null
           conteudo_html: string
           contratada_assinatura_automatica?: boolean
           contratada_documento?: string | null
@@ -2829,6 +3004,7 @@ export type Database = {
           contratado_cnpj?: string | null
           contratado_email?: string | null
           contratado_nome?: string | null
+          contratante_cnpj?: string | null
           contratante_cpf?: string | null
           contratante_email?: string | null
           contratante_nome?: string | null
@@ -2840,16 +3016,34 @@ export type Database = {
           created_by: string
           data_fim?: string | null
           data_inicio?: string | null
+          enviado_em?: string | null
+          expira_em?: string | null
+          fluxo_versao?: number
+          guardar_ate?: string | null
+          hash_final?: string | null
+          hash_original?: string | null
           id?: string
+          lacre_alertado_em?: string | null
+          lacre_em?: string | null
+          lacre_erro?: string | null
+          lacre_status?: string | null
+          lacre_tentativas?: number
           lembrete_ativo?: boolean
           lembrete_dias?: number[]
           link_expires_at?: string | null
           link_token?: string | null
+          motivo_cancelamento?: string | null
+          motivo_recusa?: string | null
           numero: string
+          pdf_final_path?: string | null
+          pdf_original_path?: string | null
           pdf_url?: string | null
+          recusado_em?: string | null
           status?: string
           template_id?: string | null
+          template_versao?: number | null
           titulo: string
+          ultima_assinatura_em?: string | null
           updated_at?: string
           valor_contrato?: number | null
           variaveis_preenchidas?: Json | null
@@ -2861,6 +3055,10 @@ export type Database = {
           arquivo_pdf_url?: string | null
           auto_envio_email_assinatura?: boolean
           campos_assinatura?: Json
+          cancelado_em?: string | null
+          cancelado_por?: string | null
+          carimbo_tempo_em?: string | null
+          concluido_em?: string | null
           conteudo_html?: string
           contratada_assinatura_automatica?: boolean
           contratada_documento?: string | null
@@ -2875,6 +3073,7 @@ export type Database = {
           contratado_cnpj?: string | null
           contratado_email?: string | null
           contratado_nome?: string | null
+          contratante_cnpj?: string | null
           contratante_cpf?: string | null
           contratante_email?: string | null
           contratante_nome?: string | null
@@ -2886,16 +3085,34 @@ export type Database = {
           created_by?: string
           data_fim?: string | null
           data_inicio?: string | null
+          enviado_em?: string | null
+          expira_em?: string | null
+          fluxo_versao?: number
+          guardar_ate?: string | null
+          hash_final?: string | null
+          hash_original?: string | null
           id?: string
+          lacre_alertado_em?: string | null
+          lacre_em?: string | null
+          lacre_erro?: string | null
+          lacre_status?: string | null
+          lacre_tentativas?: number
           lembrete_ativo?: boolean
           lembrete_dias?: number[]
           link_expires_at?: string | null
           link_token?: string | null
+          motivo_cancelamento?: string | null
+          motivo_recusa?: string | null
           numero?: string
+          pdf_final_path?: string | null
+          pdf_original_path?: string | null
           pdf_url?: string | null
+          recusado_em?: string | null
           status?: string
           template_id?: string | null
+          template_versao?: number | null
           titulo?: string
+          ultima_assinatura_em?: string | null
           updated_at?: string
           valor_contrato?: number | null
           variaveis_preenchidas?: Json | null
@@ -11213,6 +11430,20 @@ export type Database = {
       status_importacoes_corretora: {
         Args: { p_corretora_id: string }
         Returns: Json
+      }
+      uonisign_flag: {
+        Args: { _subitem: string; _uid: string }
+        Returns: boolean
+      }
+      uonisign_meu_nivel: { Args: never; Returns: string }
+      uonisign_nivel: { Args: { _uid: string }; Returns: string }
+      uonisign_pode_ver: {
+        Args: { _owner: string; _uid: string }
+        Returns: boolean
+      }
+      uonisign_pode_ver_contrato: {
+        Args: { _contrato_id: string; _uid: string }
+        Returns: boolean
       }
       user_can_access_fluxo: {
         Args: { _fluxo_id: string; _require_edit?: boolean; _user_id: string }
