@@ -101,7 +101,7 @@ export async function enviarWhatsApp(
   telefone: string | null | undefined,
   tipo: TemplateWa,
   parametros: string[],
-  opcoes: { template?: string | null; idioma?: string | null } = {},
+  opcoes: { template?: string | null; idioma?: string | null; botaoUrl?: string | null } = {},
 ): Promise<{ ok: boolean; erro?: string }> {
   const token = Deno.env.get("META_WHATSAPP_TOKEN");
   const phoneId = Deno.env.get("META_WHATSAPP_PHONE_NUMBER_ID");
@@ -116,6 +116,9 @@ export async function enviarWhatsApp(
   // Template de autenticação (código): a Meta exige o código também no botão "copiar".
   if (tipo === "codigo") {
     components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: parametros[0] }] });
+  } else if (opcoes.botaoUrl) {
+    // Botão "Revisar e assinar" com URL dinâmica (ex.: .../assinar/{{1}} → token do signatário)
+    components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: opcoes.botaoUrl }] });
   }
   try {
     const r = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/messages`, {

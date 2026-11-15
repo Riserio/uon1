@@ -28,12 +28,14 @@ const VARIAVEIS: Record<string, string> = {
   codigo: "Código de assinatura",
   url_validacao: "Link de validação (Trust)",
   assunto: "Assunto do aviso",
+  empresa: "Empresa (Contratada)",
+  token: "Final do link de assinatura",
 };
 
 const PADRAO: Required<ConfigWhatsApp> = {
   idioma: "pt_BR",
   mensagens: {
-    convite: { template: "uonisign_convite", parametros: ["nome", "contrato", "link"] },
+    convite: { template: "uonisign_convite", parametros: ["nome", "contrato", "numero", "empresa", "prazo"], botao: "token" },
     codigo: { template: "uonisign_codigo", parametros: ["codigo"] },
     lembrete: { template: "uonisign_lembrete", parametros: ["nome", "contrato", "dias", "link"] },
     concluido: { template: "uonisign_concluido", parametros: ["nome", "contrato", "link"] },
@@ -109,7 +111,8 @@ export default function MensagensDialog({ open, onOpenChange }: { open: boolean;
     const atuais = cfg.mensagens[tipo]?.parametros ?? [];
     const n = t?.variaveis ?? atuais.length;
     const parametros = Array.from({ length: n }, (_, i) => atuais[i] ?? PADRAO.mensagens[tipo]?.parametros?.[i] ?? "nome");
-    setCfg({ ...cfg, mensagens: { ...cfg.mensagens, [tipo]: { template: nome, parametros } } });
+    const botao = t?.url_botao ? (cfg.mensagens[tipo]?.botao ?? "token") : null;
+    setCfg({ ...cfg, mensagens: { ...cfg.mensagens, [tipo]: { template: nome, parametros, botao } } });
   };
 
   const setParametro = (tipo: string, i: number, chave: string) => {
@@ -212,6 +215,23 @@ export default function MensagensDialog({ open, onOpenChange }: { open: boolean;
                 </div>
                 {t?.corpo && <p className="text-xs bg-muted/40 rounded-lg p-2 whitespace-pre-wrap">{t.corpo}</p>}
                 {t?.status === "REJECTED" && t.motivo_rejeicao && <p className="text-xs text-red-700">Motivo: {t.motivo_rejeicao}</p>}
+                {t?.url_botao && (
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="text-muted-foreground">Botão: {t.url_botao.replace("{{1}}", "")}</span>
+                    <Select
+                      value={m.botao ?? "token"}
+                      onValueChange={(v) => setCfg({ ...cfg, mensagens: { ...cfg.mensagens, [tp.id]: { ...m, botao: v } } })}
+                    >
+                      <SelectTrigger className="h-8 w-[210px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="token">Final do link de assinatura</SelectItem>
+                        <SelectItem value="codigo_verificacao">Código de verificação (Trust)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 {(m.parametros ?? []).length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {(m.parametros ?? []).map((p, i) => (

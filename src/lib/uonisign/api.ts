@@ -57,7 +57,16 @@ export const uonisign = {
   // WhatsApp (Meta): status dos templates e criação dos padrões
   waStatus: () =>
     chamar<{
-      templates: { name: string; status: string; language: string; category: string; corpo: string; variaveis: number; motivo_rejeicao?: string | null }[];
+      templates: {
+        name: string;
+        status: string;
+        language: string;
+        category: string;
+        corpo: string;
+        variaveis: number;
+        url_botao?: string | null;
+        motivo_rejeicao?: string | null;
+      }[];
       config: ConfigWhatsApp | null;
       erro_meta?: string;
     }>("wa_status", {}),
@@ -132,5 +141,5 @@ export const STATUS_V2: Record<string, { label: string; cor: string }> = {
 
 export interface ConfigWhatsApp {
   idioma?: string;
-  mensagens?: Record<string, { template?: string; parametros?: string[] }>;
+  mensagens?: Record<string, { template?: string; parametros?: string[]; botao?: string | null }>;
 }

@@ -20,11 +20,15 @@ export const VARIAVEIS: Record<string, string> = {
   assunto: "Assunto do aviso",
   mensagem: "Texto do aviso",
   empresa: "Empresa (Contratada)",
+  token: "Final do link de assinatura (botão)",
   codigo_verificacao: "Código de verificação (Uon1 Trust)",
 };
 
+// Variável usada no final da URL do botão (quando o template tem botão de link dinâmico)
+export const BOTAO_PADRAO: Partial<Record<TemplateWa, string>> = { convite: "token" };
+
 export const PARAMETROS_PADRAO: Record<TemplateWa, string[]> = {
-  convite: ["nome", "contrato", "link"],
+  convite: ["nome", "contrato", "numero", "empresa", "prazo"],
   codigo: ["codigo"],
   lembrete: ["nome", "contrato", "dias", "link"],
   concluido: ["nome", "contrato", "link"],
@@ -51,7 +55,7 @@ export interface TemplateEmail {
 
 export interface CacheMensagens {
   email: Map<string, TemplateEmail | null>;
-  whatsapp?: { idioma?: string; mensagens?: Record<string, { template?: string; parametros?: string[] }> } | null;
+  whatsapp?: { idioma?: string; mensagens?: Record<string, { template?: string; parametros?: string[]; botao?: string | null }> } | null;
 }
 
 export const novoCache = (): CacheMensagens => ({ email: new Map() });
@@ -89,8 +93,22 @@ export const TEMPLATES_META = [
     components: [
       {
         type: "BODY",
-        text: "Olá, {{1}}. Você recebeu o contrato {{2}} para assinatura eletrônica. Para ler e assinar, acesse {{3}} e confirme com o código que enviaremos. Mensagem automática do Uon1 Sign.",
-        example: { body_text: [["Ana", "Contrato PPR nº CON-2026-000017", "https://vangard.uon1.com.br/assinar/exemplo"]] },
+        text:
+          "Olá, {{1}}!\n\nVocê recebeu um contrato para assinatura eletrônica.\n\n📄 Contrato\n- Documento: {{2}}\n- Número: {{3}}\n- Enviado por: {{4}}\n\n⏳ Prazo\n- Assine até: {{5}}\n\n🔒 Segurança\n- Para confirmar, você receberá um código de 6 dígitos.\n\nToque no botão abaixo para revisar e assinar.",
+        example: {
+          body_text: [["Ana Souza", "Adesão — Assistência 24h e Rastreamento", "CON-2026-000017", "Vangard Gestora", "29/11/2026"]],
+        },
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          {
+            type: "URL",
+            text: "Revisar e assinar",
+            url: "https://vangard.uon1.com.br/assinar/{{1}}",
+            example: ["https://vangard.uon1.com.br/assinar/8f1c2d3e-0000-4000-8000-000000000000"],
+          },
+        ],
       },
     ],
   },
@@ -159,6 +177,7 @@ export interface TemplateMetaResumo {
   category: string;
   corpo: string;
   variaveis: number;
+  url_botao?: string | null;
   motivo_rejeicao?: string | null;
 }
 
@@ -176,7 +195,11 @@ export async function listarTemplatesMeta(): Promise<{ templates: TemplateMetaRe
     const body = (t.components ?? []).find((c: any) => c.type === "BODY");
     const corpo: string = body?.text ?? (t.category === "AUTHENTICATION" ? "{{1}} é o seu código de verificação." : "");
     const variaveis = new Set([...corpo.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1])).size;
-    return { name: t.name, status: t.status, language: t.language, category: t.category, corpo, variaveis, motivo_rejeicao: t.rejected_reason ?? null };
+    // deno-lint-ignore no-explicit-any
+    const botoes = (t.components ?? []).find((c: any) => c.type === "BUTTONS")?.buttons ?? [];
+    // deno-lint-ignore no-explicit-any
+    const urlBotao = botoes.find((b: any) => b.type === "URL" && /\{\{1\}\}/.test(b.url ?? ""))?.url ?? null;
+    return { name: t.name, status: t.status, language: t.language, category: t.category, corpo, variaveis, url_botao: urlBotao, motivo_rejeicao: t.rejected_reason ?? null };
   });
   return { templates };
 }

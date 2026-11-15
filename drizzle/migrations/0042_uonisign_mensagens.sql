@@ -97,7 +97,7 @@ INSERT INTO public.uonisign_config (chave, valor)
 VALUES ('whatsapp', '{
   "idioma": "pt_BR",
   "mensagens": {
-    "convite":   {"template": "uonisign_convite",   "parametros": ["nome", "contrato", "link"]},
+    "convite":   {"template": "uonisign_convite",   "parametros": ["nome", "contrato", "numero", "empresa", "prazo"], "botao": "token"},
     "codigo":    {"template": "uonisign_codigo",    "parametros": ["codigo"]},
     "lembrete":  {"template": "uonisign_lembrete",  "parametros": ["nome", "contrato", "dias", "link"]},
     "concluido": {"template": "uonisign_concluido", "parametros": ["nome", "contrato", "link"]},

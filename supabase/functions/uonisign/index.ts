@@ -39,6 +39,7 @@ import {
 } from "./servicos.ts";
 import {
   CacheMensagens,
+  BOTAO_PADRAO,
   PARAMETROS_PADRAO,
   Valores,
   configWhatsApp,
@@ -311,7 +312,12 @@ async function waDe(c: Ctx, telefone: string | null | undefined, tipo: TemplateW
   const cfg = await configWhatsApp(c.db, c.msg);
   const m = cfg?.mensagens?.[tipo];
   const chaves = m?.parametros?.length ? m.parametros : PARAMETROS_PADRAO[tipo];
-  return enviarWhatsApp(telefone, tipo, chaves.map((k) => String(v[k] ?? "")), { template: m?.template, idioma: cfg?.idioma });
+  const chaveBotao = m?.botao === undefined ? BOTAO_PADRAO[tipo] : m.botao;
+  return enviarWhatsApp(telefone, tipo, chaves.map((k) => String(v[k] ?? "")), {
+    template: m?.template,
+    idioma: cfg?.idioma,
+    botaoUrl: chaveBotao ? String(v[chaveBotao] ?? "") || null : null,
+  });
 }
 
 const valoresBase = (k: Row, s: Row | null, extra: Valores = {}): Valores => ({
@@ -319,6 +325,7 @@ const valoresBase = (k: Row, s: Row | null, extra: Valores = {}): Valores => ({
   contrato: k.titulo,
   numero: k.numero,
   link: s?.link_token ? linkAssinatura(s.link_token) : "",
+  token: s?.link_token ?? "",
   prazo: s?.link_expires_at ? new Date(s.link_expires_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "",
   url_validacao: k.trust_codigo ? urlValidacao(k.trust_codigo) : "",
   codigo_verificacao: k.trust_codigo ?? "",
