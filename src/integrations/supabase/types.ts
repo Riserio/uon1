@@ -1905,6 +1905,165 @@ export type Database = {
           },
         ]
       }
+      comercial_auditoria: {
+        Row: {
+          acao: string
+          dados_antes: Json | null
+          dados_depois: Json | null
+          data_hora: string
+          dono_id: string | null
+          entidade: string
+          entidade_id: string | null
+          gerente_id: string | null
+          id: number
+          lider_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          acao: string
+          dados_antes?: Json | null
+          dados_depois?: Json | null
+          data_hora?: string
+          dono_id?: string | null
+          entidade: string
+          entidade_id?: string | null
+          gerente_id?: string | null
+          id?: number
+          lider_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          acao?: string
+          dados_antes?: Json | null
+          dados_depois?: Json | null
+          data_hora?: string
+          dono_id?: string | null
+          entidade?: string
+          entidade_id?: string | null
+          gerente_id?: string | null
+          id?: number
+          lider_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      comercial_comentarios: {
+        Row: {
+          autor_id: string
+          created_at: string
+          entidade: string
+          entidade_id: string
+          id: string
+          texto: string
+        }
+        Insert: {
+          autor_id?: string
+          created_at?: string
+          entidade: string
+          entidade_id: string
+          id?: string
+          texto: string
+        }
+        Update: {
+          autor_id?: string
+          created_at?: string
+          entidade?: string
+          entidade_id?: string
+          id?: string
+          texto?: string
+        }
+        Relationships: []
+      }
+      comercial_cotacoes: {
+        Row: {
+          arquivado_em: string | null
+          arquivado_por: string | null
+          cancelada_em: string | null
+          cancelada_por: string | null
+          cancelamento_solicitado_em: string | null
+          cancelamento_solicitado_por: string | null
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          emitida_em: string | null
+          gerente_id: string | null
+          id: string
+          lead_id: string
+          lider_id: string | null
+          motivo_cancelamento: string | null
+          numero: number
+          produto: string | null
+          status: string
+          status_anterior: string | null
+          updated_at: string
+          valor: number
+          vendedor_id: string | null
+        }
+        Insert: {
+          arquivado_em?: string | null
+          arquivado_por?: string | null
+          cancelada_em?: string | null
+          cancelada_por?: string | null
+          cancelamento_solicitado_em?: string | null
+          cancelamento_solicitado_por?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          emitida_em?: string | null
+          gerente_id?: string | null
+          id?: string
+          lead_id: string
+          lider_id?: string | null
+          motivo_cancelamento?: string | null
+          numero?: number
+          produto?: string | null
+          status?: string
+          status_anterior?: string | null
+          updated_at?: string
+          valor?: number
+          vendedor_id?: string | null
+        }
+        Update: {
+          arquivado_em?: string | null
+          arquivado_por?: string | null
+          cancelada_em?: string | null
+          cancelada_por?: string | null
+          cancelamento_solicitado_em?: string | null
+          cancelamento_solicitado_por?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          emitida_em?: string | null
+          gerente_id?: string | null
+          id?: string
+          lead_id?: string
+          lider_id?: string | null
+          motivo_cancelamento?: string | null
+          numero?: number
+          produto?: string | null
+          status?: string
+          status_anterior?: string | null
+          updated_at?: string
+          valor?: number
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comercial_cotacoes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comercial_cotacoes_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comercial_etapas: {
         Row: {
           cor: string
@@ -2033,6 +2192,8 @@ export type Database = {
       }
       comercial_leads: {
         Row: {
+          arquivado_em: string | null
+          arquivado_por: string | null
           associacao: string | null
           cargo: string | null
           created_at: string
@@ -2040,9 +2201,11 @@ export type Database = {
           etapa_alterada_em: string
           etapa_id: string
           funil_id: string
+          gerente_id: string | null
           id: string
           indicacao_externa: boolean
           indicador_nome: string | null
+          lider_id: string | null
           motivo_perda: string | null
           nome: string
           observacoes: string | null
@@ -2053,6 +2216,8 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          arquivado_em?: string | null
+          arquivado_por?: string | null
           associacao?: string | null
           cargo?: string | null
           created_at?: string
@@ -2060,9 +2225,11 @@ export type Database = {
           etapa_alterada_em?: string
           etapa_id: string
           funil_id: string
+          gerente_id?: string | null
           id?: string
           indicacao_externa?: boolean
           indicador_nome?: string | null
+          lider_id?: string | null
           motivo_perda?: string | null
           nome: string
           observacoes?: string | null
@@ -2073,6 +2240,8 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          arquivado_em?: string | null
+          arquivado_por?: string | null
           associacao?: string | null
           cargo?: string | null
           created_at?: string
@@ -2080,9 +2249,11 @@ export type Database = {
           etapa_alterada_em?: string
           etapa_id?: string
           funil_id?: string
+          gerente_id?: string | null
           id?: string
           indicacao_externa?: boolean
           indicador_nome?: string | null
+          lider_id?: string | null
           motivo_perda?: string | null
           nome?: string
           observacoes?: string | null
@@ -2116,6 +2287,45 @@ export type Database = {
           },
         ]
       }
+      comercial_notificacoes: {
+        Row: {
+          autor_id: string | null
+          created_at: string
+          entidade: string
+          entidade_id: string
+          id: string
+          lida_em: string | null
+          texto: string | null
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Insert: {
+          autor_id?: string | null
+          created_at?: string
+          entidade: string
+          entidade_id: string
+          id?: string
+          lida_em?: string | null
+          texto?: string | null
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Update: {
+          autor_id?: string | null
+          created_at?: string
+          entidade?: string
+          entidade_id?: string
+          id?: string
+          lida_em?: string | null
+          texto?: string | null
+          tipo?: string
+          titulo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       comercial_vendedores: {
         Row: {
           ativo: boolean
@@ -2125,6 +2335,7 @@ export type Database = {
           email: string | null
           id: string
           nome: string
+          profile_id: string | null
           updated_at: string
           whatsapp: string | null
         }
@@ -2136,6 +2347,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome: string
+          profile_id?: string | null
           updated_at?: string
           whatsapp?: string | null
         }
@@ -2147,10 +2359,19 @@ export type Database = {
           email?: string | null
           id?: string
           nome?: string
+          profile_id?: string | null
           updated_at?: string
           whatsapp?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "comercial_vendedores_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       comunicados: {
         Row: {
@@ -10458,9 +10679,64 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      comercial_cadeia: {
+        Args: { _owner: string }
+        Returns: Record<string, unknown>
+      }
+      comercial_diff: {
+        Args: { _antes: Json; _depois: Json }
+        Returns: Record<string, unknown>
+      }
+      comercial_dono: { Args: { _vendedor_id: string }; Returns: string }
+      comercial_em_rotina: { Args: never; Returns: boolean }
+      comercial_flag_visao_geral: { Args: { _uid: string }; Returns: boolean }
       comercial_funil_publico: {
         Args: { p_funil_slug: string; p_vendedor_codigo?: string }
         Returns: Json
+      }
+      comercial_lead_fechado: { Args: { _etapa_id: string }; Returns: boolean }
+      comercial_lideres_de: { Args: { _uid: string }; Returns: string[] }
+      comercial_meu_acesso: { Args: never; Returns: Json }
+      comercial_nivel: { Args: { _uid: string }; Returns: string }
+      comercial_no_alcance: {
+        Args: { _owner: string; _viewer: string }
+        Returns: boolean
+      }
+      comercial_nomes_usuarios: {
+        Args: { _ids: string[] }
+        Returns: {
+          id: string
+          nome: string
+        }[]
+      }
+      comercial_notificar: {
+        Args: {
+          _entidade: string
+          _entidade_id: string
+          _para: string
+          _texto: string
+          _tipo: string
+          _titulo: string
+        }
+        Returns: undefined
+      }
+      comercial_pode_editar: {
+        Args: { _vendedor_id: string; _viewer: string }
+        Returns: boolean
+      }
+      comercial_pode_ver: {
+        Args: {
+          _fechado: boolean
+          _gerente_id: string
+          _lider_id: string
+          _vendedor_id: string
+          _viewer: string
+        }
+        Returns: boolean
+      }
+      comercial_recalcular_cadeia_aberta: {
+        Args: { _owner: string }
+        Returns: undefined
       }
       comercial_registrar_lead_publico: {
         Args: {
@@ -10475,6 +10751,11 @@ export type Database = {
           p_whatsapp: string
         }
         Returns: boolean
+      }
+      comercial_ve_todos_leads: { Args: { _uid: string }; Returns: boolean }
+      comercial_vendedor_do_lead: {
+        Args: { _lead_id: string }
+        Returns: string
       }
       consultar_hinova: {
         Args: { p_cpf?: string; p_nome?: string; p_placa?: string }
