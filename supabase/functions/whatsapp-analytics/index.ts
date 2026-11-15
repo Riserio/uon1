@@ -48,32 +48,53 @@ serve(async (req) => {
       });
     }
 
-    // Fetch conversation analytics
-    const conversationUrl = `https://graph.facebook.com/v22.0/${wabaId}?fields=conversation_analytics.start(${startTs}).end(${endTs}).granularity(${granularity}).conversation_categories([]).conversation_types([]).dimensions(CONVERSATION_CATEGORY,CONVERSATION_TYPE)&access_token=${metaToken}`;
+    // A Meta removeu o campo conversation_analytics (cobrança por conversa).
+    // Desde a cobrança por mensagem, o custo vem de pricing_analytics.
+    const pricingUrl = `https://graph.facebook.com/v22.0/${wabaId}?fields=pricing_analytics.start(${startTs}).end(${endTs}).granularity(${granularity}).dimensions(["PRICING_CATEGORY","PRICING_TYPE"])&access_token=${metaToken}`;
 
     // Fetch message analytics
     const analyticsUrl = `https://graph.facebook.com/v22.0/${wabaId}?fields=analytics.start(${startTs}).end(${endTs}).granularity(${granularity})&access_token=${metaToken}`;
 
-    const [convRes, analyticsRes] = await Promise.all([
-      fetch(conversationUrl),
+    const [pricingRes, analyticsRes] = await Promise.all([
+      fetch(pricingUrl),
       fetch(analyticsUrl),
     ]);
 
-    const convData = await convRes.json();
-    const analyticsData = await analyticsRes.json();
+    const pricingData = await pricingRes.json().catch(() => ({}));
+    const analyticsData = await analyticsRes.json().catch(() => ({}));
 
-    if (!convRes.ok) {
-      console.error('[whatsapp-analytics] Conv error:', JSON.stringify(convData));
-      return new Response(JSON.stringify({
-        error: convData?.error?.message || 'Erro ao buscar analytics de conversas',
-        meta_error: convData?.error,
-      }), {
-        status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    // Falha na Meta não derruba o painel: devolve aviso e o painel usa o custo estimado.
+    const avisos: string[] = [];
+    if (!pricingRes.ok) {
+      console.error('[whatsapp-analytics] Pricing error:', JSON.stringify(pricingData));
+      avisos.push(pricingData?.error?.message || 'Erro ao buscar custos na Meta');
+    }
+    if (!analyticsRes.ok) {
+      console.error('[whatsapp-analytics] Analytics error:', JSON.stringify(analyticsData));
     }
 
+    // Mantém o formato que o painel já lê (conversation_analytics.data[0].data_points).
+    type PricingPoint = { start: number; end: number; volume?: number; cost?: number; pricing_category?: string; pricing_type?: string };
+    const pontos: PricingPoint[] = (pricingData?.pricing_analytics?.data ?? [])
+      .flatMap((d: { data_points?: PricingPoint[] }) => d.data_points ?? []);
+    const conversationAnalytics = pricingRes.ok
+      ? {
+          data: [{
+            data_points: pontos.map((p) => ({
+              start: p.start,
+              end: p.end,
+              conversation: p.volume ?? 0,
+              cost: p.cost ?? 0,
+              conversation_category: p.pricing_category,
+              conversation_type: p.pricing_type,
+            })),
+          }],
+        }
+      : null;
+
     return new Response(JSON.stringify({
-      conversation_analytics: convData.conversation_analytics || null,
+      conversation_analytics: conversationAnalytics,
+      aviso: avisos.length ? avisos.join(' · ') : null,
       analytics: analyticsData.analytics || null,
       waba_id: wabaId,
     }), {
