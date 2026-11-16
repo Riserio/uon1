@@ -337,6 +337,13 @@
       "when": 1794799723040,
       "tag": "0047_restringir_substituir_apagar_arquivos",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794832795140,
+      "tag": "0048_restringir_fotos_vistoria_substituir_apagar",
+      "breakpoints": true
     }
   ]
 }

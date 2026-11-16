@@ -73,9 +73,9 @@ export const NewsletterRadar = forwardRef<HTMLElement, Props>(function Newslette
   return (
     <section ref={ref} id="newsletter" aria-label="Newsletter do Radar" className={base}>
       {!aberto ? (
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
           <Mail className="h-5 w-5 shrink-0 text-accent-brand" />
-          <p className="min-w-0 max-w-2xl text-sm">
+          <p className="flex-1 min-w-0 text-sm">
             <span className="font-serif font-semibold text-base">Assine a newsletter</span>
             <span className="block text-muted-foreground text-xs sm:inline sm:text-sm sm:ml-1.5">e receba as matérias novas no e-mail.</span>
           </p>
@@ -86,7 +86,7 @@ export const NewsletterRadar = forwardRef<HTMLElement, Props>(function Newslette
       ) : (
         <form onSubmit={assinar} className="space-y-2.5" noValidate>
           <p className="font-serif font-semibold">Assine a newsletter do Radar</p>
-          <div className="flex gap-2 max-w-md">
+          <div className="flex gap-2">
             <Input
               ref={campo}
               type="email"
