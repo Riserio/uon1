@@ -288,6 +288,13 @@
       "when": 1794706980246,
       "tag": "0040_restringir_insercao_logs_e_historico",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794797998600,
+      "tag": "0041_radar_remover_fonte_vangard_fenaprove",
+      "breakpoints": true
     }
   ]
 }
