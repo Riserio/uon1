@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LogoFonte } from "@/components/painel/RadarMercado";
 import { NewsletterRadar } from "@/components/radar/NewsletterRadar";
+import { jaAssinouNesteAparelho } from "@/lib/radar/newsletter";
 import { CAMPO_RADAR, paginaNoticias, POR_PAGINA, PONTO_RADAR, TIPO_RADAR, ultimaColetaRadar, type ItemRadar } from "@/components/painel/radar";
 
 type Filtro = "tudo" | "oficial" | "setor";
@@ -32,6 +33,17 @@ export default function RadarPublico() {
   const [pausado, setPausado] = useState(false);
   const fim = useRef<HTMLDivElement>(null);
   const newsletter = useRef<HTMLElement>(null);
+  // quem já assinou neste aparelho não vê mais o convite
+  const [jaAssinou] = useState(jaAssinouNesteAparelho);
+  const [acabouDeAssinar, setAcabouDeAssinar] = useState(false);
+  const [newsAberta, setNewsAberta] = useState(false);
+  const abrirNewsletter = () => {
+    setNewsAberta(true);
+    newsletter.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  const convite = jaAssinou ? null : (
+    <NewsletterRadar ref={newsletter} aberto={newsAberta} onAbrir={() => setNewsAberta(true)} onAssinado={() => setAcabouDeAssinar(true)} />
+  );
   const categoria = filtro === "tudo" ? null : filtro;
 
   useEffect(() => {
@@ -95,13 +107,16 @@ export default function RadarPublico() {
             <img src="/images/logo-vangard.png" alt="Vangard Gestora" className="h-8 object-contain" />
           </a>
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              className="rounded-full bg-accent-brand text-accent-brand-foreground hover:bg-accent-brand/90"
-              onClick={() => newsletter.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            >
-              <Mail className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Receber por e-mail</span>
-            </Button>
+            {!jaAssinou && !acabouDeAssinar && (
+              <Button
+                size="sm"
+                className="rounded-full bg-accent-brand text-accent-brand-foreground hover:bg-accent-brand/90"
+                onClick={abrirNewsletter}
+                aria-label="Assinar a newsletter"
+              >
+                <Mail className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Assinar newsletter</span>
+              </Button>
+            )}
             <Button variant="outline" size="sm" className="rounded-full" onClick={compartilhar} aria-label="Compartilhar">
               <Share2 className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Compartilhar</span>
             </Button>
@@ -145,7 +160,7 @@ export default function RadarPublico() {
         ) : !principal ? (
           <>
             <p className="text-center text-muted-foreground py-16">Nenhuma notícia neste filtro por enquanto.</p>
-            <NewsletterRadar ref={newsletter} />
+            {convite}
           </>
         ) : (
           <>
@@ -208,7 +223,7 @@ export default function RadarPublico() {
               )}
             </div>
 
-            <NewsletterRadar ref={newsletter} />
+            {convite}
 
             <div className="grid gap-3 sm:grid-cols-2">
               {demais.map((i) => (
