@@ -12,7 +12,7 @@ import { urlPublica } from "@/lib/trust";
 import type { Comunicado } from "@/types/comunicado";
 import { ListaRolavel } from "./ListaRolavel";
 import { NewsletterAdmin } from "@/components/radar/NewsletterAdmin";
-import { CAMPO_RADAR, logoFonte, paginaNoticias, POR_PAGINA, PONTO_RADAR, TIPO_RADAR, ultimaColetaRadar, urlRadarPublico, type ItemRadar } from "./radar";
+import { CAMPO_RADAR, comunicadoParaItem, logoFonte, mesclarPorData, paginaNoticias, POR_PAGINA, PONTO_RADAR, TIPO_RADAR, ultimaColetaRadar, urlRadarPublico, type ItemRadar } from "./radar";
 
 type Filtro = "tudo" | "oficial" | "setor" | "comunicado";
 const FILTROS: { id: Filtro; rotulo: string }[] = [
@@ -100,24 +100,13 @@ export function RadarMercado({ admin }: { admin: boolean }) {
   }, [qc]);
 
   const itens = useMemo<ItemRadar[]>(() => {
-    const com: ItemRadar[] = (extras.data?.comunicados ?? []).map((c) => ({
-      id: `c-${c.id}`,
-      tipo: "comunicado",
-      titulo: c.titulo,
-      resumo: c.mensagem,
-      link: c.link ?? null,
-      origem: "Comunicado interno",
-      host: null,
-      imagem: c.imagem_url ?? null,
-      data: c.created_at,
-      noticiaId: null,
-    }));
+    const com = (extras.data?.comunicados ?? []).map((c) =>
+      comunicadoParaItem(c, c.publico ? "Comunicado (interno e externo)" : "Comunicado interno"),
+    );
     if (filtro === "comunicado") return com;
     const not = noticias.data?.pages.flat() ?? [];
     if (filtro !== "tudo") return not;
-    // comunicados entram na ordem de data, junto com as notícias já carregadas
-    const maisAntiga = not.length ? not[not.length - 1].data : "";
-    return [...com.filter((c) => !noticias.hasNextPage || c.data >= maisAntiga), ...not].sort((a, b) => b.data.localeCompare(a.data));
+    return mesclarPorData(com, not, !!noticias.hasNextPage);
   }, [extras.data, noticias.data, noticias.hasNextPage, filtro]);
 
   const destaques = itens.slice(0, DESTAQUES);
@@ -161,7 +150,7 @@ export function RadarMercado({ admin }: { admin: boolean }) {
                 <Link2 className="h-3.5 w-3.5 mr-1" /> Link público
               </Button>
               <NewsletterAdmin />
-              <Link to="/comunicados" title="Novo comunicado interno">
+              <Link to="/comunicados" title="Comunicados">
                 <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full">
                   <Plus className="h-4 w-4" />
                 </Button>
