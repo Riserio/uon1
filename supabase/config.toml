@@ -134,3 +134,6 @@ verify_jwt = false
 
 [functions.uon1-trust]
 verify_jwt = false
+
+[functions.radar-newsletter]
+verify_jwt = false
