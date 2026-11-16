@@ -102,7 +102,7 @@ export default function Dashboard() {
         />
 
         {/* Radar do mercado e agenda, lado a lado */}
-        <div className={`grid gap-4 ${verAgenda || verReunioes ? "lg:grid-cols-2" : ""}`}>
+        <div className={`grid gap-4 lg:h-[620px] ${verAgenda || verReunioes ? "lg:grid-cols-2" : ""}`}>
           <RadarMercado admin={admin} />
           {(verAgenda || verReunioes) && <AgendaPainel podeAgenda={verAgenda} podeReunioes={verReunioes} />}
         </div>
