@@ -6110,6 +6110,7 @@ export type Database = {
           fonte_id: string | null
           id: string
           link: string
+          link_tentativas: number
           oculto: boolean
           origem: string | null
           origem_host: string | null
@@ -6124,6 +6125,7 @@ export type Database = {
           fonte_id?: string | null
           id?: string
           link: string
+          link_tentativas?: number
           oculto?: boolean
           origem?: string | null
           origem_host?: string | null
@@ -6138,6 +6140,7 @@ export type Database = {
           fonte_id?: string | null
           id?: string
           link?: string
+          link_tentativas?: number
           oculto?: boolean
           origem?: string | null
           origem_host?: string | null
