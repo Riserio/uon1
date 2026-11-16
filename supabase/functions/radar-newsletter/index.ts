@@ -239,7 +239,7 @@ async function comunicadosExternos(s: SupabaseClient, apenasNaoEnviados: boolean
     categoria: "comunicado",
     publicado_em: c.created_at,
     resumo: c.mensagem,
-    imagem: await imagemPropria(s, c.imagem_url),
+    imagem: null,
   })));
 }
 
