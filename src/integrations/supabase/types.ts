@@ -6110,6 +6110,8 @@ export type Database = {
           fonte_id: string | null
           id: string
           link: string
+          link_req_id: number | null
+          link_tentativas: number
           oculto: boolean
           origem: string | null
           origem_host: string | null
@@ -6124,6 +6126,8 @@ export type Database = {
           fonte_id?: string | null
           id?: string
           link: string
+          link_req_id?: number | null
+          link_tentativas?: number
           oculto?: boolean
           origem?: string | null
           origem_host?: string | null
@@ -6138,6 +6142,8 @@ export type Database = {
           fonte_id?: string | null
           id?: string
           link?: string
+          link_req_id?: number | null
+          link_tentativas?: number
           oculto?: boolean
           origem?: string | null
           origem_host?: string | null
@@ -12059,6 +12065,19 @@ export type Database = {
       }
       mercado_norm: { Args: { _t: string }; Returns: string }
       mercado_radar_buscar: { Args: never; Returns: number }
+      mercado_radar_links_assinaturas: {
+        Args: never
+        Returns: {
+          gid: string
+          id: string
+          sg: string
+          ts: number
+        }[]
+      }
+      mercado_radar_links_pedir: {
+        Args: { p_limite?: number }
+        Returns: number
+      }
       mercado_radar_processar: { Args: never; Returns: Json }
       mercado_radar_ultima_coleta: { Args: never; Returns: string }
       mercado_txt: { Args: { _t: string }; Returns: string }
