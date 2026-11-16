@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { urlPublica } from "@/lib/trust";
 import type { Comunicado } from "@/types/comunicado";
 import { ListaRolavel } from "./ListaRolavel";
+import { NewsletterAdmin } from "@/components/radar/NewsletterAdmin";
 import { CAMPO_RADAR, logoFonte, paginaNoticias, POR_PAGINA, PONTO_RADAR, TIPO_RADAR, ultimaColetaRadar, urlRadarPublico, type ItemRadar } from "./radar";
 
 type Filtro = "tudo" | "oficial" | "setor" | "comunicado";
@@ -159,6 +160,7 @@ export function RadarMercado({ admin }: { admin: boolean }) {
               <Button size="sm" variant="ghost" className="h-8 rounded-full text-xs px-3" onClick={copiarLinkPublico} title="Copiar o link público do Radar">
                 <Link2 className="h-3.5 w-3.5 mr-1" /> Link público
               </Button>
+              <NewsletterAdmin />
               <Link to="/comunicados" title="Novo comunicado interno">
                 <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full">
                   <Plus className="h-4 w-4" />
