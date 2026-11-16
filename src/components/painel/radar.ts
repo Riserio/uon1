@@ -86,3 +86,47 @@ export async function ultimaColetaRadar(): Promise<string | null> {
 export function urlRadarPublico(base: string) {
   return `${base.replace(/\/$/, "")}/radar`;
 }
+
+export interface ComunicadoRadar {
+  id: string;
+  titulo: string;
+  mensagem: string;
+  link?: string | null;
+  imagem_url?: string | null;
+  created_at: string;
+  publico?: boolean;
+}
+
+/** Comunicado no formato de item do Radar. */
+export function comunicadoParaItem(c: ComunicadoRadar, origem: string): ItemRadar {
+  return {
+    id: `c-${c.id}`,
+    tipo: "comunicado",
+    titulo: c.titulo,
+    resumo: c.mensagem,
+    link: c.link ?? null,
+    origem,
+    host: null,
+    imagem: c.imagem_url ?? null,
+    data: c.created_at,
+    noticiaId: null,
+  };
+}
+
+/**
+ * Comunicados entram na fila normal, pela data: se chega uma notícia mais
+ * nova, o comunicado desce uma posição. Enquanto houver notícias por carregar,
+ * só entram os comunicados mais novos que a última notícia já carregada (os
+ * mais antigos aparecem quando a lista chegar até a data deles).
+ */
+export function mesclarPorData(comunicados: ItemRadar[], noticias: ItemRadar[], temMais: boolean): ItemRadar[] {
+  const maisAntiga = noticias.length ? noticias[noticias.length - 1].data : "";
+  return [...comunicados.filter((c) => !temMais || c.data >= maisAntiga), ...noticias].sort((a, b) => b.data.localeCompare(a.data));
+}
+
+/** Comunicados marcados como "interno e externo", para a página pública. */
+export async function comunicadosPublicosRadar(): Promise<ItemRadar[]> {
+  const { data, error } = await db.rpc("radar_comunicados_publicos", { p_limite: 30 });
+  if (error) throw error;
+  return ((data ?? []) as ComunicadoRadar[]).map((c) => comunicadoParaItem(c, "Vangard Gestora"));
+}

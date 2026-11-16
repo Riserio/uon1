@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LogoFonte } from "@/components/painel/RadarMercado";
 import { NewsletterRadar } from "@/components/radar/NewsletterRadar";
 import { jaAssinouNesteAparelho } from "@/lib/radar/newsletter";
-import { CAMPO_RADAR, paginaNoticias, POR_PAGINA, PONTO_RADAR, TIPO_RADAR, ultimaColetaRadar, type ItemRadar } from "@/components/painel/radar";
+import { CAMPO_RADAR, comunicadosPublicosRadar, mesclarPorData, paginaNoticias, POR_PAGINA, PONTO_RADAR, TIPO_RADAR, ultimaColetaRadar, type ItemRadar } from "@/components/painel/radar";
 
 type Filtro = "tudo" | "oficial" | "setor";
 const FILTROS: { id: Filtro; rotulo: string }[] = [
@@ -22,8 +22,9 @@ const TROCA_MS = 8000;
 const ha = (iso: string) => formatDistanceToNow(parseISO(iso), { addSuffix: true, locale: ptBR });
 
 /**
- * Radar do mercado aberto ao público (link do Instagram da Vangard). Só as
- * notícias coletadas; comunicados internos não aparecem aqui. As mais novas
+ * Radar do mercado aberto ao público (link do Instagram da Vangard). Notícias
+ * coletadas e os comunicados marcados como "interno e externo", na mesma fila
+ * por data (os somente internos não aparecem aqui). As mais novas
  * passam em carrossel no cartão de destaque; cada notícia abre no site de
  * origem, numa nova aba.
  */
@@ -59,7 +60,16 @@ export default function RadarPublico() {
     refetchOnWindowFocus: false,
   });
   const { data: ultimaColeta } = useQuery({ queryKey: ["radar_publico_coleta"], queryFn: ultimaColetaRadar, staleTime: 30 * 60_000 });
-  const itens = useMemo(() => q.data?.pages.flat() ?? [], [q.data]);
+  const { data: comunicados } = useQuery({
+    queryKey: ["radar_publico_comunicados"],
+    queryFn: comunicadosPublicosRadar,
+    staleTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const itens = useMemo(() => {
+    const not = q.data?.pages.flat() ?? [];
+    return categoria ? not : mesclarPorData(comunicados ?? [], not, !!q.hasNextPage);
+  }, [q.data, q.hasNextPage, comunicados, categoria]);
   const destaques = itens.slice(0, DESTAQUES);
   const demais = itens.slice(destaques.length);
   const principal: ItemRadar | undefined = destaques[Math.min(ativo, Math.max(0, destaques.length - 1))];
@@ -73,6 +83,7 @@ export default function RadarPublico() {
     const t = window.setTimeout(() => setAtivo((a) => (a + 1) % destaques.length), TROCA_MS);
     return () => window.clearTimeout(t);
   }, [ativo, pausado, destaques.length]);
+  const rotuloTipo = (i: ItemRadar) => (i.tipo === "comunicado" ? "Comunicado" : TIPO_RADAR[i.tipo]);
   const ir = (d: number) => setAtivo((a) => (a + d + destaques.length) % destaques.length);
 
   // carrega a próxima página ao chegar perto do fim da página
@@ -177,6 +188,7 @@ export default function RadarPublico() {
                 ))}
                 <line x1="100" y1="100" x2="186" y2="52" stroke="currentColor" strokeWidth="1.5" />
               </svg>
+              {principal.imagem && <img src={principal.imagem} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30" />}
               <a
                 key={principal.id}
                 href={principal.link ?? undefined}
@@ -189,14 +201,19 @@ export default function RadarPublico() {
                   <span>
                     <span className="block font-semibold">{principal.origem}</span>
                     <span className="block text-sm text-white/75">
-                      {TIPO_RADAR[principal.tipo]}, {format(parseISO(principal.data), "dd/MM/yyyy")}
+                      {rotuloTipo(principal)}, {format(parseISO(principal.data), "dd/MM/yyyy")}
                     </span>
                   </span>
                 </span>
                 <span className="mt-6 text-2xl sm:text-3xl font-bold leading-tight tracking-tight text-balance line-clamp-4">{principal.titulo}</span>
-                <span className="mt-auto pt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-white/90">
-                  Ler na fonte <ArrowUpRight className="h-4 w-4" />
-                </span>
+                {principal.tipo === "comunicado" && principal.resumo && (
+                  <span className="mt-3 text-sm sm:text-base text-white/85 line-clamp-3 whitespace-pre-line">{principal.resumo}</span>
+                )}
+                {principal.link && (
+                  <span className="mt-auto pt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-white/90">
+                    {principal.tipo === "comunicado" ? "Saiba mais" : "Ler na fonte"} <ArrowUpRight className="h-4 w-4" />
+                  </span>
+                )}
               </a>
               {destaques.length > 1 && (
                 <div className="relative flex items-center gap-3 px-6 sm:px-8 pb-5">
@@ -240,11 +257,12 @@ export default function RadarPublico() {
                       <span className="block text-sm font-semibold truncate">{i.origem}</span>
                       <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <span className={`h-1.5 w-1.5 rounded-full ${PONTO_RADAR[i.tipo]}`} />
-                        {ha(i.data)}
+                        {i.tipo === "comunicado" ? `Comunicado, ${ha(i.data)}` : ha(i.data)}
                       </span>
                     </span>
                   </span>
                   <span className="text-[15px] font-semibold leading-snug line-clamp-3 group-hover:text-primary transition-colors">{i.titulo}</span>
+                  {i.tipo === "comunicado" && i.resumo && <span className="text-sm text-muted-foreground line-clamp-2">{i.resumo}</span>}
                 </a>
               ))}
             </div>

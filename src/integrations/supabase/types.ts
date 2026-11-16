@@ -2541,6 +2541,7 @@ export type Database = {
           imagem_url: string | null
           link: string | null
           mensagem: string
+          publico: boolean
           titulo: string
           updated_at: string
         }
@@ -2552,6 +2553,7 @@ export type Database = {
           imagem_url?: string | null
           link?: string | null
           mensagem: string
+          publico?: boolean
           titulo: string
           updated_at?: string
         }
@@ -2563,6 +2565,7 @@ export type Database = {
           imagem_url?: string | null
           link?: string | null
           mensagem?: string
+          publico?: boolean
           titulo?: string
           updated_at?: string
         }
@@ -12068,6 +12071,17 @@ export type Database = {
         Returns: Json
       }
       processar_base_api_worker: { Args: never; Returns: Json }
+      radar_comunicados_publicos: {
+        Args: { p_limite?: number }
+        Returns: {
+          created_at: string
+          id: string
+          imagem_url: string
+          link: string
+          mensagem: string
+          titulo: string
+        }[]
+      }
       reabrir_backfill_historico_lote: { Args: never; Returns: Json }
       reabrir_sync_atrasado: { Args: never; Returns: Json }
       relatorio_analises_sinistro: {
