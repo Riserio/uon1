@@ -60,7 +60,7 @@ interface SMTPConfig {
   from_name: string;
 }
 
-type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_alerta" | "ouvidoria_finalizado" | "contrato_assinatura" | "uonisign_convite" | "uonisign_codigo" | "uonisign_lembrete" | "uonisign_concluido" | "uonisign_aviso" | "uonisign_proposta";
+type TemplateTipo = "atendimento" | "alerta_performance" | "recuperacao" | "boas_vindas" | "relatorio" | "convite_reuniao" | "ouvidoria" | "ouvidoria_alerta" | "ouvidoria_finalizado" | "contrato_assinatura" | "uonisign_convite" | "uonisign_codigo" | "uonisign_lembrete" | "uonisign_concluido" | "uonisign_aviso" | "uonisign_proposta" | "radar_confirmacao" | "radar_novidades";
 type TemplateFrequencia = "manual" | "diario" | "semanal" | "mensal";
 
 interface EmailTemplate {
@@ -218,8 +218,8 @@ export default function Emails() {
     const { data, error } = await supabase
       .from("email_templates")
       .select("*")
-      // os templates do Uon1 Sign são da empresa (o Administrador Uon1 Sign vê e edita)
-      .or(`user_id.eq.${user!.id},tipo.like.uonisign_*`)
+      // os templates do Uon1 Sign e do Radar são da empresa (a administração vê e edita)
+      .or(`user_id.eq.${user!.id},tipo.like.uonisign_*,tipo.like.radar_*`)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -1401,6 +1401,8 @@ export default function Emails() {
                           <option value="uonisign_concluido">Uon1 Sign - Contrato assinado (cópia)</option>
                           <option value="uonisign_aviso">Uon1 Sign - Aviso (cancelado, recusado, expirado)</option>
                           <option value="uonisign_proposta">Uon1 Sign - Proposta comercial</option>
+                          <option value="radar_confirmacao">Radar - Confirmação de inscrição na newsletter</option>
+                          <option value="radar_novidades">Radar - Novidades da newsletter</option>
                         </select>
                       </div>
 
@@ -1473,6 +1475,8 @@ export default function Emails() {
                         {novoTemplate.tipo === "uonisign_lembrete" && ", {{dias}}"}
                         {novoTemplate.tipo === "uonisign_aviso" && ", {{assunto}}, {{mensagem}}"}
                         {novoTemplate.tipo === "uonisign_proposta" && ", {{valor}} — aqui {{contrato}} é o produto e {{numero}} o número da cotação"}
+                        {novoTemplate.tipo === "radar_confirmacao" && " {{nome}}, {{saudacao}}, {{email}}, {{aceite}}, {{link_confirmar}}, {{link_cancelar}}, {{link_radar}}, {{data}}"}
+                        {novoTemplate.tipo === "radar_novidades" && " {{nome}}, {{saudacao}}, {{email}}, {{quantidade}}, {{data}}, {{noticias}} (lista pronta das matérias), {{link_radar}}, {{link_cancelar}}"}
                       </p>
                     </div>
 
