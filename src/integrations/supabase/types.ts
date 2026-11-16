@@ -1976,12 +1976,21 @@ export type Database = {
       }
       comercial_cotacoes: {
         Row: {
+          aceite_canal: string | null
+          aceite_contato: string | null
+          aceite_em: string | null
+          aceite_ip: string | null
+          aceite_termos: Json | null
+          aceite_user_agent: string | null
           arquivado_em: string | null
           arquivado_por: string | null
           cancelada_em: string | null
           cancelada_por: string | null
           cancelamento_solicitado_em: string | null
           cancelamento_solicitado_por: string | null
+          cliente_email: string | null
+          cliente_telefone: string | null
+          contrato_id: string | null
           created_at: string
           created_by: string | null
           descricao: string | null
@@ -1991,21 +2000,41 @@ export type Database = {
           lead_id: string
           lider_id: string | null
           motivo_cancelamento: string | null
+          motivo_recusa: string | null
           numero: number
           produto: string | null
+          proposta_canais: string[] | null
+          proposta_enviada_em: string | null
+          proposta_token: string | null
+          proposta_vista_em: string | null
+          recusada_em: string | null
+          sessao_expira_em: string | null
+          sessao_hash: string | null
           status: string
           status_anterior: string | null
+          template_id: string | null
+          termos: Json
           updated_at: string
+          validade_ate: string | null
           valor: number
           vendedor_id: string | null
         }
         Insert: {
+          aceite_canal?: string | null
+          aceite_contato?: string | null
+          aceite_em?: string | null
+          aceite_ip?: string | null
+          aceite_termos?: Json | null
+          aceite_user_agent?: string | null
           arquivado_em?: string | null
           arquivado_por?: string | null
           cancelada_em?: string | null
           cancelada_por?: string | null
           cancelamento_solicitado_em?: string | null
           cancelamento_solicitado_por?: string | null
+          cliente_email?: string | null
+          cliente_telefone?: string | null
+          contrato_id?: string | null
           created_at?: string
           created_by?: string | null
           descricao?: string | null
@@ -2015,21 +2044,41 @@ export type Database = {
           lead_id: string
           lider_id?: string | null
           motivo_cancelamento?: string | null
+          motivo_recusa?: string | null
           numero?: number
           produto?: string | null
+          proposta_canais?: string[] | null
+          proposta_enviada_em?: string | null
+          proposta_token?: string | null
+          proposta_vista_em?: string | null
+          recusada_em?: string | null
+          sessao_expira_em?: string | null
+          sessao_hash?: string | null
           status?: string
           status_anterior?: string | null
+          template_id?: string | null
+          termos?: Json
           updated_at?: string
+          validade_ate?: string | null
           valor?: number
           vendedor_id?: string | null
         }
         Update: {
+          aceite_canal?: string | null
+          aceite_contato?: string | null
+          aceite_em?: string | null
+          aceite_ip?: string | null
+          aceite_termos?: Json | null
+          aceite_user_agent?: string | null
           arquivado_em?: string | null
           arquivado_por?: string | null
           cancelada_em?: string | null
           cancelada_por?: string | null
           cancelamento_solicitado_em?: string | null
           cancelamento_solicitado_por?: string | null
+          cliente_email?: string | null
+          cliente_telefone?: string | null
+          contrato_id?: string | null
           created_at?: string
           created_by?: string | null
           descricao?: string | null
@@ -2039,20 +2088,45 @@ export type Database = {
           lead_id?: string
           lider_id?: string | null
           motivo_cancelamento?: string | null
+          motivo_recusa?: string | null
           numero?: number
           produto?: string | null
+          proposta_canais?: string[] | null
+          proposta_enviada_em?: string | null
+          proposta_token?: string | null
+          proposta_vista_em?: string | null
+          recusada_em?: string | null
+          sessao_expira_em?: string | null
+          sessao_hash?: string | null
           status?: string
           status_anterior?: string | null
+          template_id?: string | null
+          termos?: Json
           updated_at?: string
+          validade_ate?: string | null
           valor?: number
           vendedor_id?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "comercial_cotacoes_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "comercial_cotacoes_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "comercial_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comercial_cotacoes_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_templates"
             referencedColumns: ["id"]
           },
           {
@@ -2325,6 +2399,91 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      comercial_produtos_contrato: {
+        Row: {
+          ativo: boolean
+          minimos: Json
+          produto: string
+          template_id: string | null
+          travados: string[]
+          updated_at: string
+          updated_by: string | null
+          valores: Json
+        }
+        Insert: {
+          ativo?: boolean
+          minimos?: Json
+          produto: string
+          template_id?: string | null
+          travados?: string[]
+          updated_at?: string
+          updated_by?: string | null
+          valores?: Json
+        }
+        Update: {
+          ativo?: boolean
+          minimos?: Json
+          produto?: string
+          template_id?: string | null
+          travados?: string[]
+          updated_at?: string
+          updated_by?: string | null
+          valores?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comercial_produtos_contrato_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comercial_proposta_codigos: {
+        Row: {
+          canal: string
+          cotacao_id: string
+          created_at: string
+          destino: string | null
+          expira_em: string
+          hash_codigo: string
+          id: string
+          tentativas: number
+          usado_em: string | null
+        }
+        Insert: {
+          canal: string
+          cotacao_id: string
+          created_at?: string
+          destino?: string | null
+          expira_em: string
+          hash_codigo: string
+          id?: string
+          tentativas?: number
+          usado_em?: string | null
+        }
+        Update: {
+          canal?: string
+          cotacao_id?: string
+          created_at?: string
+          destino?: string | null
+          expira_em?: string
+          hash_codigo?: string
+          id?: string
+          tentativas?: number
+          usado_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comercial_proposta_codigos_cotacao_id_fkey"
+            columns: ["cotacao_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_cotacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       comercial_vendedores: {
         Row: {
@@ -2943,6 +3102,7 @@ export type Database = {
           contratante_telefone: string | null
           corretora_id: string | null
           corretora_nome_manual: string | null
+          cotacao_id: string | null
           created_at: string
           created_by: string
           data_fim: string | null
@@ -3014,6 +3174,7 @@ export type Database = {
           contratante_telefone?: string | null
           corretora_id?: string | null
           corretora_nome_manual?: string | null
+          cotacao_id?: string | null
           created_at?: string
           created_by: string
           data_fim?: string | null
@@ -3085,6 +3246,7 @@ export type Database = {
           contratante_telefone?: string | null
           corretora_id?: string | null
           corretora_nome_manual?: string | null
+          cotacao_id?: string | null
           created_at?: string
           created_by?: string
           data_fim?: string | null
@@ -3129,6 +3291,13 @@ export type Database = {
             columns: ["corretora_id"]
             isOneToOne: false
             referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_cotacao_id_fkey"
+            columns: ["cotacao_id"]
+            isOneToOne: false
+            referencedRelation: "comercial_cotacoes"
             referencedColumns: ["id"]
           },
           {
@@ -3692,9 +3861,10 @@ export type Database = {
           created_at: string | null
           destinatario: string
           enviado_em: string | null
-          enviado_por: string
+          enviado_por: string | null
           erro_mensagem: string | null
           id: string
+          origem: string | null
           status: string
         }
         Insert: {
@@ -3706,9 +3876,10 @@ export type Database = {
           created_at?: string | null
           destinatario: string
           enviado_em?: string | null
-          enviado_por: string
+          enviado_por?: string | null
           erro_mensagem?: string | null
           id?: string
+          origem?: string | null
           status?: string
         }
         Update: {
@@ -3720,9 +3891,10 @@ export type Database = {
           created_at?: string | null
           destinatario?: string
           enviado_em?: string | null
-          enviado_por?: string
+          enviado_por?: string | null
           erro_mensagem?: string | null
           id?: string
+          origem?: string | null
           status?: string
         }
         Relationships: [
@@ -5872,6 +6044,160 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      mercado_fontes: {
+        Row: {
+          ativo: boolean
+          categoria: string
+          dias: number | null
+          hosts: string[] | null
+          id: string
+          nome: string
+          palavras: string[] | null
+          ultima_coleta_em: string | null
+          ultimo_erro: string | null
+          ultimo_status: string | null
+          ultimos_itens: number | null
+          ultimos_novos: number | null
+          url: string
+          usa_resumo: boolean
+        }
+        Insert: {
+          ativo?: boolean
+          categoria: string
+          dias?: number | null
+          hosts?: string[] | null
+          id?: string
+          nome: string
+          palavras?: string[] | null
+          ultima_coleta_em?: string | null
+          ultimo_erro?: string | null
+          ultimo_status?: string | null
+          ultimos_itens?: number | null
+          ultimos_novos?: number | null
+          url: string
+          usa_resumo?: boolean
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string
+          dias?: number | null
+          hosts?: string[] | null
+          id?: string
+          nome?: string
+          palavras?: string[] | null
+          ultima_coleta_em?: string | null
+          ultimo_erro?: string | null
+          ultimo_status?: string | null
+          ultimos_itens?: number | null
+          ultimos_novos?: number | null
+          url?: string
+          usa_resumo?: boolean
+        }
+        Relationships: []
+      }
+      mercado_noticias: {
+        Row: {
+          categoria: string
+          chave: string
+          coletado_em: string
+          fonte_id: string | null
+          id: string
+          link: string
+          oculto: boolean
+          origem: string | null
+          origem_host: string | null
+          publicado_em: string
+          resumo: string | null
+          titulo: string
+        }
+        Insert: {
+          categoria: string
+          chave: string
+          coletado_em?: string
+          fonte_id?: string | null
+          id?: string
+          link: string
+          oculto?: boolean
+          origem?: string | null
+          origem_host?: string | null
+          publicado_em: string
+          resumo?: string | null
+          titulo: string
+        }
+        Update: {
+          categoria?: string
+          chave?: string
+          coletado_em?: string
+          fonte_id?: string | null
+          id?: string
+          link?: string
+          oculto?: boolean
+          origem?: string | null
+          origem_host?: string | null
+          publicado_em?: string
+          resumo?: string | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mercado_noticias_fonte_id_fkey"
+            columns: ["fonte_id"]
+            isOneToOne: false
+            referencedRelation: "mercado_fontes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mercado_radar_coletas: {
+        Row: {
+          criado_em: string
+          fonte_id: string
+          id: number
+          processado_em: string | null
+          request_id: number
+        }
+        Insert: {
+          criado_em?: string
+          fonte_id: string
+          id?: number
+          processado_em?: string | null
+          request_id: number
+        }
+        Update: {
+          criado_em?: string
+          fonte_id?: string
+          id?: number
+          processado_em?: string | null
+          request_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mercado_radar_coletas_fonte_id_fkey"
+            columns: ["fonte_id"]
+            isOneToOne: false
+            referencedRelation: "mercado_fontes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mercado_radar_config: {
+        Row: {
+          dias: number
+          id: number
+          palavras: string[]
+        }
+        Insert: {
+          dias?: number
+          id?: number
+          palavras: string[]
+        }
+        Update: {
+          dias?: number
+          id?: number
+          palavras?: string[]
+        }
+        Relationships: []
       }
       mgf_automacao_config: {
         Row: {
@@ -11147,6 +11473,7 @@ export type Database = {
       comercial_lead_fechado: { Args: { _etapa_id: string }; Returns: boolean }
       comercial_lideres_de: { Args: { _uid: string }; Returns: string[] }
       comercial_meu_acesso: { Args: never; Returns: Json }
+      comercial_moeda: { Args: { _v: string }; Returns: number }
       comercial_nivel: { Args: { _uid: string }; Returns: string }
       comercial_no_alcance: {
         Args: { _owner: string; _viewer: string }
@@ -11624,10 +11951,16 @@ export type Database = {
         Args: { _room_id: string; _uid: string }
         Returns: boolean
       }
+      mercado_norm: { Args: { _t: string }; Returns: string }
+      mercado_radar_buscar: { Args: never; Returns: number }
+      mercado_radar_processar: { Args: never; Returns: Json }
+      mercado_radar_ultima_coleta: { Args: never; Returns: string }
+      mercado_txt: { Args: { _t: string }; Returns: string }
       ouvidoria_rate_limit_ok: {
         Args: { p_corretora_id: string }
         Returns: boolean
       }
+      painel_admin: { Args: { _uid: string }; Returns: boolean }
       processar_backfill_cobranca: { Args: never; Returns: Json }
       processar_base_api: {
         Args: { p_corretora_id: string; p_orcamento_seg?: number }
