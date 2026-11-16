@@ -131,27 +131,54 @@ export const PADRAO_NOVIDADES = {
 
 export interface Noticia {
   titulo: string;
-  link: string;
+  link: string | null;
   origem: string | null;
   categoria: string;
   publicado_em: string;
+  /** comunicado: trecho da mensagem e imagem (opcionais) */
+  resumo?: string | null;
+  imagem?: string | null;
 }
 
 const dataBR = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+const trecho = (t: string, max = 220) => {
+  const limpo = t.replace(/\s+/g, " ").trim();
+  return limpo.length > max ? `${limpo.slice(0, max - 1).trimEnd()}…` : limpo;
+};
 
-/** Bloco HTML com a lista de notícias (vai em {{noticias}}). */
-export function blocoNoticias(lista: Noticia[]): string {
+const CHIPS: Record<string, { rotulo: string; fundo: string; cor: string; barra: string }> = {
+  oficial: { rotulo: "ÓRGÃO OFICIAL", fundo: "#dbeafe", cor: "#1d4ed8", barra: "#362C89" },
+  setor: { rotulo: "SETOR", fundo: "#f3e8ff", cor: "#7e22ce", barra: "#F06F19" },
+  comunicado: { rotulo: "COMUNICADO", fundo: "#ffedd5", cor: "#c2410c", barra: "#F06F19" },
+};
+
+/**
+ * Bloco HTML com a lista (vai em {{noticias}}). Notícias e comunicados
+ * externos chegam já na ordem de publicação, do mais novo para o mais antigo.
+ */
+export function blocoNoticias(lista: Noticia[], linkRadar = ""): string {
   return lista
     .map((n) => {
-      const oficial = n.categoria === "oficial";
-      const chip = oficial
-        ? `<span style="display:inline-block;background:#dbeafe;color:#1d4ed8;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;">ÓRGÃO OFICIAL</span>`
-        : `<span style="display:inline-block;background:#f3e8ff;color:#7e22ce;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;">SETOR</span>`;
-      return `    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;border:1px solid #e6ebf5;border-left:4px solid ${oficial ? "#362C89" : "#F06F19"};border-radius:14px;">
+      const c = CHIPS[n.categoria] ?? CHIPS.setor;
+      const comunicado = n.categoria === "comunicado";
+      const destino = n.link || (comunicado ? linkRadar : "");
+      const chip = `<span style="display:inline-block;background:${c.fundo};color:${c.cor};padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;">${c.rotulo}</span>`;
+      const imagem = comunicado && n.imagem
+        ? `<img src="${esc(n.imagem)}" alt="" width="100%" style="display:block;width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-top:10px;">`
+        : "";
+      const titulo = destino
+        ? `<a href="${esc(destino)}" style="display:block;margin-top:8px;font-size:15px;line-height:1.45;font-weight:700;color:#0f172a;text-decoration:none;">${esc(n.titulo)}</a>`
+        : `<div style="margin-top:8px;font-size:15px;line-height:1.45;font-weight:700;color:#0f172a;">${esc(n.titulo)}</div>`;
+      const resumo = comunicado && n.resumo
+        ? `<div style="margin-top:6px;font-size:13px;line-height:1.5;color:#475569;">${esc(trecho(n.resumo))}</div>`
+        : "";
+      const acao = destino
+        ? `<a href="${esc(destino)}" style="display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#362C89;text-decoration:none;">${comunicado ? "Saiba mais" : "Ler na fonte"} ↗</a>`
+        : "";
+      return `    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;border:1px solid #e6ebf5;border-left:4px solid ${c.barra};border-radius:14px;">
       <tr><td style="padding:14px 18px;">
         <div style="font-size:12px;color:#64748b;">${chip}&nbsp; ${esc(n.origem ?? "")} · ${dataBR(n.publicado_em)}</div>
-        <a href="${esc(n.link)}" style="display:block;margin-top:8px;font-size:15px;line-height:1.45;font-weight:700;color:#0f172a;text-decoration:none;">${esc(n.titulo)}</a>
-        <a href="${esc(n.link)}" style="display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#362C89;text-decoration:none;">Ler na fonte ↗</a>
+        ${imagem}${titulo}${resumo}${acao}
       </td></tr>
     </table>`;
     })
