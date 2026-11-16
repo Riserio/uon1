@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowUpRight, ChevronLeft, ChevronRight, Loader2, Share2 } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, ChevronRight, Loader2, Mail, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LogoFonte } from "@/components/painel/RadarMercado";
+import { NewsletterRadar } from "@/components/radar/NewsletterRadar";
 import { CAMPO_RADAR, paginaNoticias, POR_PAGINA, PONTO_RADAR, TIPO_RADAR, ultimaColetaRadar, type ItemRadar } from "@/components/painel/radar";
 
 type Filtro = "tudo" | "oficial" | "setor";
@@ -30,6 +31,7 @@ export default function RadarPublico() {
   const [ativo, setAtivo] = useState(0);
   const [pausado, setPausado] = useState(false);
   const fim = useRef<HTMLDivElement>(null);
+  const newsletter = useRef<HTMLElement>(null);
   const categoria = filtro === "tudo" ? null : filtro;
 
   useEffect(() => {
@@ -92,9 +94,18 @@ export default function RadarPublico() {
           <a href="https://vangardgestora.com.br" target="_blank" rel="noopener noreferrer" className="flex items-center">
             <img src="/images/logo-vangard.png" alt="Vangard Gestora" className="h-8 object-contain" />
           </a>
-          <Button variant="outline" size="sm" className="rounded-full" onClick={compartilhar}>
-            <Share2 className="h-4 w-4 mr-1.5" /> Compartilhar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="rounded-full bg-accent-brand text-accent-brand-foreground hover:bg-accent-brand/90"
+              onClick={() => newsletter.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              <Mail className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Receber por e-mail</span>
+            </Button>
+            <Button variant="outline" size="sm" className="rounded-full" onClick={compartilhar} aria-label="Compartilhar">
+              <Share2 className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Compartilhar</span>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -132,7 +143,10 @@ export default function RadarPublico() {
             </div>
           </div>
         ) : !principal ? (
-          <p className="text-center text-muted-foreground py-16">Nenhuma notícia neste filtro por enquanto.</p>
+          <>
+            <p className="text-center text-muted-foreground py-16">Nenhuma notícia neste filtro por enquanto.</p>
+            <NewsletterRadar ref={newsletter} />
+          </>
         ) : (
           <>
             <div
@@ -193,6 +207,8 @@ export default function RadarPublico() {
                 </div>
               )}
             </div>
+
+            <NewsletterRadar ref={newsletter} />
 
             <div className="grid gap-3 sm:grid-cols-2">
               {demais.map((i) => (
