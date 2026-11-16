@@ -4,7 +4,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { ArrowUpRight, ChevronLeft, ChevronRight, EyeOff, Link2, Megaphone, Plus } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, ChevronRight, EyeOff, Link2, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,10 +33,17 @@ export function LogoFonte({ item, grande }: { item: ItemRadar; grande?: boolean 
   const [falhou, setFalhou] = useState(false);
   const lado = grande ? "h-11 w-11 rounded-xl" : "h-9 w-9 rounded-lg border border-border/60";
   const src = logoFonte(item.host);
-  if (item.tipo === "comunicado" || !src || falhou) {
+  if (item.tipo === "comunicado") {
+    return (
+      <span className={`${lado} shrink-0 flex items-center justify-center bg-white shadow-sm overflow-hidden`}>
+        <img src="/images/vangard-icone.png" alt="Vangard" className="h-2/3 w-2/3 object-contain" />
+      </span>
+    );
+  }
+  if (!src || falhou) {
     return (
       <span className={`${lado} shrink-0 flex items-center justify-center bg-white text-slate-700 shadow-sm`}>
-        {item.tipo === "comunicado" ? <Megaphone className="h-4 w-4" /> : <span className="text-sm font-bold">{item.origem.slice(0, 1)}</span>}
+        <span className="text-sm font-bold">{item.origem.slice(0, 1)}</span>
       </span>
     );
   }
@@ -110,7 +117,8 @@ export function RadarMercado({ admin }: { admin: boolean }) {
   }, [extras.data, noticias.data, noticias.hasNextPage, filtro]);
 
   const destaques = itens.slice(0, DESTAQUES);
-  const lista = itens.slice(destaques.length);
+  // a lista mostra tudo, inclusive o que está passando no destaque, pela data
+  const lista = itens;
   const atual = destaques[Math.min(ativo, Math.max(0, destaques.length - 1))];
   const carregando = (filtro !== "comunicado" && noticias.isLoading) || extras.isLoading;
 

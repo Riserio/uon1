@@ -25,8 +25,8 @@ const ha = (iso: string) => formatDistanceToNow(parseISO(iso), { addSuffix: true
  * Radar do mercado aberto ao público (link do Instagram da Vangard). Notícias
  * coletadas e os comunicados marcados como "interno e externo", na mesma fila
  * por data (os somente internos não aparecem aqui). As mais novas
- * passam em carrossel no cartão de destaque; cada notícia abre no site de
- * origem, numa nova aba.
+ * passam em carrossel no cartão de destaque e também ficam na grade abaixo,
+ * que lista tudo pela data; cada notícia abre no site de origem, numa nova aba.
  */
 export default function RadarPublico() {
   const [filtro, setFiltro] = useState<Filtro>("tudo");
@@ -71,7 +71,6 @@ export default function RadarPublico() {
     return categoria ? not : mesclarPorData(comunicados ?? [], not, !!q.hasNextPage);
   }, [q.data, q.hasNextPage, comunicados, categoria]);
   const destaques = itens.slice(0, DESTAQUES);
-  const demais = itens.slice(destaques.length);
   const principal: ItemRadar | undefined = destaques[Math.min(ativo, Math.max(0, destaques.length - 1))];
 
   useEffect(() => setAtivo(0), [filtro]);
@@ -243,7 +242,7 @@ export default function RadarPublico() {
             {convite}
 
             <div className="grid gap-3 sm:grid-cols-2">
-              {demais.map((i) => (
+              {itens.map((i) => (
                 <a
                   key={i.id}
                   href={i.link ?? undefined}
