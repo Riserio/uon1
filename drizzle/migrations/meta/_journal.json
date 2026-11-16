@@ -295,6 +295,13 @@
       "when": 1794797998600,
       "tag": "0041_radar_remover_fonte_vangard_fenaprove",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794798036723,
+      "tag": "0042_restringir_fluxos_whatsapp_admin",
+      "breakpoints": true
     }
   ]
 }
