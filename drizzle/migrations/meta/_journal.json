@@ -316,6 +316,13 @@
       "when": 1794798313577,
       "tag": "0044_restringir_cadastro_associacoes_e_notificacao_global",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794798612220,
+      "tag": "0045_radar_newsletter",
+      "breakpoints": true
     }
   ]
 }
