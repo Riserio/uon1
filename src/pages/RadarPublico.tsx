@@ -193,7 +193,7 @@ export default function RadarPublico() {
                     </span>
                   </span>
                 </span>
-                <span className="mt-6 text-2xl sm:text-3xl font-bold leading-tight tracking-tight text-balance line-clamp-4">{principal.titulo}</span>
+                <span className="mt-6 text-2xl sm:text-3xl xl:text-4xl font-bold leading-tight tracking-tight text-balance line-clamp-4">{principal.titulo}</span>
                 <span className="mt-auto pt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-white/90">
                   Ler na fonte <ArrowUpRight className="h-4 w-4" />
                 </span>
