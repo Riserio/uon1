@@ -47,14 +47,13 @@ function Segmento<T extends string>({ valor, opcoes, onChange }: { valor: T; opc
   );
 }
 
-function Chip({ cor, children }: { cor: "primary" | "accent" | "muted" | "success"; children: React.ReactNode }) {
+function Chip({ cor, children }: { cor: "primary" | "accent" | "muted"; children: React.ReactNode }) {
   const estilo = {
     primary: "bg-primary/10 text-primary",
-    accent: "bg-accent-brand/12 text-accent-brand",
+    accent: "bg-accent-brand/10 text-accent-brand",
     muted: "bg-muted text-muted-foreground",
-    success: "bg-success/12 text-success",
   }[cor];
-  const ponto = { primary: "bg-primary", accent: "bg-accent-brand", muted: "bg-muted-foreground/60", success: "bg-success" }[cor];
+  const ponto = { primary: "bg-primary", accent: "bg-accent-brand", muted: "bg-muted-foreground/60" }[cor];
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap", estilo)}>
       <span className={cn("h-1.5 w-1.5 rounded-full", ponto)} />
