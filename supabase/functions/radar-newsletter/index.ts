@@ -6,6 +6,8 @@
 //                     "cancelar com um clique" dos provedores de e-mail, via POST)
 //   enviar_novidades  (rotina diária) notícias novas desde o último envio → assinantes ativos.
 //                     Idempotente: só manda o que foi coletado depois do último envio.
+//                     Comunicados marcados como "interno e externo" entram junto, na
+//                     ordem de publicação, uma única vez (comunicados.newsletter_enviado_em).
 //   resumo / enviar_teste (administração logada)
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
@@ -212,10 +214,42 @@ async function noticiasNovas(s: SupabaseClient, desde: string) {
   return (data ?? []) as (Noticia & { coletado_em: string })[];
 }
 
+type ComunicadoEmail = Noticia & { id: string };
+
+/** Comunicados externos ativos que ainda não saíram na newsletter. */
+async function comunicadosExternos(s: SupabaseClient, apenasNaoEnviados: boolean, limite = MAX_NOTICIAS): Promise<ComunicadoEmail[]> {
+  const recentes = new Date(Date.now() - 30 * 86400_000).toISOString();
+  let q = s
+    .from("comunicados")
+    .select("id, titulo, mensagem, link, imagem_url, created_at")
+    .eq("ativo", true)
+    .eq("publico", true)
+    .gte("created_at", recentes)
+    .order("created_at", { ascending: false })
+    .limit(limite);
+  if (apenasNaoEnviados) q = q.is("newsletter_enviado_em", null);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as { id: string; titulo: string; mensagem: string; link: string | null; imagem_url: string | null; created_at: string }[]).map((c) => ({
+    id: c.id,
+    titulo: c.titulo,
+    link: c.link,
+    origem: "Vangard Gestora",
+    categoria: "comunicado",
+    publicado_em: c.created_at,
+    resumo: c.mensagem,
+    imagem: c.imagem_url,
+  }));
+}
+
+/** Notícias e comunicados na mesma fila, do mais novo para o mais antigo. */
+const porPublicacao = <T extends Noticia>(itens: T[]) =>
+  [...itens].sort((a, b) => b.publicado_em.localeCompare(a.publicado_em)).slice(0, MAX_NOTICIAS);
+
 async function montarEmails(s: SupabaseClient, noticias: Noticia[], destinatarios: { email: string; nome: string | null; token: string }[]) {
   const t = await modelo(s, "radar_novidades");
   const de = await remetente(s);
-  const bloco = blocoNoticias(noticias);
+  const bloco = blocoNoticias(noticias, `${URL_PADRAO}/radar`);
   return destinatarios.map((d) => {
     const cancelar = linkPagina(URL_PADRAO, "cancelar", d.token);
     const v = {
@@ -266,8 +300,11 @@ async function enviarNovidades() {
     s.from("radar_newsletter_envios").update({ concluido_em: new Date().toISOString(), ...campos }).eq("id", envio!.id);
 
   try {
-    const noticias = await noticiasNovas(s, desde);
-    const ate = noticias.reduce((m, n) => (n.coletado_em > m ? n.coletado_em : m), desde);
+    const coletadas = await noticiasNovas(s, desde);
+    const ate = coletadas.reduce((m, n) => (n.coletado_em > m ? n.coletado_em : m), desde);
+    const comunicados = await comunicadosExternos(s, true);
+    const noticias = porPublicacao<Noticia & { id?: string; coletado_em?: string }>([...coletadas, ...comunicados]);
+    const comunicadosNoEmail = noticias.filter((n) => n.categoria === "comunicado" && n.id).map((n) => n.id!);
     if (!noticias.length) {
       await fechar({ status: "sem_novidades", ate: new Date().toISOString() });
       return { ok: true, noticias: 0, enviados: 0 };
@@ -292,6 +329,10 @@ async function enviarNovidades() {
       }
       await registrarHistorico(s, lote.map((e) => ({ destinatario: e.to[0], assunto: e.subject, status: r.ok ? "enviado" : "erro", erro: r.erro })));
       if (i + LOTE < emails.length) await new Promise((ok) => setTimeout(ok, 700));
+    }
+    // comunicado só sai uma vez: marca os que foram no e-mail
+    if (enviados && comunicadosNoEmail.length) {
+      await s.from("comunicados").update({ newsletter_enviado_em: new Date().toISOString() }).in("id", comunicadosNoEmail);
     }
     await fechar({
       status: falhas && !enviados ? "falhou" : "ok",
@@ -348,7 +389,8 @@ async function enviarTeste(email: string) {
     .in("categoria", ["oficial", "setor"])
     .order("publicado_em", { ascending: false })
     .limit(6);
-  const noticias = (data ?? []) as Noticia[];
+  const comunicados = await comunicadosExternos(s, false, 3);
+  const noticias = porPublicacao([...((data ?? []) as Noticia[]), ...comunicados]).slice(0, 8);
   if (!noticias.length) return { ok: false, erro: "Ainda não há notícias no Radar" };
   const [e] = await montarEmails(s, noticias, [{ email, nome: null, token: crypto.randomUUID() }]);
   e.subject = `[Teste] ${e.subject}`;
