@@ -102,7 +102,7 @@ export default function RadarPublico() {
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="sticky top-0 z-20 bg-background/90 backdrop-blur border-b border-border/50">
-        <div className="w-full px-4 sm:px-6 lg:px-10 h-16 flex items-center justify-between gap-3">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <a href="https://vangardgestora.com.br" target="_blank" rel="noopener noreferrer" className="flex items-center">
             <img src="/images/logo-vangard.png" alt="Vangard Gestora" className="h-8 object-contain" />
           </a>
@@ -124,7 +124,7 @@ export default function RadarPublico() {
         </div>
       </header>
 
-      <main className="w-full px-4 sm:px-6 lg:px-10 py-6 sm:py-10 space-y-6">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
         <div className="space-y-2">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Radar do mercado</h1>
           <p className="text-muted-foreground max-w-2xl">
@@ -152,7 +152,7 @@ export default function RadarPublico() {
         {q.isLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-64 rounded-3xl" />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <Skeleton className="h-32 rounded-2xl" />
               <Skeleton className="h-32 rounded-2xl" />
             </div>
@@ -193,7 +193,7 @@ export default function RadarPublico() {
                     </span>
                   </span>
                 </span>
-                <span className="mt-6 text-2xl sm:text-3xl xl:text-4xl font-bold leading-tight tracking-tight text-balance line-clamp-4">{principal.titulo}</span>
+                <span className="mt-6 text-2xl sm:text-3xl font-bold leading-tight tracking-tight text-balance line-clamp-4">{principal.titulo}</span>
                 <span className="mt-auto pt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-white/90">
                   Ler na fonte <ArrowUpRight className="h-4 w-4" />
                 </span>
@@ -225,7 +225,7 @@ export default function RadarPublico() {
 
             {convite}
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               {demais.map((i) => (
                 <a
                   key={i.id}
@@ -256,7 +256,7 @@ export default function RadarPublico() {
       </main>
 
       <footer className="border-t border-border/50 bg-background">
-        <div className="w-full px-4 sm:px-6 lg:px-10 py-6 text-xs text-muted-foreground flex flex-col sm:flex-row gap-2 justify-between">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 text-xs text-muted-foreground flex flex-col sm:flex-row gap-2 justify-between">
           <span>Vangard Gestora. Notícias de fontes públicas; o conteúdo de cada matéria pertence ao veículo de origem.</span>
           <span>Atualizado uma vez por dia.</span>
         </div>
