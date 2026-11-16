@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, addMonths, endOfMonth, endOfWeek, format, formatDistanceToNowStrict, isSameDay, parseISO, startOfDay, startOfMonth, startOfWeek, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Plus, Video } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Plus, Video } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -167,139 +167,113 @@ export function AgendaPainel({ podeAgenda, podeReunioes }: { podeAgenda: boolean
         </div>
       </header>
 
-      {/* Próximo compromisso */}
-      <div className="px-3">
-        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-emerald-900 via-teal-800 to-cyan-700 text-white p-4 flex items-center gap-4">
-          <svg aria-hidden viewBox="0 0 120 120" className="absolute -right-6 -bottom-8 h-36 w-36 text-white/10">
-            <circle cx="60" cy="60" r="52" fill="none" stroke="currentColor" strokeWidth="2" />
-            <line x1="60" y1="60" x2="60" y2="26" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
-            <line x1="60" y1="60" x2="84" y2="72" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
-          </svg>
-          {proximo ? (
-            <>
-              <div className="relative shrink-0 rounded-2xl bg-white/15 backdrop-blur px-3.5 py-2 text-center">
-                <p className="text-[11px] capitalize text-white/80">{isSameDay(parseISO(proximo.inicio), agora) ? "Hoje" : format(parseISO(proximo.inicio), "EEE, dd/MM", { locale: ptBR })}</p>
-                <p className="text-2xl font-bold tabular-nums leading-tight">{hora(proximo.inicio)}</p>
-              </div>
-              <div className="relative flex-1 min-w-0">
-                <p className="text-xs text-white/75">Próximo compromisso, em {formatDistanceToNowStrict(parseISO(proximo.inicio), { locale: ptBR })}</p>
-                <p className="text-base font-bold leading-snug line-clamp-2">{proximo.titulo}</p>
-              </div>
-              {proximo.tipo === "reuniao" && (
-                <Link to={`/video/${proximo.origemId}`} className="relative shrink-0">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white text-slate-900 text-sm font-semibold px-4 py-2 hover:bg-white/90 transition-colors">
-                    <Video className="h-4 w-4" /> Entrar
-                  </span>
-                </Link>
-              )}
-            </>
-          ) : (
-            <div className="relative">
-              <p className="text-base font-bold">Nenhum compromisso à frente</p>
-              <p className="text-sm text-white/75">Escolha um dia no calendário para marcar um lembrete.</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2 p-5 flex-1">
-        {/* Mês */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-bold capitalize">{format(mes, "MMMM yyyy", { locale: ptBR })}</span>
-            <span className="flex items-center">
-              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-full" onClick={() => setMes(subMonths(mes, 1))} aria-label="Mês anterior">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs rounded-full"
-                onClick={() => {
-                  setMes(new Date());
-                  setDia(new Date());
-                }}
-              >
-                Hoje
-              </Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-full" onClick={() => setMes(addMonths(mes, 1))} aria-label="Próximo mês">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+      {/* Próximo compromisso: só quando existe um */}
+      {proximo && (
+        <div className="px-3 pb-3">
+          <div className="rounded-2xl bg-gradient-to-r from-emerald-900 via-teal-800 to-cyan-700 text-white px-4 py-2.5 flex items-center gap-3">
+            <span className="shrink-0 rounded-xl bg-white/15 px-2.5 py-1 text-center leading-tight">
+              <span className="block text-[10px] capitalize text-white/80">{isSameDay(parseISO(proximo.inicio), agora) ? "Hoje" : format(parseISO(proximo.inicio), "EEE dd/MM", { locale: ptBR })}</span>
+              <span className="block text-base font-bold tabular-nums">{hora(proximo.inicio)}</span>
             </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-xs text-white/75">Próximo compromisso, em {formatDistanceToNowStrict(parseISO(proximo.inicio), { locale: ptBR })}</span>
+              <span className="block text-sm font-bold truncate">{proximo.titulo}</span>
+            </span>
+            {proximo.tipo === "reuniao" && (
+              <Link to={`/video/${proximo.origemId}`} className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-white text-slate-900 text-xs font-semibold px-3 py-1.5 hover:bg-white/90 transition-colors">
+                <Video className="h-3.5 w-3.5" /> Entrar
+              </Link>
+            )}
           </div>
-          <div className="grid grid-cols-7 gap-y-0.5">
-            {["dom", "seg", "ter", "qua", "qui", "sex", "sáb"].map((d) => (
-              <div key={d} className="text-center text-[11px] font-medium text-muted-foreground/70 py-1">
-                {d}
-              </div>
-            ))}
-            {dias.map((d) => {
-              const doMes = d.getMonth() === mes.getMonth();
-              const hoje = isSameDay(d, agora);
-              const sel = isSameDay(d, dia);
-              const qtd = itens.filter((i) => isSameDay(parseISO(i.inicio), d));
-              return (
-                <button
-                  key={d.toISOString()}
-                  type="button"
-                  onClick={() => {
-                    setDia(d);
-                    if (!doMes) setMes(d);
-                  }}
-                  aria-pressed={sel}
-                  aria-label={format(d, "d 'de' MMMM", { locale: ptBR }) + (qtd.length ? `, ${qtd.length} compromisso(s)` : "")}
-                  className={`relative mx-auto flex flex-col items-center justify-center h-10 w-10 rounded-xl text-[13px] transition-colors ${
-                    sel
-                      ? "bg-primary text-primary-foreground font-bold shadow-sm"
-                      : hoje
-                        ? "bg-primary/10 text-primary font-bold"
-                        : doMes
-                          ? "hover:bg-muted"
-                          : "text-muted-foreground/35 hover:bg-muted/60"
-                  }`}
-                >
-                  {format(d, "d")}
-                  {qtd.length > 0 && (
-                    <span className="absolute bottom-1 flex gap-0.5">
-                      {qtd.slice(0, 3).map((q) => (
-                        <span key={q.id} className="h-1 w-1 rounded-full" style={{ backgroundColor: sel ? "currentColor" : q.cor }} />
-                      ))}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex items-center gap-4 mt-3 text-[11px] text-muted-foreground">
+        </div>
+      )}
+
+      {/* Mês na largura toda: cada dia é uma faixa com o que está marcado */}
+      <div className="px-5 flex-1 flex flex-col">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className="flex items-center gap-1">
+            <span className="text-sm font-bold capitalize mr-1">{format(mes, "MMMM yyyy", { locale: ptBR })}</span>
+            <Button size="icon" variant="ghost" className="h-7 w-7 rounded-full" onClick={() => setMes(subMonths(mes, 1))} aria-label="Mês anterior">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs rounded-full"
+              onClick={() => {
+                setMes(new Date());
+                setDia(new Date());
+              }}
+            >
+              Hoje
+            </Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7 rounded-full" onClick={() => setMes(addMonths(mes, 1))} aria-label="Próximo mês">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </span>
+          <span className="flex items-center gap-3 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-blue-500" /> Lembrete
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-violet-500" /> Reunião
             </span>
-          </div>
+          </span>
         </div>
 
-        {/* Dia escolhido + o que vem depois */}
-        <div className="min-w-0 flex flex-col gap-3">
-          <div>
-            <p className="text-sm font-bold capitalize">{eHoje ? "Hoje" : format(dia, "EEEE, dd 'de' MMMM", { locale: ptBR })}</p>
-            {doDia.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-1.5 flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-muted-foreground/50" /> Dia livre.
-              </p>
-            ) : (
-              <div className="mt-1 max-h-[150px] overflow-y-auto">
-                {doDia.map((i) => (
-                  <Linha key={i.id} i={i} />
-                ))}
-              </div>
-            )}
-          </div>
+        <div className="grid grid-cols-7 gap-1 flex-1 auto-rows-fr">
+          {["dom", "seg", "ter", "qua", "qui", "sex", "sáb"].map((d) => (
+            <div key={d} className="text-[11px] font-medium text-muted-foreground/70 px-2 self-end">
+              {d}
+            </div>
+          ))}
+          {dias.map((d) => {
+            const doMes = d.getMonth() === mes.getMonth();
+            const hoje = isSameDay(d, agora);
+            const sel = isSameDay(d, dia);
+            const qtd = itens.filter((i) => isSameDay(parseISO(i.inicio), d));
+            return (
+              <button
+                key={d.toISOString()}
+                type="button"
+                onClick={() => {
+                  setDia(d);
+                  if (!doMes) setMes(d);
+                }}
+                aria-pressed={sel}
+                aria-label={format(d, "d 'de' MMMM", { locale: ptBR }) + (qtd.length ? `, ${qtd.length} compromisso(s)` : "")}
+                className={`min-h-[38px] rounded-lg px-2 py-1 text-left flex flex-col justify-between overflow-hidden transition-colors ${
+                  sel
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : hoje
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/40"
+                      : doMes
+                        ? "bg-muted/40 hover:bg-muted"
+                        : "text-muted-foreground/40 hover:bg-muted/40"
+                }`}
+              >
+                <span className={`text-[13px] leading-none tabular-nums ${sel || hoje ? "font-bold" : "font-medium"}`}>{format(d, "d")}</span>
+                {qtd.length > 0 && (
+                  <span className="flex items-center gap-1 min-w-0">
+                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: sel ? "currentColor" : qtd[0].cor }} />
+                    <span className={`text-[10px] leading-tight truncate ${sel ? "text-primary-foreground/90" : "text-muted-foreground"}`}>
+                      {qtd.length > 1 ? `${qtd.length} itens` : qtd[0].titulo}
+                    </span>
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-          {podeAgenda && (
+      {/* Dia escolhido, lembrete rápido e o que vem depois */}
+      <div className="px-5 pt-3 pb-4 space-y-2">
+        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+          <p className="text-sm font-bold capitalize shrink-0">{eHoje ? "Hoje" : format(dia, "EEE, dd/MM", { locale: ptBR })}</p>
+          {podeAgenda ? (
             <form
-              className="flex items-center gap-1.5 rounded-2xl bg-muted/50 p-1.5"
+              className="flex-1 min-w-0 flex items-center gap-1.5 rounded-full bg-muted/60 pl-2 pr-1 py-1"
               onSubmit={(e) => {
                 e.preventDefault();
                 adicionar();
@@ -309,22 +283,36 @@ export function AgendaPainel({ podeAgenda, podeReunioes }: { podeAgenda: boolean
                 value={novo}
                 onChange={(e) => setNovo(e.target.value)}
                 maxLength={120}
-                placeholder={`Lembrete para ${eHoje ? "hoje" : format(dia, "dd/MM")}`}
+                placeholder={doDia.length ? "Adicionar outro lembrete" : "Dia livre. Escreva um lembrete"}
                 aria-label="Novo lembrete"
-                className="h-8 border-0 bg-transparent shadow-none focus-visible:ring-0 text-sm px-2"
+                className="h-7 border-0 bg-transparent shadow-none focus-visible:ring-0 text-sm px-2"
               />
-              <Input type="time" value={novoHora} onChange={(e) => setNovoHora(e.target.value)} aria-label="Horário" className="h-8 w-[92px] shrink-0 border-0 bg-background rounded-xl text-sm px-2" />
-              <Button type="submit" size="icon" className="h-8 w-8 shrink-0 rounded-xl" disabled={salvando || novo.trim().length < 2} aria-label="Adicionar lembrete">
+              <Input type="time" value={novoHora} onChange={(e) => setNovoHora(e.target.value)} aria-label="Horário" className="h-7 w-[88px] shrink-0 border-0 bg-background rounded-full text-sm px-2" />
+              <Button type="submit" size="icon" className="h-7 w-7 shrink-0 rounded-full" disabled={salvando || novo.trim().length < 2} aria-label="Adicionar lembrete">
                 <Plus className="h-4 w-4" />
               </Button>
             </form>
+          ) : (
+            doDia.length === 0 && <p className="text-sm text-muted-foreground">Dia livre.</p>
           )}
-
-          <div className="flex-1 min-h-0">
-            <p className="text-xs font-semibold text-muted-foreground">Vem depois</p>
-            {depois.length === 0 ? <p className="text-sm text-muted-foreground py-1.5">Nada mais marcado nas próximas semanas.</p> : depois.map((i) => <Linha key={i.id} i={i} comData />)}
-          </div>
         </div>
+        {doDia.length > 0 && (
+          <div className="max-h-[104px] overflow-y-auto">
+            {doDia.map((i) => (
+              <Linha key={i.id} i={i} />
+            ))}
+          </div>
+        )}
+        {depois.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground">Vem depois</p>
+            <div className="grid sm:grid-cols-2 gap-x-3">
+              {depois.slice(0, 2).map((i) => (
+                <Linha key={i.id} i={i} comData />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
