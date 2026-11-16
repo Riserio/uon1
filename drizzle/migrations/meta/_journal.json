@@ -379,6 +379,13 @@
       "when": 1794872965438,
       "tag": "0053_radar_links_diretos_pedidos",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794873043463,
+      "tag": "0054_radar_links_diretos_ritmo",
+      "breakpoints": true
     }
   ]
 }
