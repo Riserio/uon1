@@ -102,7 +102,7 @@ async function registrarHistorico(s: SupabaseClient, linhas: { destinatario: str
 // ---------------------------------------------------------------------------
 const AssinarSchema = z.object({
   acao: z.literal("assinar"),
-  email: z.string().trim().toLowerCase().email().max(255),
+  email: z.string().trim().toLowerCase().email("Informe um e-mail válido").max(255, "E-mail muito longo"),
   nome: z.string().trim().max(120).optional().nullable(),
   aceite: z.literal(true, { errorMap: () => ({ message: "É preciso aceitar o recebimento das comunicações" }) }),
   base: z.string().max(200).optional().nullable(),
