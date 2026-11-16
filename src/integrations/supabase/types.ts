@@ -8208,6 +8208,105 @@ export type Database = {
         }
         Relationships: []
       }
+      radar_assinantes: {
+        Row: {
+          aceite_comunicacoes: boolean
+          aceite_em: string | null
+          aceite_ip: string | null
+          aceite_texto: string | null
+          aceite_user_agent: string | null
+          atualizado_em: string
+          cancelado_em: string | null
+          confirmacoes_enviadas: number
+          confirmado_em: string | null
+          criado_em: string
+          email: string
+          id: string
+          nome: string | null
+          origem: string | null
+          status: string
+          token: string
+          ultimo_envio_em: string | null
+        }
+        Insert: {
+          aceite_comunicacoes?: boolean
+          aceite_em?: string | null
+          aceite_ip?: string | null
+          aceite_texto?: string | null
+          aceite_user_agent?: string | null
+          atualizado_em?: string
+          cancelado_em?: string | null
+          confirmacoes_enviadas?: number
+          confirmado_em?: string | null
+          criado_em?: string
+          email: string
+          id?: string
+          nome?: string | null
+          origem?: string | null
+          status?: string
+          token?: string
+          ultimo_envio_em?: string | null
+        }
+        Update: {
+          aceite_comunicacoes?: boolean
+          aceite_em?: string | null
+          aceite_ip?: string | null
+          aceite_texto?: string | null
+          aceite_user_agent?: string | null
+          atualizado_em?: string
+          cancelado_em?: string | null
+          confirmacoes_enviadas?: number
+          confirmado_em?: string | null
+          criado_em?: string
+          email?: string
+          id?: string
+          nome?: string | null
+          origem?: string | null
+          status?: string
+          token?: string
+          ultimo_envio_em?: string | null
+        }
+        Relationships: []
+      }
+      radar_newsletter_envios: {
+        Row: {
+          ate: string | null
+          concluido_em: string | null
+          destinatarios: number
+          enviados: number
+          erro: string | null
+          falhas: number
+          id: number
+          iniciado_em: string
+          noticias: number
+          status: string
+        }
+        Insert: {
+          ate?: string | null
+          concluido_em?: string | null
+          destinatarios?: number
+          enviados?: number
+          erro?: string | null
+          falhas?: number
+          id?: number
+          iniciado_em?: string
+          noticias?: number
+          status?: string
+        }
+        Update: {
+          ate?: string | null
+          concluido_em?: string | null
+          destinatarios?: number
+          enviados?: number
+          erro?: string | null
+          falhas?: number
+          id?: number
+          iniciado_em?: string
+          noticias?: number
+          status?: string
+        }
+        Relationships: []
+      }
       registros_ponto: {
         Row: {
           ajustado: boolean | null
