@@ -12067,6 +12067,7 @@ export type Database = {
         Returns: boolean
       }
       painel_admin: { Args: { _uid: string }; Returns: boolean }
+      pode_ver_corretora: { Args: { _corretora_id: string }; Returns: boolean }
       pode_ver_modelos_contrato: { Args: { _uid: string }; Returns: boolean }
       processar_backfill_cobranca: { Args: never; Returns: Json }
       processar_base_api: {
