@@ -2,30 +2,33 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, Share2 } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, ChevronRight, Loader2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LogoFonte } from "@/components/painel/RadarMercado";
-import { NoticiaDialog } from "@/components/painel/NoticiaDialog";
 import { CAMPO_RADAR, paginaNoticias, POR_PAGINA, PONTO_RADAR, TIPO_RADAR, ultimaColetaRadar, type ItemRadar } from "@/components/painel/radar";
 
-type Filtro = "tudo" | "oficial" | "setor" | "vangard";
+type Filtro = "tudo" | "oficial" | "setor";
 const FILTROS: { id: Filtro; rotulo: string }[] = [
   { id: "tudo", rotulo: "Tudo" },
   { id: "oficial", rotulo: "Órgãos oficiais" },
   { id: "setor", rotulo: "Setor" },
-  { id: "vangard", rotulo: "Vangard e Fenaprove" },
 ];
+const DESTAQUES = 5;
+const TROCA_MS = 8000;
 const ha = (iso: string) => formatDistanceToNow(parseISO(iso), { addSuffix: true, locale: ptBR });
 
 /**
  * Radar do mercado aberto ao público (link do Instagram da Vangard). Só as
- * notícias coletadas; comunicados internos não aparecem aqui.
+ * notícias coletadas; comunicados internos não aparecem aqui. As mais novas
+ * passam em carrossel no cartão de destaque; cada notícia abre no site de
+ * origem, numa nova aba.
  */
 export default function RadarPublico() {
   const [filtro, setFiltro] = useState<Filtro>("tudo");
-  const [aberta, setAberta] = useState<ItemRadar | null>(null);
+  const [ativo, setAtivo] = useState(0);
+  const [pausado, setPausado] = useState(false);
   const fim = useRef<HTMLDivElement>(null);
   const categoria = filtro === "tudo" ? null : filtro;
 
@@ -43,7 +46,20 @@ export default function RadarPublico() {
   });
   const { data: ultimaColeta } = useQuery({ queryKey: ["radar_publico_coleta"], queryFn: ultimaColetaRadar, staleTime: 30 * 60_000 });
   const itens = useMemo(() => q.data?.pages.flat() ?? [], [q.data]);
-  const [principal, ...demais] = itens;
+  const destaques = itens.slice(0, DESTAQUES);
+  const demais = itens.slice(destaques.length);
+  const principal: ItemRadar | undefined = destaques[Math.min(ativo, Math.max(0, destaques.length - 1))];
+
+  useEffect(() => setAtivo(0), [filtro]);
+
+  // O destaque troca sozinho; para com o mouse em cima ou com pouco movimento pedido
+  useEffect(() => {
+    if (pausado || destaques.length < 2) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const t = window.setTimeout(() => setAtivo((a) => (a + 1) % destaques.length), TROCA_MS);
+    return () => window.clearTimeout(t);
+  }, [ativo, pausado, destaques.length]);
+  const ir = (d: number) => setAtivo((a) => (a + d + destaques.length) % destaques.length);
 
   // carrega a próxima página ao chegar perto do fim da página
   useEffect(() => {
@@ -119,10 +135,12 @@ export default function RadarPublico() {
           <p className="text-center text-muted-foreground py-16">Nenhuma notícia neste filtro por enquanto.</p>
         ) : (
           <>
-            <button
-              type="button"
-              onClick={() => setAberta(principal)}
-              className={`relative w-full text-left rounded-3xl overflow-hidden bg-gradient-to-br ${CAMPO_RADAR[principal.tipo]} text-white p-6 sm:p-8 min-h-[260px] flex flex-col focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/40`}
+            <div
+              className={`relative rounded-3xl overflow-hidden bg-gradient-to-br ${CAMPO_RADAR[principal.tipo]} text-white min-h-[280px] flex flex-col transition-colors`}
+              onMouseEnter={() => setPausado(true)}
+              onMouseLeave={() => setPausado(false)}
+              onFocus={() => setPausado(true)}
+              onBlur={() => setPausado(false)}
             >
               <svg aria-hidden viewBox="0 0 200 200" className="absolute -right-16 -top-16 h-80 w-80 text-white/15">
                 {[30, 55, 80, 98].map((r) => (
@@ -130,25 +148,59 @@ export default function RadarPublico() {
                 ))}
                 <line x1="100" y1="100" x2="186" y2="52" stroke="currentColor" strokeWidth="1.5" />
               </svg>
-              <span className="relative flex items-center gap-3">
-                <LogoFonte item={principal} grande />
-                <span>
-                  <span className="block font-semibold">{principal.origem}</span>
-                  <span className="block text-sm text-white/75">
-                    {TIPO_RADAR[principal.tipo]}, {format(parseISO(principal.data), "dd/MM/yyyy")}
+              <a
+                key={principal.id}
+                href={principal.link ?? undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative flex-1 flex flex-col p-6 sm:p-8 animate-in fade-in duration-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/50 rounded-3xl"
+              >
+                <span className="flex items-center gap-3">
+                  <LogoFonte item={principal} grande />
+                  <span>
+                    <span className="block font-semibold">{principal.origem}</span>
+                    <span className="block text-sm text-white/75">
+                      {TIPO_RADAR[principal.tipo]}, {format(parseISO(principal.data), "dd/MM/yyyy")}
+                    </span>
                   </span>
                 </span>
-              </span>
-              <span className="relative mt-6 text-2xl sm:text-3xl font-bold leading-tight tracking-tight text-balance">{principal.titulo}</span>
-              <span className="relative mt-auto pt-6 text-sm font-semibold text-white/90">Ler a notícia</span>
-            </button>
+                <span className="mt-6 text-2xl sm:text-3xl font-bold leading-tight tracking-tight text-balance line-clamp-4">{principal.titulo}</span>
+                <span className="mt-auto pt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-white/90">
+                  Ler na fonte <ArrowUpRight className="h-4 w-4" />
+                </span>
+              </a>
+              {destaques.length > 1 && (
+                <div className="relative flex items-center gap-3 px-6 sm:px-8 pb-5">
+                  <div className="flex-1 flex gap-1.5">
+                    {destaques.map((d, i) => (
+                      <button key={d.id} type="button" aria-label={`Ir para o destaque ${i + 1}`} aria-current={i === ativo} onClick={() => setAtivo(i)} className="h-1 flex-1 rounded-full bg-white/25 overflow-hidden">
+                        <span
+                          key={`${d.id}-${i === ativo}-${pausado}`}
+                          className={`block h-full bg-white ${i === ativo ? (pausado ? "w-full" : "radar-enche") : i < ativo ? "w-full opacity-60" : "w-0"}`}
+                          style={i === ativo && !pausado ? { animationDuration: `${TROCA_MS}ms` } : undefined}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button type="button" aria-label="Notícia anterior" onClick={() => ir(-1)} className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-white/15">
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button type="button" aria-label="Próxima notícia" onClick={() => ir(1)} className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-white/15">
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               {demais.map((i) => (
-                <button
+                <a
                   key={i.id}
-                  type="button"
-                  onClick={() => setAberta(i)}
+                  href={i.link ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="group text-left rounded-2xl bg-background border border-border/50 p-4 hover:border-primary/40 hover:shadow-sm transition-all flex flex-col gap-3"
                 >
                   <span className="flex items-center gap-2.5">
@@ -162,7 +214,7 @@ export default function RadarPublico() {
                     </span>
                   </span>
                   <span className="text-[15px] font-semibold leading-snug line-clamp-3 group-hover:text-primary transition-colors">{i.titulo}</span>
-                </button>
+                </a>
               ))}
             </div>
             <div ref={fim} className="flex justify-center py-4 text-sm text-muted-foreground">
@@ -179,7 +231,6 @@ export default function RadarPublico() {
         </div>
       </footer>
 
-      <NoticiaDialog item={aberta} relacionadas={itens} onTrocar={setAberta} onFechar={() => setAberta(null)} />
     </div>
   );
 }

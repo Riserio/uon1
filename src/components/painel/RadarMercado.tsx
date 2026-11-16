@@ -4,22 +4,20 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, EyeOff, Link2, Megaphone, Plus } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, ChevronRight, EyeOff, Link2, Megaphone, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { urlPublica } from "@/lib/trust";
 import type { Comunicado } from "@/types/comunicado";
 import { ListaRolavel } from "./ListaRolavel";
-import { NoticiaDialog } from "./NoticiaDialog";
 import { CAMPO_RADAR, logoFonte, paginaNoticias, POR_PAGINA, PONTO_RADAR, TIPO_RADAR, ultimaColetaRadar, urlRadarPublico, type ItemRadar } from "./radar";
 
-type Filtro = "tudo" | "oficial" | "setor" | "vangard" | "comunicado";
+type Filtro = "tudo" | "oficial" | "setor" | "comunicado";
 const FILTROS: { id: Filtro; rotulo: string }[] = [
   { id: "tudo", rotulo: "Tudo" },
   { id: "oficial", rotulo: "Oficiais" },
   { id: "setor", rotulo: "Setor" },
-  { id: "vangard", rotulo: "Vangard" },
   { id: "comunicado", rotulo: "Comunicados" },
 ];
 const DESTAQUES = 5;
@@ -53,16 +51,15 @@ export function LogoFonte({ item, grande }: { item: ItemRadar; grande?: boolean 
  * veicular (coleta diária no banco) junto com os comunicados internos. Um
  * destaque que troca sozinho e, abaixo, a lista com rolagem própria, que só
  * busca a próxima página quando a pessoa chega ao fim. Tocar numa notícia
- * abre a leitura num popup.
+ * abre a matéria no site de origem, numa nova aba.
  */
 export function RadarMercado({ admin }: { admin: boolean }) {
   const qc = useQueryClient();
   const [filtro, setFiltro] = useState<Filtro>("tudo");
   const [ativo, setAtivo] = useState(0);
   const [pausado, setPausado] = useState(false);
-  const [aberta, setAberta] = useState<ItemRadar | null>(null);
 
-  const categoria = filtro === "oficial" || filtro === "setor" || filtro === "vangard" ? filtro : null;
+  const categoria = filtro === "oficial" || filtro === "setor" ? filtro : null;
   const noticias = useInfiniteQuery({
     queryKey: ["painel_radar_noticias", categoria],
     enabled: filtro !== "comunicado",
@@ -129,13 +126,13 @@ export function RadarMercado({ admin }: { admin: boolean }) {
 
   useEffect(() => setAtivo(0), [filtro]);
 
-  // O destaque troca sozinho; para com o mouse em cima, com o popup aberto ou com pouco movimento pedido
+  // O destaque troca sozinho; para com o mouse em cima ou com pouco movimento pedido
   useEffect(() => {
-    if (pausado || aberta || destaques.length < 2) return;
+    if (pausado || destaques.length < 2) return;
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
     const t = window.setTimeout(() => setAtivo((a) => (a + 1) % destaques.length), TROCA_MS);
     return () => window.clearTimeout(t);
-  }, [ativo, pausado, aberta, destaques.length]);
+  }, [ativo, pausado, destaques.length]);
 
   const ocultar = async (id: string) => {
     const { error } = await db.from("mercado_noticias").update({ oculto: true }).eq("id", id);
@@ -209,21 +206,29 @@ export function RadarMercado({ admin }: { admin: boolean }) {
                 <circle cx="150" cy="72" r="3.5" fill="currentColor" />
               </svg>
 
-              <button type="button" onClick={() => setAberta(atual)} className="relative flex-1 flex flex-col p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-2xl">
-                <span key={atual.id} className="flex flex-col animate-in fade-in duration-500">
-                  <span className="flex items-center gap-3">
-                    <LogoFonte item={atual} grande />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold truncate">{atual.origem}</span>
-                      <span className="block text-xs text-white/70">
-                        {TIPO_RADAR[atual.tipo]}, {ha(atual.data)}
-                      </span>
-                    </span>
-                  </span>
-                  <span className="mt-4 text-xl font-bold leading-snug tracking-tight line-clamp-3 text-balance">{atual.titulo}</span>
-                  <span className="mt-3 text-xs font-semibold text-white/85 underline-offset-4 hover:underline">Ler a notícia</span>
-                </span>
-              </button>
+              <div key={atual.id} className="relative flex-1 flex flex-col p-5 animate-in fade-in duration-500">
+                <div className="flex items-center gap-3">
+                  <LogoFonte item={atual} grande />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{atual.origem}</p>
+                    <p className="text-xs text-white/70">
+                      {TIPO_RADAR[atual.tipo]}, {ha(atual.data)}
+                    </p>
+                  </div>
+                </div>
+                <h3 className="mt-4 text-xl font-bold leading-snug tracking-tight line-clamp-3 text-balance">{atual.titulo}</h3>
+                {atual.resumo && <p className="mt-2 text-sm text-white/80 line-clamp-2">{atual.resumo}</p>}
+                {atual.link && (
+                  <a
+                    href={atual.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-auto pt-4 self-start inline-flex items-center gap-1.5 text-sm font-semibold text-white/90 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded"
+                  >
+                    {atual.tipo === "comunicado" ? "Abrir link" : "Ler na fonte"} <ArrowUpRight className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
 
               <div className="relative flex items-center gap-3 px-5 pb-4">
                 {destaques.length > 1 && (
@@ -232,8 +237,8 @@ export function RadarMercado({ admin }: { admin: boolean }) {
                       <button key={d.id} type="button" aria-label={`Ir para o destaque ${i + 1}`} aria-current={i === ativo} onClick={() => setAtivo(i)} className="h-1 flex-1 rounded-full bg-white/25 overflow-hidden">
                         <span
                           key={`${d.id}-${i === ativo}-${pausado}`}
-                          className={`block h-full bg-white ${i === ativo ? (pausado || aberta ? "w-full" : "radar-enche") : i < ativo ? "w-full opacity-60" : "w-0"}`}
-                          style={i === ativo && !pausado && !aberta ? { animationDuration: `${TROCA_MS}ms` } : undefined}
+                          className={`block h-full bg-white ${i === ativo ? (pausado ? "w-full" : "radar-enche") : i < ativo ? "w-full opacity-60" : "w-0"}`}
+                          style={i === ativo && !pausado ? { animationDuration: `${TROCA_MS}ms` } : undefined}
                         />
                       </button>
                     ))}
@@ -270,9 +275,9 @@ export function RadarMercado({ admin }: { admin: boolean }) {
             }}
           >
             <ul className="px-3 py-2">
-              {lista.map((i) => (
-                <li key={i.id}>
-                  <button type="button" onClick={() => setAberta(i)} className="group w-full text-left flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-muted/50 transition-colors">
+              {lista.map((i) => {
+                const corpo = (
+                  <>
                     <LogoFonte item={i} />
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm font-medium leading-snug line-clamp-2 group-hover:text-primary transition-colors">{i.titulo}</span>
@@ -282,9 +287,22 @@ export function RadarMercado({ admin }: { admin: boolean }) {
                         <span className="shrink-0">{ha(i.data)}</span>
                       </span>
                     </span>
-                  </button>
-                </li>
-              ))}
+                    {i.link && <ArrowUpRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary shrink-0 transition-colors" />}
+                  </>
+                );
+                const classe = "group w-full flex items-center gap-3 rounded-xl px-2 py-2.5";
+                return (
+                  <li key={i.id}>
+                    {i.link ? (
+                      <a href={i.link} target="_blank" rel="noopener noreferrer" className={`${classe} hover:bg-muted/50 transition-colors`}>
+                        {corpo}
+                      </a>
+                    ) : (
+                      <div className={classe}>{corpo}</div>
+                    )}
+                  </li>
+                );
+              })}
               {lista.length === 0 && <li className="px-2 py-3 text-sm text-muted-foreground">Sem mais notícias neste filtro.</li>}
               {lista.length > 0 && !noticias.hasNextPage && filtro !== "comunicado" && (
                 <li className="px-2 pt-2 pb-1 text-center text-xs text-muted-foreground">Você chegou ao fim das notícias.</li>
@@ -294,7 +312,6 @@ export function RadarMercado({ admin }: { admin: boolean }) {
         </>
       )}
 
-      <NoticiaDialog item={aberta} relacionadas={itens} onTrocar={setAberta} onFechar={() => setAberta(null)} />
     </section>
   );
 }
