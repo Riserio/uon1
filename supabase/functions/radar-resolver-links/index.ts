@@ -28,8 +28,16 @@ async function enderecoReal(gid: string, ts: number, sg: string): Promise<string
   });
   const txt = await r.text();
   if (!r.ok) throw new Error(`Google respondeu ${r.status}`);
-  const m = txt.match(/\\"garturlres\\",\\"(https?:[^"\\]+(?:\\\\.[^"\\]*)*)\\"/);
-  return m ? m[1].replace(/\\\\u003d/g, "=").replace(/\\\\u0026/g, "&").replace(/\\\\\//g, "/") : null;
+  // resposta: )]}' + linhas JSON; a que começa com [["wrb.fr" traz ["garturlres", url, 1]
+  for (const linha of txt.split("\n")) {
+    if (!linha.startsWith('[["wrb.fr"')) continue;
+    try {
+      const externo = JSON.parse(linha);
+      const interno = JSON.parse(externo?.[0]?.[2] ?? "null");
+      if (interno?.[0] === "garturlres" && typeof interno[1] === "string") return interno[1];
+    } catch { /* linha incompleta */ }
+  }
+  return null;
 }
 
 Deno.serve(async (req) => {
