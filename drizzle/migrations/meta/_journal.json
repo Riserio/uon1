@@ -330,6 +330,13 @@
       "when": 1794799131985,
       "tag": "0046_corrigir_logs_visita_config_assinatura_arquivos_termos",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794799723040,
+      "tag": "0047_restringir_substituir_apagar_arquivos",
+      "breakpoints": true
     }
   ]
 }
