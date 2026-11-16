@@ -351,6 +351,13 @@
       "when": 1794871380932,
       "tag": "0049_comunicados_publico_e_arquivos",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794871811728,
+      "tag": "0050_newsletter_comunicados_e_funcoes",
+      "breakpoints": true
     }
   ]
 }

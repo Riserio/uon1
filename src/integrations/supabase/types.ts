@@ -2541,6 +2541,7 @@ export type Database = {
           imagem_url: string | null
           link: string | null
           mensagem: string
+          newsletter_enviado_em: string | null
           publico: boolean
           titulo: string
           updated_at: string
@@ -2553,6 +2554,7 @@ export type Database = {
           imagem_url?: string | null
           link?: string | null
           mensagem: string
+          newsletter_enviado_em?: string | null
           publico?: boolean
           titulo: string
           updated_at?: string
@@ -2565,6 +2567,7 @@ export type Database = {
           imagem_url?: string | null
           link?: string | null
           mensagem?: string
+          newsletter_enviado_em?: string | null
           publico?: boolean
           titulo?: string
           updated_at?: string
