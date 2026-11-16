@@ -78,6 +78,7 @@ export function usePainelComercial(ativo: boolean) {
         /** Cliente aceitou os valores e ainda não gerou o contrato. */
         aceitasSemContrato: C.filter((c) => c.status === "aprovada" && c.aceite_em && !c.contrato_id),
         cotacoesAbertas: C.filter((c) => ["rascunho", "enviada", "aprovada"].includes(c.status)),
+        emitidasMesLista: C.filter((c) => c.status === "emitida" && doMes(c.emitida_em)),
       };
     },
   });
