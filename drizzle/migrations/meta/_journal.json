@@ -309,6 +309,13 @@
       "when": 1794798253932,
       "tag": "0043_restringir_leitura_modelos_contrato",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794798313577,
+      "tag": "0044_restringir_cadastro_associacoes_e_notificacao_global",
+      "breakpoints": true
     }
   ]
 }

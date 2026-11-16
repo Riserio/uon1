@@ -11578,6 +11578,7 @@ export type Database = {
         Args: { p_importacao_ids: string[]; p_mes_referencia?: string }
         Returns: Json
       }
+      eh_equipe_interna: { Args: { _uid: string }; Returns: boolean }
       eh_veiculo_ativo: { Args: { p_situacao: string }; Returns: boolean }
       enfileirar_sync_diario: { Args: never; Returns: Json }
       enqueue_recurrent_backfills: {
