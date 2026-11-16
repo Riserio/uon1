@@ -164,7 +164,7 @@ export function blocoNoticias(lista: Noticia[], linkRadar = ""): string {
       const destino = n.link || (comunicado ? linkRadar : "");
       const chip = `<span style="display:inline-block;background:${c.fundo};color:${c.cor};padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;">${c.rotulo}</span>`;
       const imagem = comunicado && n.imagem
-        ? `<img src="${esc(n.imagem)}" alt="" width="100%" style="display:block;width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-top:10px;">`
+        ? `<img src="${esc(n.imagem)}" alt="" width="100%" style="display:block;width:100%;max-width:100%;height:auto;border:0;border-radius:10px;margin-top:10px;">`
         : "";
       const titulo = destino
         ? `<a href="${esc(destino)}" style="display:block;margin-top:8px;font-size:15px;line-height:1.45;font-weight:700;color:#0f172a;text-decoration:none;">${esc(n.titulo)}</a>`

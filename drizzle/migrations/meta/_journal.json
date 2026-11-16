@@ -358,6 +358,13 @@
       "when": 1794871811728,
       "tag": "0050_newsletter_comunicados_e_funcoes",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1794872482299,
+      "tag": "0051_listas_bi_acesso_por_associacao",
+      "breakpoints": true
     }
   ]
 }

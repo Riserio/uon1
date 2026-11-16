@@ -230,7 +230,8 @@ async function comunicadosExternos(s: SupabaseClient, apenasNaoEnviados: boolean
   if (apenasNaoEnviados) q = q.is("newsletter_enviado_em", null);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return ((data ?? []) as { id: string; titulo: string; mensagem: string; link: string | null; imagem_url: string | null; created_at: string }[]).map((c) => ({
+  const linhas = (data ?? []) as { id: string; titulo: string; mensagem: string; link: string | null; imagem_url: string | null; created_at: string }[];
+  return await Promise.all(linhas.map(async (c) => ({
     id: c.id,
     titulo: c.titulo,
     link: c.link,
@@ -238,8 +239,48 @@ async function comunicadosExternos(s: SupabaseClient, apenasNaoEnviados: boolean
     categoria: "comunicado",
     publicado_em: c.created_at,
     resumo: c.mensagem,
-    imagem: c.imagem_url,
-  }));
+    imagem: await imagemPropria(s, c.imagem_url),
+  })));
+}
+
+// Imagens de comunicado costumam ser links de outros sites. Programas de e-mail
+// (Apple Mail, Gmail, Outlook) buscam a imagem pelos próprios servidores e muitos
+// sites bloqueiam isso — a imagem chega quebrada. Por isso copiamos para o nosso
+// armazenamento público e o e-mail aponta para a cópia.
+const BUCKET_IMAGENS = "app-config";
+const TIPOS_IMAGEM: Record<string, string> = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp" };
+const MAX_BYTES_IMAGEM = 5 * 1024 * 1024;
+
+async function imagemPropria(s: SupabaseClient, url: string | null): Promise<string | null> {
+  const original = url?.trim();
+  if (!original || !/^https?:\/\//i.test(original)) return null;
+  const base = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "");
+  if (base && original.startsWith(`${base}/storage/v1/object/public/`)) return original; // já é nossa
+  try {
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(original))))
+      .map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+    const pasta = "radar/comunicados";
+    const { data: existentes } = await s.storage.from(BUCKET_IMAGENS).list(pasta, { search: hash, limit: 1 });
+    if (existentes && existentes.length) {
+      return s.storage.from(BUCKET_IMAGENS).getPublicUrl(`${pasta}/${existentes[0].name}`).data.publicUrl;
+    }
+    const r = await fetch(original, {
+      headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36", Accept: "image/*" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const tipo = (r.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+    const ext = TIPOS_IMAGEM[tipo];
+    if (!r.ok || !ext) { console.warn("imagem do comunicado indisponível", r.status, tipo, original); return original; }
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    if (!bytes.length || bytes.length > MAX_BYTES_IMAGEM) return original;
+    const caminho = `${pasta}/${hash}.${ext}`;
+    const { error } = await s.storage.from(BUCKET_IMAGENS).upload(caminho, bytes, { contentType: tipo, upsert: true, cacheControl: "31536000" });
+    if (error) { console.warn("falha ao copiar imagem do comunicado", error.message); return original; }
+    return s.storage.from(BUCKET_IMAGENS).getPublicUrl(caminho).data.publicUrl;
+  } catch (e) {
+    console.warn("falha ao copiar imagem do comunicado", (e as Error).message);
+    return original;
+  }
 }
 
 /** Notícias e comunicados na mesma fila, do mais novo para o mais antigo. */
