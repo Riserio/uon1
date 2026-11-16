@@ -11578,6 +11578,7 @@ export type Database = {
         Args: { p_importacao_ids: string[]; p_mes_referencia?: string }
         Returns: Json
       }
+      eh_equipe_interna: { Args: { _uid: string }; Returns: boolean }
       eh_veiculo_ativo: { Args: { p_situacao: string }; Returns: boolean }
       enfileirar_sync_diario: { Args: never; Returns: Json }
       enqueue_recurrent_backfills: {
@@ -11961,6 +11962,7 @@ export type Database = {
         Returns: boolean
       }
       painel_admin: { Args: { _uid: string }; Returns: boolean }
+      pode_ver_modelos_contrato: { Args: { _uid: string }; Returns: boolean }
       processar_backfill_cobranca: { Args: never; Returns: Json }
       processar_base_api: {
         Args: { p_corretora_id: string; p_orcamento_seg?: number }
