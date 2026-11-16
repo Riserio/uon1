@@ -15,7 +15,7 @@ import { blocoNoticias, PADRAO_CONFIRMACAO, PADRAO_NOVIDADES, preencher, type No
 const URL_PADRAO = "https://vangard.uon1.com.br";
 const REMETENTE_PADRAO = "Vangard Gestora <vangard@uon1.com.br>";
 export const TEXTO_ACEITE =
-  "Autorizo a Vangard Gestora a me enviar por e-mail as atualizações do Radar do mercado e outras comunicações e publicidade. Posso cancelar a qualquer momento pelo link no rodapé dos e-mails.";
+  "Aceito receber por e-mail as novidades do Radar e comunicações e publicidade da Vangard Gestora. Posso cancelar quando quiser.";
 const MAX_NOTICIAS = 15;
 const LOTE = 100; // limite do envio em lote do Resend
 

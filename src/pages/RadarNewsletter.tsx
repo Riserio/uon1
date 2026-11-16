@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Loader2, MailX, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cancelarNewsletter, confirmarNewsletter } from "@/lib/radar/newsletter";
+import { cancelarNewsletter, confirmarNewsletter, esquecerAssinatura, lembrarAssinatura } from "@/lib/radar/newsletter";
 
 type Estado = { fase: "carregando" } | { fase: "ok"; email?: string } | { fase: "erro"; msg: string };
 
@@ -20,7 +20,12 @@ export default function RadarNewsletter() {
     feito.current = true;
     if (!token) return setEstado({ fase: "erro", msg: "Link inválido." });
     (acao === "cancelar" ? cancelarNewsletter(token) : confirmarNewsletter(token))
-      .then((r) => setEstado({ fase: "ok", email: r.email }))
+      .then((r) => {
+        // reconhece o aparelho: quem confirmou não vê mais o convite; quem cancelou volta a ver
+        if (acao === "cancelar") esquecerAssinatura();
+        else lembrarAssinatura(r.email ?? "", "ativo");
+        setEstado({ fase: "ok", email: r.email });
+      })
       .catch((e) => setEstado({ fase: "erro", msg: e instanceof Error ? e.message : "Link inválido." }));
   }, [acao, token]);
 

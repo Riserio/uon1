@@ -6,7 +6,7 @@ import { urlPublica } from "@/lib/trust";
 
 /** Texto do aceite: o mesmo é gravado junto com a inscrição e mostrado no e-mail. */
 export const TEXTO_ACEITE =
-  "Autorizo a Vangard Gestora a me enviar por e-mail as atualizações do Radar do mercado e outras comunicações e publicidade. Posso cancelar a qualquer momento pelo link no rodapé dos e-mails.";
+  "Aceito receber por e-mail as novidades do Radar e comunicações e publicidade da Vangard Gestora. Posso cancelar quando quiser.";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export const emailValido = (e: string) => EMAIL.test(e.trim());
@@ -48,3 +48,27 @@ export interface ResumoNewsletter {
 }
 export const resumoNewsletter = () => chamar<ResumoNewsletter>({ acao: "resumo" });
 export const enviarTesteNewsletter = () => chamar<{ ok: boolean; email?: string; erro?: string }>({ acao: "enviar_teste" });
+
+// Lembra neste aparelho que a pessoa já assinou, para não mostrar o convite de novo.
+const CHAVE_LOCAL = "radar_newsletter";
+export function jaAssinouNesteAparelho(): boolean {
+  try {
+    return !!localStorage.getItem(CHAVE_LOCAL);
+  } catch {
+    return false;
+  }
+}
+export function lembrarAssinatura(email: string, status: "pendente" | "ativo") {
+  try {
+    localStorage.setItem(CHAVE_LOCAL, JSON.stringify({ email, status, em: new Date().toISOString() }));
+  } catch {
+    // navegador sem armazenamento local
+  }
+}
+export function esquecerAssinatura() {
+  try {
+    localStorage.removeItem(CHAVE_LOCAL);
+  } catch {
+    // navegador sem armazenamento local
+  }
+}
