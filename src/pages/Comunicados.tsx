@@ -380,7 +380,7 @@ export default function Comunicados() {
               <div className="grid sm:grid-cols-2 gap-2">
                 {[
                   { publico: false, icone: Lock, titulo: "Somente interno", texto: "Aparece só no Radar do painel, para a equipe." },
-                  { publico: true, icone: Globe, titulo: "Interno e externo", texto: "Também na página pública do Radar, aberta a todos." },
+                  { publico: true, icone: Globe, titulo: "Interno e externo", texto: "Também na página pública do Radar e no e-mail da newsletter." },
                 ].map((o) => {
                   const sel = formData.publico === o.publico;
                   return (
