@@ -8227,6 +8227,7 @@ export type Database = {
           aceite_ip: string | null
           aceite_texto: string | null
           aceite_user_agent: string | null
+          associacao: string | null
           atualizado_em: string
           cancelado_em: string | null
           confirmacoes_enviadas: number
@@ -8237,6 +8238,7 @@ export type Database = {
           nome: string | null
           origem: string | null
           status: string
+          telefone: string | null
           token: string
           ultimo_envio_em: string | null
         }
@@ -8246,6 +8248,7 @@ export type Database = {
           aceite_ip?: string | null
           aceite_texto?: string | null
           aceite_user_agent?: string | null
+          associacao?: string | null
           atualizado_em?: string
           cancelado_em?: string | null
           confirmacoes_enviadas?: number
@@ -8256,6 +8259,7 @@ export type Database = {
           nome?: string | null
           origem?: string | null
           status?: string
+          telefone?: string | null
           token?: string
           ultimo_envio_em?: string | null
         }
@@ -8265,6 +8269,7 @@ export type Database = {
           aceite_ip?: string | null
           aceite_texto?: string | null
           aceite_user_agent?: string | null
+          associacao?: string | null
           atualizado_em?: string
           cancelado_em?: string | null
           confirmacoes_enviadas?: number
@@ -8275,8 +8280,63 @@ export type Database = {
           nome?: string | null
           origem?: string | null
           status?: string
+          telefone?: string | null
           token?: string
           ultimo_envio_em?: string | null
+        }
+        Relationships: []
+      }
+      radar_campanhas: {
+        Row: {
+          assunto: string
+          botao_texto: string | null
+          botao_url: string | null
+          concluido_em: string | null
+          criado_em: string
+          criado_por: string | null
+          destinatarios: number
+          enviados: number
+          erro: string | null
+          falhas: number
+          id: string
+          mensagem: string
+          noticias: Json
+          status: string
+          titulo: string
+        }
+        Insert: {
+          assunto: string
+          botao_texto?: string | null
+          botao_url?: string | null
+          concluido_em?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          destinatarios?: number
+          enviados?: number
+          erro?: string | null
+          falhas?: number
+          id?: string
+          mensagem: string
+          noticias?: Json
+          status?: string
+          titulo: string
+        }
+        Update: {
+          assunto?: string
+          botao_texto?: string | null
+          botao_url?: string | null
+          concluido_em?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          destinatarios?: number
+          enviados?: number
+          erro?: string | null
+          falhas?: number
+          id?: string
+          mensagem?: string
+          noticias?: Json
+          status?: string
+          titulo?: string
         }
         Relationships: []
       }
@@ -8318,6 +8378,68 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      radar_visitas: {
+        Row: {
+          assinante_id: string | null
+          cidade: string | null
+          criado_em: string
+          dispositivo: string | null
+          id: number
+          ip_hash: string | null
+          navegador: string | null
+          origem: string | null
+          pagina: string
+          pais: string | null
+          referencia: string | null
+          uf: string | null
+          utm_campaign: string | null
+          utm_source: string | null
+          visitante: string
+        }
+        Insert: {
+          assinante_id?: string | null
+          cidade?: string | null
+          criado_em?: string
+          dispositivo?: string | null
+          id?: number
+          ip_hash?: string | null
+          navegador?: string | null
+          origem?: string | null
+          pagina?: string
+          pais?: string | null
+          referencia?: string | null
+          uf?: string | null
+          utm_campaign?: string | null
+          utm_source?: string | null
+          visitante: string
+        }
+        Update: {
+          assinante_id?: string | null
+          cidade?: string | null
+          criado_em?: string
+          dispositivo?: string | null
+          id?: number
+          ip_hash?: string | null
+          navegador?: string | null
+          origem?: string | null
+          pagina?: string
+          pais?: string | null
+          referencia?: string | null
+          uf?: string | null
+          utm_campaign?: string | null
+          utm_source?: string | null
+          visitante?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_visitas_assinante_id_fkey"
+            columns: ["assinante_id"]
+            isOneToOne: false
+            referencedRelation: "radar_assinantes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       registros_ponto: {
         Row: {
@@ -12105,6 +12227,7 @@ export type Database = {
           titulo: string
         }[]
       }
+      radar_visitas_resumo: { Args: { _dias?: number }; Returns: Json }
       reabrir_backfill_historico_lote: { Args: never; Returns: Json }
       reabrir_sync_atrasado: { Args: never; Returns: Json }
       relatorio_analises_sinistro: {
