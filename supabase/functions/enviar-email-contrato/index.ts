@@ -1,3 +1,4 @@
+import { imgLogoVangard } from "../_shared/marca-vangard.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 import { Resend } from "https://esm.sh/resend@2.0.0";
@@ -13,6 +14,7 @@ function renderTemplate(tpl: string, vars: Record<string, string>): string {
 
 function defaultHtml(nome: string, titulo: string, link: string, empresa: string) {
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px">
+    <div style="text-align:center;padding:8px 0 20px">${imgLogoVangard(40)}</div>
     <div style="background:#f8f9fa;border-radius:8px;padding:20px;margin-bottom:20px">
       <h2 style="color:#2563eb;margin:0">Contrato para assinatura</h2>
     </div>

@@ -2,6 +2,7 @@ import { LucideIcon } from "lucide-react";
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { LogoVangard } from "@/components/marca/LogoVangard";
 
 interface PageHeaderProps {
   icon?: LucideIcon;
@@ -17,7 +18,7 @@ interface PageHeaderProps {
  */
 export function PageHeader({ icon: Icon, title, subtitle, actions, className }: PageHeaderProps) {
   const { config } = useAppConfig();
-  const headerLogo = config.header_logo_url || "/images/logo-vg-hd.png";
+  const headerLogo = config.header_logo_url;
 
   return (
     <div className={cn("flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-4 border-b border-border/60", className)}>
@@ -35,11 +36,15 @@ export function PageHeader({ icon: Icon, title, subtitle, actions, className }: 
 
       <div className="flex items-center gap-3 flex-wrap lg:justify-end">
         {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
-        <img
-          src={headerLogo}
-          alt="Logo"
-          className="h-8 w-auto opacity-90 shrink-0 object-contain"
-        />
+        {headerLogo ? (
+          <img
+            src={headerLogo}
+            alt="Logo"
+            className="h-8 w-auto opacity-90 shrink-0 object-contain"
+          />
+        ) : (
+          <LogoVangard className="h-8 opacity-90 shrink-0" />
+        )}
       </div>
     </div>
   );

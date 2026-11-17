@@ -1,3 +1,4 @@
+import { imgLogoVangard } from "../_shared/marca-vangard.ts";
 // Uon1 Sign — e-mail (Resend), WhatsApp (Meta Cloud API) e relatório de assinaturas.
 // Hash, selo ICP-Brasil e carimbo do tempo ficam no Uon1 Trust (../uon1-trust).
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
@@ -41,7 +42,7 @@ export function layoutEmail(opts: {
 <body style="margin:0;background:#f5f7fb;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:28px 12px"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden">
-<tr><td style="padding:20px 28px;border-bottom:1px solid #eef2f7;font-weight:700;font-size:17px;color:#362C89">Uon1 Sign</td></tr>
+<tr><td style="padding:18px 28px;border-bottom:1px solid #eef2f7"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>${imgLogoVangard(34)}</td><td align="right" style="font-weight:700;font-size:15px;color:#362C89">Uon1 Sign</td></tr></table></td></tr>
 <tr><td style="padding:28px">
 ${opts.htmlLivre ? "" : `<h1 style="margin:0 0 14px;font-size:19px;color:#111827">${esc(opts.titulo)}</h1>`}${p}${destaque}${botao}
 </td></tr>

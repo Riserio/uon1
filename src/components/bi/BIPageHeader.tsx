@@ -19,6 +19,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import SyncStatusHint from "@/components/portal/SyncStatusHint";
 import BISyncButton from "./BISyncButton";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { LogoVangard } from "@/components/marca/LogoVangard";
 
 type BIPageHeaderProps = {
   title: string;
@@ -121,7 +122,7 @@ export default function BIPageHeader({
     }, { replace: true });
   };
   const { config } = useAppConfig();
-  const headerLogo = config.header_logo_url || "/images/logo-vg-hd.png";
+  const headerLogo = config.header_logo_url;
   const selectedAssociacaoNome = associacoes.find((a) => a.id === selectedAssociacao)?.nome;
 
   return (
@@ -197,7 +198,7 @@ export default function BIPageHeader({
             moduloInicial={currentModule}
           />
           <div className="hidden sm:block h-6 w-px bg-border mx-1" />
-          <img src={headerLogo} alt="Logo" className="h-7 w-auto opacity-90 shrink-0 object-contain" />
+          {headerLogo ? <img src={headerLogo} alt="Logo" className="h-7 w-auto opacity-90 shrink-0 object-contain" /> : <LogoVangard className="h-7 opacity-90 shrink-0" />}
         </div>
       </div>
 

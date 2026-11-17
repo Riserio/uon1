@@ -1,3 +1,4 @@
+import { imgLogoVangard } from "../_shared/marca-vangard.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
@@ -215,6 +216,7 @@ const handler = async (req: Request): Promise<Response> => {
         const htmlEmail = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+              <div style="margin-bottom: 14px;">${imgLogoVangard(40, "escuro")}</div>
               <h1 style="color: white; margin: 0;">⚠️ Alerta de Performance</h1>
             </div>
             

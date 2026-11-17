@@ -1,3 +1,4 @@
+import { imgLogoVangard } from "../_shared/marca-vangard.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
@@ -55,7 +56,7 @@ const handler = async (req: Request): Promise<Response> => {
           <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
             <div style="background-color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e8e8ee;">
               <div style="padding:28px 32px 24px;border-bottom:1px solid #eeeef4;text-align:center;">
-                <img src="https://uon1.lovable.app/images/logo-full.png" alt="uon1" style="max-height:44px;display:inline-block;" />
+                <img src="https://uon1.lovable.app/images/logo-full.png" alt="uon1" style="max-height:40px;display:inline-block;vertical-align:middle;" /><span style="display:inline-block;width:1px;height:32px;background:#e2e2ea;margin:0 18px;vertical-align:middle;"></span><span style="display:inline-block;vertical-align:middle;">${imgLogoVangard(40)}</span>
               </div>
               <div style="padding:32px;">
                 <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#F06F19;">Segurança da conta</p>

@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
 
     // Padrão institucional: Vangard (administradora da plataforma)
     const VANGARD_NOME = "Vangard";
-    const VANGARD_LOGO = `https://${host}/images/vangard-logo.png`;
+    const VANGARD_LOGO = "https://mnoczwmqgignmylbvpgp.supabase.co/storage/v1/object/public/app-config/marca/vangard-og-2026.jpg";
 
     const titulo = corretora?.og_titulo || VANGARD_NOME;
     const descricao =

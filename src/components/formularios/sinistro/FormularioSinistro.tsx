@@ -34,6 +34,7 @@ import {
   type SecaoId,
 } from "./config";
 import { maskCNPJ, maskCPF, maskPlaca } from "../masks";
+import { LOGO_VANGARD_BRANCA } from "@/components/marca/LogoVangard";
 
 const corMap: Record<string, string> = {
   blue: "bg-blue-50 text-blue-700",
@@ -60,7 +61,7 @@ export default function FormularioSinistro({ form }: { form: any }) {
   const [enviado, setEnviado] = useState(false);
 
   // Branding via og_titulo / og_imagem_url salvos em corretora? Aqui usamos defaults Vangard.
-  const headerLogo = "/images/vangard-logo.png";
+  const headerLogo = LOGO_VANGARD_BRANCA; // cabeçalho escuro → palavra em branco
   const headerTitulo = form?.titulo || "Formulário de Análise";
 
   const set = (id: string, v: any) => setValores((p) => ({ ...p, [id]: v }));
@@ -149,7 +150,7 @@ export default function FormularioSinistro({ form }: { form: any }) {
       <header className="sticky top-0 z-50 bg-stone-900 text-white">
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <img src={headerLogo} alt="Vangard" className="h-8 object-contain bg-white/95 rounded-md px-2 py-1" />
+            <img src={headerLogo} alt="Vangard" className="h-9 object-contain" />
             <div className="min-w-0">
               <div className="font-semibold text-base truncate">{headerTitulo}</div>
               <div className="text-[11px] text-stone-300 truncate">

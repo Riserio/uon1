@@ -1,3 +1,4 @@
+import { imgLogoVangard, LOGO_VANGARD_URL } from "../_shared/marca-vangard.ts";
 // Radar do mercado — textos padrão dos e-mails da newsletter.
 // Os modelos ficam em email_templates (tipos radar_confirmacao e radar_novidades),
 // editáveis em Central de Atendimento → E-mails → Templates. Sem modelo ativo,
@@ -19,7 +20,7 @@ export function preencher(texto: string, v: Valores, html: boolean): string {
 }
 
 const LOGO_UON1 = "https://uon1.com.br/assets/uon1-logo-CPDoIAps.png";
-const LOGO_VANGARD = "https://vangard.uon1.com.br/images/logo-vangard.png";
+const LOGO_VANGARD = LOGO_VANGARD_URL;
 
 export const casca = (titulo: string, cabecalho: string, conteudo: string, rodape: string) => `<!doctype html>
 <html lang="pt-BR">
@@ -38,7 +39,7 @@ export const casca = (titulo: string, cabecalho: string, conteudo: string, rodap
   <tr><td style="background:#0b1220;padding:22px 28px;border-bottom:4px solid #F06F19;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="font-family:Georgia,'Times New Roman',serif;font-size:21px;font-weight:600;color:#ffffff;">${cabecalho}</td>
-      <td align="right" style="font-size:12px;color:#cbd5f5;">Vangard Gestora</td>
+      <td align="right" style="padding-left:12px;">${imgLogoVangard(36, "escuro")}</td>
     </tr></table>
   </td></tr>
 
@@ -52,7 +53,7 @@ ${conteudo}
     <table role="presentation" align="center" cellpadding="0" cellspacing="0"><tr>
       <td style="padding:0 12px;"><img src="${LOGO_UON1}" alt="UON1" height="28" style="height:28px;display:block;border:0;"></td>
       <td style="padding:0 6px;"><div style="width:1px;height:26px;background:#dbe3f3;"></div></td>
-      <td style="padding:0 12px;"><img src="${LOGO_VANGARD}" alt="Vangard Gestora" height="28" style="height:28px;display:block;border:0;"></td>
+      <td style="padding:0 12px;"><img src="${LOGO_VANGARD}" alt="Vangard Gestora" width="62" height="28" style="height:28px;width:62px;display:block;border:0;"></td>
     </tr></table>
     <div style="margin-top:12px;font-size:11px;line-height:1.6;color:#94a3b8;">${rodape}</div>
   </td></tr>

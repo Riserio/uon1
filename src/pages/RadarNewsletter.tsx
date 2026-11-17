@@ -34,7 +34,7 @@ export default function RadarNewsletter() {
       <header className="bg-background/90 border-b border-border/50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center">
           <Link to="/radar">
-            <img src="/images/logo-vangard.png" alt="Vangard Gestora" className="h-8 object-contain" />
+            <img src="/images/vangard-logo.png" alt="Vangard Gestora" className="h-8 object-contain" />
           </Link>
         </div>
       </header>

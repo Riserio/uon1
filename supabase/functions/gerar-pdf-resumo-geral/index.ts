@@ -1,3 +1,4 @@
+import { LOGO_VANGARD_URL } from "../_shared/marca-vangard.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
@@ -29,7 +30,7 @@ const GREEN_SUCCESS = rgb(22 / 255, 163 / 255, 74 / 255); // #16A34A
 const WHITE = rgb(1, 1, 1);
 
 const PAINEL_BASE = "https://vangard.uon1.com.br";
-const LOGO_URL = `${PAINEL_BASE}/images/vangard-logo.png`;
+const LOGO_URL = LOGO_VANGARD_URL;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {

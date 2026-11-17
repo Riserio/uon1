@@ -28,6 +28,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { LOGO_VANGARD_BRANCA } from "@/components/marca/LogoVangard";
 
 type EstiloForm = "google_forms" | "typeform" | "sinistro" | "fluxos";
 
@@ -429,9 +430,9 @@ export default function FormularioEditor() {
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 bg-stone-900 rounded-md px-3 py-2">
                 <img
-                  src="/images/vangard-logo.png"
+                  src={LOGO_VANGARD_BRANCA}
                   alt="Vangard"
-                  className="h-7 object-contain bg-white/95 rounded px-1"
+                  className="h-7 object-contain"
                 />
                 {logoParceiroUrl && (
                   <>

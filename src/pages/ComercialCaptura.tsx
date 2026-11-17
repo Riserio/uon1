@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 /** Logo da Vangard. Quem chega pelo QR não está logado,
  * então não dá para usar o logo da configuração do usuário. */
-const LOGO = "/images/logo-vangard.png";
+const LOGO = "/images/vangard-logo.png";
 
 function Logo() {
   return <img src={LOGO} alt="Vangard Gestora" className="h-14 w-auto mx-auto mb-3 object-contain" />;

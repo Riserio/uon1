@@ -627,9 +627,9 @@ export default function GestaoJornada() {
       // Logo Vangard — canto superior direito
       if (logoVangard) {
         try {
-          // Proporção 2:1 (268x136) → 38mm × 19mm
+          // Proporção ~2,23:1 (900x404) → 38mm × 17mm
           const logoW = 38;
-          const logoH = 19;
+          const logoH = 17;
           doc.addImage(
             logoVangard,
             "PNG",

@@ -1,3 +1,4 @@
+import { imgLogoVangard } from "../_shared/marca-vangard.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 
@@ -752,7 +753,7 @@ Deno.serve(async (req) => {
             <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;">
               <div style="background:linear-gradient(135deg,#1e293b 0%,#334155 100%);padding:28px 32px;border-radius:12px 12px 0 0;">
                 <table style="width:100%;"><tr>
-                  <td><span style="color:#fff;font-size:20px;font-weight:700;">📹 Convite para Reunião</span></td>
+                  <td><div style="margin-bottom:12px;">${imgLogoVangard(36, "escuro")}</div><span style="color:#fff;font-size:20px;font-weight:700;">📹 Convite para Reunião</span></td>
                   <td style="text-align:right;"><span style="color:#94a3b8;font-size:12px;">Talk by Uon1</span></td>
                 </tr></table>
               </div>

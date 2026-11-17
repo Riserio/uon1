@@ -115,7 +115,7 @@ export default function RadarPublico() {
       <header className="sticky top-0 z-20 bg-background/90 backdrop-blur border-b border-border/50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <a href="https://vangardgestora.com.br" target="_blank" rel="noopener noreferrer" className="flex items-center">
-            <img src="/images/logo-vangard.png" alt="Vangard Gestora" className="h-8 object-contain" />
+            <img src="/images/vangard-logo.png" alt="Vangard Gestora" className="h-8 object-contain" />
           </a>
           <div className="flex items-center gap-2">
             {!jaAssinou && !acabouDeAssinar && (

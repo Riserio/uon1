@@ -1,3 +1,4 @@
+const ICONE_PUSH = "https://mnoczwmqgignmylbvpgp.supabase.co/storage/v1/object/public/app-config/app-icon/icon-192-2026.png";
 // Envia notificações push via OneSignal REST API.
 //
 // Segmentação por tags gravadas no SDK do portal (src/hooks/useOneSignalPortal.ts):
@@ -69,6 +70,9 @@ serve(async (req) => {
       app_id: cfg.onesignal_app_id,
       headings: { en: body.titulo, pt: body.titulo },
       contents: { en: body.mensagem, pt: body.mensagem },
+      // Ícone da notificação: símbolo novo da Vangard
+      chrome_web_icon: ICONE_PUSH,
+      firefox_icon: ICONE_PUSH,
     };
     if (body.url?.trim()) payload.url = body.url.trim();
     if (body.imagem_url?.trim()) {

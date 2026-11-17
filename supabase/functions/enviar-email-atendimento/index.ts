@@ -1,3 +1,4 @@
+import { imgLogoVangard } from "../_shared/marca-vangard.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
@@ -66,6 +67,7 @@ const handler = async (req: Request): Promise<Response> => {
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; padding: 8px 0 20px;">${imgLogoVangard(40)}</div>
           <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
             <h2 style="color: #2563eb; margin: 0 0 10px 0;">Atualização de Atendimento</h2>
             ${status ? `<p style="margin: 0; color: #666; font-size: 14px;">Status: <strong>${statusLabels[status] || status}</strong></p>` : ""}

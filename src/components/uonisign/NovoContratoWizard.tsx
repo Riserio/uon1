@@ -201,7 +201,7 @@ export default function NovoContratoWizard({ open, onOpenChange, rascunho, onCon
       setOcupado("Gerando o PDF…");
       const codigo = r.contrato.trust_codigo as string | null;
       const k = modelo?.contratada ?? {};
-      const logo = (await carregarImagem(modelo?.logo_url)) ?? (await carregarImagem("/images/logo-vangard.png"));
+      const logo = (await carregarImagem(modelo?.logo_url)) ?? (await carregarImagem("/images/vangard-logo.png"));
       const bytes = gerarPdfContrato(r.contrato.conteudo_html, {
         timbre: {
           logo,

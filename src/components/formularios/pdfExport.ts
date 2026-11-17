@@ -59,7 +59,8 @@ export async function baixarRespostasPDF(
   const logo = await carregarLogoDataUrl("/images/vangard-logo.png");
   if (logo) {
     try {
-      doc.addImage(logo, "PNG", 40, 36, 80, 28);
+      // Logo nova: proporção ~2,23:1 (900x404)
+      doc.addImage(logo, "PNG", 40, 34, 71, 32);
     } catch {
       /* ignora */
     }

@@ -1,3 +1,4 @@
+import { imgLogoVangard } from "../_shared/marca-vangard.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 import { Resend } from "https://esm.sh/resend@2.0.0";
@@ -26,7 +27,7 @@ function buildHtml(opts: {
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
         <tr><td style="padding:24px 32px;border-bottom:1px solid #eef2f7;">
-          ${logoUrl ? `<img src="${logoUrl}" alt="logo" style="max-height:40px;"/>` : `<div style="font-weight:700;font-size:18px;color:#362C89;">Uon1 Sign</div>`}
+          ${logoUrl ? `<img src="${logoUrl}" alt="logo" style="max-height:40px;"/>` : imgLogoVangard(36)}
         </td></tr>
         <tr><td style="padding:32px;">
           <h1 style="margin:0 0 12px;font-size:20px;">Olá, ${signatarioNome || "tudo bem"}!</h1>

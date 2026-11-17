@@ -225,7 +225,7 @@ export default function Proposta() {
     try {
       setOcupado("Gerando o contrato…");
       const r = await uonisign.propDados(token, sessao!, dados);
-      const logo = (await carregarImagem(r.timbre.logo_url)) ?? (await carregarImagem("/images/logo-vangard.png"));
+      const logo = (await carregarImagem(r.timbre.logo_url)) ?? (await carregarImagem("/images/vangard-logo.png"));
       const cod = r.contrato.trust_codigo;
       const bytes = gerarPdfContrato(r.contrato.conteudo_html, {
         timbre: { logo, linhas: r.timbre.linhas },

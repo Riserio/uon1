@@ -36,7 +36,7 @@ export function LogoFonte({ item, grande }: { item: ItemRadar; grande?: boolean 
   if (item.tipo === "comunicado") {
     return (
       <span className={`${lado} shrink-0 flex items-center justify-center bg-white shadow-sm overflow-hidden`}>
-        <img src="/images/vangard-icone.png" alt="Vangard" className="h-2/3 w-2/3 object-contain" />
+        <img src="/images/vangard-simbolo.png" alt="Vangard" className="h-2/3 w-2/3 object-contain" />
       </span>
     );
   }
