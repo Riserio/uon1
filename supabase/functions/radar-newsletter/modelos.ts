@@ -6,7 +6,7 @@
 export type Valores = Record<string, string | null | undefined>;
 
 // Variáveis inseridas cruas (links e blocos HTML prontos)
-const CRUAS = new Set(["link_confirmar", "link_cancelar", "link_radar", "noticias"]);
+const CRUAS = new Set(["link_confirmar", "link_cancelar", "link_radar", "noticias", "mensagem_html", "botao"]);
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -21,7 +21,7 @@ export function preencher(texto: string, v: Valores, html: boolean): string {
 const LOGO_UON1 = "https://uon1.com.br/assets/uon1-logo-CPDoIAps.png";
 const LOGO_VANGARD = "https://vangard.uon1.com.br/images/logo-vangard.png";
 
-const casca = (titulo: string, cabecalho: string, conteudo: string, rodape: string) => `<!doctype html>
+export const casca = (titulo: string, cabecalho: string, conteudo: string, rodape: string) => `<!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
@@ -183,4 +183,38 @@ export function blocoNoticias(lista: Noticia[], linkRadar = ""): string {
     </table>`;
     })
     .join("\n");
+}
+
+
+/** Campanha avulsa para os assinantes: título, texto livre, botão e matérias escolhidas. */
+export function emailCampanha(c: { titulo: string; mensagem: string; botaoTexto?: string | null; botaoUrl?: string | null; noticias: string }) {
+  const paragrafos = c.mensagem
+    .trim()
+    .split(/\n{2,}/)
+    .map((p) => `<p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:#475569;">${esc(p).replace(/\n/g, "<br>")}</p>`)
+    .join("\n");
+  const botao =
+    c.botaoTexto && c.botaoUrl
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 6px;">
+      <tr><td align="center" style="background:#362C89;border-radius:14px;">
+        <a href="${esc(c.botaoUrl)}" style="display:block;padding:16px;font-size:16px;font-weight:800;color:#ffffff;text-decoration:none;">${esc(c.botaoTexto)}</a>
+      </td></tr>
+    </table>`
+      : "";
+  return casca(
+    esc(c.titulo),
+    "📡 Radar do mercado",
+    `    <p style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:600;color:#0f172a;">${esc(c.titulo)}</p>
+    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:#475569;">Olá{{saudacao}}.</p>
+${paragrafos}
+${botao}
+${c.noticias ? `<div style="margin-top:18px;">${c.noticias}</div>` : ""}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+      <tr><td align="center" style="border:1px solid #dbe3f3;border-radius:14px;">
+        <a href="{{link_radar}}" style="display:block;padding:14px;font-size:14px;font-weight:700;color:#362C89;text-decoration:none;">Ver o Radar do mercado</a>
+      </td></tr>
+    </table>`,
+    `Você recebe este e-mail porque assinou a newsletter do Radar do mercado e autorizou comunicações da Vangard Gestora.<br>
+    <a href="{{link_cancelar}}" style="color:#64748b;text-decoration:underline;">Cancelar inscrição</a>`,
+  );
 }

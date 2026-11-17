@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -62,6 +63,9 @@ export function NewsletterAdmin() {
             </p>
           </>
         ) : null}
+        <Button asChild size="sm" className="w-full rounded-xl">
+          <Link to="/radar/gestao">Visitas, assinantes e campanhas</Link>
+        </Button>
         <Button size="sm" variant="outline" className="w-full rounded-xl" disabled={teste.isPending} onClick={() => teste.mutate()}>
           {teste.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Send className="h-4 w-4 mr-1.5" />}
           Enviar teste para meu e-mail

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LogoFonte } from "@/components/painel/RadarMercado";
 import { NewsletterRadar } from "@/components/radar/NewsletterRadar";
-import { jaAssinouNesteAparelho } from "@/lib/radar/newsletter";
+import { jaAssinouNesteAparelho, registrarVisita } from "@/lib/radar/newsletter";
 import { CAMPO_RADAR, comunicadosPublicosRadar, mesclarPorData, paginaNoticias, POR_PAGINA, PONTO_RADAR, TIPO_RADAR, ultimaColetaRadar, type ItemRadar } from "@/components/painel/radar";
 
 type Filtro = "tudo" | "oficial" | "setor";
@@ -49,6 +49,7 @@ export default function RadarPublico() {
 
   useEffect(() => {
     document.title = "Radar do mercado | Vangard Gestora";
+    registrarVisita("radar");
   }, []);
 
   const q = useInfiniteQuery({
@@ -112,7 +113,7 @@ export default function RadarPublico() {
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="sticky top-0 z-20 bg-background/90 backdrop-blur border-b border-border/50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <div className="w-full px-4 sm:px-6 lg:px-10 h-16 flex items-center justify-between gap-3">
           <a href="https://vangardgestora.com.br" target="_blank" rel="noopener noreferrer" className="flex items-center">
             <img src="/images/logo-vangard.png" alt="Vangard Gestora" className="h-8 object-contain" />
           </a>
@@ -134,7 +135,7 @@ export default function RadarPublico() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
+      <main className="w-full px-4 sm:px-6 lg:px-10 py-6 sm:py-10 space-y-6">
         <div className="space-y-2">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Radar do mercado</h1>
           <p className="text-muted-foreground max-w-2xl">
@@ -241,7 +242,7 @@ export default function RadarPublico() {
 
             {convite}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               {itens.map((i) => (
                 <a
                   key={i.id}
@@ -273,9 +274,9 @@ export default function RadarPublico() {
       </main>
 
       <footer className="border-t border-border/50 bg-background">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 text-xs text-muted-foreground flex flex-col sm:flex-row gap-2 justify-between">
+        <div className="w-full px-4 sm:px-6 lg:px-10 py-6 text-xs text-muted-foreground flex flex-col sm:flex-row gap-2 justify-between">
           <span>Vangard Gestora. Notícias de fontes públicas; o conteúdo de cada matéria pertence ao veículo de origem.</span>
-          <span>Atualizado uma vez por dia.</span>
+          <span>Atualizado uma vez por dia. Contamos as visitas desta página por cidade aproximada e dispositivo, sem guardar seu endereço de rede.</span>
         </div>
       </footer>
 

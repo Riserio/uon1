@@ -17,8 +17,21 @@ interface Props {
  * Convite compacto para a newsletter do Radar: uma frase com botão; ao tocar,
  * abre o e-mail e o aceite na mesma faixa. Quem já assinou neste aparelho não vê.
  */
+const mascaraTelefone = (d: string) => {
+  if (!d) return "";
+  if (d.length <= 2) return `(${d}`;
+  const ddd = d.slice(0, 2);
+  const resto = d.slice(2);
+  if (resto.length <= 4) return `(${ddd}) ${resto}`;
+  const corte = resto.length > 8 ? 5 : 4;
+  return `(${ddd}) ${resto.slice(0, corte)}-${resto.slice(corte)}`;
+};
+
 export const NewsletterRadar = forwardRef<HTMLElement, Props>(function NewsletterRadar({ aberto, onAbrir, onAssinado }, ref) {
   const [email, setEmail] = useState("");
+  const [nome, setNome] = useState("");
+  const [associacao, setAssociacao] = useState("");
+  const [telefone, setTelefone] = useState("");
   const [aceite, setAceite] = useState(false);
   const [site, setSite] = useState(""); // armadilha para robôs
   const [enviando, setEnviando] = useState(false);
@@ -33,11 +46,15 @@ export const NewsletterRadar = forwardRef<HTMLElement, Props>(function Newslette
   const assinar = async (e: React.FormEvent) => {
     e.preventDefault();
     setErro(null);
+    if (nome.trim().length < 3) return setErro("Informe seu nome.");
+    if (associacao.trim().length < 2) return setErro("Informe o nome da associação.");
+    const tel = telefone.replace(/\D/g, "");
+    if (tel.length !== 10 && tel.length !== 11) return setErro("Informe o telefone com DDD.");
     if (!emailValido(email)) return setErro("Informe um e-mail válido.");
     if (!aceite) return setErro("Marque a autorização para assinar.");
     setEnviando(true);
     try {
-      const r = await assinarNewsletter(email, "", site);
+      const r = await assinarNewsletter({ email, nome, associacao, telefone }, site);
       lembrarAssinatura(email.trim(), r.jaAtivo ? "ativo" : "pendente");
       setPronto({ email: email.trim(), jaAtivo: r.jaAtivo });
       onAssinado();
@@ -86,9 +103,39 @@ export const NewsletterRadar = forwardRef<HTMLElement, Props>(function Newslette
       ) : (
         <form onSubmit={assinar} className="space-y-2.5" noValidate>
           <p className="font-serif font-semibold">Assine a newsletter do Radar</p>
-          <div className="flex gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             <Input
               ref={campo}
+              autoComplete="name"
+              aria-label="Seu nome"
+              placeholder="Seu nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              maxLength={120}
+              className="h-10 rounded-full"
+            />
+            <Input
+              autoComplete="organization"
+              aria-label="Nome da associação"
+              placeholder="Nome da associação"
+              value={associacao}
+              onChange={(e) => setAssociacao(e.target.value)}
+              maxLength={160}
+              className="h-10 rounded-full"
+            />
+            <Input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              aria-label="Telefone com DDD"
+              placeholder="Telefone com DDD"
+              value={mascaraTelefone(telefone)}
+              onChange={(e) => setTelefone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+              className="h-10 rounded-full"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Input
               type="email"
               inputMode="email"
               autoComplete="email"

@@ -27,11 +27,20 @@ async function chamar<T>(body: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
-export const assinarNewsletter = (email: string, nome: string, site: string) =>
+export interface DadosAssinatura {
+  email: string;
+  nome: string;
+  associacao: string;
+  telefone: string;
+}
+
+export const assinarNewsletter = (d: DadosAssinatura, site: string) =>
   chamar<{ ok: boolean; jaAtivo?: boolean; mensagem: string }>({
     acao: "assinar",
-    email: email.trim(),
-    nome: nome.trim() || null,
+    email: d.email.trim(),
+    nome: d.nome.trim(),
+    associacao: d.associacao.trim(),
+    telefone: d.telefone.replace(/\D/g, ""),
     aceite: true,
     base: urlPublica(),
     site,
@@ -48,6 +57,61 @@ export interface ResumoNewsletter {
 }
 export const resumoNewsletter = () => chamar<ResumoNewsletter>({ acao: "resumo" });
 export const enviarTesteNewsletter = () => chamar<{ ok: boolean; email?: string; erro?: string }>({ acao: "enviar_teste" });
+
+// ---------------------------------------------------------------------------
+// Visitas da página pública
+// ---------------------------------------------------------------------------
+const CHAVE_VISITANTE = "radar_visitante";
+function idVisitante(): string {
+  try {
+    let id = localStorage.getItem(CHAVE_VISITANTE);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(CHAVE_VISITANTE, id);
+    }
+    return id;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
+/** Registra a visita (uma por pessoa a cada 30 minutos). Nunca atrapalha a página. */
+export function registrarVisita(pagina: "radar" | "newsletter" = "radar") {
+  const p = new URLSearchParams(window.location.search);
+  supabase.functions
+    .invoke("radar-newsletter", {
+      body: {
+        acao: "visita",
+        visitante: idVisitante(),
+        pagina,
+        referencia: document.referrer || null,
+        utm_source: p.get("utm_source"),
+        utm_campaign: p.get("utm_campaign"),
+        r: p.get("r"),
+      },
+    })
+    .catch(() => undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Campanhas (administração)
+// ---------------------------------------------------------------------------
+export interface Campanha {
+  teste: boolean;
+  assunto: string;
+  titulo: string;
+  mensagem: string;
+  noticia_ids: string[];
+  botao_texto?: string | null;
+  botao_url?: string | null;
+  /** vazio = todos os assinantes ativos */
+  assinante_ids?: string[] | null;
+}
+export const enviarCampanha = (c: Campanha) =>
+  chamar<{ ok: boolean; teste?: boolean; email?: string; enviados?: number; falhas?: number; destinatarios?: number; erro?: string }>({
+    acao: "campanha",
+    ...c,
+  });
 
 // Lembra neste aparelho que a pessoa já assinou, para não mostrar o convite de novo.
 const CHAVE_LOCAL = "radar_newsletter";

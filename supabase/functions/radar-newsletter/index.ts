@@ -8,11 +8,13 @@
 //                     Idempotente: só manda o que foi coletado depois do último envio.
 //                     Comunicados marcados como "interno e externo" entram junto, na
 //                     ordem de publicação, uma única vez (comunicados.newsletter_enviado_em).
-//   resumo / enviar_teste (administração logada)
+//   visita            (público) registra uma visita à página pública (local aproximado,
+//                     dispositivo e origem; o endereço de rede não é guardado)
+//   resumo / enviar_teste / campanha (administração logada)
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
-import { blocoNoticias, PADRAO_CONFIRMACAO, PADRAO_NOVIDADES, preencher, type Noticia } from "./modelos.ts";
+import { blocoNoticias, emailCampanha, PADRAO_CONFIRMACAO, PADRAO_NOVIDADES, preencher, type Noticia } from "./modelos.ts";
 
 const URL_PADRAO = "https://vangard.uon1.com.br";
 const REMETENTE_PADRAO = "Vangard Gestora <vangard@uon1.com.br>";
@@ -105,7 +107,12 @@ async function registrarHistorico(s: SupabaseClient, linhas: { destinatario: str
 const AssinarSchema = z.object({
   acao: z.literal("assinar"),
   email: z.string().trim().toLowerCase().email("Informe um e-mail válido").max(255, "E-mail muito longo"),
-  nome: z.string().trim().max(120).optional().nullable(),
+  nome: z.string().trim().min(3, "Informe seu nome").max(120, "Nome muito longo"),
+  associacao: z.string().trim().min(2, "Informe o nome da associação").max(160, "Nome da associação muito longo"),
+  telefone: z
+    .string()
+    .transform((t) => t.replace(/\D/g, ""))
+    .refine((t) => t.length === 10 || t.length === 11, "Informe o telefone com DDD"),
   aceite: z.literal(true, { errorMap: () => ({ message: "É preciso aceitar o recebimento das comunicações" }) }),
   base: z.string().max(200).optional().nullable(),
   site: z.string().max(0).optional().nullable(), // armadilha para robôs: precisa vir vazio
@@ -114,7 +121,7 @@ const AssinarSchema = z.object({
 async function assinar(req: Request, body: unknown) {
   const p = AssinarSchema.safeParse(body);
   if (!p.success) return json({ error: p.error.issues[0]?.message ?? "Dados inválidos" }, 400);
-  const { email, nome, base } = p.data;
+  const { email, nome, associacao, telefone, base } = p.data;
   const s = db();
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
   const ua = req.headers.get("user-agent")?.slice(0, 300) ?? null;
@@ -131,14 +138,20 @@ async function assinar(req: Request, body: unknown) {
   }
 
   const { data: atual } = await s.from("radar_assinantes").select("*").ilike("email", email).maybeSingle();
-  if (atual?.status === "ativo") return json({ ok: true, jaAtivo: true, mensagem: "Este e-mail já recebe as novidades do Radar." });
+  if (atual?.status === "ativo") {
+    // já assina: aproveita para completar o cadastro
+    await s.from("radar_assinantes").update({ nome, associacao, telefone, atualizado_em: new Date().toISOString() }).eq("id", atual.id);
+    return json({ ok: true, jaAtivo: true, mensagem: "Este e-mail já recebe as novidades do Radar." });
+  }
   // não reenvia a confirmação mais de uma vez a cada 2 minutos
   if (atual?.status === "pendente" && Date.now() - new Date(atual.atualizado_em).getTime() < 120_000) return json(resposta);
 
   const agora = new Date().toISOString();
   const dados = {
     email,
-    nome: nome || atual?.nome || null,
+    nome,
+    associacao,
+    telefone,
     status: "pendente",
     token: crypto.randomUUID(),
     aceite_comunicacoes: true,
@@ -287,12 +300,16 @@ async function imagemPropria(s: SupabaseClient, url: string | null): Promise<str
 const porPublicacao = <T extends Noticia>(itens: T[]) =>
   [...itens].sort((a, b) => b.publicado_em.localeCompare(a.publicado_em)).slice(0, MAX_NOTICIAS);
 
+/** Link do Radar no e-mail: identifica o assinante quando ele visita a página. */
+const linkRadarDe = (token: string, campanha: string) => `${URL_PADRAO}/radar?utm_source=newsletter&utm_campaign=${encodeURIComponent(campanha)}&r=${token}`;
+
 async function montarEmails(s: SupabaseClient, noticias: Noticia[], destinatarios: { email: string; nome: string | null; token: string }[]) {
   const t = await modelo(s, "radar_novidades");
   const de = await remetente(s);
-  const bloco = blocoNoticias(noticias, `${URL_PADRAO}/radar`);
   return destinatarios.map((d) => {
     const cancelar = linkPagina(URL_PADRAO, "cancelar", d.token);
+    const radar = linkRadarDe(d.token, "novidades");
+    const bloco = blocoNoticias(noticias, radar);
     const v = {
       nome: d.nome ?? "",
       saudacao: saudacao(d.nome),
@@ -300,7 +317,7 @@ async function montarEmails(s: SupabaseClient, noticias: Noticia[], destinatario
       quantidade: String(noticias.length),
       data: dataHoje(),
       noticias: bloco,
-      link_radar: `${URL_PADRAO}/radar`,
+      link_radar: radar,
       link_cancelar: cancelar,
     };
     return {
@@ -441,6 +458,262 @@ async function enviarTeste(email: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Visitas da página pública
+// ---------------------------------------------------------------------------
+const VisitaSchema = z.object({
+  acao: z.literal("visita"),
+  visitante: z.string().uuid(),
+  pagina: z.enum(["radar", "newsletter"]).default("radar"),
+  referencia: z.string().max(500).optional().nullable(),
+  utm_source: z.string().max(80).optional().nullable(),
+  utm_campaign: z.string().max(80).optional().nullable(),
+  r: z.string().uuid().optional().nullable(),
+});
+
+async function sha256(texto: string) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+  return Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/** Cidade aproximada pelo endereço de rede (dois serviços, o segundo como reserva). */
+async function localizar(ip: string): Promise<{ cidade: string | null; uf: string | null; pais: string | null }> {
+  const vazio = { cidade: null, uf: null, pais: null };
+  if (!ip || /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|fc|fd)/i.test(ip)) return vazio;
+  try {
+    const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,city,region_code,country&lang=pt-BR`, { signal: AbortSignal.timeout(2500) });
+    const j = await r.json();
+    if (j?.success) return { cidade: j.city || null, uf: j.region_code || null, pais: j.country || null };
+  } catch {
+    // tenta o próximo
+  }
+  try {
+    const r = await fetch(`https://get.geojs.io/v1/ip/geo/${encodeURIComponent(ip)}.json`, { signal: AbortSignal.timeout(2500) });
+    const j = await r.json();
+    return { cidade: j?.city || null, uf: null, pais: j?.country || null };
+  } catch {
+    return vazio;
+  }
+}
+
+function dispositivoDe(ua: string) {
+  const t = ua.toLowerCase();
+  const dispositivo = /ipad|tablet/.test(t) ? "Tablet" : /mobi|android|iphone/.test(t) ? "Celular" : "Computador";
+  const navegador = /instagram/.test(t)
+    ? "Instagram"
+    : /fban|fbav/.test(t)
+      ? "Facebook"
+      : /edg\//.test(t)
+        ? "Edge"
+        : /chrome|crios/.test(t)
+          ? "Chrome"
+          : /safari/.test(t)
+            ? "Safari"
+            : /firefox|fxios/.test(t)
+              ? "Firefox"
+              : "Outro";
+  return { dispositivo, navegador };
+}
+
+function origemDe(ref: string | null | undefined, utm: string | null | undefined, ua: string) {
+  if (utm) return utm.toLowerCase() === "newsletter" ? "Newsletter" : utm;
+  if (/instagram/i.test(ua)) return "Instagram";
+  if (!ref) return null;
+  try {
+    const h = new URL(ref).hostname.replace(/^www\./, "").replace(/^l\./, "").replace(/^lm\./, "");
+    if (/instagram\.com$/.test(h)) return "Instagram";
+    if (/facebook\.com$/.test(h)) return "Facebook";
+    if (/linkedin\.com$|lnkd\.in$/.test(h)) return "LinkedIn";
+    if (/whatsapp\.com$/.test(h)) return "WhatsApp";
+    if (/google\./.test(h)) return "Google";
+    if (/uon1\.com\.br$/.test(h)) return null;
+    return h;
+  } catch {
+    return null;
+  }
+}
+
+async function registrarVisita(req: Request, body: unknown) {
+  const p = VisitaSchema.safeParse(body);
+  if (!p.success) return json({ ok: false }, 400);
+  const v = p.data;
+  const s = db();
+  // a mesma pessoa na mesma página conta uma vez a cada 30 minutos
+  const { data: recente } = await s
+    .from("radar_visitas")
+    .select("id")
+    .eq("visitante", v.visitante)
+    .eq("pagina", v.pagina)
+    .gte("criado_em", new Date(Date.now() - 30 * 60_000).toISOString())
+    .limit(1);
+  if (recente?.length) return json({ ok: true, repetida: true });
+
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+  const ua = req.headers.get("user-agent")?.slice(0, 300) ?? "";
+  const ipHash = ip ? await sha256(`${ip}|${Deno.env.get("SUPABASE_URL")}`) : null;
+  // mesmo endereço visto na última semana: reaproveita o local, sem consultar de novo
+  let local = { cidade: null as string | null, uf: null as string | null, pais: null as string | null };
+  if (ipHash) {
+    const { data: antes } = await s
+      .from("radar_visitas")
+      .select("cidade, uf, pais")
+      .eq("ip_hash", ipHash)
+      .not("pais", "is", null)
+      .gte("criado_em", new Date(Date.now() - 7 * 86400_000).toISOString())
+      .order("criado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    local = antes ?? (await localizar(ip));
+  }
+  let assinanteId: string | null = null;
+  if (v.r) {
+    const { data: a } = await s.from("radar_assinantes").select("id").eq("token", v.r).maybeSingle();
+    assinanteId = a?.id ?? null;
+  }
+  let referencia: string | null = null;
+  try {
+    referencia = v.referencia ? new URL(v.referencia).hostname : null;
+  } catch {
+    referencia = null;
+  }
+  await s.from("radar_visitas").insert({
+    visitante: v.visitante,
+    pagina: v.pagina,
+    origem: origemDe(v.referencia, v.utm_source, ua),
+    referencia,
+    utm_source: v.utm_source || null,
+    utm_campaign: v.utm_campaign || null,
+    ...local,
+    ...dispositivoDe(ua),
+    ip_hash: ipHash,
+    assinante_id: assinanteId,
+  });
+  return json({ ok: true });
+}
+
+// ---------------------------------------------------------------------------
+// Campanhas avulsas para os assinantes
+// ---------------------------------------------------------------------------
+const CampanhaSchema = z.object({
+  acao: z.literal("campanha"),
+  teste: z.boolean().default(false),
+  assunto: z.string().trim().min(3, "Escreva o assunto").max(150),
+  titulo: z.string().trim().min(3, "Escreva o título").max(150),
+  mensagem: z.string().trim().min(10, "Escreva a mensagem").max(5000),
+  noticia_ids: z.array(z.string().uuid()).max(10).default([]),
+  botao_texto: z.string().trim().max(40).optional().nullable(),
+  botao_url: z.string().trim().url("Link do botão inválido").max(500).optional().nullable().or(z.literal("")),
+  assinante_ids: z.array(z.string().uuid()).max(10000).optional().nullable(),
+});
+
+async function campanha(admin: { id: string; email: string }, body: unknown) {
+  const p = CampanhaSchema.safeParse(body);
+  if (!p.success) return { ok: false, erro: p.error.issues[0]?.message ?? "Dados inválidos" };
+  const c = p.data;
+  const s = db();
+
+  let noticias: Noticia[] = [];
+  if (c.noticia_ids.length) {
+    const { data } = await s
+      .from("mercado_noticias")
+      .select("id, titulo, link, origem, categoria, publicado_em")
+      .in("id", c.noticia_ids)
+      .eq("oculto", false);
+    // mantém a ordem escolhida
+    const porId = new Map((data ?? []).map((n) => [n.id, n as Noticia]));
+    noticias = c.noticia_ids.map((id) => porId.get(id)).filter(Boolean) as Noticia[];
+  }
+
+  const html = emailCampanha({
+    titulo: c.titulo,
+    mensagem: c.mensagem,
+    botaoTexto: c.botao_texto || null,
+    botaoUrl: c.botao_url || null,
+    noticias: "{{noticias}}",
+  });
+  const de = await remetente(s);
+  const montar = (d: { email: string; nome: string | null; token: string }, campanhaId: string) => {
+    const radar = linkRadarDe(d.token, campanhaId);
+    const v = {
+      nome: d.nome ?? "",
+      saudacao: saudacao(d.nome),
+      email: d.email,
+      data: dataHoje(),
+      noticias: noticias.length ? blocoNoticias(noticias, radar) : "",
+      link_radar: radar,
+      link_cancelar: linkPagina(URL_PADRAO, "cancelar", d.token),
+    };
+    return {
+      from: de,
+      to: [d.email],
+      subject: preencher(c.assunto, v, false),
+      html: preencher(html, v, true),
+      headers: {
+        "List-Unsubscribe": `<${urlFuncao()}?acao=cancelar&t=${d.token}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    } as Email;
+  };
+
+  if (c.teste) {
+    const e = montar({ email: admin.email, nome: null, token: crypto.randomUUID() }, "teste");
+    e.subject = `[Teste] ${e.subject}`;
+    const r = await enviarLote([e]);
+    await registrarHistorico(s, [{ destinatario: admin.email, assunto: e.subject, status: r.ok ? "enviado" : "erro", erro: r.erro }]);
+    return r.ok ? { ok: true, teste: true, email: admin.email } : { ok: false, erro: r.erro };
+  }
+
+  // só quem confirmou a inscrição e autorizou comunicações
+  let q = s.from("radar_assinantes").select("id, email, nome, token").eq("status", "ativo").eq("aceite_comunicacoes", true);
+  if (c.assinante_ids?.length) q = q.in("id", c.assinante_ids);
+  const { data: lista } = await q.limit(10000);
+  const destinatarios = lista ?? [];
+  if (!destinatarios.length) return { ok: false, erro: "Nenhum assinante ativo para receber" };
+
+  const { data: reg, error } = await s
+    .from("radar_campanhas")
+    .insert({
+      assunto: c.assunto,
+      titulo: c.titulo,
+      mensagem: c.mensagem,
+      noticias: c.noticia_ids,
+      botao_texto: c.botao_texto || null,
+      botao_url: c.botao_url || null,
+      criado_por: admin.id,
+      destinatarios: destinatarios.length,
+    })
+    .select("id")
+    .single();
+  if (error || !reg) return { ok: false, erro: "Não foi possível registrar a campanha" };
+
+  let enviados = 0;
+  let falhas = 0;
+  const erros: string[] = [];
+  const emails = destinatarios.map((d) => montar(d, reg.id));
+  for (let i = 0; i < emails.length; i += LOTE) {
+    const lote = emails.slice(i, i + LOTE);
+    const r = await enviarLote(lote);
+    if (r.ok) enviados += lote.length;
+    else {
+      falhas += lote.length;
+      erros.push(r.erro ?? "falha");
+    }
+    await registrarHistorico(s, lote.map((e) => ({ destinatario: e.to[0], assunto: e.subject, status: r.ok ? "enviado" : "erro", erro: r.erro })));
+    if (i + LOTE < emails.length) await new Promise((ok) => setTimeout(ok, 700));
+  }
+  await s
+    .from("radar_campanhas")
+    .update({
+      status: enviados ? "enviada" : "falhou",
+      concluido_em: new Date().toISOString(),
+      enviados,
+      falhas,
+      erro: erros.length ? erros.join(" | ").slice(0, 1000) : null,
+    })
+    .eq("id", reg.id);
+  return { ok: enviados > 0, enviados, falhas, destinatarios: destinatarios.length, erro: enviados ? undefined : erros[0] };
+}
+
+// ---------------------------------------------------------------------------
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
@@ -462,6 +735,13 @@ Deno.serve(async (req) => {
       case "cancelar": {
         const r = await mudarStatus(typeof body.token === "string" ? body.token : null, body.acao);
         return json(r, r.ok ? 200 : 400);
+      }
+      case "visita":
+        return await registrarVisita(req, body);
+      case "campanha": {
+        const admin = await adminLogado(req);
+        if (!admin) return json({ error: "Acesso restrito à administração" }, 403);
+        return json(await campanha(admin, body));
       }
       case "enviar_novidades":
         return json(await enviarNovidades());
