@@ -54,6 +54,24 @@ export function TabelaPrecosDialog({ open, onOpenChange, produtos }: Props) {
   const modelo = modeloId === NENHUM ? null : (data?.modeloPorId.get(modeloId) ?? null);
   const campos = camposComerciais(modelo);
 
+  // Campos ainda sem valor na tabela começam com o padrão definido no modelo
+  // (ex.: 3,90 por veículo no contrato de Assistência 24h).
+  useEffect(() => {
+    if (!campos.length) return;
+    setValores((atual) => {
+      const novo = { ...atual };
+      let mudou = false;
+      for (const c of campos) {
+        if (c.padrao && !(atual[c.chave] ?? "").trim()) {
+          novo[c.chave] = c.padrao;
+          mudou = true;
+        }
+      }
+      return mudou ? novo : atual;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelo?.id, produto, data]);
+
   const salvar = useMutation({
     mutationFn: async () => {
       const limpos: Dados = {};
