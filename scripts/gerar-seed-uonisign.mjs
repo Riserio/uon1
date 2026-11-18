@@ -5,6 +5,7 @@
 // Os modelos só são inseridos se o slug ainda não existir (não sobrescreve
 // ajustes feitos depois pelo administrador).
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -43,63 +44,63 @@ const camposVigencia = [
   { chave: "Prazo_Vigencia_Meses", rotulo: "Vigência (meses)", tipo: "inteiro", grupo: G_VIGENCIA, min: 1, max: 120, padrao: "12" },
 ];
 
-const diaVencimento = { chave: "Dia_Vencimento", rotulo: "Dia de vencimento", tipo: "inteiro", grupo: G_VALORES, min: 1, max: 28, padrao: "10" };
-
+// Qualificação da Vangard igual à do contrato de Assistência 24h, usada nos três modelos.
 const contratada = {
-  razao_social: "Vangard Gestora",
-  cnpj: "",
-  endereco: "",
-  email: "contatos@vangardgestora.com.br",
-  representante: "",
+  razao_social: "VANGARD GESTÃO DE NEGOCIOS SA",
+  cnpj: "49195646000160",
+  endereco: "Rua Jacuí, nº 1273, Bairro Floresta, Belo Horizonte/MG, CEP 31110-822",
+  email: "contato@vangardgestora.com.br",
+  representante: "MIRIAM MARCIA SOARES",
   foro: "Belo Horizonte/MG",
 };
+
+const moeda = (chave, rotulo, clausula, extra = {}) => ({ chave, rotulo, tipo: "moeda", grupo: G_VALORES, clausula, ...extra });
 
 const modelos = [
   {
     slug: "ppr-manutencao",
     titulo: "Contrato PPR + Manutenção",
     categoria: "Prestação de Serviços",
-    descricao: "Programa Preparatório Regulatório (PPR) com mensalidade durante a execução e manutenção mensal depois. Contratada: Vangard.",
+    descricao: "Programa Preparatório Regulatório (PPR) de 12 meses com mensalidade, fase de manutenção depois e direito de preferência. Contratada: Vangard.",
     arquivo: "ppr-manutencao.html",
     campos: [
       ...camposContratante,
-      { chave: "Valor_Mensal_PPR", rotulo: "Mensalidade do PPR (R$)", tipo: "moeda", grupo: G_VALORES, clausula: "3.1", soma_valor: true },
-      { chave: "Prazo_PPR_Meses", rotulo: "Duração do PPR (meses)", tipo: "inteiro", grupo: G_VALORES, clausula: "1.3", min: 1, max: 36, padrao: "6" },
-      { chave: "Valor_Mensal_Manutencao", rotulo: "Mensalidade da manutenção (R$)", tipo: "moeda", grupo: G_VALORES, clausula: "4.1.2" },
-      diaVencimento,
-      ...camposContato("18.1", "3.4"),
+      moeda("Valor_Mensal_PPR", "Mensalidade do PPR (R$)", "3.1", { soma_valor: true }),
+      moeda("Valor_Mensal_Manutencao", "Mensalidade da manutenção (R$)", "4.1.2"),
+      ...camposContato("Qualificação", "3.4"),
       ...camposVigencia,
     ],
   },
   {
     slug: "assistencia-24h-rastreamento",
-    titulo: "Adesão — Assistência 24h e Rastreamento",
+    titulo: "Assistência 24 horas — Central de Teleatendimento",
     categoria: "Adesão",
-    descricao: "Adesão da associação aos serviços de assistência 24 horas e rastreamento veicular, com preço por veículo e franquia mínima.",
+    descricao: "Disponibilização de central de teleatendimento e rede de prestadores de assistência 24h, com preço por veículo ativo e valor mínimo mensal.",
     arquivo: "assistencia-rastreamento.html",
     campos: [
       ...camposContratante,
-      { chave: "Valor_Assistencia_Veiculo", rotulo: "Assistência 24h por veículo/mês (R$)", tipo: "moeda", grupo: G_VALORES, clausula: "4.1" },
-      { chave: "Valor_Rastreamento_Veiculo", rotulo: "Rastreamento por veículo/mês (R$)", tipo: "moeda", grupo: G_VALORES, clausula: "4.1" },
-      { chave: "Quantidade_Minima_Veiculos", rotulo: "Quantidade mínima de veículos", tipo: "inteiro", grupo: G_VALORES, clausula: "4.2", min: 1, max: 1000000, padrao: "100" },
-      diaVencimento,
-      ...camposContato("15.1", "4.4"),
+      moeda("Valor_Passeio_Moto", "Passeio ou moto, por veículo ativo (R$)", "2.1", { padrao: "3,90" }),
+      moeda("Valor_Caminhao", "Caminhão, por veículo ativo (R$)", "2.1", { padrao: "10,80" }),
+      moeda("Valor_Minimo_Mensal", "Valor mínimo mensal (R$)", "2.1", { padrao: "600,00", soma_valor: true }),
+      { chave: "Email", rotulo: "E-mail da Contratante", tipo: "email", grupo: G_CONTATO, clausula: "15.1", ajuda: "Recebe as notificações e o convite de assinatura" },
       ...camposVigencia,
     ],
   },
   {
     slug: "prestacao-servicos-b2b",
-    titulo: "Prestação de Serviços — Gestão, Tecnologia e Cobrança",
+    titulo: "Prestação de Serviços para Terceirização",
     categoria: "Prestação de Serviços",
-    descricao: "Vangard × associação para plataforma UONI, BI, relatórios e gestão de cobrança, sem PPR. Implantação + mensalidade.",
+    descricao: "Terceirização, assessoria e gerenciamento administrativo da associação, com preço por veículo ativo, implantação, Anexo I (Assistência 24h) e Anexo II (serviços extras).",
     arquivo: "prestacao-servicos-b2b.html",
     campos: [
       ...camposContratante,
-      { chave: "Servicos_Contratados", rotulo: "Serviços contratados", tipo: "texto_longo", grupo: G_VALORES, clausula: "1.1", max: 600, padrao: "acesso à plataforma UONI, com painéis de BI e relatórios gerenciais, e gestão da cobrança dos associados" },
-      { chave: "Valor_Implantacao", rotulo: "Implantação (R$)", tipo: "moeda", grupo: G_VALORES, clausula: "3.1", permite_zero: true },
-      { chave: "Valor_Mensal_Servicos", rotulo: "Mensalidade (R$)", tipo: "moeda", grupo: G_VALORES, clausula: "3.2", soma_valor: true },
-      diaVencimento,
-      ...camposContato("14.1", "3.3"),
+      moeda("Valor_Por_Veiculo", "Por veículo ativo (R$)", "4.a", { padrao: "18,90" }),
+      moeda("Valor_Minimo_Mensal", "Pagamento mínimo mensal (R$)", "4.a", { padrao: "2.750,00", soma_valor: true }),
+      { chave: "Data_Primeira_Cobranca", rotulo: "Data da primeira cobrança", tipo: "data", grupo: G_VALORES, clausula: "4.a" },
+      moeda("Valor_Implantacao", "Implantação (R$)", "4.b", { permite_zero: true }),
+      { chave: "Data_Vencimento_Implantacao", rotulo: "Vencimento da implantação", tipo: "data", grupo: G_VALORES, clausula: "4.b" },
+      moeda("Valor_Caminhao", "Assistência 24h — caminhão, por veículo ativo (R$)", "Anexo I", { padrao: "10,80" }),
+      ...camposContato("15.1", "5.2"),
       ...camposVigencia,
     ],
   },
@@ -109,6 +110,33 @@ const q = (s) => `$uonisign$${s}$uonisign$`;
 const json = (v) => `${q(JSON.stringify(v))}::jsonb`;
 
 const out = [];
+if (process.argv.includes("--atualizar")) {
+  // Grava o texto, os campos e a Contratada de cada modelo como nova versão
+  // (o gatilho do banco registra a versão anterior em contrato_template_versoes).
+  out.push(`-- Uon1 Sign: atualiza texto, campos e Contratada dos modelos do fluxo 2
+-- (gerado por: node scripts/gerar-seed-uonisign.mjs --atualizar). Contratos já
+-- criados guardam o próprio HTML e não mudam. Idempotente.
+`);
+  for (const m of modelos) {
+    out.push(`UPDATE public.contrato_templates SET
+  titulo = ${q(m.titulo)}, descricao = ${q(m.descricao)}, categoria = ${q(m.categoria)},
+  conteudo_html = ${q(html(m.arquivo))},
+  campos = ${json(m.campos)},
+  contratada = ${json(contratada)},
+  ativo = true
+WHERE slug = ${q(m.slug)}
+  AND (md5(conteudo_html) IS DISTINCT FROM '${createHash("md5").update(html(m.arquivo)).digest("hex")}'
+    OR campos IS DISTINCT FROM ${json(m.campos)} OR contratada IS DISTINCT FROM ${json(contratada)});
+`);
+  }
+  out.push(`-- Modelos fora destes três deixam de aparecer para novos contratos; os contratos
+-- já feitos com eles continuam acessíveis.
+UPDATE public.contrato_templates SET ativo = false
+WHERE ativo AND (slug IS NULL OR slug NOT IN (${modelos.map((m) => q(m.slug)).join(", ")}));
+`);
+  process.stdout.write(out.join("\n"));
+  process.exit(0);
+}
 out.push(`-- 2026-11-14 — Uon1 Sign: modelos de contrato do fluxo 2 (gerado por scripts/gerar-seed-uonisign.mjs)
 --
 -- Insere os modelos só se o slug ainda não existir. Antes de usar, o
