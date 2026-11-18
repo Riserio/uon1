@@ -12,8 +12,12 @@
 //                     dispositivo e origem; o endereço de rede não é guardado)
 //   resumo / enviar_teste / campanha (administração logada)
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 import { blocoNoticias, emailCampanha, PADRAO_CONFIRMACAO, PADRAO_NOVIDADES, preencher, type Noticia } from "./modelos.ts";
 
 const URL_PADRAO = "https://vangard.uon1.com.br";
