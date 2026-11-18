@@ -37,7 +37,7 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_ACCENT_COLORS: Record<string, string> = {
   "Recebimento": "#3b82f6",
   "Levantamento": "#eab308",
-  "Acionamento Setor": "#f97316",
+  "Acionamento Setor": "#FF5515",
   "Contato Associado": "#a855f7",
   "Monitoramento": "#06b6d4",
   "Resolvido": "#22c55e",

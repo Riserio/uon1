@@ -34,14 +34,14 @@ const COLORS = [
   "#8b5cf6",
   "#ec4899",
   "#14b8a6",
-  "#f97316",
+  "#FF5515",
   "#06b6d4",
   "#84cc16",
   "#a855f7",
   "#f43f5e",
   "#0ea5e9",
   "#10b981",
-  "#fb923c",
+  "#FF713D",
 ];
 
 export interface EstudoBaseFilters {

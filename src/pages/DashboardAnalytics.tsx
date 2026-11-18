@@ -67,7 +67,7 @@ interface ImportedData {
   };
 }
 
-const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
+const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#FF5515', '#6366f1', '#84cc16'];
 const SITUACAO_COLORS: Record<string, string> = {
   'FINALIZADO': '#10b981',
   'VEICULO FINALIZADO': '#34d399',
@@ -78,7 +78,7 @@ const SITUACAO_COLORS: Record<string, string> = {
   'ARQUIVADO': '#6b7280',
   'ABERTO': '#f59e0b',
   'VEICULO EM REPARO': '#8b5cf6',
-  'PENDENTE PAGAMENTO': '#f97316',
+  'PENDENTE PAGAMENTO': '#FF5515',
   'VEICULO ENTREGUE': '#14b8a6',
   'CANCELADO INATIVIDADE ASSOCIAD': '#9ca3af',
 };

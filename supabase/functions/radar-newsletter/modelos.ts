@@ -36,7 +36,7 @@ export const casca = (titulo: string, cabecalho: string, conteudo: string, rodap
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#ffffff;border:1px solid #e6ebf5;border-radius:20px;overflow:hidden;">
 
   <!-- CABEÇALHO -->
-  <tr><td style="background:#0b1220;padding:22px 28px;border-bottom:4px solid #F06F19;">
+  <tr><td style="background:#0b1220;padding:22px 28px;border-bottom:4px solid #FF5515;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
       <td style="font-family:Georgia,'Times New Roman',serif;font-size:21px;font-weight:600;color:#ffffff;">${cabecalho}</td>
       <td align="right" style="padding-left:12px;">${imgLogoVangard(36, "escuro")}</td>
@@ -109,7 +109,7 @@ export const PADRAO_NOVIDADES = {
   corpo: casca(
     "Radar do mercado - {{data}}",
     "📡 Radar do mercado",
-    `    <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#F06F19;">Novidades de {{data}}</div>
+    `    <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#FF5515;">Novidades de {{data}}</div>
 
     <p style="margin:10px 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:600;color:#0f172a;">{{quantidade}} matérias novas no Radar</p>
 
@@ -149,8 +149,8 @@ const trecho = (t: string, max = 220) => {
 
 const CHIPS: Record<string, { rotulo: string; fundo: string; cor: string; barra: string }> = {
   oficial: { rotulo: "ÓRGÃO OFICIAL", fundo: "#dbeafe", cor: "#1d4ed8", barra: "#362C89" },
-  setor: { rotulo: "SETOR", fundo: "#f3e8ff", cor: "#7e22ce", barra: "#F06F19" },
-  comunicado: { rotulo: "COMUNICADO", fundo: "#ffedd5", cor: "#c2410c", barra: "#F06F19" },
+  setor: { rotulo: "SETOR", fundo: "#f3e8ff", cor: "#7e22ce", barra: "#FF5515" },
+  comunicado: { rotulo: "COMUNICADO", fundo: "#FFE2D6", cor: "#B4320E", barra: "#FF5515" },
 };
 
 /**

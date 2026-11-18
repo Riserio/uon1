@@ -339,7 +339,7 @@ export default function AdminJornadaDashboard() {
   const pieData = [
     { name: "Trabalhando", value: totals.trabalhando, color: "hsl(142 71% 45%)" },
     { name: "Em almoço", value: totals.almoco, color: "hsl(38 92% 50%)" },
-    { name: "Almoço extrapolado", value: totals.pendente_volta, color: "hsl(24 95% 53%)" },
+    { name: "Almoço extrapolado", value: totals.pendente_volta, color: "hsl(16 100% 54%)" },
     { name: "Atrasado", value: totals.atrasado, color: "hsl(346 87% 50%)" },
     { name: "Ausente", value: totals.ausente, color: "hsl(215 16% 47%)" },
     { name: "Encerrado", value: totals.encerrado, color: "hsl(217 91% 60%)" },

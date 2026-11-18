@@ -178,7 +178,7 @@ export const ETAPAS_PADRAO: Omit<ComercialEtapa, "id" | "funil_id">[] = [
   { nome: "Contato feito", cor: "#3b82f6", ordem: 2, tipo: "aberta" },
   { nome: "Reunião agendada", cor: "#8b5cf6", ordem: 3, tipo: "aberta" },
   { nome: "Pendente enviar proposta", cor: "#f59e0b", ordem: 4, tipo: "aberta" },
-  { nome: "Proposta enviada", cor: "#f97316", ordem: 5, tipo: "aberta" },
+  { nome: "Proposta enviada", cor: "#FF5515", ordem: 5, tipo: "aberta" },
   { nome: "Fechada", cor: "#16a34a", ordem: 6, tipo: "ganho" },
   { nome: "Cancelado", cor: "#dc2626", ordem: 7, tipo: "perdido" },
 ];

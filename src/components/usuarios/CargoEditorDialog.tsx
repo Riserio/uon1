@@ -28,7 +28,7 @@ export interface CargoBasico {
 }
 
 export const CORES_CARGO = [
-  "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
+  "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#FF5515",
   "#eab308", "#22c55e", "#14b8a6", "#0ea5e9", "#64748b",
 ];
 

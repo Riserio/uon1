@@ -20,7 +20,7 @@ const corsHeaders = {
 // ============================================================================
 
 const BLACK = rgb(17 / 255, 17 / 255, 17 / 255); // #111111
-const ORANGE = rgb(255 / 255, 107 / 255, 26 / 255); // #FF6B1A
+const ORANGE = rgb(255 / 255, 85 / 255, 21 / 255); // #FF5515
 const GRAY_TEXT = rgb(107 / 255, 114 / 255, 128 / 255); // #6B7280 (label)
 const GRAY_MUTED = rgb(119 / 255, 119 / 255, 119 / 255); // #777777 (footer/legenda)
 const CARD_BG = rgb(250 / 255, 250 / 255, 250 / 255); // #FAFAFA

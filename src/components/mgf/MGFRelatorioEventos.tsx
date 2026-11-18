@@ -70,7 +70,7 @@ interface MGFRelatorioEventosProps {
   refreshToken?: number;
 }
 
-const COLORS_RATEAVEL = ["#22c55e", "#f97316"]; // Verde para rateável, laranja para não rateável
+const COLORS_RATEAVEL = ["#22c55e", "#FF5515"]; // Verde para rateável, laranja para não rateável
 
 const PAGE_SIZE = 20;
 // Cap de exportação: nunca busca o dataset filtrado inteiro de uma vez.
@@ -619,7 +619,7 @@ export default function MGFRelatorioEventos({
               <Tooltip content={<CustomTooltip isCurrency />} />
               <Legend verticalAlign="bottom" height={24} iconType="circle" />
               <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" radius={[4, 4, 0, 0]} maxBarSize={28} />
-              <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" radius={[4, 4, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#FF5515" stackId="a" radius={[4, 4, 0, 0]} maxBarSize={28} />
             </BarChart>
           </ResponsiveContainer>
         </ChartWidget>
@@ -638,7 +638,7 @@ export default function MGFRelatorioEventos({
               <Tooltip content={<CustomTooltip isCurrency />} />
               <Legend verticalAlign="bottom" height={24} iconType="circle" />
               <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
-              <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
+              <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#FF5515" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
         </ChartWidget>
@@ -653,7 +653,7 @@ export default function MGFRelatorioEventos({
                 <Tooltip content={<CustomTooltip isCurrency />} />
                 <Legend verticalAlign="bottom" height={24} iconType="circle" />
                 <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
-                <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
+                <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#FF5515" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
               </BarChart>
             </ResponsiveContainer>
           </ChartWidget>
@@ -670,7 +670,7 @@ export default function MGFRelatorioEventos({
                 <Tooltip content={<CustomTooltip isCurrency />} />
                 <Legend verticalAlign="bottom" height={24} iconType="circle" />
                 <Bar dataKey="rateavel" name="Rateáveis" fill="#22c55e" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
-                <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#f97316" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
+                <Bar dataKey="naoRateavel" name="Não Rateáveis" fill="#FF5515" stackId="a" radius={[0, 4, 4, 0]} maxBarSize={18} />
               </BarChart>
             </ResponsiveContainer>
           </ChartWidget>

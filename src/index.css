@@ -36,9 +36,9 @@ All colors MUST be HSL.
     --input: 220 13% 91%;
     --ring: 247 51% 35%;
 
-    /* Laranja da marca — acento editorial (CTAs/destaques). O roxo segue
+    /* Laranja da marca (mesmo da logo, #FF5515) — acento editorial (CTAs/destaques). O roxo segue
        como --primary; este é o único token de cor novo do estilo editorial. */
-    --accent-brand: 24 88% 52%;
+    --accent-brand: 16 100% 54%;
     --accent-brand-foreground: 0 0% 100%;
 
     --radius: 1.5rem;
@@ -121,7 +121,7 @@ All colors MUST be HSL.
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
-    --accent-brand: 24 88% 52%;
+    --accent-brand: 16 100% 54%;
     --accent-brand-foreground: 0 0% 100%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;

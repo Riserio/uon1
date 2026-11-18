@@ -57,7 +57,7 @@ interface DetailDialogState {
   filterValue: string;
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#FF5515', '#14b8a6'];
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -341,8 +341,8 @@ export default function SGADashboard({
               <AreaChart data={sinistralidadeMensal} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradSinistralidade" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ea580c" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#ea580c" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#E13C09" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#E13C09" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="mesLabel" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -354,7 +354,7 @@ export default function SGADashboard({
                     return [formatCurrency(Number(v)), name];
                   }}
                 />
-                <Area type="monotone" dataKey="sinistralidade" name="Sinistralidade" stroke="#ea580c" strokeWidth={2.5} fill="url(#gradSinistralidade)" />
+                <Area type="monotone" dataKey="sinistralidade" name="Sinistralidade" stroke="#E13C09" strokeWidth={2.5} fill="url(#gradSinistralidade)" />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>

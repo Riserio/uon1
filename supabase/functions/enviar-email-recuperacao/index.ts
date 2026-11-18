@@ -59,7 +59,7 @@ const handler = async (req: Request): Promise<Response> => {
                 <img src="https://uon1.lovable.app/images/logo-full.png" alt="uon1" style="max-height:40px;display:inline-block;vertical-align:middle;" /><span style="display:inline-block;width:1px;height:32px;background:#e2e2ea;margin:0 18px;vertical-align:middle;"></span><span style="display:inline-block;vertical-align:middle;">${imgLogoVangard(40)}</span>
               </div>
               <div style="padding:32px;">
-                <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#F06F19;">Segurança da conta</p>
+                <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#FF5515;">Segurança da conta</p>
                 <h1 style="margin:0 0 20px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:600;color:#1f1b2d;">Recuperação de senha</h1>
                 <p style="margin:0 0 12px;color:#3f3d4d;font-size:15px;line-height:1.6;">Olá,</p>
                 <p style="margin:0 0 24px;color:#3f3d4d;font-size:15px;line-height:1.6;">Recebemos uma solicitação para redefinir a senha da sua conta no <strong>uon1</strong>. Clique no botão abaixo para criar uma nova senha:</p>

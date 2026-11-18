@@ -763,7 +763,7 @@ export const CAPITULOS: DocCapitulo[] = [
                 ["Título de card", "text-sm font-semibold", "Sem heading maior dentro de card"],
                 ["Rótulo auxiliar", "text-[10px] / text-[11px] text-muted-foreground", "Unidade, legenda, ref."],
                 ["Número de destaque", "text-lg a text-2xl font-bold tabular-nums", "tabular-nums evita dança de dígitos"],
-                ["Acento do portal", "#FF6B1A (laranja da marca)", "Só no item ativo da barra flutuante"],
+                ["Acento do portal", "#FF5515 (laranja da marca)", "Só no item ativo da barra flutuante"],
                 ["Positivo / negativo", "emerald-600 / red-600", "amber-600 para atenção"],
               ],
             },
@@ -773,7 +773,7 @@ export const CAPITULOS: DocCapitulo[] = [
             titulo: "Paleta dos gráficos",
             conteudo:
               "Azul #2563eb (principal/faturamento), verde #16a34a (pago/positivo), vermelho #dc2626 " +
-              "(aberto/perda), laranja #f97316 (inadimplente), âmbar #f59e0b (alerta), roxo #8b5cf6 " +
+              "(aberto/perda), laranja #FF5515 (inadimplente), âmbar #f59e0b (alerta), roxo #8b5cf6 " +
               "(secundário), ciano #0ea5e9. A mesma grandeza deve manter a mesma cor em todas as telas: " +
               "'recebido' é sempre verde, 'em aberto' é sempre vermelho.",
           },

@@ -39,7 +39,7 @@ interface MGFDashboardProps {
   dataFim: string | null;
 }
 
-const COLORS = ["#f97316", "#fb923c", "#fdba74", "#0ea5e9", "#06b6d4", "#14b8a6", "#22c55e", "#84cc16", "#eab308", "#ef4444"];
+const COLORS = ["#FF5515", "#FF713D", "#fdba74", "#0ea5e9", "#06b6d4", "#14b8a6", "#22c55e", "#84cc16", "#eab308", "#ef4444"];
 
 const formatFullCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -322,8 +322,8 @@ export default function MGFDashboard({
                     <AreaChart data={evolucaoView === 'mes' ? timelineData : timelineDiaData} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
                       <defs>
                         <linearGradient id="mgfGradTotal" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#FF5515" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#FF5515" stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="mgfGradPago" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
@@ -333,7 +333,7 @@ export default function MGFDashboard({
                       <XAxis dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
                       <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={formatCompactCurrency} width={52} />
                       <Tooltip contentStyle={ttStyle} formatter={(v: any, name: string) => [formatFullCurrency(Number(v)), name === 'pago' ? 'Pago' : 'Total']} />
-                      <Area type="monotone" dataKey="valor" stroke="#f97316" fill="url(#mgfGradTotal)" strokeWidth={2} name="Valor Total" dot={false} />
+                      <Area type="monotone" dataKey="valor" stroke="#FF5515" fill="url(#mgfGradTotal)" strokeWidth={2} name="Valor Total" dot={false} />
                       <Area type="monotone" dataKey="pago" stroke="#22c55e" fill="url(#mgfGradPago)" strokeWidth={2} name="Pago" dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>

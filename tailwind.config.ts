@@ -14,6 +14,20 @@ export default {
   	},
   	extend: {
   		colors: {
+  			/* Laranja da marca Vangard (logo #FF5515) substitui o laranja padrão do Tailwind em todo o sistema */
+  			orange: {
+  				50: '#FFF5F0',
+  				100: '#FFE2D6',
+  				200: '#FFC1A8',
+  				300: '#FF9670',
+  				400: '#FF713D',
+  				500: '#FF5515',
+  				600: '#E13C09',
+  				700: '#B4320E',
+  				800: '#8D2C11',
+  				900: '#6E2612',
+  				950: '#401308'
+  			},
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',

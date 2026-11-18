@@ -1276,7 +1276,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               <div className="grid gap-4 lg:grid-cols-2">
                 <ChartCard
                   title="Histórico de Inadimplentes"
-                  accentColor="#f97316"
+                  accentColor="#FF5515"
                   subtitle="Inadimplentes por mês"
                   hasData={hasData}
                 >
@@ -1284,7 +1284,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     data={chartData}
                     dataKey="inadimplentes"
                     name="Inadimplentes"
-                    color="#f97316"
+                    color="#FF5515"
                     kind="bar"
                   />
                 </ChartCard>
@@ -1404,12 +1404,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     kind="bar"
                   />
                 </ChartCard>
-                <ChartCard title="Veículos Inadimplentes" accentColor="#f97316" hasData={hasData}>
+                <ChartCard title="Veículos Inadimplentes" accentColor="#FF5515" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="inadimplentes"
                     name="Inadimplentes"
-                    color="#f97316"
+                    color="#FF5515"
                     kind="bar"
                   />
                 </ChartCard>
@@ -1511,12 +1511,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     format="percent"
                   />
                 </ChartCard>
-                <ChartCard title="Cancelamento de Boletos (%)" accentColor="#f97316" hasData={hasData}>
+                <ChartCard title="Cancelamento de Boletos (%)" accentColor="#FF5515" hasData={hasData}>
                   <SingleSeriesChart
                     data={chartData}
                     dataKey="percentual_cancelamento_boletos"
                     name="% Cancelamento"
-                    color="#f97316"
+                    color="#FF5515"
                     kind="line"
                     format="percent"
                   />

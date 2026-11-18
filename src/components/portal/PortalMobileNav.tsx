@@ -27,7 +27,7 @@ type Props = {
 };
 
 // Cor de destaque (laranja da marca) usada no item ativo.
-const ACCENT = "#FF6B1A";
+const ACCENT = "#FF5515";
 
 // Barra flutuante moderna estilo "pill": só ícones, item ativo num círculo
 // laranja preenchido, tooltip com o nome ao passar o mouse, e um botão de
@@ -88,7 +88,7 @@ export default function PortalMobileNav({
           onClick={onClick}
           aria-label={label}
           aria-current={active ? "page" : undefined}
-          className="shrink-0 rounded-full transition-transform active:scale-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B1A]/50"
+          className="shrink-0 rounded-full transition-transform active:scale-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5515]/50"
         >
           <span
             className={cn(

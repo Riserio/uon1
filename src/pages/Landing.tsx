@@ -38,7 +38,7 @@ const Landing = () => {
       icon: Clock,
       title: "Controle de Jornada",
       description: "Gestão completa de ponto, banco de horas e relatórios de funcionários.",
-      gradient: "from-[#ea580c] to-[#fb923c]",
+      gradient: "from-[#E13C09] to-[#FF713D]",
     },
     {
       icon: BarChart3,

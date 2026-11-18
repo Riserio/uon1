@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
       scope: "/",
       display: "standalone",
       background_color: "#ffffff",
-      theme_color: "#F5821F",
+      theme_color: "#FF5515",
       orientation: "portrait-primary",
       icons: [
         { src: icon192, sizes: "192x192", type: "image/png", purpose: "any" },
