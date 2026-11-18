@@ -7,7 +7,8 @@
 //   whatsapp_messages decide quem pode ver cada mídia.
 // - Mídia já no bucket: devolve URL assinada (1h).
 // - Mídia antiga (media_url nulo ou URL temporária da Meta): baixa da Meta
-//   pelo id guardado em raw_payload (a Meta mantém por ~30 dias), grava no
+//   pelo id guardado em raw_payload — só funciona até 7 dias
+//   após o recebimento (prazo da Meta para ids vindos do webhook), grava no
 //   bucket, atualiza media_url e devolve a URL assinada.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
