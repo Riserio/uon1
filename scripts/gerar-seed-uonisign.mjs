@@ -49,7 +49,7 @@ const camposVigencia = [
 const contratada = {
   razao_social: "VANGARD GESTÃO DE NEGOCIOS SA",
   cnpj: "49195646000160",
-  endereco: "Rua Gonçalves Dias, nº 89, sala 902, Bairro Funcionários, Belo Horizonte/MG",
+  endereco: "Rua Gonçalves Dias, nº 89, sala 902, Bairro Funcionários, Belo Horizonte/MG, CEP 30140-090",
   email: "contato@vangardgestora.com.br",
   representante: "MIRIAM MARCIA SOARES",
   representante_rg: "15409003",
