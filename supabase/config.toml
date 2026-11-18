@@ -137,3 +137,6 @@ verify_jwt = false
 
 [functions.radar-newsletter]
 verify_jwt = false
+
+[functions.whatsapp-midia]
+verify_jwt = false

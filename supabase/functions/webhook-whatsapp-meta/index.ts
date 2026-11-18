@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { salvarMidiaWhatsApp } from '../_shared/whatsapp-midia.ts';
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
 const corsHeaders = {
@@ -76,22 +77,10 @@ serve(async (req) => {
           const mediaId = msg[msg.type]?.id || null;
           mediaMime = msg[msg.type]?.mime_type || null;
 
-          // Download media URL from Meta API
+          // A URL da Meta exige token e expira em minutos: baixa e guarda no
+          // bucket privado (a tela gera URL assinada via função whatsapp-midia).
           if (mediaId) {
-            try {
-              const whatsappToken = Deno.env.get('META_WHATSAPP_TOKEN');
-              if (whatsappToken) {
-                const mediaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
-                  headers: { 'Authorization': `Bearer ${whatsappToken}` },
-                });
-                const mediaData = await mediaRes.json();
-                if (mediaData.url) {
-                  mediaUrl = mediaData.url;
-                }
-              }
-            } catch (mediaErr) {
-              console.error('[webhook] Erro ao obter URL da mídia:', mediaErr);
-            }
+            mediaUrl = await salvarMidiaWhatsApp(supabase, mediaId, mediaMime, msg[msg.type]?.filename);
           }
         } else if (msg.type === 'reaction') {
           msgType = 'reaction';
