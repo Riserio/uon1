@@ -44,13 +44,16 @@ const camposVigencia = [
   { chave: "Prazo_Vigencia_Meses", rotulo: "Vigência (meses)", tipo: "inteiro", grupo: G_VIGENCIA, min: 1, max: 120, padrao: "12" },
 ];
 
-// Qualificação da Vangard igual à do contrato de Assistência 24h, usada nos três modelos.
+// Qualificação da Vangard nos três modelos. O texto usa ${Contratada_*}, preenchido
+// com esta configuração (editável em Uon1 Sign → Modelos → Configurar).
 const contratada = {
   razao_social: "VANGARD GESTÃO DE NEGOCIOS SA",
   cnpj: "49195646000160",
-  endereco: "Rua Jacuí, nº 1273, Bairro Floresta, Belo Horizonte/MG, CEP 31110-822",
+  endereco: "Rua Gonçalves Dias, nº 89, sala 902, Bairro Funcionários, Belo Horizonte/MG",
   email: "contato@vangardgestora.com.br",
   representante: "MIRIAM MARCIA SOARES",
+  representante_rg: "15409003",
+  representante_cpf: "09504867600",
   foro: "Belo Horizonte/MG",
 };
 
@@ -67,6 +70,8 @@ const modelos = [
       ...camposContratante,
       moeda("Valor_Mensal_PPR", "Mensalidade do PPR (R$)", "3.1", { soma_valor: true }),
       moeda("Valor_Mensal_Manutencao", "Mensalidade da manutenção (R$)", "4.1.2"),
+      { chave: "Administradora_Razao_Social", rotulo: "Razão social da Administradora", tipo: "texto", grupo: G_VALORES, clausula: "5.1", min: 3, max: 150, padrao: "VANGARD ADMINISTRADORA" },
+      { chave: "Administradora_CNPJ", rotulo: "CNPJ da Administradora", tipo: "cnpj", grupo: G_VALORES, clausula: "5.1" },
       ...camposContato("Qualificação", "3.4"),
       ...camposVigencia,
     ],

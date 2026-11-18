@@ -38,6 +38,8 @@ export interface ContratadaModelo {
   endereco?: string;
   email?: string;
   representante?: string;
+  representante_rg?: string;
+  representante_cpf?: string;
   foro?: string;
 }
 
@@ -380,6 +382,9 @@ export function variaveisDoContrato(campos: CampoModelo[], dados: Dados, ctx: Co
   out.Contratada_Endereco = k.endereco ?? "";
   out.Contratada_Email = k.email ?? ctx.signatarioContratada?.email ?? "";
   out.Contratada_Representante = k.representante || ctx.signatarioContratada?.nome || "";
+  out.Contratada_Representante_RG = k.representante_rg ?? "";
+  const cpfRep = k.representante_cpf || ctx.signatarioContratada?.cpf || "";
+  out.Contratada_Representante_CPF = cpfRep ? mascarar("cpf", cpfRep) : "";
   out.Foro = k.foro ?? "";
   out.Numero_Contrato = ctx.numero ?? "";
   out.Data_Emissao = formatarData((ctx.dataEmissao ?? new Date().toISOString()).slice(0, 10));
@@ -425,7 +430,8 @@ export function renderizarContrato(html: string, campos: CampoModelo[], dados: D
 export function variaveisSemCampo(html: string, campos: CampoModelo[]): string[] {
   const sistema = new Set([
     "Endereco_Completo", "Contratada_Razao_Social", "Contratada_CNPJ", "Contratada_Endereco",
-    "Contratada_Email", "Contratada_Representante", "Foro", "Numero_Contrato", "Data_Emissao",
+    "Contratada_Email", "Contratada_Representante", "Contratada_Representante_RG", "Contratada_Representante_CPF",
+    "Foro", "Numero_Contrato", "Data_Emissao",
   ]);
   const conhecidas = new Set<string>();
   campos.forEach((c) => {
@@ -447,6 +453,7 @@ export function pendenciasDoModelo(contratada: ContratadaModelo, sig: Signatario
   if (usa("Contratada_Razao_Social") && !contratada?.razao_social?.trim()) p.push("razão social da Contratada");
   if (usa("Contratada_CNPJ") && (!contratada?.cnpj || !cnpjValido(contratada.cnpj))) p.push("CNPJ da Contratada");
   if (usa("Contratada_Endereco") && !contratada?.endereco?.trim()) p.push("endereço da Contratada");
+  if (usa("Contratada_Representante_RG") && !contratada?.representante_rg?.trim()) p.push("RG do representante da Contratada");
   if (usa("Foro") && !contratada?.foro?.trim()) p.push("foro");
   return p;
 }

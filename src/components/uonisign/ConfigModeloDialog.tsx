@@ -57,7 +57,7 @@ export default function ConfigModeloDialog({ open, onOpenChange }: { open: boole
       ativo: m.ativo !== false,
       prazo: String(m.prazo_assinatura_dias ?? 15),
       lembretes: (m.lembrete_dias ?? [3, 7, 12]).join(", "),
-      contratada: { razao_social: "", cnpj: "", endereco: "", email: "", representante: "", foro: "", ...(m.contratada ?? {}) },
+      contratada: { razao_social: "", cnpj: "", endereco: "", email: "", representante: "", representante_rg: "", representante_cpf: "", foro: "", ...(m.contratada ?? {}) },
       sig: { nome: "", cpf: "", email: "", telefone: "", canais: ["email"], ...(m.signatario_contratada ?? {}) },
     });
   }, [modelos, selecionado]);
@@ -190,6 +190,8 @@ export default function ConfigModeloDialog({ open, onOpenChange }: { open: boole
                   <Campo rotulo="Endereço completo" valor={form.contratada.endereco} onChange={(v) => setK("endereco", v)} amplo />
                   <Campo rotulo="E-mail para notificações" valor={form.contratada.email} onChange={(v) => setK("email", v)} />
                   <Campo rotulo="Representante (no texto)" valor={form.contratada.representante} onChange={(v) => setK("representante", v)} ajuda="Se vazio, usa o signatário" />
+                  <Campo rotulo="RG do representante" valor={form.contratada.representante_rg} onChange={(v) => setK("representante_rg", v)} />
+                  <Campo rotulo="CPF do representante" valor={mascarar("cpf", form.contratada.representante_cpf ?? "")} onChange={(v) => setK("representante_cpf", soDigitos(v))} ajuda="Se vazio, usa o do signatário" />
                   <Campo rotulo="Foro (comarca)" valor={form.contratada.foro} onChange={(v) => setK("foro", v)} />
                 </div>
               </fieldset>
