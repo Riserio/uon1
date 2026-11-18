@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { formatPhone } from '@/lib/validators';
 import { useAppConfig } from '@/hooks/useAppConfig';
 import { LogoVangard } from "@/components/marca/LogoVangard";
+import { WhatsAppMidia, useWhatsAppMidiaUrls, TIPOS_MIDIA_WHATSAPP } from "@/components/whatsapp/WhatsAppMidia";
 
 interface Contact {
   id: string;
@@ -61,6 +62,7 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const midiaUrls = useWhatsAppMidiaUrls(messages);
   const [messageText, setMessageText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [sending, setSending] = useState(false);
@@ -588,6 +590,7 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                 ) : (
                   messages.map((msg, idx) => {
                     const msgDate = new Date(msg.created_at);
+                    const ehMidia = (TIPOS_MIDIA_WHATSAPP as readonly string[]).includes(msg.type);
                     const prev = idx > 0 ? messages[idx - 1] : null;
                     const showDateSeparator = !prev || !isSameDay(new Date(prev.created_at), msgDate);
                     const dateLabel = isToday(msgDate)
@@ -609,24 +612,9 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                         'group max-w-[75%] sm:max-w-[70%] rounded-2xl px-3.5 py-2 shadow-sm',
                         msg.direction === 'out' ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-card border border-border/50 rounded-bl-md'
                       )}>
-                        {msg.type !== 'text' && msg.type !== 'template' && <Badge variant="secondary" className="text-[10px] mb-1">{msg.type}</Badge>}
-                        {msg.type === 'image' && msg.media_url && (
-                          <img src={msg.media_url} alt="Imagem" className="max-w-full rounded-lg mb-1 cursor-pointer" onClick={() => window.open(msg.media_url!, '_blank')} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        )}
-                        {msg.type === 'video' && msg.media_url && (
-                          <video src={msg.media_url} controls className="max-w-full rounded-lg mb-1" onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }} />
-                        )}
-                        {msg.type === 'audio' && msg.media_url && (
-                          <audio src={msg.media_url} controls className="w-full mb-1" onError={(e) => { (e.target as HTMLAudioElement).style.display = 'none'; }} />
-                        )}
-                        {msg.type === 'sticker' && msg.media_url && (
-                          <img src={msg.media_url} alt="Sticker" className="max-w-[150px] mb-1" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        )}
-                        {msg.type === 'document' && msg.media_url && (
-                          <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs underline mb-1"><File className="h-4 w-4" /> Abrir</a>
-                        )}
+                        {msg.type !== 'text' && msg.type !== 'template' && !ehMidia && <Badge variant="secondary" className="text-[10px] mb-1">{msg.type}</Badge>}
+                        {ehMidia && <WhatsAppMidia msg={msg} url={midiaUrls[msg.id]} saida={msg.direction === 'out'} />}
                         {msg.body && msg.body !== `[${msg.type}]` && <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>}
-                        {(!msg.body || msg.body === `[${msg.type}]`) && !msg.media_url && <p className="text-sm whitespace-pre-wrap break-words">{msg.body || ''}</p>}
                         <div
                           className={cn('flex items-center justify-end gap-1 mt-1', msg.direction === 'out' ? 'text-primary-foreground/70' : 'text-muted-foreground')}
                           title={format(msgDate, "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
