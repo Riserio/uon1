@@ -6195,17 +6195,26 @@ export type Database = {
       }
       mercado_radar_config: {
         Row: {
+          contexto: string[]
           dias: number
+          excluir: string[]
+          fracas: string[]
           id: number
           palavras: string[]
         }
         Insert: {
+          contexto?: string[]
           dias?: number
+          excluir?: string[]
+          fracas?: string[]
           id?: number
           palavras: string[]
         }
         Update: {
+          contexto?: string[]
           dias?: number
+          excluir?: string[]
+          fracas?: string[]
           id?: number
           palavras?: string[]
         }
@@ -12201,6 +12210,10 @@ export type Database = {
         Returns: number
       }
       mercado_radar_processar: { Args: never; Returns: Json }
+      mercado_radar_relevante: {
+        Args: { _alvo: string; _fonte: string }
+        Returns: boolean
+      }
       mercado_radar_ultima_coleta: { Args: never; Returns: string }
       mercado_txt: { Args: { _t: string }; Returns: string }
       ouvidoria_rate_limit_ok: {
