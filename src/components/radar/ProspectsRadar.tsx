@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { Ban, Download, FileUp, Loader2, RotateCcw, Search, Trash2, Upload } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Download, FileUp, Loader2, RotateCcw, Search, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,11 +154,23 @@ export function ProspectsRadar({
         (!t || [p.associacao, p.email, p.email_alternativo, p.cidade_uf, p.cnpj, p.site].some((x) => normalizar(x ?? "").includes(t))),
     );
   }, [prospects, busca, uf, filtroStatus]);
-  const ativosDaLista = lista.filter((p) => p.status === "ativo").map((p) => p.id);
-  const todosMarcados = ativosDaLista.length > 0 && ativosDaLista.every((id) => selecionados.includes(id));
+  // paginação: a lista inteira fica em memória (filtros, seleção e exportação usam tudo),
+  // mas só a página atual é desenhada
+  const [pagina, setPagina] = useState(0);
+  const [porPagina, setPorPagina] = useState(25);
+  useEffect(() => setPagina(0), [busca, uf, filtroStatus, porPagina]);
+  const totalPaginas = Math.max(1, Math.ceil(lista.length / porPagina));
+  const paginaAtual = Math.min(pagina, totalPaginas - 1);
+  const visiveis = lista.slice(paginaAtual * porPagina, (paginaAtual + 1) * porPagina);
 
-  const marcarTodos = (v: boolean) =>
-    onSelecionar(v ? [...new Set([...selecionados, ...ativosDaLista])] : selecionados.filter((id) => !ativosDaLista.includes(id)));
+  const ativosDaLista = lista.filter((p) => p.status === "ativo").map((p) => p.id);
+  const ativosDaPagina = visiveis.filter((p) => p.status === "ativo").map((p) => p.id);
+  const paginaMarcada = ativosDaPagina.length > 0 && ativosDaPagina.every((id) => selecionados.includes(id));
+  const filtroTodoMarcado = ativosDaLista.length > 0 && ativosDaLista.every((id) => selecionados.includes(id));
+
+  const marcarPagina = (v: boolean) =>
+    onSelecionar(v ? [...new Set([...selecionados, ...ativosDaPagina])] : selecionados.filter((id) => !ativosDaPagina.includes(id)));
+  const marcarFiltro = () => onSelecionar([...new Set([...selecionados, ...ativosDaLista])]);
 
   const mudarStatus = async (p: Prospect, status: Prospect["status"]) => {
     const { error } = await db.from("radar_prospects").update({ status, atualizado_em: new Date().toISOString() }).eq("id", p.id);
@@ -284,12 +296,21 @@ export function ProspectsRadar({
         </div>
       )}
 
-      <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
+      {paginaMarcada && !filtroTodoMarcado && ativosDaLista.length > ativosDaPagina.length && (
+        <div className="mx-5 mb-3 text-xs text-muted-foreground">
+          Os {ativosDaPagina.length} ativos desta página estão selecionados.{" "}
+          <button type="button" className="underline text-foreground" onClick={marcarFiltro}>
+            Selecionar todos os {ativosDaLista.length} ativos do filtro
+          </button>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-muted/80 backdrop-blur text-xs text-muted-foreground">
             <tr>
               <th className="px-5 py-2 w-10">
-                <Checkbox checked={todosMarcados} disabled={!ativosDaLista.length} onCheckedChange={(v) => marcarTodos(v === true)} aria-label="Selecionar todos os ativos do filtro" />
+                <Checkbox checked={paginaMarcada} disabled={!ativosDaPagina.length} onCheckedChange={(v) => marcarPagina(v === true)} aria-label="Selecionar os ativos desta página" />
               </th>
               <th className="text-left font-medium px-3 py-2">Associação</th>
               <th className="text-left font-medium px-3 py-2">Contato</th>
@@ -319,7 +340,7 @@ export function ProspectsRadar({
                 </td>
               </tr>
             ) : (
-              lista.map((p) => (
+              visiveis.map((p) => (
                 <tr key={p.id} className="border-t border-border/40">
                   <td className="px-5 py-2.5">
                     {p.status === "ativo" && (
@@ -369,6 +390,38 @@ export function ProspectsRadar({
           </tbody>
         </table>
       </div>
+
+      {lista.length > 0 && (
+        <div className="px-5 py-3 border-t border-border/40 flex items-center justify-between gap-3 flex-wrap text-xs text-muted-foreground">
+          <span>
+            {paginaAtual * porPagina + 1}–{Math.min((paginaAtual + 1) * porPagina, lista.length)} de {lista.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <span>Por página</span>
+            <Select value={String(porPagina)} onValueChange={(v) => setPorPagina(Number(v))}>
+              <SelectTrigger className="h-8 w-[76px] rounded-full text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[25, 50, 100].map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" disabled={paginaAtual === 0} onClick={() => setPagina(paginaAtual - 1)} aria-label="Página anterior">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="min-w-[64px] text-center">
+              {paginaAtual + 1} de {totalPaginas}
+            </span>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" disabled={paginaAtual >= totalPaginas - 1} onClick={() => setPagina(paginaAtual + 1)} aria-label="Próxima página">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <ImportarProspects
         aberto={importando}
