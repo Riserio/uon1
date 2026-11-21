@@ -9587,6 +9587,44 @@ export type Database = {
           },
         ]
       }
+      trust_cadeia_ancoras: {
+        Row: {
+          created_at: string
+          evento_id: number
+          eventos_removidos: number
+          hash_anterior_registrado: string
+          hash_ultimo_mantido: string
+          id: number
+          motivo: string
+        }
+        Insert: {
+          created_at?: string
+          evento_id: number
+          eventos_removidos: number
+          hash_anterior_registrado: string
+          hash_ultimo_mantido: string
+          id?: number
+          motivo: string
+        }
+        Update: {
+          created_at?: string
+          evento_id?: number
+          eventos_removidos?: number
+          hash_anterior_registrado?: string
+          hash_ultimo_mantido?: string
+          id?: number
+          motivo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trust_cadeia_ancoras_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: true
+            referencedRelation: "trust_eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trust_documentos: {
         Row: {
           codigo: string
