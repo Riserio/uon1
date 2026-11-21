@@ -386,6 +386,13 @@
       "when": 1794873043463,
       "tag": "0054_radar_links_diretos_ritmo",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1795279184141,
+      "tag": "0055_radar_prospects",
+      "breakpoints": true
     }
   ]
 }

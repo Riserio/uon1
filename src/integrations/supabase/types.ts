@@ -8297,6 +8297,7 @@ export type Database = {
       }
       radar_campanhas: {
         Row: {
+          assinantes: number
           assunto: string
           botao_texto: string | null
           botao_url: string | null
@@ -8310,10 +8311,13 @@ export type Database = {
           id: string
           mensagem: string
           noticias: Json
+          prospects: number
+          publico: string
           status: string
           titulo: string
         }
         Insert: {
+          assinantes?: number
           assunto: string
           botao_texto?: string | null
           botao_url?: string | null
@@ -8327,10 +8331,13 @@ export type Database = {
           id?: string
           mensagem: string
           noticias?: Json
+          prospects?: number
+          publico?: string
           status?: string
           titulo: string
         }
         Update: {
+          assinantes?: number
           assunto?: string
           botao_texto?: string | null
           botao_url?: string | null
@@ -8344,6 +8351,8 @@ export type Database = {
           id?: string
           mensagem?: string
           noticias?: Json
+          prospects?: number
+          publico?: string
           status?: string
           titulo?: string
         }
@@ -8385,6 +8394,66 @@ export type Database = {
           iniciado_em?: string
           noticias?: number
           status?: string
+        }
+        Relationships: []
+      }
+      radar_prospects: {
+        Row: {
+          associacao: string
+          atualizado_em: string
+          cidade_uf: string | null
+          cnpj: string | null
+          criado_em: string
+          criado_por: string | null
+          descadastrado_em: string | null
+          email: string
+          email_alternativo: string | null
+          fonte: string | null
+          id: string
+          observacoes: string | null
+          site: string | null
+          status: string
+          token: string
+          uf: string | null
+          ultimo_envio_em: string | null
+        }
+        Insert: {
+          associacao: string
+          atualizado_em?: string
+          cidade_uf?: string | null
+          cnpj?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          descadastrado_em?: string | null
+          email: string
+          email_alternativo?: string | null
+          fonte?: string | null
+          id?: string
+          observacoes?: string | null
+          site?: string | null
+          status?: string
+          token?: string
+          uf?: string | null
+          ultimo_envio_em?: string | null
+        }
+        Update: {
+          associacao?: string
+          atualizado_em?: string
+          cidade_uf?: string | null
+          cnpj?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          descadastrado_em?: string | null
+          email?: string
+          email_alternativo?: string | null
+          fonte?: string | null
+          id?: string
+          observacoes?: string | null
+          site?: string | null
+          status?: string
+          token?: string
+          uf?: string | null
+          ultimo_envio_em?: string | null
         }
         Relationships: []
       }
