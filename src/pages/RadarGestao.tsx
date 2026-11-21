@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { ArrowLeft, Download, Eye, Loader2, Mail, MapPin, Monitor, Search, Send, Smartphone, Tablet, UserCheck, Users } from "lucide-react";
+import { ArrowLeft, Building2, Download, Eye, Loader2, Mail, MapPin, Monitor, Search, Send, Smartphone, Tablet, UserCheck, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { enviarCampanha } from "@/lib/radar/newsletter";
+import { ProspectsRadar, type Prospect } from "@/components/radar/ProspectsRadar";
 import { urlPublica } from "@/lib/trust";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -112,6 +113,7 @@ export default function RadarGestao() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<"todos" | Assinante["status"]>("ativo");
   const [selecionados, setSelecionados] = useState<string[]>([]);
+  const [prospectsSel, setProspectsSel] = useState<string[]>([]);
   const qc = useQueryClient();
 
   const resumo = useQuery({
@@ -132,6 +134,24 @@ export default function RadarGestao() {
         .limit(5000);
       if (error) throw error;
       return (data ?? []) as Assinante[];
+    },
+  });
+  const prospects = useQuery({
+    queryKey: ["radar_gestao_prospects"],
+    queryFn: async () => {
+      const todos: Prospect[] = [];
+      // a lista passa de mil linhas: lê em páginas
+      for (let de = 0; ; de += 1000) {
+        const { data, error } = await db
+          .from("radar_prospects")
+          .select("id, associacao, email, email_alternativo, cidade_uf, uf, site, cnpj, fonte, observacoes, status, ultimo_envio_em, criado_em")
+          .order("associacao", { ascending: true })
+          .range(de, de + 999);
+        if (error) throw error;
+        todos.push(...((data ?? []) as Prospect[]));
+        if (!data || data.length < 1000) break;
+      }
+      return todos;
     },
   });
   const visitas = useQuery({
@@ -157,6 +177,9 @@ export default function RadarGestao() {
         status: string;
         criado_em: string;
         destinatarios: number;
+        publico?: string | null;
+        assinantes?: number | null;
+        prospects?: number | null;
         enviados: number;
         falhas: number;
         erro: string | null;
@@ -173,6 +196,8 @@ export default function RadarGestao() {
         (!t || [a.nome, a.email, a.associacao, a.telefone].some((x) => (x ?? "").toLowerCase().includes(t))),
     );
   }, [assinantes.data, busca, filtroStatus]);
+  const emailsAssinantes = useMemo(() => new Set((assinantes.data ?? []).map((a) => a.email.toLowerCase())), [assinantes.data]);
+  const prospectsAtivos = useMemo(() => (prospects.data ?? []).filter((p) => p.status === "ativo").length, [prospects.data]);
   const contagem = useMemo(() => {
     const c = { ativo: 0, pendente: 0, cancelado: 0 };
     (assinantes.data ?? []).forEach((a) => c[a.status]++);
@@ -214,6 +239,9 @@ export default function RadarGestao() {
             </TabsTrigger>
             <TabsTrigger value="assinantes" className="rounded-full">
               <Users className="h-4 w-4 mr-1.5" /> Assinantes {assinantes.data ? `(${contagem.ativo})` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="prospects" className="rounded-full">
+              <Building2 className="h-4 w-4 mr-1.5" /> Prospects {prospects.data ? `(${prospectsAtivos})` : ""}
             </TabsTrigger>
             <TabsTrigger value="campanhas" className="rounded-full">
               <Send className="h-4 w-4 mr-1.5" /> Campanhas
@@ -507,15 +535,33 @@ export default function RadarGestao() {
             </section>
           </TabsContent>
 
+          {/* ------------------------------------------------ Prospects */}
+          <TabsContent value="prospects" className="space-y-4">
+            <ProspectsRadar
+              prospects={prospects.data ?? []}
+              carregando={prospects.isLoading}
+              emailsAssinantes={emailsAssinantes}
+              selecionados={prospectsSel}
+              onSelecionar={setProspectsSel}
+              onMudou={() => qc.invalidateQueries({ queryKey: ["radar_gestao_prospects"] })}
+            />
+          </TabsContent>
+
           {/* ------------------------------------------------ Campanhas */}
           <TabsContent value="campanhas" className="space-y-4">
             <NovaCampanha
               ativos={contagem.ativo}
               selecionados={selecionados}
-              onLimparSelecao={() => setSelecionados([])}
+              prospectsAtivos={prospectsAtivos}
+              prospectsSelecionados={prospectsSel}
+              onLimparSelecao={() => {
+                setSelecionados([]);
+                setProspectsSel([]);
+              }}
               onEnviada={() => {
                 qc.invalidateQueries({ queryKey: ["radar_gestao_campanhas"] });
                 qc.invalidateQueries({ queryKey: ["radar_gestao_assinantes"] });
+                qc.invalidateQueries({ queryKey: ["radar_gestao_prospects"] });
               }}
             />
             <section className={`${CARTAO} p-5`}>
@@ -529,7 +575,8 @@ export default function RadarGestao() {
                       <div className="min-w-0">
                         <p className="font-medium truncate">{c.assunto}</p>
                         <p className="text-xs text-muted-foreground">
-                          {format(parseISO(c.criado_em), "dd/MM/yyyy 'às' HH:mm")}, {c.enviados} de {c.destinatarios} entregues ao provedor
+                          {format(parseISO(c.criado_em), "dd/MM/yyyy 'às' HH:mm")}
+                          {c.prospects ? `, ${c.assinantes ?? 0} assinantes + ${c.prospects} prospects` : ""}, {c.enviados} de {c.destinatarios} entregues ao provedor
                           {c.falhas ? `, ${c.falhas} com falha` : ""}
                         </p>
                       </div>
@@ -553,7 +600,25 @@ export default function RadarGestao() {
   );
 }
 
-function NovaCampanha({ ativos, selecionados, onLimparSelecao, onEnviada }: { ativos: number; selecionados: string[]; onLimparSelecao: () => void; onEnviada: () => void }) {
+type Publico = "assinantes" | "prospects" | "todos";
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+function NovaCampanha({
+  ativos,
+  selecionados,
+  prospectsAtivos,
+  prospectsSelecionados,
+  onLimparSelecao,
+  onEnviada,
+}: {
+  ativos: number;
+  selecionados: string[];
+  prospectsAtivos: number;
+  prospectsSelecionados: string[];
+  onLimparSelecao: () => void;
+  onEnviada: () => void;
+}) {
+  const [publico, setPublico] = useState<Publico>("assinantes");
   const [assunto, setAssunto] = useState("");
   const [titulo, setTitulo] = useState("");
   const [mensagem, setMensagem] = useState("");
@@ -583,7 +648,9 @@ function NovaCampanha({ ativos, selecionados, onLimparSelecao, onEnviada }: { at
     noticia_ids: noticias,
     botao_texto: botaoTexto.trim() || null,
     botao_url: botaoUrl.trim() || null,
+    publico,
     assinante_ids: selecionados.length ? selecionados : null,
+    prospect_ids: prospectsSelecionados.length ? prospectsSelecionados : null,
   });
   const envio = useMutation({
     mutationFn: (teste: boolean) => enviarCampanha(dados(teste)),
@@ -591,7 +658,7 @@ function NovaCampanha({ ativos, selecionados, onLimparSelecao, onEnviada }: { at
       setConfirmando(false);
       if (!r.ok) return toast.error(r.erro ?? "Não foi possível enviar");
       if (r.teste) return toast.success(`Teste enviado para ${r.email}`);
-      toast.success(`Campanha enviada para ${r.enviados} ${r.enviados === 1 ? "assinante" : "assinantes"}${r.falhas ? ` (${r.falhas} com falha)` : ""}`);
+      toast.success(`Campanha enviada para ${plural(r.enviados ?? 0, "destinatário", "destinatários")}${r.falhas ? ` (${r.falhas} com falha)` : ""}`);
       setAssunto("");
       setTitulo("");
       setMensagem("");
@@ -608,7 +675,17 @@ function NovaCampanha({ ativos, selecionados, onLimparSelecao, onEnviada }: { at
   });
 
   const valido = assunto.trim().length >= 3 && titulo.trim().length >= 3 && mensagem.trim().length >= 10 && (!botaoTexto.trim() || /^https?:\/\//.test(botaoUrl.trim()));
-  const alvo = selecionados.length || ativos;
+  const qtdAssinantes = publico === "prospects" ? 0 : selecionados.length || ativos;
+  const qtdProspects = publico === "assinantes" ? 0 : prospectsSelecionados.length || prospectsAtivos;
+  // estimativa: no envio, prospect com e-mail de assinante não recebe em dobro
+  const alvo = qtdAssinantes + qtdProspects;
+  const descricao = [
+    publico !== "prospects" && (selecionados.length ? plural(selecionados.length, "assinante selecionado", "assinantes selecionados") : `todos os ${plural(ativos, "assinante ativo", "assinantes ativos")}`),
+    publico !== "assinantes" &&
+      (prospectsSelecionados.length ? plural(prospectsSelecionados.length, "prospect selecionado", "prospects selecionados") : `todos os ${plural(prospectsAtivos, "prospect ativo", "prospects ativos")}`),
+  ]
+    .filter(Boolean)
+    .join(" + ");
 
   return (
     <section className={`${CARTAO} p-5 space-y-4`}>
@@ -618,9 +695,39 @@ function NovaCampanha({ ativos, selecionados, onLimparSelecao, onEnviada }: { at
             <Mail className="h-4 w-4 text-primary" /> Nova campanha
           </h2>
           <p className="text-xs text-muted-foreground">
-            Vai para {selecionados.length ? `${selecionados.length} assinantes selecionados` : `todos os ${ativos} assinantes ativos`}, com o link de cancelar a inscrição no rodapé.
+            Vai para {descricao}, com o link de {publico === "assinantes" ? "cancelar a inscrição" : "descadastro"} no rodapé.
+            {publico !== "assinantes" && " Prospects que já são assinantes recebem uma vez só."}
           </p>
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Enviar para</Label>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Público da campanha">
+          {(
+            [
+              ["assinantes", "Assinantes", selecionados.length ? `${selecionados.length} selecionados` : `${ativos} ativos`],
+              ["prospects", "Prospects", prospectsSelecionados.length ? `${prospectsSelecionados.length} selecionados` : `${prospectsAtivos} ativos`],
+              ["todos", "Todos", "assinantes + prospects"],
+            ] as const
+          ).map(([id, rotulo, detalhe]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={publico === id}
+              onClick={() => {
+                setPublico(id);
+                setConfirmando(false);
+              }}
+              className={`rounded-2xl border px-4 py-2 text-left transition-colors ${publico === id ? "border-primary bg-primary/10" : "border-border/60 hover:bg-muted/50"}`}
+            >
+              <span className="block text-sm font-semibold">{rotulo}</span>
+              <span className="block text-[11px] text-muted-foreground">{detalhe}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted-foreground">Para escolher quem recebe, marque as pessoas nas abas Assinantes ou Prospects. Sem marcação, vão todos os ativos do público escolhido.</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -688,11 +795,11 @@ function NovaCampanha({ ativos, selecionados, onLimparSelecao, onEnviada }: { at
         </Button>
         {!confirmando ? (
           <Button className="rounded-full" disabled={!valido || !alvo || envio.isPending} onClick={() => setConfirmando(true)}>
-            <Send className="h-4 w-4 mr-1.5" /> Enviar para {alvo} {alvo === 1 ? "assinante" : "assinantes"}
+            <Send className="h-4 w-4 mr-1.5" /> Enviar para {plural(alvo, "destinatário", "destinatários")}
           </Button>
         ) : (
           <div className="flex items-center gap-2 rounded-full bg-amber-500/15 pl-4 pr-1 py-1">
-            <span className="text-sm">Confirmar o envio para {alvo}?</span>
+            <span className="text-sm">Confirmar o envio para {descricao}?</span>
             <Button size="sm" variant="ghost" className="rounded-full" onClick={() => setConfirmando(false)} disabled={envio.isPending}>
               Voltar
             </Button>
