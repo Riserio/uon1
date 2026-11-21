@@ -187,8 +187,13 @@ export function blocoNoticias(lista: Noticia[], linkRadar = ""): string {
 }
 
 
-/** Campanha avulsa para os assinantes: título, texto livre, botão e matérias escolhidas. */
-export function emailCampanha(c: { titulo: string; mensagem: string; botaoTexto?: string | null; botaoUrl?: string | null; noticias: string }) {
+const RODAPE_ASSINANTE = `Você recebe este e-mail porque assinou a newsletter do Radar do mercado e autorizou comunicações da Vangard Gestora.<br>
+    <a href="{{link_cancelar}}" style="color:#64748b;text-decoration:underline;">Cancelar inscrição</a>`;
+const RODAPE_PROSPECT = `Você recebe este e-mail da Vangard Gestora porque sua associação atua em proteção veicular e este contato está publicado em canais institucionais.<br>
+    Não quer receber? <a href="{{link_cancelar}}" style="color:#64748b;text-decoration:underline;">Descadastre-se</a> e não enviaremos mais.`;
+
+/** Campanha avulsa: título, texto livre, botão e matérias escolhidas. O rodapé muda para quem é prospect (não assinou). */
+export function emailCampanha(c: { titulo: string; mensagem: string; botaoTexto?: string | null; botaoUrl?: string | null; noticias: string; prospect?: boolean }) {
   const paragrafos = c.mensagem
     .trim()
     .split(/\n{2,}/)
@@ -215,7 +220,6 @@ ${c.noticias ? `<div style="margin-top:18px;">${c.noticias}</div>` : ""}
         <a href="{{link_radar}}" style="display:block;padding:14px;font-size:14px;font-weight:700;color:#362C89;text-decoration:none;">Ver o Radar do mercado</a>
       </td></tr>
     </table>`,
-    `Você recebe este e-mail porque assinou a newsletter do Radar do mercado e autorizou comunicações da Vangard Gestora.<br>
-    <a href="{{link_cancelar}}" style="color:#64748b;text-decoration:underline;">Cancelar inscrição</a>`,
+    c.prospect ? RODAPE_PROSPECT : RODAPE_ASSINANTE,
   );
 }

@@ -104,11 +104,15 @@ export interface Campanha {
   noticia_ids: string[];
   botao_texto?: string | null;
   botao_url?: string | null;
+  /** assinantes (padrão), prospects ou todos */
+  publico?: "assinantes" | "prospects" | "todos";
   /** vazio = todos os assinantes ativos */
   assinante_ids?: string[] | null;
+  /** vazio = todos os prospects ativos */
+  prospect_ids?: string[] | null;
 }
 export const enviarCampanha = (c: Campanha) =>
-  chamar<{ ok: boolean; teste?: boolean; email?: string; enviados?: number; falhas?: number; destinatarios?: number; erro?: string }>({
+  chamar<{ ok: boolean; teste?: boolean; email?: string; enviados?: number; falhas?: number; destinatarios?: number; prospects?: number; erro?: string }>({
     acao: "campanha",
     ...c,
   });

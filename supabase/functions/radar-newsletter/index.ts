@@ -10,7 +10,9 @@
 //                     ordem de publicação, uma única vez (comunicados.newsletter_enviado_em).
 //   visita            (público) registra uma visita à página pública (local aproximado,
 //                     dispositivo e origem; o endereço de rede não é guardado)
-//   resumo / enviar_teste / campanha (administração logada)
+//   resumo / enviar_teste / campanha (administração logada). A campanha vai para
+//                     assinantes, prospects (radar_prospects) ou todos; prospect recebe rodapé
+//                     próprio e link de descadastro com o token dele (cancelar aceita os dois).
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 
@@ -202,8 +204,18 @@ async function mudarStatus(token: string | null, acao: "confirmar" | "cancelar")
   if (!token || !z.string().uuid().safeParse(token).success) return { ok: false, erro: "Link inválido" };
   const s = db();
   const { data: a } = await s.from("radar_assinantes").select("id, status, email").eq("token", token).maybeSingle();
-  if (!a) return { ok: false, erro: "Link inválido ou expirado" };
   const agora = new Date().toISOString();
+  if (!a) {
+    // link de descadastro de uma campanha enviada a um prospect (não assinante)
+    const { data: p } = acao === "cancelar"
+      ? await s.from("radar_prospects").select("id, status, email").eq("token", token).maybeSingle()
+      : { data: null };
+    if (!p) return { ok: false, erro: "Link inválido ou expirado" };
+    if (p.status !== "descadastrado") {
+      await s.from("radar_prospects").update({ status: "descadastrado", descadastrado_em: agora, atualizado_em: agora }).eq("id", p.id);
+    }
+    return { ok: true, email: p.email };
+  }
   if (acao === "confirmar") {
     if (a.status === "cancelado") return { ok: false, erro: "Esta inscrição foi cancelada. Assine de novo na página do Radar." };
     if (a.status !== "ativo") await s.from("radar_assinantes").update({ status: "ativo", confirmado_em: agora, atualizado_em: agora }).eq("id", a.id);
@@ -606,8 +618,47 @@ const CampanhaSchema = z.object({
   noticia_ids: z.array(z.string().uuid()).max(10).default([]),
   botao_texto: z.string().trim().max(40).optional().nullable(),
   botao_url: z.string().trim().url("Link do botão inválido").max(500).optional().nullable().or(z.literal("")),
+  /** assinantes (padrão), prospects ou todos */
+  publico: z.enum(["assinantes", "prospects", "todos"]).default("assinantes"),
+  /** vazio = todos os assinantes ativos do público escolhido */
   assinante_ids: z.array(z.string().uuid()).max(10000).optional().nullable(),
+  /** vazio = todos os prospects ativos */
+  prospect_ids: z.array(z.string().uuid()).max(10000).optional().nullable(),
 });
+
+interface Destinatario {
+  email: string;
+  nome: string | null;
+  token: string;
+  prospect: boolean;
+  prospectId?: string;
+}
+
+/** Quem recebe a campanha. Assinantes: só ativos com aceite. Prospects: só ativos, sem repetir
+ *  e-mail de assinante e nunca quem cancelou a assinatura da newsletter. */
+async function destinatariosCampanha(s: SupabaseClient, c: z.infer<typeof CampanhaSchema>): Promise<Destinatario[]> {
+  const lista: Destinatario[] = [];
+  if (c.publico !== "prospects") {
+    let q = s.from("radar_assinantes").select("id, email, nome, token").eq("status", "ativo").eq("aceite_comunicacoes", true);
+    if (c.assinante_ids?.length) q = q.in("id", c.assinante_ids);
+    const { data } = await q.limit(10000);
+    for (const a of data ?? []) lista.push({ email: a.email, nome: a.nome, token: a.token, prospect: false });
+  }
+  if (c.publico !== "assinantes") {
+    const { data: todosAssinantes } = await s.from("radar_assinantes").select("email").limit(20000);
+    const bloqueados = new Set((todosAssinantes ?? []).map((a) => String(a.email).toLowerCase()));
+    let q = s.from("radar_prospects").select("id, email, associacao, token").eq("status", "ativo");
+    if (c.prospect_ids?.length) q = q.in("id", c.prospect_ids);
+    const { data } = await q.limit(10000);
+    for (const p of data ?? []) {
+      const chave = String(p.email).toLowerCase();
+      if (bloqueados.has(chave)) continue;
+      bloqueados.add(chave);
+      lista.push({ email: p.email, nome: null, token: p.token, prospect: true, prospectId: p.id });
+    }
+  }
+  return lista;
+}
 
 async function campanha(admin: { id: string; email: string }, body: unknown) {
   const p = CampanhaSchema.safeParse(body);
@@ -627,15 +678,18 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
     noticias = c.noticia_ids.map((id) => porId.get(id)).filter(Boolean) as Noticia[];
   }
 
-  const html = emailCampanha({
+  const base = {
     titulo: c.titulo,
     mensagem: c.mensagem,
     botaoTexto: c.botao_texto || null,
     botaoUrl: c.botao_url || null,
     noticias: "{{noticias}}",
-  });
+  };
+  const htmlAssinante = emailCampanha(base);
+  const htmlProspect = emailCampanha({ ...base, prospect: true });
   const de = await remetente(s);
-  const montar = (d: { email: string; nome: string | null; token: string }, campanhaId: string) => {
+  const montar = (d: { email: string; nome: string | null; token: string; prospect?: boolean }, campanhaId: string) => {
+    const html = d.prospect ? htmlProspect : htmlAssinante;
     const radar = linkRadarDe(d.token, campanhaId);
     const v = {
       nome: d.nome ?? "",
@@ -659,19 +713,17 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
   };
 
   if (c.teste) {
-    const e = montar({ email: admin.email, nome: null, token: crypto.randomUUID() }, "teste");
+    // o teste mostra o rodapé de prospect quando a campanha é só para prospects
+    const e = montar({ email: admin.email, nome: null, token: crypto.randomUUID(), prospect: c.publico === "prospects" }, "teste");
     e.subject = `[Teste] ${e.subject}`;
     const r = await enviarLote([e]);
     await registrarHistorico(s, [{ destinatario: admin.email, assunto: e.subject, status: r.ok ? "enviado" : "erro", erro: r.erro }]);
     return r.ok ? { ok: true, teste: true, email: admin.email } : { ok: false, erro: r.erro };
   }
 
-  // só quem confirmou a inscrição e autorizou comunicações
-  let q = s.from("radar_assinantes").select("id, email, nome, token").eq("status", "ativo").eq("aceite_comunicacoes", true);
-  if (c.assinante_ids?.length) q = q.in("id", c.assinante_ids);
-  const { data: lista } = await q.limit(10000);
-  const destinatarios = lista ?? [];
-  if (!destinatarios.length) return { ok: false, erro: "Nenhum assinante ativo para receber" };
+  const destinatarios = await destinatariosCampanha(s, c);
+  if (!destinatarios.length) return { ok: false, erro: "Ninguém ativo para receber neste público" };
+  const qtdProspects = destinatarios.filter((d) => d.prospect).length;
 
   const { data: reg, error } = await s
     .from("radar_campanhas")
@@ -684,6 +736,9 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
       botao_url: c.botao_url || null,
       criado_por: admin.id,
       destinatarios: destinatarios.length,
+      publico: c.publico,
+      assinantes: destinatarios.length - qtdProspects,
+      prospects: qtdProspects,
     })
     .select("id")
     .single();
@@ -696,8 +751,11 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
   for (let i = 0; i < emails.length; i += LOTE) {
     const lote = emails.slice(i, i + LOTE);
     const r = await enviarLote(lote);
-    if (r.ok) enviados += lote.length;
-    else {
+    if (r.ok) {
+      enviados += lote.length;
+      const ids = destinatarios.slice(i, i + LOTE).map((d) => d.prospectId).filter(Boolean) as string[];
+      if (ids.length) await s.from("radar_prospects").update({ ultimo_envio_em: new Date().toISOString() }).in("id", ids);
+    } else {
       falhas += lote.length;
       erros.push(r.erro ?? "falha");
     }
@@ -714,7 +772,7 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
       erro: erros.length ? erros.join(" | ").slice(0, 1000) : null,
     })
     .eq("id", reg.id);
-  return { ok: enviados > 0, enviados, falhas, destinatarios: destinatarios.length, erro: enviados ? undefined : erros[0] };
+  return { ok: enviados > 0, enviados, falhas, destinatarios: destinatarios.length, prospects: qtdProspects, erro: enviados ? undefined : erros[0] };
 }
 
 // ---------------------------------------------------------------------------

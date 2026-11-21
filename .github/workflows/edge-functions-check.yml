@@ -72,7 +72,9 @@ jobs:
           FALHAS=""
           for fn in ${{ steps.changed.outputs.fns }}; do
             echo "== deno check $fn =="
-            if ! deno check --quiet "supabase/functions/$fn/index.ts"; then
+            # O repo tem package.json: sem --node-modules-dir=none o Deno exige um
+            # node_modules/ e falha em todo import npm: ("Could not find zod").
+            if ! deno check --quiet --node-modules-dir=none "supabase/functions/$fn/index.ts"; then
               echo "::error::Erro de tipo em $fn — o Lovable vai recusar a publicação"
               FALHAS="$FALHAS $fn"
             fi
