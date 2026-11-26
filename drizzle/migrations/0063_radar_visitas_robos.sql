@@ -44,13 +44,13 @@ BEGIN
   END IF;
   RETURN (
     WITH v AS (SELECT * FROM radar_visitas WHERE criado_em >= v_de AND NOT descartada),
-         d AS (SELECT * FROM radar_visitas WHERE criado_em >= v_de AND descartada)
+         rob AS (SELECT * FROM radar_visitas WHERE criado_em >= v_de AND descartada)
     SELECT jsonb_build_object(
       'visitas', (SELECT count(*) FROM v),
-      'descartadas', (SELECT count(*) FROM d),
+      'descartadas', (SELECT count(*) FROM rob),
       'motivos_descarte', (
         SELECT coalesce(jsonb_agg(jsonb_build_object('nome', nome, 'visitas', n) ORDER BY n DESC), '[]'::jsonb) FROM (
-          SELECT coalesce(motivo_descarte, 'Outro') nome, count(*) n FROM d GROUP BY 1
+          SELECT coalesce(motivo_descarte, 'Outro') nome, count(*) n FROM rob GROUP BY 1
         ) m
       ),
       'visitantes', (SELECT count(DISTINCT visitante) FROM v),
