@@ -8238,6 +8238,7 @@ export type Database = {
           aceite_user_agent: string | null
           associacao: string | null
           atualizado_em: string
+          campanha_envio_id: string | null
           cancelado_em: string | null
           confirmacoes_enviadas: number
           confirmado_em: string | null
@@ -8259,6 +8260,7 @@ export type Database = {
           aceite_user_agent?: string | null
           associacao?: string | null
           atualizado_em?: string
+          campanha_envio_id?: string | null
           cancelado_em?: string | null
           confirmacoes_enviadas?: number
           confirmado_em?: string | null
@@ -8280,6 +8282,7 @@ export type Database = {
           aceite_user_agent?: string | null
           associacao?: string | null
           atualizado_em?: string
+          campanha_envio_id?: string | null
           cancelado_em?: string | null
           confirmacoes_enviadas?: number
           confirmado_em?: string | null
@@ -8293,7 +8296,160 @@ export type Database = {
           token?: string
           ultimo_envio_em?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "radar_assinantes_campanha_envio_id_fkey"
+            columns: ["campanha_envio_id"]
+            isOneToOne: false
+            referencedRelation: "radar_campanha_envios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radar_campanha_envios: {
+        Row: {
+          aberto_em: string | null
+          aberturas: number
+          assinante_id: string | null
+          assinou_em: string | null
+          associacao: string | null
+          campanha_id: string
+          clicado_em: string | null
+          cliques: number
+          criado_em: string
+          descadastrou_em: string | null
+          email: string
+          entregue_em: string | null
+          enviado_em: string | null
+          erro: string | null
+          id: string
+          inscreveu_em: string | null
+          nome: string | null
+          prospect_id: string | null
+          resend_id: string | null
+          status: string
+          tipo: string
+          ultima_atividade_em: string | null
+        }
+        Insert: {
+          aberto_em?: string | null
+          aberturas?: number
+          assinante_id?: string | null
+          assinou_em?: string | null
+          associacao?: string | null
+          campanha_id: string
+          clicado_em?: string | null
+          cliques?: number
+          criado_em?: string
+          descadastrou_em?: string | null
+          email: string
+          entregue_em?: string | null
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          inscreveu_em?: string | null
+          nome?: string | null
+          prospect_id?: string | null
+          resend_id?: string | null
+          status?: string
+          tipo: string
+          ultima_atividade_em?: string | null
+        }
+        Update: {
+          aberto_em?: string | null
+          aberturas?: number
+          assinante_id?: string | null
+          assinou_em?: string | null
+          associacao?: string | null
+          campanha_id?: string
+          clicado_em?: string | null
+          cliques?: number
+          criado_em?: string
+          descadastrou_em?: string | null
+          email?: string
+          entregue_em?: string | null
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          inscreveu_em?: string | null
+          nome?: string | null
+          prospect_id?: string | null
+          resend_id?: string | null
+          status?: string
+          tipo?: string
+          ultima_atividade_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_campanha_envios_assinante_id_fkey"
+            columns: ["assinante_id"]
+            isOneToOne: false
+            referencedRelation: "radar_assinantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_campanha_envios_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "radar_campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_campanha_envios_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "radar_prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radar_campanha_eventos: {
+        Row: {
+          campanha_id: string
+          criado_em: string
+          dispositivo: string | null
+          envio_id: string | null
+          id: number
+          navegador: string | null
+          tipo: string
+          url: string | null
+        }
+        Insert: {
+          campanha_id: string
+          criado_em?: string
+          dispositivo?: string | null
+          envio_id?: string | null
+          id?: number
+          navegador?: string | null
+          tipo: string
+          url?: string | null
+        }
+        Update: {
+          campanha_id?: string
+          criado_em?: string
+          dispositivo?: string | null
+          envio_id?: string | null
+          id?: number
+          navegador?: string | null
+          tipo?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_campanha_eventos_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "radar_campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_campanha_eventos_envio_id_fkey"
+            columns: ["envio_id"]
+            isOneToOne: false
+            referencedRelation: "radar_campanha_envios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       radar_campanhas: {
         Row: {
@@ -12336,6 +12492,7 @@ export type Database = {
         Returns: Json
       }
       processar_base_api_worker: { Args: never; Returns: Json }
+      radar_campanha_metricas: { Args: { _campanha: string }; Returns: Json }
       radar_comunicados_publicos: {
         Args: { p_limite?: number }
         Returns: {
