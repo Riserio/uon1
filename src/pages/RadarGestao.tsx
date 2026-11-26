@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { enviarCampanha } from "@/lib/radar/newsletter";
+import { cotaEnvio, enviarCampanha, salvarCotaEnvio } from "@/lib/radar/newsletter";
 import { ProspectsRadar, type Prospect } from "@/components/radar/ProspectsRadar";
 import { urlPublica } from "@/lib/trust";
 
@@ -32,6 +32,8 @@ const telefoneBR = (t?: string | null) => {
 
 interface Resumo {
   visitas: number;
+  descartadas?: number;
+  motivos_descarte?: { nome: string; visitas: number }[];
   visitantes: number;
   assinantes_visitaram: number;
   hoje: number;
@@ -65,14 +67,30 @@ interface Visita {
   dispositivo: string | null;
   navegador: string | null;
   assinante_id: string | null;
+  descartada?: boolean;
+  motivo_descarte?: string | null;
+  provedor?: string | null;
 }
 
 const STATUS: Record<Assinante["status"], { rotulo: string; classe: string }> = {
-  ativo: { rotulo: "Ativo", classe: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
-  pendente: { rotulo: "Aguardando confirmação", classe: "bg-amber-500/15 text-amber-800 dark:text-amber-300" },
-  cancelado: { rotulo: "Cancelado", classe: "bg-muted text-muted-foreground" },
+  ativo: {
+    rotulo: "Ativo",
+    classe: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  },
+  pendente: {
+    rotulo: "Aguardando confirmação",
+    classe: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  },
+  cancelado: {
+    rotulo: "Cancelado",
+    classe: "bg-muted text-muted-foreground",
+  },
 };
-const ICONE_DISPOSITIVO: Record<string, typeof Monitor> = { Celular: Smartphone, Tablet: Tablet, Computador: Monitor };
+const ICONE_DISPOSITIVO: Record<string, typeof Monitor> = {
+  Celular: Smartphone,
+  Tablet: Tablet,
+  Computador: Monitor,
+};
 
 function Barras({ itens, cor = "bg-primary" }: { itens: { nome: string; visitas: number }[]; cor?: string }) {
   const maior = Math.max(1, ...itens.map((i) => i.visitas));
@@ -111,6 +129,7 @@ export default function RadarGestao() {
   const { userRole } = useAuth();
   const [params] = useSearchParams();
   const [dias, setDias] = useState("30");
+  const [verDescartadas, setVerDescartadas] = useState(false);
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<"todos" | Assinante["status"]>("ativo");
   const [selecionados, setSelecionados] = useState<string[]>([]);
@@ -120,7 +139,9 @@ export default function RadarGestao() {
   const resumo = useQuery({
     queryKey: ["radar_gestao_resumo", dias],
     queryFn: async () => {
-      const { data, error } = await db.rpc("radar_visitas_resumo", { _dias: Number(dias) });
+      const { data, error } = await db.rpc("radar_visitas_resumo", {
+        _dias: Number(dias),
+      });
       if (error) throw error;
       return data as Resumo;
     },
@@ -160,7 +181,7 @@ export default function RadarGestao() {
     queryFn: async () => {
       const { data, error } = await db
         .from("radar_visitas")
-        .select("id, criado_em, visitante, pagina, origem, cidade, uf, pais, dispositivo, navegador, assinante_id")
+        .select("id, criado_em, visitante, pagina, origem, cidade, uf, pais, dispositivo, navegador, assinante_id, descartada, motivo_descarte, provedor")
         .order("criado_em", { ascending: false })
         .limit(300);
       if (error) throw error;
@@ -183,12 +204,17 @@ export default function RadarGestao() {
         prospects?: number | null;
         enviados: number;
         falhas: number;
+        pendentes?: number | null;
+        limite_diario?: number | null;
         erro: string | null;
       }[];
     },
   });
 
   const porId = useMemo(() => new Map((assinantes.data ?? []).map((a) => [a.id, a])), [assinantes.data]);
+  // robôs (verificadores de e-mail, prévias de redes sociais, servidores, fora do Brasil) ficam fora dos números
+  const listaVisitas = useMemo(() => (visitas.data ?? []).filter((v) => (verDescartadas ? v.descartada : !v.descartada)), [visitas.data, verDescartadas]);
+  const qtdDescartadasLista = useMemo(() => (visitas.data ?? []).filter((v) => v.descartada).length, [visitas.data]);
   const lista = useMemo(() => {
     const t = busca.trim().toLowerCase();
     return (assinantes.data ?? []).filter(
@@ -275,7 +301,10 @@ export default function RadarGestao() {
                       { v: r.visitas, rotulo: "visitas no período" },
                       { v: r.visitantes, rotulo: "pessoas diferentes" },
                       { v: r.hoje, rotulo: "visitas hoje" },
-                      { v: r.assinantes_visitaram, rotulo: "assinantes que voltaram pelo e-mail" },
+                      {
+                        v: r.assinantes_visitaram,
+                        rotulo: "assinantes que voltaram pelo e-mail",
+                      },
                     ].map((x) => (
                       <div key={x.rotulo} className="px-5 py-4">
                         <p className="text-3xl font-bold tabular-nums">{x.v}</p>
@@ -283,11 +312,27 @@ export default function RadarGestao() {
                       </div>
                     ))}
                   </div>
+                  {!!r.descartadas && (
+                    <p className="px-5 pt-3 text-[11px] text-muted-foreground">
+                      Fora dos números: {r.descartadas} {r.descartadas === 1 ? "acesso automático" : "acessos automáticos"} (
+                      {(r.motivos_descarte ?? []).map((m) => `${m.nome.replace(/ \(.*\)$/, "")}: ${m.visitas}`).join("; ")}
+                      ). Veja a lista em "Ver descartadas".
+                    </p>
+                  )}
                   <div className="px-5 pb-5 pt-2">
                     <div className="flex items-end gap-1 h-40" role="img" aria-label="Visitas por dia">
                       {r.por_dia.map((d) => (
-                        <div key={d.dia} className="group flex-1 h-full flex flex-col justify-end items-center" title={`${format(parseISO(d.dia), "dd/MM")}: ${d.visitas} visitas, ${d.visitantes} pessoas`}>
-                          <div className="w-full rounded-t-md bg-primary/80 group-hover:bg-primary transition-colors" style={{ height: `${d.visitas ? Math.max(4, (d.visitas / maiorDia) * 100) : 1}%` }} />
+                        <div
+                          key={d.dia}
+                          className="group flex-1 h-full flex flex-col justify-end items-center"
+                          title={`${format(parseISO(d.dia), "dd/MM")}: ${d.visitas} visitas, ${d.visitantes} pessoas`}
+                        >
+                          <div
+                            className="w-full rounded-t-md bg-primary/80 group-hover:bg-primary transition-colors"
+                            style={{
+                              height: `${d.visitas ? Math.max(4, (d.visitas / maiorDia) * 100) : 1}%`,
+                            }}
+                          />
                         </div>
                       ))}
                     </div>
@@ -320,29 +365,52 @@ export default function RadarGestao() {
             <section className={`${CARTAO} overflow-hidden`}>
               <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <h2 className="font-bold">Visitas recentes</h2>
-                  <p className="text-xs text-muted-foreground">Quem não é assinante aparece pelo local e dispositivo. Assinante que chega pelo e-mail aparece com o nome.</p>
+                  <h2 className="font-bold">{verDescartadas ? "Visitas descartadas (robôs)" : "Visitas recentes"}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {verDescartadas
+                      ? "Acessos automáticos que não entram nos números: verificadores de links dos e-mails, prévias de redes sociais, servidores e acessos de fora do Brasil."
+                      : "Quem não é assinante aparece pelo local e dispositivo. Assinante que chega pelo e-mail aparece com o nome. Robôs ficam de fora."}
+                  </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full"
-                  disabled={!visitas.data?.length}
-                  onClick={() =>
-                    baixar(
-                      `radar-visitas-${format(new Date(), "yyyy-MM-dd")}.csv`,
-                      csv([
-                        ["Data", "Quem", "Associação", "Cidade", "UF", "País", "Origem", "Dispositivo", "Navegador"],
-                        ...(visitas.data ?? []).map((v) => {
-                          const a = v.assinante_id ? porId.get(v.assinante_id) : null;
-                          return [format(parseISO(v.criado_em), "dd/MM/yyyy HH:mm"), a?.nome ?? a?.email ?? "Visitante", a?.associacao, v.cidade, v.uf, v.pais, v.origem ?? "Direto", v.dispositivo, v.navegador];
-                        }),
-                      ]),
-                    )
-                  }
-                >
-                  <Download className="h-4 w-4 mr-1.5" /> Exportar
-                </Button>
+                <div className="flex items-center gap-2">
+                  {(qtdDescartadasLista > 0 || verDescartadas) && (
+                    <Button variant="ghost" size="sm" className="rounded-full" onClick={() => setVerDescartadas((x) => !x)}>
+                      {verDescartadas ? "Voltar às visitas" : `Ver descartadas (${qtdDescartadasLista})`}
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full"
+                    disabled={!listaVisitas.length}
+                    onClick={() =>
+                      baixar(
+                        `radar-visitas${verDescartadas ? "-descartadas" : ""}-${format(new Date(), "yyyy-MM-dd")}.csv`,
+                        csv([
+                          ["Data", "Quem", "Associação", "Cidade", "UF", "País", "Origem", "Dispositivo", "Navegador", "Provedor", "Motivo do descarte"],
+                          ...listaVisitas.map((v) => {
+                            const a = v.assinante_id ? porId.get(v.assinante_id) : null;
+                            return [
+                              format(parseISO(v.criado_em), "dd/MM/yyyy HH:mm"),
+                              a?.nome ?? a?.email ?? "Visitante",
+                              a?.associacao,
+                              v.cidade,
+                              v.uf,
+                              v.pais,
+                              v.origem ?? "Direto",
+                              v.dispositivo,
+                              v.navegador,
+                              v.provedor,
+                              v.motivo_descarte,
+                            ];
+                          }),
+                        ]),
+                      )
+                    }
+                  >
+                    <Download className="h-4 w-4 mr-1.5" /> Exportar
+                  </Button>
+                </div>
               </div>
               <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
                 <table className="w-full text-sm">
@@ -362,14 +430,14 @@ export default function RadarGestao() {
                           <Loader2 className="h-4 w-4 animate-spin inline" />
                         </td>
                       </tr>
-                    ) : !visitas.data?.length ? (
+                    ) : !listaVisitas.length ? (
                       <tr>
                         <td colSpan={5} className="px-5 py-6 text-center text-muted-foreground">
-                          Nenhuma visita registrada ainda. As visitas passam a contar depois que a página nova for publicada.
+                          {verDescartadas ? "Nenhuma visita descartada." : "Nenhuma visita registrada ainda."}
                         </td>
                       </tr>
                     ) : (
-                      visitas.data.map((v) => {
+                      listaVisitas.map((v) => {
                         const a = v.assinante_id ? porId.get(v.assinante_id) : null;
                         const Icone = ICONE_DISPOSITIVO[v.dispositivo ?? ""] ?? Monitor;
                         return (
@@ -392,7 +460,15 @@ export default function RadarGestao() {
                               )}
                             </td>
                             <td className="px-3 py-2.5">{[v.cidade, v.uf].filter(Boolean).join(" - ") || v.pais || "Não identificado"}</td>
-                            <td className="px-3 py-2.5">{v.origem ?? "Direto"}</td>
+                            <td className="px-3 py-2.5">
+                              {v.descartada ? (
+                                <span className="block text-xs text-red-700" title={v.provedor ?? undefined}>
+                                  {v.motivo_descarte}
+                                </span>
+                              ) : (
+                                (v.origem ?? "Direto")
+                              )}
+                            </td>
                             <td className="px-3 py-2.5">
                               <span className="flex items-center gap-1.5 text-muted-foreground">
                                 <Icone className="h-3.5 w-3.5" /> {v.dispositivo}
@@ -415,7 +491,12 @@ export default function RadarGestao() {
               <div className="px-5 py-4 flex items-center gap-2 flex-wrap">
                 <div className="relative flex-1 min-w-[220px]">
                   <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, e-mail, associação ou telefone" className="pl-9 rounded-full" />
+                  <Input
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Buscar por nome, e-mail, associação ou telefone"
+                    className="pl-9 rounded-full"
+                  />
                 </div>
                 <div className="flex gap-1">
                   {(
@@ -519,7 +600,12 @@ export default function RadarGestao() {
                               {a.email}
                             </a>
                             {a.telefone && (
-                              <a href={`https://wa.me/55${a.telefone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="block text-xs text-muted-foreground hover:text-foreground">
+                              <a
+                                href={`https://wa.me/55${a.telefone.replace(/\D/g, "")}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block text-xs text-muted-foreground hover:text-foreground"
+                              >
                                 {telefoneBR(a.telefone)}
                               </a>
                             )}
@@ -580,22 +666,39 @@ export default function RadarGestao() {
                         className="py-3 px-2 -mx-2 rounded-2xl flex items-center justify-between gap-3 hover:bg-muted/40 transition-colors"
                         title="Ver as métricas da campanha"
                       >
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{c.assunto}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(parseISO(c.criado_em), "dd/MM/yyyy 'às' HH:mm")}
-                          {c.prospects ? `, ${c.assinantes ?? 0} assinantes + ${c.prospects} prospects` : ""}, {c.enviados} de {c.destinatarios} entregues ao provedor
-                          {c.falhas ? `, ${c.falhas} com falha` : ""}
-                        </p>
-                      </div>
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                          c.status === "enviada" ? STATUS.ativo.classe : c.status === "falhou" ? "bg-red-500/10 text-red-700" : STATUS.pendente.classe
-                        }`}
-                        title={c.erro ?? undefined}
-                      >
-                        {c.status === "enviada" ? "Enviada" : c.status === "falhou" ? "Falhou" : "Enviando"}
-                      </span>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{c.assunto}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(parseISO(c.criado_em), "dd/MM/yyyy 'às' HH:mm")}
+                            {c.prospects ? `, ${c.assinantes ?? 0} assinantes + ${c.prospects} prospects` : ""}, {c.enviados} de {c.destinatarios} entregues ao
+                            provedor
+                            {c.falhas ? `, ${c.falhas} com falha` : ""}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            c.status === "enviada"
+                              ? STATUS.ativo.classe
+                              : c.status === "falhou"
+                                ? "bg-red-500/10 text-red-700"
+                                : c.status === "pausada" || c.status === "cancelada"
+                                  ? "bg-muted text-muted-foreground"
+                                  : STATUS.pendente.classe
+                          }`}
+                          title={c.erro ?? undefined}
+                        >
+                          {c.status === "enviada"
+                            ? "Enviada"
+                            : c.status === "falhou"
+                              ? "Falhou"
+                              : c.status === "em_andamento"
+                                ? `Na fila: ${c.pendentes ?? 0}`
+                                : c.status === "pausada"
+                                  ? "Pausada"
+                                  : c.status === "cancelada"
+                                    ? "Fila cancelada"
+                                    : "Enviando"}
+                        </span>
                       </Link>
                     </li>
                   ))}
@@ -610,7 +713,13 @@ export default function RadarGestao() {
 }
 
 type Publico = "assinantes" | "prospects" | "todos";
-type ItemCampanha = { tipo: "noticia" | "comunicado"; id: string; titulo: string; origem: string; data: string };
+type ItemCampanha = {
+  tipo: "noticia" | "comunicado";
+  id: string;
+  titulo: string;
+  origem: string;
+  data: string;
+};
 type CampoTexto = "assunto" | "titulo" | "mensagem";
 
 /** Botão padrão da campanha: convite para assinar o Radar do mercado. */
@@ -672,9 +781,36 @@ function NovaCampanha({
   const [botaoTexto, setBotaoTexto] = useState(BOTAO_PADRAO.texto);
   const [botaoUrl, setBotaoUrl] = useState(BOTAO_PADRAO.url);
   // campos que a pessoa escreveu à mão não são sobrescritos pelo texto automático
-  const [editados, setEditados] = useState<Record<CampoTexto, boolean>>({ assunto: false, titulo: false, mensagem: false });
+  const [editados, setEditados] = useState<Record<CampoTexto, boolean>>({
+    assunto: false,
+    titulo: false,
+    mensagem: false,
+  });
   const [noticias, setNoticias] = useState<string[]>([]);
   const [confirmando, setConfirmando] = useState(false);
+  // envio em etapas: máximo por dia desta campanha (a cota do Resend é da conta inteira)
+  const [limite, setLimite] = useState("");
+  const [editandoCota, setEditandoCota] = useState(false);
+  const [cotaForm, setCotaForm] = useState({ cota: "", reserva: "" });
+  const cota = useQuery({
+    queryKey: ["radar_cota_envio"],
+    queryFn: cotaEnvio,
+    refetchInterval: 5 * 60_000,
+  });
+  const porDiaConta = cota.data ? (cota.data.cota ? Math.max(0, cota.data.cota - cota.data.reserva) : null) : null;
+  useEffect(() => {
+    if (!limite && porDiaConta) setLimite(String(porDiaConta));
+  }, [porDiaConta, limite]);
+  const salvarCota = useMutation({
+    mutationFn: () => salvarCotaEnvio(Number(cotaForm.cota) || 0, Number(cotaForm.reserva) || 0),
+    onSuccess: (r) => {
+      if (!r.ok) return toast.error(r.erro ?? "Não foi possível salvar");
+      toast.success("Cota de envio atualizada");
+      setEditandoCota(false);
+      cota.refetch();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Não foi possível salvar"),
+  });
 
   const [comunicados, setComunicados] = useState<string[]>([]);
   const totalItens = noticias.length + comunicados.length;
@@ -684,29 +820,31 @@ function NovaCampanha({
     queryKey: ["radar_gestao_noticias_recentes"],
     queryFn: async () => {
       const [not, com] = await Promise.all([
-        db
-          .from("mercado_noticias")
-          .select("id, titulo, origem, publicado_em")
-          .eq("oculto", false)
-          .order("publicado_em", { ascending: false })
-          .limit(20),
-        db
-          .from("comunicados")
-          .select("id, titulo, created_at")
-          .eq("ativo", true)
-          .eq("publico", true)
-          .order("created_at", { ascending: false })
-          .limit(20),
+        db.from("mercado_noticias").select("id, titulo, origem, publicado_em").eq("oculto", false).order("publicado_em", { ascending: false }).limit(20),
+        db.from("comunicados").select("id, titulo, created_at").eq("ativo", true).eq("publico", true).order("created_at", { ascending: false }).limit(20),
       ]);
       const itens: ItemCampanha[] = [
-        ...((not.data ?? []) as { id: string; titulo: string; origem: string | null; publicado_em: string }[]).map((n) => ({
+        ...(
+          (not.data ?? []) as {
+            id: string;
+            titulo: string;
+            origem: string | null;
+            publicado_em: string;
+          }[]
+        ).map((n) => ({
           tipo: "noticia" as const,
           id: n.id,
           titulo: n.titulo,
           origem: n.origem ?? "",
           data: n.publicado_em,
         })),
-        ...((com.data ?? []) as { id: string; titulo: string; created_at: string }[]).map((c) => ({
+        ...(
+          (com.data ?? []) as {
+            id: string;
+            titulo: string;
+            created_at: string;
+          }[]
+        ).map((c) => ({
           tipo: "comunicado" as const,
           id: c.id,
           titulo: c.titulo,
@@ -750,6 +888,7 @@ function NovaCampanha({
     publico,
     assinante_ids: selecionados.length ? selecionados : null,
     prospect_ids: prospectsSelecionados.length ? prospectsSelecionados : null,
+    limite_diario: Number(limite) > 0 ? Math.floor(Number(limite)) : null,
   });
   const envio = useMutation({
     mutationFn: (teste: boolean) => enviarCampanha(dados(teste)),
@@ -757,7 +896,13 @@ function NovaCampanha({
       setConfirmando(false);
       if (!r.ok) return toast.error(r.erro ?? "Não foi possível enviar");
       if (r.teste) return toast.success(`Teste enviado para ${r.email}`);
-      toast.success(`Campanha enviada para ${plural(r.enviados ?? 0, "destinatário", "destinatários")}${r.falhas ? ` (${r.falhas} com falha)` : ""}`);
+      if (r.pendentes)
+        toast.success(
+          `${plural(r.enviados ?? 0, "e-mail enviado", "e-mails enviados")} agora; ${plural(r.pendentes, "fica", "ficam")} na fila e ${r.pendentes === 1 ? "sai" : "saem"} nos próximos dias.`,
+          { description: r.motivo },
+        );
+      else toast.success(`Campanha enviada para ${plural(r.enviados ?? 0, "destinatário", "destinatários")}`);
+      cota.refetch();
       setAssunto("");
       setTitulo("");
       setMensagem("");
@@ -775,18 +920,37 @@ function NovaCampanha({
     },
   });
 
-  const valido = assunto.trim().length >= 3 && titulo.trim().length >= 3 && mensagem.trim().length >= 10 && (!botaoTexto.trim() || /^https?:\/\//.test(botaoUrl.trim()));
+  const valido =
+    assunto.trim().length >= 3 && titulo.trim().length >= 3 && mensagem.trim().length >= 10 && (!botaoTexto.trim() || /^https?:\/\//.test(botaoUrl.trim()));
   const qtdAssinantes = publico === "prospects" ? 0 : selecionados.length || ativos;
   const qtdProspects = publico === "assinantes" ? 0 : prospectsSelecionados.length || prospectsAtivos;
   // estimativa: no envio, prospect com e-mail de assinante não recebe em dobro
   const alvo = qtdAssinantes + qtdProspects;
   const descricao = [
-    publico !== "prospects" && (selecionados.length ? plural(selecionados.length, "assinante selecionado", "assinantes selecionados") : `todos os ${plural(ativos, "assinante ativo", "assinantes ativos")}`),
+    publico !== "prospects" &&
+      (selecionados.length
+        ? plural(selecionados.length, "assinante selecionado", "assinantes selecionados")
+        : `todos os ${plural(ativos, "assinante ativo", "assinantes ativos")}`),
     publico !== "assinantes" &&
-      (prospectsSelecionados.length ? plural(prospectsSelecionados.length, "prospect selecionado", "prospects selecionados") : `todos os ${plural(prospectsAtivos, "prospect ativo", "prospects ativos")}`),
+      (prospectsSelecionados.length
+        ? plural(prospectsSelecionados.length, "prospect selecionado", "prospects selecionados")
+        : `todos os ${plural(prospectsAtivos, "prospect ativo", "prospects ativos")}`),
   ]
     .filter(Boolean)
     .join(" + ");
+
+  // previsão: hoje sai o que cabe na cota que sobrou; depois, o máximo por dia (ou a cota da conta)
+  const maxDia = Number(limite) > 0 ? Math.floor(Number(limite)) : null;
+  const limiteConta = porDiaConta; // null = sem limite
+  const hojeCabe = Math.min(maxDia ?? Infinity, cota.data?.disponivel ?? Infinity);
+  const porDia = Math.min(maxDia ?? Infinity, limiteConta ?? Infinity);
+  const agoraQtd = Math.min(alvo, hojeCabe);
+  const dias = !alvo ? 0 : agoraQtd >= alvo ? 1 : porDia === Infinity || porDia <= 0 ? 1 : 1 + Math.ceil((alvo - agoraQtd) / porDia);
+  const previsao = !alvo
+    ? ""
+    : agoraQtd >= alvo
+      ? `Os ${alvo} saem hoje.`
+      : `${agoraQtd} saem agora e o restante em cerca de ${plural(dias - 1, "dia", "dias")} (${porDia === Infinity ? "sem limite" : `até ${porDia} por dia`}).`;
 
   return (
     <section className={`${CARTAO} p-5 space-y-4`}>
@@ -828,22 +992,43 @@ function NovaCampanha({
             </button>
           ))}
         </div>
-        <p className="text-[11px] text-muted-foreground">Para escolher quem recebe, marque as pessoas nas abas Assinantes ou Prospects. Sem marcação, vão todos os ativos do público escolhido.</p>
+        <p className="text-[11px] text-muted-foreground">
+          Para escolher quem recebe, marque as pessoas nas abas Assinantes ou Prospects. Sem marcação, vão todos os ativos do público escolhido.
+        </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="c-assunto">Assunto do e-mail</Label>
-            <Input id="c-assunto" value={assunto} onChange={(e) => editar("assunto", e.target.value, setAssunto)} maxLength={150} placeholder="Ex.: Vangard na Fenaprove 2026" />
+            <Input
+              id="c-assunto"
+              value={assunto}
+              onChange={(e) => editar("assunto", e.target.value, setAssunto)}
+              maxLength={150}
+              placeholder="Ex.: Vangard na Fenaprove 2026"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="c-titulo">Título</Label>
-            <Input id="c-titulo" value={titulo} onChange={(e) => editar("titulo", e.target.value, setTitulo)} maxLength={150} placeholder="Título que aparece no topo do e-mail" />
+            <Input
+              id="c-titulo"
+              value={titulo}
+              onChange={(e) => editar("titulo", e.target.value, setTitulo)}
+              maxLength={150}
+              placeholder="Título que aparece no topo do e-mail"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="c-msg">Mensagem</Label>
-            <Textarea id="c-msg" value={mensagem} onChange={(e) => editar("mensagem", e.target.value, setMensagem)} maxLength={5000} rows={8} placeholder="Escreva o texto. Linha em branco separa os parágrafos." />
+            <Textarea
+              id="c-msg"
+              value={mensagem}
+              onChange={(e) => editar("mensagem", e.target.value, setMensagem)}
+              maxLength={5000}
+              rows={8}
+              placeholder="Escreva o texto. Linha em branco separa os parágrafos."
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -877,7 +1062,9 @@ function NovaCampanha({
 
         <div className="space-y-1.5">
           <Label>Incluir notícias e comunicados do Radar (opcional, até 10)</Label>
-          <p className="text-[11px] text-muted-foreground">Ao marcar, assunto, título e mensagem são preenchidos no padrão da newsletter. O que você escrever à mão é mantido.</p>
+          <p className="text-[11px] text-muted-foreground">
+            Ao marcar, assunto, título e mensagem são preenchidos no padrão da newsletter. O que você escrever à mão é mantido.
+          </p>
           <div className="rounded-2xl border border-border/60 max-h-[420px] overflow-y-auto divide-y divide-border/40">
             {recentes.isLoading ? (
               <div className="p-4 text-center">
@@ -888,17 +1075,17 @@ function NovaCampanha({
                 const lista = n.tipo === "comunicado" ? comunicados : noticias;
                 const marcada = lista.includes(n.id);
                 return (
-                  <label key={`${n.tipo}-${n.id}`} className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/40 ${marcada ? "bg-primary/5" : ""}`}>
-                    <Checkbox
-                      checked={marcada}
-                      disabled={!marcada && totalItens >= 10}
-                      onCheckedChange={(v) => alternar(n, v === true)}
-                      className="mt-0.5"
-                    />
+                  <label
+                    key={`${n.tipo}-${n.id}`}
+                    className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/40 ${marcada ? "bg-primary/5" : ""}`}
+                  >
+                    <Checkbox checked={marcada} disabled={!marcada && totalItens >= 10} onCheckedChange={(v) => alternar(n, v === true)} className="mt-0.5" />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium leading-snug line-clamp-2">
                         {n.tipo === "comunicado" && (
-                          <span className="mr-1.5 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 align-middle text-[10px] font-semibold uppercase text-amber-700">Comunicado</span>
+                          <span className="mr-1.5 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 align-middle text-[10px] font-semibold uppercase text-amber-700">
+                            Comunicado
+                          </span>
                         )}
                         {n.titulo}
                       </span>
@@ -914,6 +1101,85 @@ function NovaCampanha({
         </div>
       </div>
 
+      <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 space-y-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Label htmlFor="c-limite" className="shrink-0">
+            Máximo de e-mails por dia
+          </Label>
+          <Input
+            id="c-limite"
+            type="number"
+            min={1}
+            max={5000}
+            value={limite}
+            onChange={(e) => setLimite(e.target.value)}
+            placeholder="sem limite"
+            className="w-32 rounded-full"
+          />
+          <span className="text-xs text-muted-foreground">{previsao}</span>
+        </div>
+        {cota.data && !editandoCota && (
+          <p className="text-[11px] text-muted-foreground">
+            {cota.data.cota
+              ? `Cota da conta no Resend: ${cota.data.cota} por dia, com ${cota.data.reserva} reservados para contratos do Uon1 Sign, confirmações e a newsletter diária. Hoje já saíram ${cota.data.enviadosHoje}; campanhas ainda podem usar ${cota.data.disponivel ?? 0}. A cota zera às 21h.`
+              : `Conta sem limite diário de envio. Hoje já saíram ${cota.data.enviadosHoje} e-mails.`}{" "}
+            Quem não couber hoje fica na fila e sai de hora em hora, das 9h às 18h, nos próximos dias.{" "}
+            <button
+              type="button"
+              className="font-semibold text-primary hover:underline"
+              onClick={() => {
+                setCotaForm({
+                  cota: String(cota.data!.cota),
+                  reserva: String(cota.data!.reserva),
+                });
+                setEditandoCota(true);
+              }}
+            >
+              Alterar cota
+            </button>
+          </p>
+        )}
+        {editandoCota && (
+          <div className="flex items-end gap-2 flex-wrap">
+            <div className="space-y-1">
+              <Label htmlFor="c-cota" className="text-xs">
+                Cota diária da conta (0 = sem limite)
+              </Label>
+              <Input
+                id="c-cota"
+                type="number"
+                min={0}
+                value={cotaForm.cota}
+                onChange={(e) => setCotaForm((f) => ({ ...f, cota: e.target.value }))}
+                className="w-40 rounded-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="c-reserva" className="text-xs">
+                Reserva para outros e-mails
+              </Label>
+              <Input
+                id="c-reserva"
+                type="number"
+                min={0}
+                value={cotaForm.reserva}
+                onChange={(e) => setCotaForm((f) => ({ ...f, reserva: e.target.value }))}
+                className="w-40 rounded-full"
+              />
+            </div>
+            <Button size="sm" className="rounded-full" onClick={() => salvarCota.mutate()} disabled={salvarCota.isPending}>
+              {salvarCota.isPending && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />} Salvar
+            </Button>
+            <Button size="sm" variant="ghost" className="rounded-full" onClick={() => setEditandoCota(false)}>
+              Cancelar
+            </Button>
+            <p className="w-full text-[11px] text-muted-foreground">
+              Plano gratuito do Resend: 100 por dia. Ao contratar o Pro (sem limite diário), coloque 0.
+            </p>
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center justify-end gap-2 flex-wrap border-t pt-4">
         <Button variant="outline" className="rounded-full" disabled={!valido || envio.isPending} onClick={() => envio.mutate(true)}>
           {envio.isPending && envio.variables === true ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Mail className="h-4 w-4 mr-1.5" />}
@@ -925,7 +1191,9 @@ function NovaCampanha({
           </Button>
         ) : (
           <div className="flex items-center gap-2 rounded-full bg-amber-500/15 pl-4 pr-1 py-1">
-            <span className="text-sm">Confirmar o envio para {descricao}?</span>
+            <span className="text-sm">
+              Confirmar o envio para {descricao}?{agoraQtd < alvo ? ` Saem ${agoraQtd} agora e o restante fica na fila.` : ""}
+            </span>
             <Button size="sm" variant="ghost" className="rounded-full" onClick={() => setConfirmando(false)} disabled={envio.isPending}>
               Voltar
             </Button>

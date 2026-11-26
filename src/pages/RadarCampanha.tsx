@@ -1,10 +1,15 @@
 import { Fragment, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   ArrowLeft,
+  Clock,
+  Pause,
+  Play,
+  Send,
   ChevronDown,
   ChevronRight,
   Download,
@@ -29,6 +34,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { controlarCampanha, type OperacaoCampanha } from "@/lib/radar/newsletter";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -55,8 +61,14 @@ interface Campanha {
   prospects: number | null;
   noticias: string[] | null;
   erro: string | null;
+  limite_diario: number | null;
+  pendentes: number | null;
+  ultimo_lote_em: string | null;
 }
 interface Metricas {
+  pendentes?: number;
+  cancelados?: number;
+  enviados_hoje?: number;
   rastreada: boolean;
   destinatarios: number;
   enviados: number;
@@ -82,7 +94,7 @@ interface Envio {
   nome: string | null;
   associacao: string | null;
   tipo: "assinante" | "prospect";
-  status: "enviando" | "enviado" | "falhou" | "entregue" | "atrasado" | "devolvido" | "spam";
+  status: "pendente" | "cancelado" | "enviando" | "enviado" | "falhou" | "entregue" | "atrasado" | "devolvido" | "spam";
   erro: string | null;
   enviado_em: string | null;
   entregue_em: string | null;
@@ -105,9 +117,17 @@ interface Evento {
 }
 
 const ENTREGA: Record<Envio["status"], { rotulo: string; classe: string }> = {
+  pendente: { rotulo: "Na fila", classe: "bg-muted text-muted-foreground" },
+  cancelado: {
+    rotulo: "Não enviado (cancelado)",
+    classe: "bg-muted text-muted-foreground",
+  },
   enviando: { rotulo: "Enviando", classe: "bg-amber-500/15 text-amber-800" },
   enviado: { rotulo: "Enviado", classe: "bg-sky-500/10 text-sky-700" },
-  entregue: { rotulo: "Entregue", classe: "bg-emerald-500/10 text-emerald-700" },
+  entregue: {
+    rotulo: "Entregue",
+    classe: "bg-emerald-500/10 text-emerald-700",
+  },
   atrasado: { rotulo: "Atrasado", classe: "bg-amber-500/15 text-amber-800" },
   falhou: { rotulo: "Não enviado", classe: "bg-red-500/10 text-red-700" },
   devolvido: { rotulo: "Devolvido", classe: "bg-red-500/10 text-red-700" },
@@ -124,18 +144,43 @@ const EVENTO: Record<string, string> = {
   devolucao: "E-mail devolvido",
   spam: "Marcou como spam",
 };
-const ICONE_DISPOSITIVO: Record<string, typeof Monitor> = { Celular: Smartphone, Tablet: Tablet, Computador: Monitor };
+const ICONE_DISPOSITIVO: Record<string, typeof Monitor> = {
+  Celular: Smartphone,
+  Tablet: Tablet,
+  Computador: Monitor,
+};
 const naoRecebeu = (e: Envio) => e.status === "falhou" || e.status === "devolvido";
 
-type Filtro = "todos" | "abriram" | "nao_abriram" | "clicaram" | "assinaram" | "descadastraram" | "nao_receberam";
+type Filtro = "todos" | "na_fila" | "abriram" | "nao_abriram" | "clicaram" | "assinaram" | "descadastraram" | "nao_receberam";
 const FILTROS: { id: Filtro; rotulo: string; testa: (e: Envio) => boolean }[] = [
   { id: "todos", rotulo: "Todos", testa: () => true },
+  {
+    id: "na_fila",
+    rotulo: "Na fila",
+    testa: (e) => e.status === "pendente" || e.status === "enviando",
+  },
   { id: "abriram", rotulo: "Abriram", testa: (e) => !!e.aberto_em },
-  { id: "nao_abriram", rotulo: "Não abriram", testa: (e) => !e.aberto_em && !naoRecebeu(e) },
+  {
+    id: "nao_abriram",
+    rotulo: "Não abriram",
+    testa: (e) => !e.aberto_em && !naoRecebeu(e) && !!e.enviado_em,
+  },
   { id: "clicaram", rotulo: "Clicaram", testa: (e) => !!e.clicado_em },
-  { id: "assinaram", rotulo: "Assinaram", testa: (e) => !!e.assinou_em || !!e.inscreveu_em },
-  { id: "descadastraram", rotulo: "Descadastraram", testa: (e) => !!e.descadastrou_em },
-  { id: "nao_receberam", rotulo: "Não receberam", testa: (e) => naoRecebeu(e) || e.status === "spam" },
+  {
+    id: "assinaram",
+    rotulo: "Assinaram",
+    testa: (e) => !!e.assinou_em || !!e.inscreveu_em,
+  },
+  {
+    id: "descadastraram",
+    rotulo: "Descadastraram",
+    testa: (e) => !!e.descadastrou_em,
+  },
+  {
+    id: "nao_receberam",
+    rotulo: "Não receberam",
+    testa: (e) => naoRecebeu(e) || e.status === "spam",
+  },
 ];
 
 function csv(linhas: (string | number | null | undefined)[][]) {
@@ -160,7 +205,19 @@ function linkLegivel(url: string) {
   }
 }
 
-function Indicador({ icone: Icone, rotulo, valor, detalhe, cor = "text-primary" }: { icone: typeof Mail; rotulo: string; valor: string | number; detalhe?: string; cor?: string }) {
+function Indicador({
+  icone: Icone,
+  rotulo,
+  valor,
+  detalhe,
+  cor = "text-primary",
+}: {
+  icone: typeof Mail;
+  rotulo: string;
+  valor: string | number;
+  detalhe?: string;
+  cor?: string;
+}) {
   return (
     <div className={`${CARTAO} p-4`}>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -187,7 +244,13 @@ function Funil({ etapas }: { etapas: { rotulo: string; n: number }[] }) {
             </span>
           </div>
           <div className="h-2.5 rounded-full bg-muted mt-1 overflow-hidden">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${e.n ? Math.max(2, (e.n / topo) * 100) : 0}%`, opacity: 1 - i * 0.13 }} />
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{
+                width: `${e.n ? Math.max(2, (e.n / topo) * 100) : 0}%`,
+                opacity: 1 - i * 0.13,
+              }}
+            />
           </div>
         </li>
       ))}
@@ -203,7 +266,12 @@ function Atividade({ inicio, pontos }: { inicio: string; pontos: Metricas["por_h
     const fim = Math.min(Date.now(), comeco.getTime() + 72 * 3600_000);
     const mapa = new Map(pontos.map((p) => [new Date(p.hora).getTime(), p]));
     const lista: { t: number; aberturas: number; cliques: number }[] = [];
-    for (let t = comeco.getTime(); t <= fim; t += 3600_000) lista.push({ t, aberturas: mapa.get(t)?.aberturas ?? 0, cliques: mapa.get(t)?.cliques ?? 0 });
+    for (let t = comeco.getTime(); t <= fim; t += 3600_000)
+      lista.push({
+        t,
+        aberturas: mapa.get(t)?.aberturas ?? 0,
+        cliques: mapa.get(t)?.cliques ?? 0,
+      });
     return lista;
   }, [inicio, pontos]);
   const maior = Math.max(1, ...horas.map((h) => h.aberturas + h.cliques));
@@ -218,7 +286,10 @@ function Atividade({ inicio, pontos }: { inicio: string; pontos: Metricas["por_h
             title={`${format(new Date(h.t), "dd/MM HH'h'")}: ${h.aberturas} aberturas, ${h.cliques} cliques`}
           >
             <div className="w-full bg-amber-500 rounded-t-sm" style={{ height: `${(h.cliques / maior) * 100}%` }} />
-            <div className={`w-full bg-primary/80 group-hover:bg-primary ${h.cliques ? "" : "rounded-t-sm"}`} style={{ height: `${(h.aberturas / maior) * 100}%` }} />
+            <div
+              className={`w-full bg-primary/80 group-hover:bg-primary ${h.cliques ? "" : "rounded-t-sm"}`}
+              style={{ height: `${(h.aberturas / maior) * 100}%` }}
+            />
           </div>
         ))}
       </div>
@@ -296,7 +367,9 @@ export default function RadarCampanha() {
     enabled: permitido && !!id,
     refetchInterval: 60_000,
     queryFn: async () => {
-      const { data, error } = await db.rpc("radar_campanha_metricas", { _campanha: id });
+      const { data, error } = await db.rpc("radar_campanha_metricas", {
+        _campanha: id,
+      });
       if (error) throw error;
       return data as Metricas;
     },
@@ -323,6 +396,26 @@ export default function RadarCampanha() {
     return (envios.data ?? []).filter((e) => f.testa(e) && (!t || [e.email, e.nome, e.associacao].some((x) => (x ?? "").toLowerCase().includes(t))));
   }, [envios.data, filtro, busca]);
 
+  const [limiteNovo, setLimiteNovo] = useState("");
+  const controle = useMutation({
+    mutationFn: ({ op, limite }: { op: OperacaoCampanha; limite?: number | null }) => controlarCampanha(id, op, limite),
+    onSuccess: (r, v) => {
+      if (!r.ok) return toast.error(r.erro ?? "Não foi possível concluir");
+      if (v.op === "enviar_agora") {
+        if (r.enviados)
+          toast.success(`${r.enviados} e-mails enviados agora`, {
+            description: r.motivo,
+          });
+        else toast.info(r.motivo ?? "Nada a enviar agora");
+      } else toast.success("Campanha atualizada");
+      setLimiteNovo("");
+      campanha.refetch();
+      metricas.refetch();
+      envios.refetch();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Não foi possível concluir"),
+  });
+
   if (!permitido) return <Navigate to="/dashboard" replace />;
 
   const c = campanha.data;
@@ -342,7 +435,23 @@ export default function RadarCampanha() {
     baixar(
       `campanha-${format(parseISO(c?.criado_em ?? new Date().toISOString()), "yyyy-MM-dd")}.csv`,
       csv([
-        ["E-mail", "Nome", "Associação", "Tipo", "Entrega", "Erro", "Enviado em", "Entregue em", "Abriu em", "Aberturas", "Clicou em", "Cliques", "Inscreveu em", "Assinou em", "Descadastrou em"],
+        [
+          "E-mail",
+          "Nome",
+          "Associação",
+          "Tipo",
+          "Entrega",
+          "Erro",
+          "Enviado em",
+          "Entregue em",
+          "Abriu em",
+          "Aberturas",
+          "Clicou em",
+          "Cliques",
+          "Inscreveu em",
+          "Assinou em",
+          "Descadastrou em",
+        ],
         ...lista.map((e) => [
           e.email,
           e.nome,
@@ -406,20 +515,124 @@ export default function RadarCampanha() {
           </div>
         ) : metricas.isError ? (
           <section className={`${CARTAO} p-5 text-sm text-muted-foreground flex gap-2`}>
-            <Info className="h-4 w-4 mt-0.5 shrink-0" />O acompanhamento de campanhas ainda não está ativo no banco de dados. Os números aparecem depois que a atualização for aplicada.
+            <Info className="h-4 w-4 mt-0.5 shrink-0" />O acompanhamento de campanhas ainda não está ativo no banco de dados. Os números aparecem depois que a
+            atualização for aplicada.
           </section>
         ) : (
           <>
             {!rastreada && (
               <section className={`${CARTAO} p-4 text-sm text-muted-foreground flex gap-2`}>
                 <Info className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                Esta campanha foi enviada antes do acompanhamento existir: só há o total de envios. As próximas campanhas mostram aberturas, cliques, assinaturas e
-                descadastros de cada pessoa.
+                Esta campanha foi enviada antes do acompanhamento existir: só há o total de envios. As próximas campanhas mostram aberturas, cliques,
+                assinaturas e descadastros de cada pessoa.
+              </section>
+            )}
+
+            {c && (m?.pendentes ?? 0) > 0 && (c.status === "em_andamento" || c.status === "pausada") && (
+              <section className={`${CARTAO} p-5 space-y-3`}>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <h2 className="font-bold flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-primary" /> Fila de envio{" "}
+                      {c.status === "pausada" && <span className="text-xs font-semibold text-muted-foreground">(pausada)</span>}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {m!.pendentes} {m!.pendentes === 1 ? "pessoa ainda vai" : "pessoas ainda vão"} receber ·{" "}
+                      {c.limite_diario ? `até ${c.limite_diario} por dia` : "sem limite por dia (só a cota da conta)"}
+                      {c.limite_diario
+                        ? ` · termina em cerca de ${Math.ceil(m!.pendentes! / c.limite_diario)} ${Math.ceil(m!.pendentes! / c.limite_diario) === 1 ? "dia" : "dias"}`
+                        : ""}
+                      {m!.enviados_hoje ? ` · ${m!.enviados_hoje} saíram hoje` : ""}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">Sai de hora em hora, das 9h às 18h, sem passar da cota diária da conta no Resend.</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {c.status === "em_andamento" ? (
+                      <>
+                        <Button size="sm" className="rounded-full" onClick={() => controle.mutate({ op: "enviar_agora" })} disabled={controle.isPending}>
+                          {controle.isPending && controle.variables?.op === "enviar_agora" ? (
+                            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4 mr-1.5" />
+                          )}
+                          Enviar próximo lote agora
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full"
+                          onClick={() => controle.mutate({ op: "pausar" })}
+                          disabled={controle.isPending}
+                        >
+                          <Pause className="h-4 w-4 mr-1.5" /> Pausar
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" className="rounded-full" onClick={() => controle.mutate({ op: "retomar" })} disabled={controle.isPending}>
+                        <Play className="h-4 w-4 mr-1.5" /> Retomar
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full text-red-700"
+                      disabled={controle.isPending}
+                      onClick={() => {
+                        if (window.confirm(`Cancelar o envio para as ${m!.pendentes} pessoas que ainda estão na fila? Quem já recebeu não é afetado.`))
+                          controle.mutate({ op: "cancelar_fila" });
+                      }}
+                    >
+                      Cancelar fila
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm">Máximo por dia:</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={5000}
+                    value={limiteNovo}
+                    onChange={(e) => setLimiteNovo(e.target.value)}
+                    placeholder={c.limite_diario ? String(c.limite_diario) : "sem limite"}
+                    className="w-28 rounded-full h-8"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full"
+                    disabled={controle.isPending || !limiteNovo}
+                    onClick={() =>
+                      controle.mutate({
+                        op: "limite",
+                        limite: Number(limiteNovo) > 0 ? Math.floor(Number(limiteNovo)) : null,
+                      })
+                    }
+                  >
+                    Salvar
+                  </Button>
+                  <div className="flex-1 min-w-[8rem] h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full"
+                      style={{
+                        width: `${(enviados / Math.max(1, m!.destinatarios)) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {enviados} de {m!.destinatarios} enviados
+                  </span>
+                </div>
               </section>
             )}
 
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-              <Indicador icone={Users} rotulo="Destinatários" valor={rastreada ? m!.destinatarios : (c?.destinatarios ?? 0)} detalhe={`${enviados} enviados ao provedor`} />
+              <Indicador
+                icone={Users}
+                rotulo="Destinatários"
+                valor={rastreada ? m!.destinatarios : (c?.destinatarios ?? 0)}
+                detalhe={`${enviados} enviados ao provedor${m?.pendentes ? ` · ${m.pendentes} na fila` : ""}`}
+              />
               <Indicador
                 icone={MailCheck}
                 rotulo="Entregues"
@@ -427,7 +640,12 @@ export default function RadarCampanha() {
                 detalhe={temEntrega ? `${pct(entregues, enviados)} dos enviados` : "aguardando o retorno do provedor"}
                 cor="text-emerald-600"
               />
-              <Indicador icone={MailOpen} rotulo="Abriram" valor={rastreada ? m!.abriram : "—"} detalhe={rastreada ? `${pct(m!.abriram, baseAbertura)} · ${m!.aberturas} aberturas` : undefined} />
+              <Indicador
+                icone={MailOpen}
+                rotulo="Abriram"
+                valor={rastreada ? m!.abriram : "—"}
+                detalhe={rastreada ? `${pct(m!.abriram, baseAbertura)} · ${m!.aberturas} aberturas` : undefined}
+              />
               <Indicador
                 icone={MousePointerClick}
                 rotulo="Clicaram"
@@ -442,7 +660,13 @@ export default function RadarCampanha() {
                 detalhe={rastreada ? `${m!.inscreveram} fizeram a inscrição · ${pct(m!.assinaram, enviados)} dos enviados` : undefined}
                 cor="text-emerald-600"
               />
-              <Indicador icone={UserMinus} rotulo="Descadastraram" valor={rastreada ? m!.descadastraram : "—"} detalhe={rastreada ? pct(m!.descadastraram, enviados) : undefined} cor="text-muted-foreground" />
+              <Indicador
+                icone={UserMinus}
+                rotulo="Descadastraram"
+                valor={rastreada ? m!.descadastraram : "—"}
+                detalhe={rastreada ? pct(m!.descadastraram, enviados) : undefined}
+                cor="text-muted-foreground"
+              />
               <Indicador
                 icone={MailX}
                 rotulo="Não receberam"
@@ -450,7 +674,13 @@ export default function RadarCampanha() {
                 detalhe={rastreada ? `${m!.falharam} não enviados · ${m!.devolvidos} devolvidos` : "falhas no envio"}
                 cor="text-red-600"
               />
-              <Indicador icone={MailX} rotulo="Marcaram como spam" valor={rastreada ? m!.spam : "—"} detalhe={rastreada && m!.atrasados ? `${m!.atrasados} com entrega atrasada` : undefined} cor="text-red-600" />
+              <Indicador
+                icone={MailX}
+                rotulo="Marcaram como spam"
+                valor={rastreada ? m!.spam : "—"}
+                detalhe={rastreada && m!.atrasados ? `${m!.atrasados} com entrega atrasada` : undefined}
+                cor="text-red-600"
+              />
             </div>
 
             {rastreada && (
@@ -512,7 +742,12 @@ export default function RadarCampanha() {
                                 <span className="tabular-nums font-semibold">{pct(d.eventos, total)}</span>
                               </div>
                               <div className="h-1.5 rounded-full bg-muted mt-1 overflow-hidden">
-                                <div className="h-full rounded-full bg-primary" style={{ width: `${(d.eventos / Math.max(1, total)) * 100}%` }} />
+                                <div
+                                  className="h-full rounded-full bg-primary"
+                                  style={{
+                                    width: `${(d.eventos / Math.max(1, total)) * 100}%`,
+                                  }}
+                                />
                               </div>
                             </li>
                           );
@@ -528,7 +763,12 @@ export default function RadarCampanha() {
                     <div className="flex items-center gap-2">
                       <div className="relative">
                         <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar e-mail, nome ou associação" className="pl-9 rounded-full w-64" />
+                        <Input
+                          value={busca}
+                          onChange={(e) => setBusca(e.target.value)}
+                          placeholder="Buscar e-mail, nome ou associação"
+                          className="pl-9 rounded-full w-64"
+                        />
                       </div>
                       <Button variant="outline" className="rounded-full" onClick={exportar} disabled={!lista.length}>
                         <Download className="h-4 w-4 mr-1.5" /> Exportar
@@ -567,7 +807,11 @@ export default function RadarCampanha() {
                               <tr className="hover:bg-muted/30 cursor-pointer align-top" onClick={() => setAberto(exp ? null : e.id)}>
                                 <td className="py-2.5 pr-3">
                                   <div className="flex items-start gap-1.5">
-                                    {exp ? <ChevronDown className="h-4 w-4 mt-0.5 shrink-0" /> : <ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />}
+                                    {exp ? (
+                                      <ChevronDown className="h-4 w-4 mt-0.5 shrink-0" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+                                    )}
                                     <div className="min-w-0">
                                       <p className="font-medium truncate">{e.email}</p>
                                       <p className="text-xs text-muted-foreground truncate">
@@ -577,7 +821,10 @@ export default function RadarCampanha() {
                                   </div>
                                 </td>
                                 <td className="py-2.5 pr-3">
-                                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${ENTREGA[e.status]?.classe ?? ""}`} title={e.erro ?? undefined}>
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${ENTREGA[e.status]?.classe ?? ""}`}
+                                    title={e.erro ?? undefined}
+                                  >
                                     {ENTREGA[e.status]?.rotulo ?? e.status}
                                   </span>
                                 </td>
@@ -612,7 +859,9 @@ export default function RadarCampanha() {
                                     <span className="text-muted-foreground">—</span>
                                   )}
                                 </td>
-                                <td className="py-2.5 text-xs text-muted-foreground whitespace-nowrap">{e.ultima_atividade_em ? ha(e.ultima_atividade_em) : "—"}</td>
+                                <td className="py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                                  {e.ultima_atividade_em ? ha(e.ultima_atividade_em) : "—"}
+                                </td>
                               </tr>
                               {exp && (
                                 <tr className="bg-muted/20">
@@ -636,8 +885,8 @@ export default function RadarCampanha() {
                     </table>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Abertura é contada quando o programa de e-mail carrega as imagens: alguns (como o Apple Mail) carregam sozinhos e outros bloqueiam, então use como
-                    tendência. Clique, inscrição e descadastro são registrados com precisão.
+                    Abertura é contada quando o programa de e-mail carrega as imagens: alguns (como o Apple Mail) carregam sozinhos e outros bloqueiam, então
+                    use como tendência. Clique, inscrição e descadastro são registrados com precisão.
                   </p>
                 </section>
               </>

@@ -123,12 +123,41 @@ export interface Campanha {
   assinante_ids?: string[] | null;
   /** vazio = todos os prospects ativos */
   prospect_ids?: string[] | null;
+  /** máximo por dia desta campanha (vazio = só a cota da conta) */
+  limite_diario?: number | null;
 }
 export const enviarCampanha = (c: Campanha) =>
-  chamar<{ ok: boolean; teste?: boolean; email?: string; enviados?: number; falhas?: number; destinatarios?: number; prospects?: number; erro?: string }>({
+  chamar<{
+    ok: boolean;
+    teste?: boolean;
+    email?: string;
+    id?: string;
+    enviados?: number;
+    pendentes?: number;
+    motivo?: string;
+    destinatarios?: number;
+    prospects?: number;
+    erro?: string;
+  }>({
     acao: "campanha",
     ...c,
   });
+
+/** Cota diária de e-mails da conta (Resend): 0 = sem limite. `disponivel` é o que as campanhas ainda podem usar hoje. */
+export interface CotaEnvio {
+  ok: boolean;
+  cota: number;
+  reserva: number;
+  enviadosHoje: number;
+  disponivel: number | null;
+  erro?: string;
+}
+export const cotaEnvio = () => chamar<CotaEnvio>({ acao: "cota" });
+export const salvarCotaEnvio = (cota_diaria: number, reserva: number) => chamar<CotaEnvio>({ acao: "envio_config", cota_diaria, reserva });
+
+export type OperacaoCampanha = "pausar" | "retomar" | "limite" | "enviar_agora" | "cancelar_fila";
+export const controlarCampanha = (id: string, operacao: OperacaoCampanha, limite?: number | null) =>
+  chamar<{ ok: boolean; erro?: string; enviados?: number; pendentes?: number; motivo?: string }>({ acao: "campanha_controle", id, operacao, limite });
 
 // Lembra neste aparelho que a pessoa já assinou, para não mostrar o convite de novo.
 const CHAVE_LOCAL = "radar_newsletter";

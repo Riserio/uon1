@@ -164,8 +164,17 @@ async function registrarInteracao(req: Request, envio: string, tipo: "abertura" 
       .eq("id", envio)
       .maybeSingle();
     if (!e) return;
+    // verificadores de links de e-mail abrem e clicam em tudo logo após a entrega: não contam
+    const ua = req.headers.get("user-agent") ?? "";
+    const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+    const local = UA_PROXY_EMAIL.test(ua) ? null : await localizar(ip);
+    const robo = motivoRobo({ ua, provedor: local?.provedor, utm: url ? new URL(url).searchParams.get("utm_source") : null });
+    if (robo) {
+      console.log("[radar-newsletter] interação de robô ignorada:", tipo, robo);
+      return;
+    }
     const agora = new Date().toISOString();
-    const disp = dispositivoDe(req.headers.get("user-agent") ?? "");
+    const disp = dispositivoDe(ua);
     const muda: Record<string, unknown> = { ultima_atividade_em: agora, aberto_em: e.aberto_em ?? agora };
     if (tipo === "abertura") muda.aberturas = (e.aberturas ?? 0) + 1;
     else {
@@ -698,23 +707,47 @@ async function sha256(texto: string) {
 }
 
 /** Cidade aproximada pelo endereço de rede (dois serviços, o segundo como reserva). */
-async function localizar(ip: string): Promise<{ cidade: string | null; uf: string | null; pais: string | null }> {
-  const vazio = { cidade: null, uf: null, pais: null };
+type Local = { cidade: string | null; uf: string | null; pais: string | null; provedor?: string | null };
+async function localizar(ip: string): Promise<Local> {
+  const vazio: Local = { cidade: null, uf: null, pais: null, provedor: null };
   if (!ip || /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|fc|fd)/i.test(ip)) return vazio;
   try {
-    const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,city,region_code,country&lang=pt-BR`, { signal: AbortSignal.timeout(2500) });
+    const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,city,region_code,country,connection&lang=pt-BR`, { signal: AbortSignal.timeout(2500) });
     const j = await r.json();
-    if (j?.success) return { cidade: j.city || null, uf: j.region_code || null, pais: j.country || null };
+    if (j?.success) {
+      const provedor = [j.connection?.org, j.connection?.isp].filter(Boolean).join(" / ").slice(0, 160) || null;
+      return { cidade: j.city || null, uf: j.region_code || null, pais: j.country || null, provedor };
+    }
   } catch {
     // tenta o próximo
   }
   try {
     const r = await fetch(`https://get.geojs.io/v1/ip/geo/${encodeURIComponent(ip)}.json`, { signal: AbortSignal.timeout(2500) });
     const j = await r.json();
-    return { cidade: j?.city || null, uf: null, pais: j?.country || null };
+    return { cidade: j?.city || null, uf: null, pais: j?.country || null, provedor: j?.organization_name || null };
   } catch {
     return vazio;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Robôs: verificadores de links de e-mail, prévias de redes sociais e servidores
+// ---------------------------------------------------------------------------
+const UA_ROBO = /bot|crawl|spider|slurp|preview|facebookexternalhit|meta-externalagent|whatsapp|telegram|skype|slack|discord|headless|phantom|python|curl|wget|java\/|go-http|okhttp|axios|node-fetch|scanner|lighthouse|pingdom|uptime|proofpoint|mimecast|barracuda|safelinks/i;
+// leitores de e-mail que buscam as imagens por um servidor próprio: abertura de verdade
+const UA_PROXY_EMAIL = /GoogleImageProxy|YahooMailProxy|ggpht\.com/i;
+// redes de servidores/nuvem e filtros de e-mail (gente de verdade navega por operadora, não por aqui)
+const PROVEDOR_SERVIDOR = /microsoft|azure|amazon|aws|google llc|google cloud|googlebot|facebook|meta platforms|digitalocean|ovh|hetzner|linode|akamai|cloudflare|oracle|alibaba|tencent|contabo|vultr|choopa|leaseweb|m247|datacamp|hostinger|godaddy|ionos|scaleway|proofpoint|mimecast|barracuda|forcepoint|zscaler|cisco|trend micro|sophos|fortinet|paloalto|palo alto|cloudmark|vade|hostgator|locaweb|kinghost|equinix|serverius|hosting|datacenter|data center|colocation/i;
+const ORIGENS_CONHECIDAS = new Set(["newsletter", "campanha", "instagram", "facebook", "whatsapp", "linkedin", "google", "email"]);
+/** utm_source trocado por texto aleatório (verificadores fazem isso), ex.: "afjfyfggfe" */
+const origemAleatoria = (utm?: string | null) => !!utm && !ORIGENS_CONHECIDAS.has(utm.toLowerCase()) && /[b-df-hj-np-tv-z]{4}/i.test(utm);
+
+function motivoRobo(o: { ua: string; provedor?: string | null; pais?: string | null; utm?: string | null }): string | null {
+  if (UA_ROBO.test(o.ua) && !UA_PROXY_EMAIL.test(o.ua)) return "Robô (identificado pelo navegador)";
+  if (origemAleatoria(o.utm)) return "Verificador de links (parâmetro aleatório)";
+  if (o.provedor && PROVEDOR_SERVIDOR.test(o.provedor) && !UA_PROXY_EMAIL.test(o.ua)) return `Servidor, não pessoa (${o.provedor.split(" / ")[0]})`;
+  if (o.pais && !["Brasil", "Brazil"].includes(o.pais)) return "Fora do Brasil";
+  return null;
 }
 
 function dispositivoDe(ua: string) {
@@ -773,18 +806,30 @@ async function registrarVisita(req: Request, body: unknown) {
   const ua = req.headers.get("user-agent")?.slice(0, 300) ?? "";
   const ipHash = ip ? await sha256(`${ip}|${Deno.env.get("SUPABASE_URL")}`) : null;
   // mesmo endereço visto na última semana: reaproveita o local, sem consultar de novo
-  let local = { cidade: null as string | null, uf: null as string | null, pais: null as string | null };
+  let local: Local = { cidade: null, uf: null, pais: null, provedor: null };
   if (ipHash) {
     const { data: antes } = await s
       .from("radar_visitas")
-      .select("cidade, uf, pais")
+      .select("cidade, uf, pais, provedor")
       .eq("ip_hash", ipHash)
       .not("pais", "is", null)
       .gte("criado_em", new Date(Date.now() - 7 * 86400_000).toISOString())
       .order("criado_em", { ascending: false })
       .limit(1)
       .maybeSingle();
-    local = antes ?? (await localizar(ip));
+    local = antes?.provedor ? antes : await localizar(ip);
+  }
+  let motivo = motivoRobo({ ua, provedor: local.provedor, pais: local.pais, utm: v.utm_source });
+  if (!motivo && ipHash) {
+    // o mesmo acesso foi de um robô há pouco (ex.: verificador que abre o link 3 vezes seguidas)
+    const { data: robo } = await s
+      .from("radar_visitas")
+      .select("id")
+      .eq("ip_hash", ipHash)
+      .eq("descartada", true)
+      .gte("criado_em", new Date(Date.now() - 10 * 60_000).toISOString())
+      .limit(1);
+    if (robo?.length) motivo = "Mesmo acesso de um robô";
   }
   let assinanteId: string | null = null;
   if (v.r) {
@@ -808,7 +853,18 @@ async function registrarVisita(req: Request, body: unknown) {
     ...dispositivoDe(ua),
     ip_hash: ipHash,
     assinante_id: assinanteId,
+    descartada: !!motivo,
+    motivo_descarte: motivo,
   });
+  // achou um robô: as visitas do mesmo acesso nos minutos anteriores também eram dele
+  if (motivo && motivo !== "Mesmo acesso de um robô" && ipHash) {
+    await s
+      .from("radar_visitas")
+      .update({ descartada: true, motivo_descarte: "Mesmo acesso de um robô" })
+      .eq("ip_hash", ipHash)
+      .eq("descartada", false)
+      .gte("criado_em", new Date(Date.now() - 10 * 60_000).toISOString());
+  }
   return json({ ok: true });
 }
 
@@ -832,6 +888,8 @@ const CampanhaSchema = z.object({
   assinante_ids: z.array(z.string().uuid()).max(10000).optional().nullable(),
   /** vazio = todos os prospects ativos */
   prospect_ids: z.array(z.string().uuid()).max(10000).optional().nullable(),
+  /** máximo de e-mails por dia desta campanha (vazio = só a cota da conta) */
+  limite_diario: z.number().int().min(1).max(5000).optional().nullable(),
 });
 
 interface Destinatario {
@@ -870,49 +928,32 @@ async function destinatariosCampanha(s: SupabaseClient, c: z.infer<typeof Campan
   return lista;
 }
 
-async function campanha(admin: { id: string; email: string }, body: unknown) {
-  const p = CampanhaSchema.safeParse(body);
-  if (!p.success) return { ok: false, erro: p.error.issues[0]?.message ?? "Dados inválidos" };
-  const c = p.data;
-  const s = db();
-
-  let noticias: Noticia[] = [];
-  if (c.noticia_ids.length) {
-    const { data } = await s
-      .from("mercado_noticias")
-      .select("id, titulo, link, origem, categoria, publicado_em")
-      .in("id", c.noticia_ids)
-      .eq("oculto", false);
-    // mantém a ordem escolhida
-    const porId = new Map((data ?? []).map((n) => [n.id, n as Noticia]));
-    noticias = c.noticia_ids.map((id) => porId.get(id)).filter(Boolean) as Noticia[];
-  }
-  if (c.noticia_ids.length + c.comunicado_ids.length > 10) return { ok: false, erro: "Escolha até 10 notícias e comunicados" };
-  if (c.comunicado_ids.length) {
+/** Notícias e comunicados da campanha, na ordem gravada (comunicados primeiro). */
+async function itensCampanha(s: SupabaseClient, ids: string[]): Promise<Noticia[]> {
+  if (!ids.length) return [];
+  const [{ data: not }, { data: com }] = await Promise.all([
+    s.from("mercado_noticias").select("id, titulo, link, origem, categoria, publicado_em").in("id", ids).eq("oculto", false),
     // só comunicados ativos e marcados como "interno e externo" saem para fora
-    const { data } = await s
-      .from("comunicados")
-      .select("id, titulo, mensagem, link, created_at")
-      .in("id", c.comunicado_ids)
-      .eq("ativo", true)
-      .eq("publico", true);
-    const porId = new Map((data ?? []).map((m) => [m.id, m]));
-    const escolhidos: Noticia[] = c.comunicado_ids
-      .map((id) => porId.get(id))
-      .filter(Boolean)
-      .map((m) => ({
-        titulo: m!.titulo,
-        link: m!.link,
-        origem: "Vangard Gestora",
-        categoria: "comunicado",
-        publicado_em: m!.created_at,
-        resumo: m!.mensagem,
-        imagem: null,
-      }) as Noticia);
-    // comunicados primeiro, depois as notícias na ordem escolhida
-    noticias = [...escolhidos, ...noticias];
-  }
+    s.from("comunicados").select("id, titulo, mensagem, link, created_at").in("id", ids).eq("ativo", true).eq("publico", true),
+  ]);
+  const porId = new Map<string, Noticia>();
+  for (const n of not ?? []) porId.set(n.id, n as Noticia);
+  for (const m of com ?? [])
+    porId.set(m.id, { titulo: m.titulo, link: m.link, origem: "Vangard Gestora", categoria: "comunicado", publicado_em: m.created_at, resumo: m.mensagem, imagem: null });
+  return ids.map((id) => porId.get(id)).filter(Boolean) as Noticia[];
+}
 
+interface ConteudoCampanha {
+  assunto: string;
+  titulo: string;
+  mensagem: string;
+  botao_texto: string | null;
+  botao_url: string | null;
+}
+type DestinoEmail = { email: string; nome: string | null; token: string; prospect?: boolean };
+
+/** Monta o e-mail de cada destinatário (assinante ou prospect) a partir do conteúdo da campanha. */
+async function preparadorCampanha(s: SupabaseClient, c: ConteudoCampanha, noticias: Noticia[]) {
   const base = {
     titulo: c.titulo,
     mensagem: c.mensagem,
@@ -923,8 +964,7 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
   const htmlAssinante = emailCampanha(base);
   const htmlProspect = emailCampanha({ ...base, prospect: true });
   const de = await remetente(s);
-  const montar = (d: { email: string; nome: string | null; token: string; prospect?: boolean }, campanhaId: string) => {
-    const html = d.prospect ? htmlProspect : htmlAssinante;
+  return (d: DestinoEmail, campanhaId: string): Email => {
     const radar = linkRadarDe(d.token, campanhaId);
     const v = {
       nome: d.nome ?? "",
@@ -939,20 +979,237 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
       from: de,
       to: [d.email],
       subject: preencher(c.assunto, v, false),
-      html: preencher(html, v, true),
+      html: preencher(d.prospect ? htmlProspect : htmlAssinante, v, true),
       headers: {
         "List-Unsubscribe": `<${urlFuncao()}?acao=cancelar&t=${d.token}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
-    } as Email;
+    };
   };
+}
+
+// ---------------------------------------------------------------------------
+// Fila das campanhas (cota diária do Resend: zera à meia-noite UTC)
+// ---------------------------------------------------------------------------
+const MAX_POR_EXECUCAO = 1000; // o restante sai na próxima hora
+const inicioDiaUTC = () => {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+};
+const recusaPorCota = (erro?: string) => !!erro && (/Resend 429/.test(erro) || /quota/i.test(erro));
+
+interface Cota {
+  /** 0 = sem limite */
+  cota: number;
+  reserva: number;
+  enviadosHoje: number;
+  /** quanto as campanhas ainda podem usar hoje (null = sem limite) */
+  disponivel: number | null;
+}
+/** E-mails já enviados hoje pela conta (todas as origens do histórico) e o que sobra para campanhas. */
+async function cotaHoje(s: SupabaseClient): Promise<Cota> {
+  const { data: cfg } = await s.from("radar_envio_config").select("cota_diaria, reserva").eq("id", 1).maybeSingle();
+  const cota = cfg?.cota_diaria ?? 100;
+  const reserva = cfg?.reserva ?? 20;
+  const { count } = await s.from("email_historico").select("id", { count: "exact", head: true }).eq("status", "enviado").gte("enviado_em", inicioDiaUTC());
+  const enviadosHoje = count ?? 0;
+  return { cota, reserva, enviadosHoje, disponivel: cota ? Math.max(0, cota - reserva - enviadosHoje) : null };
+}
+
+/** Recalcula os totais da campanha a partir dos envios e encerra quando a fila acaba. */
+async function resumirCampanha(s: SupabaseClient, id: string) {
+  const { data: linhas } = await s.from("radar_campanha_envios").select("status").eq("campanha_id", id).limit(20000);
+  const n = (f: (st: string) => boolean) => (linhas ?? []).filter((l) => f(l.status)).length;
+  const pendentes = n((st) => st === "pendente" || st === "enviando");
+  const falhas = n((st) => st === "falhou");
+  const enviados = n((st) => !["pendente", "enviando", "falhou", "cancelado"].includes(st));
+  const { data: camp } = await s.from("radar_campanhas").select("status").eq("id", id).maybeSingle();
+  const muda: Record<string, unknown> = { enviados, falhas, pendentes };
+  if (!pendentes && camp && ["em_andamento", "pausada", "enviando"].includes(camp.status)) {
+    muda.status = enviados ? "enviada" : "falhou";
+    muda.concluido_em = new Date().toISOString();
+  }
+  await s.from("radar_campanhas").update(muda).eq("id", id);
+  return { enviados, falhas, pendentes };
+}
+
+/** Envia o próximo lote da fila de uma campanha, respeitando o limite diário dela e a cota da conta. */
+async function processarCampanha(s: SupabaseClient, id: string): Promise<{ enviados: number; pendentes: number; motivo?: string }> {
+  const { data: camp } = await s.from("radar_campanhas").select("*").eq("id", id).maybeSingle();
+  if (!camp) return { enviados: 0, pendentes: 0, motivo: "Campanha não encontrada" };
+  if (camp.status !== "em_andamento") return { enviados: 0, pendentes: camp.pendentes ?? 0, motivo: "Campanha pausada ou encerrada" };
+
+  // lote interrompido (a função caiu no meio): depois de 30 min, volta para a fila
+  if (camp.ultimo_lote_em && Date.now() - new Date(camp.ultimo_lote_em).getTime() > 30 * 60_000) {
+    await s.from("radar_campanha_envios").update({ status: "pendente" }).eq("campanha_id", id).eq("status", "enviando").is("enviado_em", null);
+  }
+
+  const cota = await cotaHoje(s);
+  const { count: jaHoje } = await s
+    .from("radar_campanha_envios")
+    .select("id", { count: "exact", head: true })
+    .eq("campanha_id", id)
+    .gte("enviado_em", inicioDiaUTC());
+  let vez = camp.limite_diario ? Math.max(0, camp.limite_diario - (jaHoje ?? 0)) : MAX_POR_EXECUCAO;
+  if (cota.disponivel !== null) vez = Math.min(vez, cota.disponivel);
+  vez = Math.min(vez, MAX_POR_EXECUCAO);
+  if (vez <= 0) {
+    const r = await resumirCampanha(s, id);
+    const motivo = cota.disponivel === 0 ? "Cota diária da conta esgotada; continua amanhã" : "Limite diário da campanha atingido; continua amanhã";
+    return { enviados: 0, pendentes: r.pendentes, motivo };
+  }
+
+  const { data: fila } = await s
+    .from("radar_campanha_envios")
+    .select("id, email, nome, tipo, assinante_id, prospect_id")
+    .eq("campanha_id", id)
+    .eq("status", "pendente")
+    .order("criado_em")
+    .order("id")
+    .limit(vez);
+  if (!fila?.length) {
+    const r = await resumirCampanha(s, id);
+    return { enviados: 0, pendentes: r.pendentes };
+  }
+  // reserva o lote (evita envio em dobro se a hora cheia e o "enviar agora" coincidirem)
+  const { data: pegos } = await s
+    .from("radar_campanha_envios")
+    .update({ status: "enviando" })
+    .in("id", fila.map((f) => f.id))
+    .eq("status", "pendente")
+    .select("id");
+  await s.from("radar_campanhas").update({ ultimo_lote_em: new Date().toISOString() }).eq("id", id);
+  const reservados = new Set((pegos ?? []).map((x) => x.id as string));
+  const lista = fila.filter((f) => reservados.has(f.id));
+
+  // quem cancelou/descadastrou depois de a campanha ser criada não recebe
+  const idsA = lista.map((f) => f.assinante_id).filter(Boolean) as string[];
+  const idsP = lista.map((f) => f.prospect_id).filter(Boolean) as string[];
+  const [{ data: as }, { data: ps }] = await Promise.all([
+    idsA.length ? s.from("radar_assinantes").select("id, token, status, aceite_comunicacoes").in("id", idsA) : Promise.resolve({ data: [] as { id: string; token: string; status: string; aceite_comunicacoes: boolean }[] }),
+    idsP.length ? s.from("radar_prospects").select("id, token, status").in("id", idsP) : Promise.resolve({ data: [] as { id: string; token: string; status: string }[] }),
+  ]);
+  const tokenA = new Map((as ?? []).filter((a) => a.status === "ativo" && a.aceite_comunicacoes).map((a) => [a.id, a.token as string]));
+  const tokenP = new Map((ps ?? []).filter((p) => p.status === "ativo").map((p) => [p.id, p.token as string]));
+  const validos: { envio: (typeof lista)[number]; token: string }[] = [];
+  const cancelados: string[] = [];
+  for (const f of lista) {
+    const token = f.tipo === "prospect" ? tokenP.get(f.prospect_id) : tokenA.get(f.assinante_id);
+    if (token) validos.push({ envio: f, token });
+    else cancelados.push(f.id);
+  }
+  if (cancelados.length) await s.from("radar_campanha_envios").update({ status: "cancelado", erro: "Descadastrou ou ficou inativo antes do envio" }).in("id", cancelados);
+
+  const montar = await preparadorCampanha(s, camp, await itensCampanha(s, (camp.noticias ?? []) as string[]));
+  const emails = await Promise.all(
+    validos.map(async (v) => {
+      const e = montar({ email: v.envio.email, nome: v.envio.nome, token: v.token, prospect: v.envio.tipo === "prospect" }, id);
+      e.html = await rastrear(e.html, v.envio.id);
+      return e;
+    }),
+  );
+
+  let enviados = 0;
+  let motivo: string | undefined;
+  for (let i = 0; i < emails.length; i += LOTE) {
+    const lote = emails.slice(i, i + LOTE);
+    const envios = validos.slice(i, i + LOTE).map((v) => v.envio);
+    const r = await enviarLote(lote);
+    const agora = new Date().toISOString();
+    if (r.ok) {
+      enviados += lote.length;
+      await Promise.all(envios.map((e, k) => s.from("radar_campanha_envios").update({ status: "enviado", enviado_em: agora, resend_id: r.ids?.[k] ?? null, erro: null }).eq("id", e.id)));
+      const pIds = envios.map((e) => e.prospect_id).filter(Boolean) as string[];
+      if (pIds.length) await s.from("radar_prospects").update({ ultimo_envio_em: agora }).in("id", pIds);
+      await registrarHistorico(s, lote.map((e) => ({ destinatario: e.to[0], assunto: e.subject, status: "enviado" })));
+    } else if (recusaPorCota(r.erro)) {
+      // cota esgotada (ou limite de ritmo): este lote e os seguintes voltam para a fila
+      const resto = validos.slice(i).map((v) => v.envio.id);
+      await s.from("radar_campanha_envios").update({ status: "pendente" }).in("id", resto);
+      motivo = "O Resend recusou por cota; o restante continua na fila";
+      break;
+    } else {
+      await s.from("radar_campanha_envios").update({ status: "falhou", erro: (r.erro ?? "falha").slice(0, 500) }).in("id", envios.map((e) => e.id));
+      await registrarHistorico(s, lote.map((e) => ({ destinatario: e.to[0], assunto: e.subject, status: "erro", erro: r.erro })));
+    }
+    if (i + LOTE < emails.length) await new Promise((ok) => setTimeout(ok, 700));
+  }
+  await s.from("radar_campanhas").update({ ultimo_lote_em: new Date().toISOString() }).eq("id", id);
+  const resumo = await resumirCampanha(s, id);
+  return { enviados, pendentes: resumo.pendentes, motivo };
+}
+
+/** Chamado de hora em hora (cron radar-campanhas-fila): segue as campanhas em andamento, da mais antiga para a mais nova. */
+async function continuarCampanhas() {
+  const s = db();
+  const { data } = await s.from("radar_campanhas").select("id").eq("status", "em_andamento").order("criado_em").limit(20);
+  const resultado: { id: string; enviados: number; pendentes: number; motivo?: string }[] = [];
+  for (const c of data ?? []) {
+    const r = await processarCampanha(s, c.id);
+    resultado.push({ id: c.id, ...r });
+    if (r.motivo?.includes("cota")) break;
+  }
+  return { ok: true, campanhas: resultado };
+}
+
+const ControleSchema = z.object({
+  acao: z.literal("campanha_controle"),
+  id: z.string().uuid(),
+  operacao: z.enum(["pausar", "retomar", "limite", "enviar_agora", "cancelar_fila"]),
+  /** null = sem limite por dia (só a cota da conta) */
+  limite: z.number().int().min(1).max(5000).nullable().optional(),
+});
+async function controleCampanha(body: unknown) {
+  const p = ControleSchema.safeParse(body);
+  if (!p.success) return { ok: false, erro: p.error.issues[0]?.message ?? "Dados inválidos" };
+  const { id, operacao, limite } = p.data;
+  const s = db();
+  const { data: camp } = await s.from("radar_campanhas").select("status").eq("id", id).maybeSingle();
+  if (!camp) return { ok: false, erro: "Campanha não encontrada" };
+  if (operacao === "pausar") {
+    if (camp.status !== "em_andamento") return { ok: false, erro: "Só dá para pausar uma campanha em andamento" };
+    await s.from("radar_campanhas").update({ status: "pausada" }).eq("id", id);
+  } else if (operacao === "retomar") {
+    if (camp.status !== "pausada") return { ok: false, erro: "A campanha não está pausada" };
+    await s.from("radar_campanhas").update({ status: "em_andamento" }).eq("id", id);
+  } else if (operacao === "limite") {
+    await s.from("radar_campanhas").update({ limite_diario: limite ?? null }).eq("id", id);
+  } else if (operacao === "cancelar_fila") {
+    await s.from("radar_campanha_envios").update({ status: "cancelado", erro: "Fila cancelada pela administração" }).eq("campanha_id", id).eq("status", "pendente");
+    await resumirCampanha(s, id);
+    await s.from("radar_campanhas").update({ status: "cancelada", concluido_em: new Date().toISOString() }).eq("id", id).in("status", ["em_andamento", "pausada"]);
+  } else {
+    return { ok: true, ...(await processarCampanha(s, id)) };
+  }
+  return { ok: true };
+}
+
+const ConfigEnvioSchema = z.object({
+  acao: z.literal("envio_config"),
+  /** 0 = sem limite (plano pago do Resend) */
+  cota_diaria: z.number().int().min(0).max(1_000_000),
+  reserva: z.number().int().min(0).max(10_000),
+});
+
+async function campanha(admin: { id: string; email: string }, body: unknown) {
+  const p = CampanhaSchema.safeParse(body);
+  if (!p.success) return { ok: false, erro: p.error.issues[0]?.message ?? "Dados inválidos" };
+  const c = p.data;
+  const s = db();
+  if (c.noticia_ids.length + c.comunicado_ids.length > 10) return { ok: false, erro: "Escolha até 10 notícias e comunicados" };
+  // comunicados primeiro, depois as notícias na ordem escolhida
+  const itens = [...c.comunicado_ids, ...c.noticia_ids];
+  const conteudo: ConteudoCampanha = { assunto: c.assunto, titulo: c.titulo, mensagem: c.mensagem, botao_texto: c.botao_texto || null, botao_url: c.botao_url || null };
 
   if (c.teste) {
-    // o teste mostra o rodapé de prospect quando a campanha é só para prospects
+    // o teste mostra o rodapé de prospect quando a campanha é só para prospects (sai na hora, fora da fila)
+    const montar = await preparadorCampanha(s, conteudo, await itensCampanha(s, itens));
     const e = montar({ email: admin.email, nome: null, token: crypto.randomUUID(), prospect: c.publico === "prospects" }, "teste");
     e.subject = `[Teste] ${e.subject}`;
     const r = await enviarLote([e]);
     await registrarHistorico(s, [{ destinatario: admin.email, assunto: e.subject, status: r.ok ? "enviado" : "erro", erro: r.erro }]);
+    if (!r.ok && recusaPorCota(r.erro)) return { ok: false, erro: "A cota diária de e-mails do Resend acabou. O teste volta a funcionar depois das 21h." };
     return r.ok ? { ok: true, teste: true, email: admin.email } : { ok: false, erro: r.erro };
   }
 
@@ -963,86 +1220,40 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
   const { data: reg, error } = await s
     .from("radar_campanhas")
     .insert({
-      assunto: c.assunto,
-      titulo: c.titulo,
-      mensagem: c.mensagem,
-      noticias: [...c.comunicado_ids, ...c.noticia_ids],
-      botao_texto: c.botao_texto || null,
-      botao_url: c.botao_url || null,
+      ...conteudo,
+      noticias: itens,
       criado_por: admin.id,
       destinatarios: destinatarios.length,
       publico: c.publico,
       assinantes: destinatarios.length - qtdProspects,
       prospects: qtdProspects,
+      status: "em_andamento",
+      limite_diario: c.limite_diario ?? null,
+      pendentes: destinatarios.length,
     })
     .select("id")
     .single();
   if (error || !reg) return { ok: false, erro: "Não foi possível registrar a campanha" };
 
-  // métricas: uma linha por destinatário; sem a tabela, a campanha segue sem acompanhamento
-  const { data: linhasEnvio, error: erroEnvios } = await s
-    .from("radar_campanha_envios")
-    .insert(
-      destinatarios.map((d) => ({
-        campanha_id: reg.id,
-        email: d.email.trim().toLowerCase(),
-        nome: d.nome,
-        associacao: d.associacao ?? null,
-        tipo: d.prospect ? "prospect" : "assinante",
-        assinante_id: d.assinanteId ?? null,
-        prospect_id: d.prospectId ?? null,
-      })),
-    )
-    .select("id");
-  if (erroEnvios) console.warn("[radar-newsletter] campanha sem métricas:", erroEnvios.message);
-  const envioIds = !erroEnvios && linhasEnvio?.length === destinatarios.length ? linhasEnvio.map((l) => l.id as string) : null;
-
-  let enviados = 0;
-  let falhas = 0;
-  const erros: string[] = [];
-  const emails = await Promise.all(
-    destinatarios.map(async (d, i) => {
-      const e = montar(d, reg.id);
-      if (envioIds) e.html = await rastrear(e.html, envioIds[i]);
-      return e;
-    }),
+  // todo mundo entra na fila; o primeiro lote sai agora, o resto nos próximos dias
+  const { error: erroFila } = await s.from("radar_campanha_envios").insert(
+    destinatarios.map((d) => ({
+      campanha_id: reg.id,
+      email: d.email.trim().toLowerCase(),
+      nome: d.nome,
+      associacao: d.associacao ?? null,
+      tipo: d.prospect ? "prospect" : "assinante",
+      assinante_id: d.assinanteId ?? null,
+      prospect_id: d.prospectId ?? null,
+      status: "pendente",
+    })),
   );
-  for (let i = 0; i < emails.length; i += LOTE) {
-    const lote = emails.slice(i, i + LOTE);
-    const r = await enviarLote(lote);
-    if (envioIds) {
-      const agora = new Date().toISOString();
-      await Promise.all(
-        envioIds.slice(i, i + LOTE).map((id, k) =>
-          s
-            .from("radar_campanha_envios")
-            .update(r.ok ? { status: "enviado", enviado_em: agora, resend_id: r.ids?.[k] ?? null } : { status: "falhou", erro: (r.erro ?? "falha").slice(0, 500) })
-            .eq("id", id),
-        ),
-      ).catch((err) => console.warn("[radar-newsletter] métrica:", (err as Error).message));
-    }
-    if (r.ok) {
-      enviados += lote.length;
-      const ids = destinatarios.slice(i, i + LOTE).map((d) => d.prospectId).filter(Boolean) as string[];
-      if (ids.length) await s.from("radar_prospects").update({ ultimo_envio_em: new Date().toISOString() }).in("id", ids);
-    } else {
-      falhas += lote.length;
-      erros.push(r.erro ?? "falha");
-    }
-    await registrarHistorico(s, lote.map((e) => ({ destinatario: e.to[0], assunto: e.subject, status: r.ok ? "enviado" : "erro", erro: r.erro })));
-    if (i + LOTE < emails.length) await new Promise((ok) => setTimeout(ok, 700));
+  if (erroFila) {
+    await s.from("radar_campanhas").update({ status: "falhou", erro: erroFila.message.slice(0, 500) }).eq("id", reg.id);
+    return { ok: false, erro: "Não foi possível montar a fila de envio" };
   }
-  await s
-    .from("radar_campanhas")
-    .update({
-      status: enviados ? "enviada" : "falhou",
-      concluido_em: new Date().toISOString(),
-      enviados,
-      falhas,
-      erro: erros.length ? erros.join(" | ").slice(0, 1000) : null,
-    })
-    .eq("id", reg.id);
-  return { ok: enviados > 0, enviados, falhas, destinatarios: destinatarios.length, prospects: qtdProspects, erro: enviados ? undefined : erros[0] };
+  const r = await processarCampanha(s, reg.id);
+  return { ok: true, id: reg.id, enviados: r.enviados, pendentes: r.pendentes, motivo: r.motivo, destinatarios: destinatarios.length, prospects: qtdProspects };
 }
 
 // ---------------------------------------------------------------------------
@@ -1083,6 +1294,22 @@ Deno.serve(async (req) => {
       }
       case "enviar_novidades":
         return json(await enviarNovidades());
+      case "continuar_campanhas":
+        return json(await continuarCampanhas());
+      case "campanha_controle":
+      case "envio_config":
+      case "cota": {
+        const admin = await adminLogado(req);
+        if (!admin) return json({ error: "Acesso restrito à administração" }, 403);
+        if (body.acao === "campanha_controle") return json(await controleCampanha(body));
+        const s = db();
+        if (body.acao === "envio_config") {
+          const p = ConfigEnvioSchema.safeParse(body);
+          if (!p.success) return json({ ok: false, erro: p.error.issues[0]?.message ?? "Dados inválidos" });
+          await s.from("radar_envio_config").upsert({ id: 1, cota_diaria: p.data.cota_diaria, reserva: p.data.reserva, atualizado_em: new Date().toISOString(), atualizado_por: admin.id });
+        }
+        return json({ ok: true, ...(await cotaHoje(s)) });
+      }
       case "resumo":
       case "enviar_teste": {
         const admin = await adminLogado(req);
