@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -109,6 +109,7 @@ function baixar(nome: string, conteudo: string) {
 /** Gestão do Radar público: visitas, assinantes da newsletter e campanhas. Administrador e superintendente. */
 export default function RadarGestao() {
   const { userRole } = useAuth();
+  const [params] = useSearchParams();
   const [dias, setDias] = useState("30");
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<"todos" | Assinante["status"]>("ativo");
@@ -206,6 +207,7 @@ export default function RadarGestao() {
 
   if (userRole !== "admin" && userRole !== "superintendente") return <Navigate to="/dashboard" replace />;
 
+  const abaInicial = ["visitas", "assinantes", "prospects", "campanhas"].includes(params.get("aba") ?? "") ? params.get("aba")! : "visitas";
   const r = resumo.data;
   const maiorDia = Math.max(1, ...(r?.por_dia ?? []).map((d) => d.visitas));
   const linkPublico = `${urlPublica().replace(/\/$/, "")}/radar`;
@@ -232,7 +234,7 @@ export default function RadarGestao() {
           </div>
         </div>
 
-        <Tabs defaultValue="visitas" className="space-y-4">
+        <Tabs defaultValue={abaInicial} className="space-y-4">
           <TabsList className="rounded-full">
             <TabsTrigger value="visitas" className="rounded-full">
               <Eye className="h-4 w-4 mr-1.5" /> Visitas
@@ -565,13 +567,19 @@ export default function RadarGestao() {
               }}
             />
             <section className={`${CARTAO} p-5`}>
-              <h2 className="font-bold mb-3">Campanhas enviadas</h2>
+              <h2 className="font-bold mb-1">Campanhas enviadas</h2>
+              <p className="text-xs text-muted-foreground mb-3">Clique numa campanha para ver aberturas, cliques, assinaturas, descadastros e entregas.</p>
               {!campanhas.data?.length ? (
                 <p className="text-sm text-muted-foreground">Nenhuma campanha enviada ainda.</p>
               ) : (
                 <ul className="divide-y divide-border/50">
                   {campanhas.data.map((c) => (
-                    <li key={c.id} className="py-3 flex items-center justify-between gap-3">
+                    <li key={c.id}>
+                      <Link
+                        to={`/radar/gestao/campanhas/${c.id}`}
+                        className="py-3 px-2 -mx-2 rounded-2xl flex items-center justify-between gap-3 hover:bg-muted/40 transition-colors"
+                        title="Ver as métricas da campanha"
+                      >
                       <div className="min-w-0">
                         <p className="font-medium truncate">{c.assunto}</p>
                         <p className="text-xs text-muted-foreground">
@@ -588,6 +596,7 @@ export default function RadarGestao() {
                       >
                         {c.status === "enviada" ? "Enviada" : c.status === "falhou" ? "Falhou" : "Enviando"}
                       </span>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -607,7 +616,7 @@ type CampoTexto = "assunto" | "titulo" | "mensagem";
 /** Botão padrão da campanha: convite para assinar o Radar do mercado. */
 const BOTAO_PADRAO = {
   texto: "Inscreva-se no Radar do mercado",
-  url: `${urlPublica()}/radar/newsletter?utm_source=campanha`,
+  url: `${urlPublica()}/radar?assinar=1&utm_source=campanha`,
 };
 
 const corta = (t: string, max: number) => (t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t);

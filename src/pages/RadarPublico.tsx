@@ -50,6 +50,11 @@ export default function RadarPublico() {
   useEffect(() => {
     document.title = "Radar do mercado | Vangard Gestora";
     registrarVisita("radar");
+    // link "Inscreva-se" das campanhas: já abre o formulário da newsletter
+    if (new URLSearchParams(window.location.search).get("assinar") === "1") {
+      setNewsAberta(true);
+      setTimeout(() => newsletter.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 400);
+    }
   }, []);
 
   const q = useInfiniteQuery({

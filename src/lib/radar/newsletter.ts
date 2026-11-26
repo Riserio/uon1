@@ -44,7 +44,18 @@ export const assinarNewsletter = (d: DadosAssinatura, site: string) =>
     aceite: true,
     base: urlPublica(),
     site,
+    // veio pelo link de uma campanha: conta a inscrição nas métricas dela
+    ce: envioDaCampanha(),
   });
+
+function envioDaCampanha(): string | null {
+  try {
+    const ce = new URLSearchParams(window.location.search).get("ce");
+    return ce && /^[0-9a-f-]{36}$/i.test(ce) ? ce : null;
+  } catch {
+    return null;
+  }
+}
 
 export const confirmarNewsletter = (token: string) => chamar<{ ok: boolean; email?: string }>({ acao: "confirmar", token });
 export const cancelarNewsletter = (token: string) => chamar<{ ok: boolean; email?: string }>({ acao: "cancelar", token });

@@ -80,7 +80,7 @@ interface Email {
   headers?: Record<string, string>;
 }
 
-async function enviarLote(emails: Email[]): Promise<{ ok: boolean; erro?: string }> {
+async function enviarLote(emails: Email[]): Promise<{ ok: boolean; erro?: string; ids?: (string | null)[] }> {
   const chave = Deno.env.get("RESEND_API_KEY");
   if (!chave) return { ok: false, erro: "RESEND_API_KEY não configurada" };
   const r = await fetch(emails.length === 1 ? "https://api.resend.com/emails" : "https://api.resend.com/emails/batch", {
@@ -88,7 +88,12 @@ async function enviarLote(emails: Email[]): Promise<{ ok: boolean; erro?: string
     headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
     body: JSON.stringify(emails.length === 1 ? emails[0] : emails),
   });
-  if (r.ok) return { ok: true };
+  if (r.ok) {
+    // ids do Resend na ordem enviada (usados para casar entrega/devolução vindas do webhook)
+    const j = await r.json().catch(() => null);
+    const ids = emails.length === 1 ? [j?.id ?? null] : ((j?.data ?? []) as { id?: string }[]).map((x) => x?.id ?? null);
+    return { ok: true, ids };
+  }
   return { ok: false, erro: `Resend ${r.status}: ${(await r.text()).slice(0, 300)}` };
 }
 
@@ -108,6 +113,181 @@ async function registrarHistorico(s: SupabaseClient, linhas: { destinatario: str
 }
 
 // ---------------------------------------------------------------------------
+// Métricas das campanhas: abertura (pixel), clique (redirecionamento assinado),
+// inscrição/assinatura/descadastro e entrega (webhook do Resend).
+// Tudo aqui é "melhor esforço": falha no registro nunca impede envio nem
+// redirecionamento.
+// ---------------------------------------------------------------------------
+const PIXEL = Uint8Array.from(atob("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"), (c) => c.charCodeAt(0));
+const SEM_CACHE = { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", Pragma: "no-cache" };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function chaveHmac(segredo: Uint8Array<ArrayBuffer> | string) {
+  const bytes = typeof segredo === "string" ? new TextEncoder().encode(segredo) : segredo;
+  return await crypto.subtle.importKey("raw", bytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+}
+let chaveLinks: CryptoKey | null = null;
+/** Assinatura curta do par envio + destino: só redireciona para links que nós mesmos pusemos no e-mail. */
+async function assinarLink(envio: string, url: string) {
+  chaveLinks ??= await chaveHmac(`radar-links|${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""}`);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", chaveLinks, new TextEncoder().encode(`${envio}|${url}`)));
+  return btoa(String.fromCharCode(...mac.slice(0, 16))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Troca os links do e-mail pelo redirecionamento rastreado e põe o pixel de abertura.
+ *  O link de descadastro fica direto (precisa funcionar sempre, sem passar por nós). */
+async function rastrear(html: string, envio: string): Promise<string> {
+  const base = urlFuncao();
+  const destinos = new Set<string>();
+  for (const m of html.matchAll(/href="([^"]+)"/g)) destinos.add(m[1]);
+  const troca = new Map<string, string>();
+  for (const bruto of destinos) {
+    const url = bruto.replace(/&amp;/g, "&");
+    if (!/^https?:\/\//i.test(url) || /[?&]acao=cancelar/.test(url)) continue;
+    const s = await assinarLink(envio, url);
+    troca.set(bruto, `${base}?acao=clique&amp;e=${envio}&amp;s=${s}&amp;u=${encodeURIComponent(url)}`);
+  }
+  const comLinks = html.replace(/href="([^"]+)"/g, (m, h: string) => (troca.has(h) ? `href="${troca.get(h)}"` : m));
+  const pixel = `<img src="${base}?acao=abrir&amp;e=${envio}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;opacity:0;">`;
+  return comLinks.includes("</body>") ? comLinks.replace("</body>", `${pixel}\n</body>`) : comLinks + pixel;
+}
+
+type TipoEvento = "abertura" | "clique" | "inscricao" | "assinatura" | "descadastro" | "entrega" | "atraso" | "devolucao" | "spam";
+
+/** Abertura ou clique de um envio: conta, guarda a primeira vez e o evento. */
+async function registrarInteracao(req: Request, envio: string, tipo: "abertura" | "clique", url?: string) {
+  try {
+    const s = db();
+    const { data: e } = await s
+      .from("radar_campanha_envios")
+      .select("id, campanha_id, aberto_em, aberturas, clicado_em, cliques")
+      .eq("id", envio)
+      .maybeSingle();
+    if (!e) return;
+    const agora = new Date().toISOString();
+    const disp = dispositivoDe(req.headers.get("user-agent") ?? "");
+    const muda: Record<string, unknown> = { ultima_atividade_em: agora, aberto_em: e.aberto_em ?? agora };
+    if (tipo === "abertura") muda.aberturas = (e.aberturas ?? 0) + 1;
+    else {
+      muda.cliques = (e.cliques ?? 0) + 1;
+      muda.clicado_em = e.clicado_em ?? agora;
+      // clicou sem a imagem carregar (bloqueio de imagens): conta como aberto
+      if (!e.aberto_em) muda.aberturas = Math.max(1, e.aberturas ?? 0);
+    }
+    await s.from("radar_campanha_envios").update(muda).eq("id", e.id);
+    await s.from("radar_campanha_eventos").insert({ campanha_id: e.campanha_id, envio_id: e.id, tipo, url: url ?? null, ...disp });
+  } catch (err) {
+    console.warn("[radar-newsletter] métrica:", (err as Error).message);
+  }
+}
+
+/** Envio de campanha mais recente para este e-mail (últimos 30 dias). */
+async function envioRecente(s: SupabaseClient, email: string): Promise<{ id: string; campanha_id: string } | null> {
+  try {
+    const { data } = await s
+      .from("radar_campanha_envios")
+      .select("id, campanha_id")
+      .eq("email", email.trim().toLowerCase())
+      .gte("criado_em", new Date(Date.now() - 30 * 86400_000).toISOString())
+      .order("criado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Marca um marco do envio (só a primeira vez) e guarda o evento. */
+async function marcarEnvio(
+  s: SupabaseClient,
+  envio: { id: string; campanha_id: string } | null,
+  campo: "inscreveu_em" | "assinou_em" | "descadastrou_em",
+  tipo: TipoEvento,
+) {
+  if (!envio) return;
+  try {
+    const agora = new Date().toISOString();
+    const { data } = await s
+      .from("radar_campanha_envios")
+      .update({ [campo]: agora, ultima_atividade_em: agora })
+      .eq("id", envio.id)
+      .is(campo, null)
+      .select("id");
+    if (data?.length) await s.from("radar_campanha_eventos").insert({ campanha_id: envio.campanha_id, envio_id: envio.id, tipo });
+  } catch (err) {
+    console.warn("[radar-newsletter] métrica:", (err as Error).message);
+  }
+}
+
+/** Webhook do Resend (assinatura Svix com RESEND_WEBHOOK_SECRET). */
+async function webhookResend(req: Request) {
+  const segredo = Deno.env.get("RESEND_WEBHOOK_SECRET");
+  if (!segredo) return json({ error: "Webhook não configurado" }, 503);
+  const corpo = await req.text();
+  const id = req.headers.get("svix-id");
+  const ts = req.headers.get("svix-timestamp");
+  const assinatura = req.headers.get("svix-signature");
+  if (!id || !ts || !assinatura || Math.abs(Date.now() / 1000 - Number(ts)) > 300) return json({ error: "Assinatura inválida" }, 401);
+  const chave = await chaveHmac(Uint8Array.from(atob(segredo.replace(/^whsec_/, "")), (c) => c.charCodeAt(0)));
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", chave, new TextEncoder().encode(`${id}.${ts}.${corpo}`)));
+  const esperado = btoa(String.fromCharCode(...mac));
+  if (!assinatura.split(" ").some((p) => p.split(",")[1] === esperado)) return json({ error: "Assinatura inválida" }, 401);
+
+  // deno-lint-ignore no-explicit-any
+  const ev: any = JSON.parse(corpo || "{}");
+  const resendId = ev?.data?.email_id;
+  const mapa: Record<string, { status: string; tipo: TipoEvento }> = {
+    "email.delivered": { status: "entregue", tipo: "entrega" },
+    "email.delivery_delayed": { status: "atrasado", tipo: "atraso" },
+    "email.bounced": { status: "devolvido", tipo: "devolucao" },
+    "email.complained": { status: "spam", tipo: "spam" },
+  };
+  const m = mapa[ev?.type];
+  if (!resendId || !m) return json({ ok: true, ignorado: true });
+  const s = db();
+  const { data: e } = await s.from("radar_campanha_envios").select("id, campanha_id, status").eq("resend_id", resendId).maybeSingle();
+  if (!e) return json({ ok: true, ignorado: true });
+  const agora = new Date().toISOString();
+  const muda: Record<string, unknown> = {};
+  // entrega/atraso não sobrescrevem devolução ou spam
+  if (m.status === "devolvido" || m.status === "spam" || !["devolvido", "spam"].includes(e.status)) muda.status = m.status;
+  if (m.status === "entregue") muda.entregue_em = agora;
+  if (m.status === "devolvido") muda.erro = String(ev?.data?.bounce?.message ?? ev?.data?.bounce?.type ?? "Devolvido pelo servidor do destinatário").slice(0, 500);
+  if (Object.keys(muda).length) await s.from("radar_campanha_envios").update(muda).eq("id", e.id);
+  await s.from("radar_campanha_eventos").insert({ campanha_id: e.campanha_id, envio_id: e.id, tipo: m.tipo });
+  return json({ ok: true });
+}
+
+/** Destino seguro do clique: links do nosso site levam o envio (ce) para atribuir a inscrição. */
+function destinoClique(url: string, envio: string) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "uon1.com.br" || u.hostname.endsWith(".uon1.com.br") || u.hostname.endsWith(".lovable.app")) u.searchParams.set("ce", envio);
+    return u.toString();
+  } catch {
+    return `${URL_PADRAO}/radar`;
+  }
+}
+
+async function tratarGet(req: Request, url: URL): Promise<Response | null> {
+  const acao = url.searchParams.get("acao");
+  const envio = url.searchParams.get("e") ?? "";
+  if (acao === "abrir") {
+    if (UUID.test(envio)) await registrarInteracao(req, envio, "abertura");
+    return new Response(PIXEL, { headers: { "Content-Type": "image/gif", ...SEM_CACHE } });
+  }
+  if (acao === "clique") {
+    const destino = url.searchParams.get("u") ?? "";
+    const valido = UUID.test(envio) && /^https?:\/\//i.test(destino) && (await assinarLink(envio, destino)) === url.searchParams.get("s");
+    if (!valido) return new Response(null, { status: 302, headers: { Location: `${URL_PADRAO}/radar`, ...SEM_CACHE } });
+    await registrarInteracao(req, envio, "clique", destino);
+    return new Response(null, { status: 302, headers: { Location: destinoClique(destino, envio), ...SEM_CACHE } });
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Público
 // ---------------------------------------------------------------------------
 const AssinarSchema = z.object({
@@ -122,6 +302,8 @@ const AssinarSchema = z.object({
   aceite: z.literal(true, { errorMap: () => ({ message: "É preciso aceitar o recebimento das comunicações" }) }),
   base: z.string().max(200).optional().nullable(),
   site: z.string().max(0).optional().nullable(), // armadilha para robôs: precisa vir vazio
+  /** envio de campanha de onde a pessoa veio (link do e-mail), para as métricas */
+  ce: z.string().uuid().optional().nullable(),
 });
 
 async function assinar(req: Request, body: unknown) {
@@ -178,6 +360,18 @@ async function assinar(req: Request, body: unknown) {
     return json({ error: "Não foi possível registrar agora. Tente de novo em instantes." }, 500);
   }
 
+  // métricas: inscrição vinda de uma campanha (pelo link do e-mail ou pelo mesmo e-mail)
+  let envio: { id: string; campanha_id: string } | null = null;
+  if (p.data.ce) {
+    const { data: e } = await s.from("radar_campanha_envios").select("id, campanha_id").eq("id", p.data.ce).maybeSingle();
+    envio = e ?? null;
+  }
+  envio ??= await envioRecente(s, email);
+  if (envio) {
+    await s.from("radar_assinantes").update({ campanha_envio_id: envio.id }).eq("email", email).then(() => undefined, () => undefined);
+    await marcarEnvio(s, envio, "inscreveu_em", "inscricao");
+  }
+
   const b = baseSegura(base);
   const t = await modelo(s, "radar_confirmacao");
   const v = {
@@ -213,14 +407,26 @@ async function mudarStatus(token: string | null, acao: "confirmar" | "cancelar")
     if (!p) return { ok: false, erro: "Link inválido ou expirado" };
     if (p.status !== "descadastrado") {
       await s.from("radar_prospects").update({ status: "descadastrado", descadastrado_em: agora, atualizado_em: agora }).eq("id", p.id);
+      await marcarEnvio(s, await envioRecente(s, p.email), "descadastrou_em", "descadastro");
     }
     return { ok: true, email: p.email };
   }
   if (acao === "confirmar") {
     if (a.status === "cancelado") return { ok: false, erro: "Esta inscrição foi cancelada. Assine de novo na página do Radar." };
-    if (a.status !== "ativo") await s.from("radar_assinantes").update({ status: "ativo", confirmado_em: agora, atualizado_em: agora }).eq("id", a.id);
+    if (a.status !== "ativo") {
+      await s.from("radar_assinantes").update({ status: "ativo", confirmado_em: agora, atualizado_em: agora }).eq("id", a.id);
+      // métricas: assinatura confirmada a partir de uma campanha
+      const { data: origem } = await s.from("radar_assinantes").select("campanha_envio_id").eq("id", a.id).maybeSingle().then((r) => r, () => ({ data: null }));
+      let envio: { id: string; campanha_id: string } | null = null;
+      if (origem?.campanha_envio_id) {
+        const { data: e } = await s.from("radar_campanha_envios").select("id, campanha_id").eq("id", origem.campanha_envio_id).maybeSingle();
+        envio = e ?? null;
+      }
+      await marcarEnvio(s, envio ?? (await envioRecente(s, a.email)), "assinou_em", "assinatura");
+    }
   } else if (a.status !== "cancelado") {
     await s.from("radar_assinantes").update({ status: "cancelado", cancelado_em: agora, atualizado_em: agora }).eq("id", a.id);
+    await marcarEnvio(s, await envioRecente(s, a.email), "descadastrou_em", "descadastro");
   }
   return { ok: true, email: a.email };
 }
@@ -631,9 +837,11 @@ const CampanhaSchema = z.object({
 interface Destinatario {
   email: string;
   nome: string | null;
+  associacao?: string | null;
   token: string;
   prospect: boolean;
   prospectId?: string;
+  assinanteId?: string;
 }
 
 /** Quem recebe a campanha. Assinantes: só ativos com aceite. Prospects: só ativos, sem repetir
@@ -641,10 +849,10 @@ interface Destinatario {
 async function destinatariosCampanha(s: SupabaseClient, c: z.infer<typeof CampanhaSchema>): Promise<Destinatario[]> {
   const lista: Destinatario[] = [];
   if (c.publico !== "prospects") {
-    let q = s.from("radar_assinantes").select("id, email, nome, token").eq("status", "ativo").eq("aceite_comunicacoes", true);
+    let q = s.from("radar_assinantes").select("id, email, nome, associacao, token").eq("status", "ativo").eq("aceite_comunicacoes", true);
     if (c.assinante_ids?.length) q = q.in("id", c.assinante_ids);
     const { data } = await q.limit(10000);
-    for (const a of data ?? []) lista.push({ email: a.email, nome: a.nome, token: a.token, prospect: false });
+    for (const a of data ?? []) lista.push({ email: a.email, nome: a.nome, associacao: a.associacao, token: a.token, prospect: false, assinanteId: a.id });
   }
   if (c.publico !== "assinantes") {
     const { data: todosAssinantes } = await s.from("radar_assinantes").select("email").limit(20000);
@@ -656,7 +864,7 @@ async function destinatariosCampanha(s: SupabaseClient, c: z.infer<typeof Campan
       const chave = String(p.email).toLowerCase();
       if (bloqueados.has(chave)) continue;
       bloqueados.add(chave);
-      lista.push({ email: p.email, nome: null, token: p.token, prospect: true, prospectId: p.id });
+      lista.push({ email: p.email, nome: null, associacao: p.associacao, token: p.token, prospect: true, prospectId: p.id });
     }
   }
   return lista;
@@ -771,13 +979,48 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
     .single();
   if (error || !reg) return { ok: false, erro: "Não foi possível registrar a campanha" };
 
+  // métricas: uma linha por destinatário; sem a tabela, a campanha segue sem acompanhamento
+  const { data: linhasEnvio, error: erroEnvios } = await s
+    .from("radar_campanha_envios")
+    .insert(
+      destinatarios.map((d) => ({
+        campanha_id: reg.id,
+        email: d.email.trim().toLowerCase(),
+        nome: d.nome,
+        associacao: d.associacao ?? null,
+        tipo: d.prospect ? "prospect" : "assinante",
+        assinante_id: d.assinanteId ?? null,
+        prospect_id: d.prospectId ?? null,
+      })),
+    )
+    .select("id");
+  if (erroEnvios) console.warn("[radar-newsletter] campanha sem métricas:", erroEnvios.message);
+  const envioIds = !erroEnvios && linhasEnvio?.length === destinatarios.length ? linhasEnvio.map((l) => l.id as string) : null;
+
   let enviados = 0;
   let falhas = 0;
   const erros: string[] = [];
-  const emails = destinatarios.map((d) => montar(d, reg.id));
+  const emails = await Promise.all(
+    destinatarios.map(async (d, i) => {
+      const e = montar(d, reg.id);
+      if (envioIds) e.html = await rastrear(e.html, envioIds[i]);
+      return e;
+    }),
+  );
   for (let i = 0; i < emails.length; i += LOTE) {
     const lote = emails.slice(i, i + LOTE);
     const r = await enviarLote(lote);
+    if (envioIds) {
+      const agora = new Date().toISOString();
+      await Promise.all(
+        envioIds.slice(i, i + LOTE).map((id, k) =>
+          s
+            .from("radar_campanha_envios")
+            .update(r.ok ? { status: "enviado", enviado_em: agora, resend_id: r.ids?.[k] ?? null } : { status: "falhou", erro: (r.erro ?? "falha").slice(0, 500) })
+            .eq("id", id),
+        ),
+      ).catch((err) => console.warn("[radar-newsletter] métrica:", (err as Error).message));
+    }
     if (r.ok) {
       enviados += lote.length;
       const ids = destinatarios.slice(i, i + LOTE).map((d) => d.prospectId).filter(Boolean) as string[];
@@ -813,6 +1056,12 @@ Deno.serve(async (req) => {
       const r = await mudarStatus(url.searchParams.get("t"), "cancelar");
       return json(r, r.ok ? 200 : 400);
     }
+    // métricas das campanhas: pixel de abertura e redirecionamento de clique
+    if (req.method === "GET") {
+      const r = await tratarGet(req, url);
+      if (r) return r;
+    }
+    if (req.method === "POST" && url.searchParams.get("acao") === "resend") return await webhookResend(req);
     if (req.method !== "POST") return json({ error: "Método não suportado" }, 405);
 
     // deno-lint-ignore no-explicit-any

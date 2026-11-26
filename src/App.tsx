@@ -80,6 +80,7 @@ const AssinarContrato = lazyWithRetry(() => import("./pages/AssinarContrato"));
 const Proposta = lazyWithRetry(() => import("./pages/Proposta"));
 const RadarPublico = lazyWithRetry(() => import("./pages/RadarPublico"));
 const RadarGestao = lazyWithRetry(() => import("./pages/RadarGestao"));
+const RadarCampanha = lazyWithRetry(() => import("./pages/RadarCampanha"));
 const RadarNewsletter = lazyWithRetry(() => import("./pages/RadarNewsletter"));
 const ValidarDocumento = lazyWithRetry(() => import("./pages/ValidarDocumento"));
 const Uon1Trust = lazyWithRetry(() => import("./pages/Uon1Trust"));
@@ -335,6 +336,7 @@ const App = () => (
                 <Route path="/whatsapp-flows" element={<Navigate to="/central-atendimento" replace />} />
                 <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
                 <Route path="/radar/gestao" element={<ProtectedRoute><RadarGestao /></ProtectedRoute>} />
+              <Route path="/radar/gestao/campanhas/:id" element={<ProtectedRoute><RadarCampanha /></ProtectedRoute>} />
                 <Route path="/configuracoes" element={<ProtectedRoute><ConfiguracoesRoute><Configuracoes /></ConfiguracoesRoute></ProtectedRoute>} />
                 <Route path="/reportar-problema" element={<ProtectedRoute><ReportarProblema /></ProtectedRoute>} />
                 <Route path="/sga" element={<ProtectedRoute><SGABusca /></ProtectedRoute>} />
