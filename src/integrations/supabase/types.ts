@@ -8465,12 +8465,15 @@ export type Database = {
           erro: string | null
           falhas: number
           id: string
+          limite_diario: number | null
           mensagem: string
           noticias: Json
+          pendentes: number
           prospects: number
           publico: string
           status: string
           titulo: string
+          ultimo_lote_em: string | null
         }
         Insert: {
           assinantes?: number
@@ -8485,12 +8488,15 @@ export type Database = {
           erro?: string | null
           falhas?: number
           id?: string
+          limite_diario?: number | null
           mensagem: string
           noticias?: Json
+          pendentes?: number
           prospects?: number
           publico?: string
           status?: string
           titulo: string
+          ultimo_lote_em?: string | null
         }
         Update: {
           assinantes?: number
@@ -8505,12 +8511,39 @@ export type Database = {
           erro?: string | null
           falhas?: number
           id?: string
+          limite_diario?: number | null
           mensagem?: string
           noticias?: Json
+          pendentes?: number
           prospects?: number
           publico?: string
           status?: string
           titulo?: string
+          ultimo_lote_em?: string | null
+        }
+        Relationships: []
+      }
+      radar_envio_config: {
+        Row: {
+          atualizado_em: string
+          atualizado_por: string | null
+          cota_diaria: number
+          id: number
+          reserva: number
+        }
+        Insert: {
+          atualizado_em?: string
+          atualizado_por?: string | null
+          cota_diaria?: number
+          id?: number
+          reserva?: number
+        }
+        Update: {
+          atualizado_em?: string
+          atualizado_por?: string | null
+          cota_diaria?: number
+          id?: number
+          reserva?: number
         }
         Relationships: []
       }
@@ -8618,13 +8651,16 @@ export type Database = {
           assinante_id: string | null
           cidade: string | null
           criado_em: string
+          descartada: boolean
           dispositivo: string | null
           id: number
           ip_hash: string | null
+          motivo_descarte: string | null
           navegador: string | null
           origem: string | null
           pagina: string
           pais: string | null
+          provedor: string | null
           referencia: string | null
           uf: string | null
           utm_campaign: string | null
@@ -8635,13 +8671,16 @@ export type Database = {
           assinante_id?: string | null
           cidade?: string | null
           criado_em?: string
+          descartada?: boolean
           dispositivo?: string | null
           id?: number
           ip_hash?: string | null
+          motivo_descarte?: string | null
           navegador?: string | null
           origem?: string | null
           pagina?: string
           pais?: string | null
+          provedor?: string | null
           referencia?: string | null
           uf?: string | null
           utm_campaign?: string | null
@@ -8652,13 +8691,16 @@ export type Database = {
           assinante_id?: string | null
           cidade?: string | null
           criado_em?: string
+          descartada?: boolean
           dispositivo?: string | null
           id?: number
           ip_hash?: string | null
+          motivo_descarte?: string | null
           navegador?: string | null
           origem?: string | null
           pagina?: string
           pais?: string | null
+          provedor?: string | null
           referencia?: string | null
           uf?: string | null
           utm_campaign?: string | null
