@@ -616,6 +616,8 @@ const CampanhaSchema = z.object({
   titulo: z.string().trim().min(3, "Escreva o título").max(150),
   mensagem: z.string().trim().min(10, "Escreva a mensagem").max(5000),
   noticia_ids: z.array(z.string().uuid()).max(10).default([]),
+  /** comunicados "interno e externo" escolhidos; somados às notícias, até 10 */
+  comunicado_ids: z.array(z.string().uuid()).max(10).default([]),
   botao_texto: z.string().trim().max(40).optional().nullable(),
   botao_url: z.string().trim().url("Link do botão inválido").max(500).optional().nullable().or(z.literal("")),
   /** assinantes (padrão), prospects ou todos */
@@ -677,6 +679,31 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
     const porId = new Map((data ?? []).map((n) => [n.id, n as Noticia]));
     noticias = c.noticia_ids.map((id) => porId.get(id)).filter(Boolean) as Noticia[];
   }
+  if (c.noticia_ids.length + c.comunicado_ids.length > 10) return { ok: false, erro: "Escolha até 10 notícias e comunicados" };
+  if (c.comunicado_ids.length) {
+    // só comunicados ativos e marcados como "interno e externo" saem para fora
+    const { data } = await s
+      .from("comunicados")
+      .select("id, titulo, mensagem, link, created_at")
+      .in("id", c.comunicado_ids)
+      .eq("ativo", true)
+      .eq("publico", true);
+    const porId = new Map((data ?? []).map((m) => [m.id, m]));
+    const escolhidos: Noticia[] = c.comunicado_ids
+      .map((id) => porId.get(id))
+      .filter(Boolean)
+      .map((m) => ({
+        titulo: m!.titulo,
+        link: m!.link,
+        origem: "Vangard Gestora",
+        categoria: "comunicado",
+        publicado_em: m!.created_at,
+        resumo: m!.mensagem,
+        imagem: null,
+      }) as Noticia);
+    // comunicados primeiro, depois as notícias na ordem escolhida
+    noticias = [...escolhidos, ...noticias];
+  }
 
   const base = {
     titulo: c.titulo,
@@ -731,7 +758,7 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
       assunto: c.assunto,
       titulo: c.titulo,
       mensagem: c.mensagem,
-      noticias: c.noticia_ids,
+      noticias: [...c.comunicado_ids, ...c.noticia_ids],
       botao_texto: c.botao_texto || null,
       botao_url: c.botao_url || null,
       criado_por: admin.id,

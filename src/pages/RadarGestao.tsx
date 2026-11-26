@@ -601,6 +601,7 @@ export default function RadarGestao() {
 }
 
 type Publico = "assinantes" | "prospects" | "todos";
+type ItemCampanha = { tipo: "noticia" | "comunicado"; id: string; titulo: string; origem: string; data: string };
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
 function NovaCampanha({
@@ -627,16 +628,45 @@ function NovaCampanha({
   const [noticias, setNoticias] = useState<string[]>([]);
   const [confirmando, setConfirmando] = useState(false);
 
+  const [comunicados, setComunicados] = useState<string[]>([]);
+  const totalItens = noticias.length + comunicados.length;
+
+  // notícias coletadas e comunicados "interno e externo" na mesma lista, do mais novo para o mais antigo
   const recentes = useQuery({
     queryKey: ["radar_gestao_noticias_recentes"],
     queryFn: async () => {
-      const { data } = await db
-        .from("mercado_noticias")
-        .select("id, titulo, origem, publicado_em")
-        .eq("oculto", false)
-        .order("publicado_em", { ascending: false })
-        .limit(20);
-      return (data ?? []) as { id: string; titulo: string; origem: string | null; publicado_em: string }[];
+      const [not, com] = await Promise.all([
+        db
+          .from("mercado_noticias")
+          .select("id, titulo, origem, publicado_em")
+          .eq("oculto", false)
+          .order("publicado_em", { ascending: false })
+          .limit(20),
+        db
+          .from("comunicados")
+          .select("id, titulo, created_at")
+          .eq("ativo", true)
+          .eq("publico", true)
+          .order("created_at", { ascending: false })
+          .limit(20),
+      ]);
+      const itens: ItemCampanha[] = [
+        ...((not.data ?? []) as { id: string; titulo: string; origem: string | null; publicado_em: string }[]).map((n) => ({
+          tipo: "noticia" as const,
+          id: n.id,
+          titulo: n.titulo,
+          origem: n.origem ?? "",
+          data: n.publicado_em,
+        })),
+        ...((com.data ?? []) as { id: string; titulo: string; created_at: string }[]).map((c) => ({
+          tipo: "comunicado" as const,
+          id: c.id,
+          titulo: c.titulo,
+          origem: "Comunicado Vangard",
+          data: c.created_at,
+        })),
+      ];
+      return itens.sort((a, b) => b.data.localeCompare(a.data));
     },
   });
 
@@ -646,6 +676,7 @@ function NovaCampanha({
     titulo,
     mensagem,
     noticia_ids: noticias,
+    comunicado_ids: comunicados,
     botao_texto: botaoTexto.trim() || null,
     botao_url: botaoUrl.trim() || null,
     publico,
@@ -665,6 +696,7 @@ function NovaCampanha({
       setBotaoTexto("");
       setBotaoUrl("");
       setNoticias([]);
+      setComunicados([]);
       onLimparSelecao();
       onEnviada();
     },
@@ -757,7 +789,7 @@ function NovaCampanha({
         </div>
 
         <div className="space-y-1.5">
-          <Label>Incluir notícias do Radar (opcional, até 10)</Label>
+          <Label>Incluir notícias e comunicados do Radar (opcional, até 10)</Label>
           <div className="rounded-2xl border border-border/60 max-h-[420px] overflow-y-auto divide-y divide-border/40">
             {recentes.isLoading ? (
               <div className="p-4 text-center">
@@ -765,19 +797,26 @@ function NovaCampanha({
               </div>
             ) : (
               (recentes.data ?? []).map((n) => {
-                const marcada = noticias.includes(n.id);
+                const lista = n.tipo === "comunicado" ? comunicados : noticias;
+                const definir = n.tipo === "comunicado" ? setComunicados : setNoticias;
+                const marcada = lista.includes(n.id);
                 return (
-                  <label key={n.id} className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/40 ${marcada ? "bg-primary/5" : ""}`}>
+                  <label key={`${n.tipo}-${n.id}`} className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/40 ${marcada ? "bg-primary/5" : ""}`}>
                     <Checkbox
                       checked={marcada}
-                      disabled={!marcada && noticias.length >= 10}
-                      onCheckedChange={(v) => setNoticias((s) => (v === true ? [...s, n.id] : s.filter((x) => x !== n.id)))}
+                      disabled={!marcada && totalItens >= 10}
+                      onCheckedChange={(v) => definir((s) => (v === true ? [...s, n.id] : s.filter((x) => x !== n.id)))}
                       className="mt-0.5"
                     />
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium leading-snug line-clamp-2">{n.titulo}</span>
+                      <span className="block text-sm font-medium leading-snug line-clamp-2">
+                        {n.tipo === "comunicado" && (
+                          <span className="mr-1.5 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 align-middle text-[10px] font-semibold uppercase text-amber-700">Comunicado</span>
+                        )}
+                        {n.titulo}
+                      </span>
                       <span className="block text-xs text-muted-foreground">
-                        {n.origem}, {format(parseISO(n.publicado_em), "dd/MM/yyyy")}
+                        {n.origem}, {format(parseISO(n.data), "dd/MM/yyyy")}
                       </span>
                     </span>
                   </label>

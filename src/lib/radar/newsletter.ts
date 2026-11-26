@@ -102,6 +102,8 @@ export interface Campanha {
   titulo: string;
   mensagem: string;
   noticia_ids: string[];
+  /** comunicados "interno e externo" (somados às notícias, até 10) */
+  comunicado_ids?: string[];
   botao_texto?: string | null;
   botao_url?: string | null;
   /** assinantes (padrão), prospects ou todos */
