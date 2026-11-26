@@ -192,16 +192,20 @@ const RODAPE_ASSINANTE = `Você recebe este e-mail porque assinou a newsletter d
 const RODAPE_PROSPECT = `Você recebe este e-mail da Vangard Gestora porque sua associação atua em proteção veicular e este contato está publicado em canais institucionais.<br>
     Não quer receber? <a href="{{link_cancelar}}" style="color:#64748b;text-decoration:underline;">Descadastre-se</a> e não enviaremos mais.`;
 
-/** Campanha avulsa: título, texto livre, botão e matérias escolhidas. O rodapé muda para quem é prospect (não assinou). */
+/**
+ * Campanha avulsa, no mesmo layout da newsletter de novidades: selo com a data, título,
+ * saudação + texto, matérias/comunicados escolhidos e o botão (por padrão, inscrição no
+ * Radar). O rodapé muda para quem é prospect (não assinou).
+ */
 export function emailCampanha(c: { titulo: string; mensagem: string; botaoTexto?: string | null; botaoUrl?: string | null; noticias: string; prospect?: boolean }) {
   const paragrafos = c.mensagem
     .trim()
     .split(/\n{2,}/)
-    .map((p) => `<p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:#475569;">${esc(p).replace(/\n/g, "<br>")}</p>`)
+    .map((p, i) => `    <p style="margin:0 0 ${i ? 14 : 20}px;font-size:14px;line-height:1.7;color:#475569;">${i ? "" : "Olá{{saudacao}}. "}${esc(p).replace(/\n/g, "<br>")}</p>`)
     .join("\n");
   const botao =
     c.botaoTexto && c.botaoUrl
-      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 6px;">
+      ? `    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;">
       <tr><td align="center" style="background:#362C89;border-radius:14px;">
         <a href="${esc(c.botaoUrl)}" style="display:block;padding:16px;font-size:16px;font-weight:800;color:#ffffff;text-decoration:none;">${esc(c.botaoTexto)}</a>
       </td></tr>
@@ -210,14 +214,18 @@ export function emailCampanha(c: { titulo: string; mensagem: string; botaoTexto?
   return casca(
     esc(c.titulo),
     "📡 Radar do mercado",
-    `    <p style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:600;color:#0f172a;">${esc(c.titulo)}</p>
-    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:#475569;">Olá{{saudacao}}.</p>
+    `    <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#FF5515;">${c.noticias ? "Novidades de {{data}}" : "Vangard Gestora · {{data}}"}</div>
+
+    <p style="margin:10px 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:600;color:#0f172a;">${esc(c.titulo)}</p>
+
 ${paragrafos}
+
+${c.noticias}
+
 ${botao}
-${c.noticias ? `<div style="margin-top:18px;">${c.noticias}</div>` : ""}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
       <tr><td align="center" style="border:1px solid #dbe3f3;border-radius:14px;">
-        <a href="{{link_radar}}" style="display:block;padding:14px;font-size:14px;font-weight:700;color:#362C89;text-decoration:none;">Ver o Radar do mercado</a>
+        <a href="{{link_radar}}" style="display:block;padding:14px;font-size:14px;font-weight:700;color:#362C89;text-decoration:none;">Ver o Radar completo</a>
       </td></tr>
     </table>`,
     c.prospect ? RODAPE_PROSPECT : RODAPE_ASSINANTE,

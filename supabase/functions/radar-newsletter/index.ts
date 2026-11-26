@@ -710,7 +710,7 @@ async function campanha(admin: { id: string; email: string }, body: unknown) {
     mensagem: c.mensagem,
     botaoTexto: c.botao_texto || null,
     botaoUrl: c.botao_url || null,
-    noticias: "{{noticias}}",
+    noticias: noticias.length ? "{{noticias}}" : "",
   };
   const htmlAssinante = emailCampanha(base);
   const htmlProspect = emailCampanha({ ...base, prospect: true });

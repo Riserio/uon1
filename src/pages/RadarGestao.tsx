@@ -602,6 +602,43 @@ export default function RadarGestao() {
 
 type Publico = "assinantes" | "prospects" | "todos";
 type ItemCampanha = { tipo: "noticia" | "comunicado"; id: string; titulo: string; origem: string; data: string };
+type CampoTexto = "assunto" | "titulo" | "mensagem";
+
+/** Botão padrão da campanha: convite para assinar o Radar do mercado. */
+const BOTAO_PADRAO = {
+  texto: "Inscreva-se no Radar do mercado",
+  url: `${urlPublica()}/radar/newsletter?utm_source=campanha`,
+};
+
+const corta = (t: string, max: number) => (t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t);
+
+/** Assunto, título e mensagem no padrão da newsletter, a partir dos itens escolhidos. */
+function textoAutomatico(itens: ItemCampanha[]): Record<CampoTexto, string> {
+  if (!itens.length) return { assunto: "", titulo: "", mensagem: "" };
+  const hoje = format(new Date(), "dd/MM/yyyy");
+  const qtdComunicados = itens.filter((i) => i.tipo === "comunicado").length;
+  const qtdNoticias = itens.length - qtdComunicados;
+  if (itens.length === 1) {
+    const [i] = itens;
+    return {
+      assunto: corta(`Radar do mercado: ${i.titulo}`, 150),
+      titulo: corta(i.titulo, 150),
+      mensagem:
+        i.tipo === "comunicado"
+          ? "Separamos um comunicado da Vangard Gestora para você. Toque no item abaixo para saber mais."
+          : "Separamos uma publicação recente sobre proteção patrimonial mutualista e proteção veicular. Toque na matéria abaixo para ler no site de origem.",
+    };
+  }
+  const partes = [
+    qtdNoticias && plural(qtdNoticias, "publicação recente de órgãos oficiais e do setor", "publicações recentes de órgãos oficiais e do setor"),
+    qtdComunicados && plural(qtdComunicados, "comunicado da Vangard Gestora", "comunicados da Vangard Gestora"),
+  ].filter(Boolean);
+  return {
+    assunto: `Radar do mercado: ${itens.length} novidades de ${hoje}`,
+    titulo: `${itens.length} novidades no Radar`,
+    mensagem: `Reunimos ${partes.join(" e ")} sobre proteção patrimonial mutualista e proteção veicular. Toque em um item para ler na íntegra.`,
+  };
+}
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
 function NovaCampanha({
@@ -623,8 +660,10 @@ function NovaCampanha({
   const [assunto, setAssunto] = useState("");
   const [titulo, setTitulo] = useState("");
   const [mensagem, setMensagem] = useState("");
-  const [botaoTexto, setBotaoTexto] = useState("");
-  const [botaoUrl, setBotaoUrl] = useState("");
+  const [botaoTexto, setBotaoTexto] = useState(BOTAO_PADRAO.texto);
+  const [botaoUrl, setBotaoUrl] = useState(BOTAO_PADRAO.url);
+  // campos que a pessoa escreveu à mão não são sobrescritos pelo texto automático
+  const [editados, setEditados] = useState<Record<CampoTexto, boolean>>({ assunto: false, titulo: false, mensagem: false });
   const [noticias, setNoticias] = useState<string[]>([]);
   const [confirmando, setConfirmando] = useState(false);
 
@@ -670,6 +709,26 @@ function NovaCampanha({
     },
   });
 
+  /** Marca/desmarca um item e refaz o texto automático (assunto, título, mensagem) dos campos não editados. */
+  const alternar = (item: ItemCampanha, marcar: boolean) => {
+    const muda = (s: string[]) => (marcar ? [...s, item.id] : s.filter((x) => x !== item.id));
+    const novasNoticias = item.tipo === "noticia" ? muda(noticias) : noticias;
+    const novosComunicados = item.tipo === "comunicado" ? muda(comunicados) : comunicados;
+    setNoticias(novasNoticias);
+    setComunicados(novosComunicados);
+    const ids = new Set([...novasNoticias, ...novosComunicados]);
+    const escolhidos = (recentes.data ?? []).filter((i) => ids.has(i.id));
+    const auto = textoAutomatico(escolhidos);
+    if (!editados.assunto) setAssunto(auto.assunto);
+    if (!editados.titulo) setTitulo(auto.titulo);
+    if (!editados.mensagem) setMensagem(auto.mensagem);
+  };
+  const editar = (campo: CampoTexto, valor: string, definir: (v: string) => void) => {
+    definir(valor);
+    // campo apagado volta a receber o texto automático
+    setEditados((e) => ({ ...e, [campo]: valor.trim().length > 0 }));
+  };
+
   const dados = (teste: boolean) => ({
     teste,
     assunto,
@@ -693,8 +752,9 @@ function NovaCampanha({
       setAssunto("");
       setTitulo("");
       setMensagem("");
-      setBotaoTexto("");
-      setBotaoUrl("");
+      setEditados({ assunto: false, titulo: false, mensagem: false });
+      setBotaoTexto(BOTAO_PADRAO.texto);
+      setBotaoUrl(BOTAO_PADRAO.url);
       setNoticias([]);
       setComunicados([]);
       onLimparSelecao();
@@ -766,15 +826,15 @@ function NovaCampanha({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="c-assunto">Assunto do e-mail</Label>
-            <Input id="c-assunto" value={assunto} onChange={(e) => setAssunto(e.target.value)} maxLength={150} placeholder="Ex.: Vangard na Fenaprove 2026" />
+            <Input id="c-assunto" value={assunto} onChange={(e) => editar("assunto", e.target.value, setAssunto)} maxLength={150} placeholder="Ex.: Vangard na Fenaprove 2026" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="c-titulo">Título</Label>
-            <Input id="c-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={150} placeholder="Título que aparece no topo do e-mail" />
+            <Input id="c-titulo" value={titulo} onChange={(e) => editar("titulo", e.target.value, setTitulo)} maxLength={150} placeholder="Título que aparece no topo do e-mail" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="c-msg">Mensagem</Label>
-            <Textarea id="c-msg" value={mensagem} onChange={(e) => setMensagem(e.target.value)} maxLength={5000} rows={8} placeholder="Escreva o texto. Linha em branco separa os parágrafos." />
+            <Textarea id="c-msg" value={mensagem} onChange={(e) => editar("mensagem", e.target.value, setMensagem)} maxLength={5000} rows={8} placeholder="Escreva o texto. Linha em branco separa os parágrafos." />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -786,10 +846,29 @@ function NovaCampanha({
               <Input id="c-url" value={botaoUrl} onChange={(e) => setBotaoUrl(e.target.value)} maxLength={500} placeholder="https://" />
             </div>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            Por padrão o botão leva à inscrição no Radar do mercado. Troque o texto e o link se quiser outro destino; apague os dois para enviar sem botão.
+            {(botaoTexto !== BOTAO_PADRAO.texto || botaoUrl !== BOTAO_PADRAO.url) && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="font-semibold text-primary hover:underline"
+                  onClick={() => {
+                    setBotaoTexto(BOTAO_PADRAO.texto);
+                    setBotaoUrl(BOTAO_PADRAO.url);
+                  }}
+                >
+                  Voltar ao padrão
+                </button>
+              </>
+            )}
+          </p>
         </div>
 
         <div className="space-y-1.5">
           <Label>Incluir notícias e comunicados do Radar (opcional, até 10)</Label>
+          <p className="text-[11px] text-muted-foreground">Ao marcar, assunto, título e mensagem são preenchidos no padrão da newsletter. O que você escrever à mão é mantido.</p>
           <div className="rounded-2xl border border-border/60 max-h-[420px] overflow-y-auto divide-y divide-border/40">
             {recentes.isLoading ? (
               <div className="p-4 text-center">
@@ -798,14 +877,13 @@ function NovaCampanha({
             ) : (
               (recentes.data ?? []).map((n) => {
                 const lista = n.tipo === "comunicado" ? comunicados : noticias;
-                const definir = n.tipo === "comunicado" ? setComunicados : setNoticias;
                 const marcada = lista.includes(n.id);
                 return (
                   <label key={`${n.tipo}-${n.id}`} className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/40 ${marcada ? "bg-primary/5" : ""}`}>
                     <Checkbox
                       checked={marcada}
                       disabled={!marcada && totalItens >= 10}
-                      onCheckedChange={(v) => definir((s) => (v === true ? [...s, n.id] : s.filter((x) => x !== n.id)))}
+                      onCheckedChange={(v) => alternar(n, v === true)}
                       className="mt-0.5"
                     />
                     <span className="min-w-0">
